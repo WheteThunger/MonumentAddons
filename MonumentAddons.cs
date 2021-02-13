@@ -21,7 +21,7 @@ namespace Oxide.Plugins
         private const float MaxRaycastDistance = 20;
         private const float MaxDistanceForEqualityCheck = 0.01f;
 
-        private const string PermissionUse = "monumentaddons.admin";
+        private const string PermissionAdmin = "monumentaddons.admin";
 
         private static readonly int HitLayers = Rust.Layers.Mask.Construction
             + Rust.Layers.Mask.Default
@@ -43,7 +43,7 @@ namespace Oxide.Plugins
             _pluginInstance = this;
             _pluginData = StoredData.Load();
 
-            permission.RegisterPermission(PermissionUse, this);
+            permission.RegisterPermission(PermissionAdmin, this);
         }
 
         private void Unload()
@@ -87,7 +87,7 @@ namespace Oxide.Plugins
             if (player.IsServer)
                 return;
 
-            if (!player.HasPermission(PermissionUse))
+            if (!player.HasPermission(PermissionAdmin))
             {
                 ReplyToPlayer(player, "Error.NoPermission");
                 return;
@@ -163,7 +163,7 @@ namespace Oxide.Plugins
             if (player.IsServer)
                 return;
 
-            if (!player.HasPermission(PermissionUse))
+            if (!player.HasPermission(PermissionAdmin))
             {
                 ReplyToPlayer(player, "Error.NoPermission");
                 return;
