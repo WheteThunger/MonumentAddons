@@ -10,7 +10,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("Monument Addons", "WhiteThunder", "0.1.0")]
+    [Info("Monument Addons", "WhiteThunder", "0.1.1")]
     [Description("Allows privileged players to add permanent entities to monuments.")]
     internal class MonumentAddons : CovalencePlugin
     {
@@ -66,6 +66,15 @@ namespace Oxide.Plugins
             ImmortalProtection.Add(1);
 
             SpawnSavedEntities();
+        }
+
+        // This hook is exposed by plugin: Remover Tool (RemoverTool).
+        private object canRemove(BasePlayer player, BaseEntity entity)
+        {
+            if (_spawnedEntityIds.Contains(entity.net.ID))
+                return false;
+
+            return null;
         }
 
         #endregion
@@ -302,10 +311,6 @@ namespace Oxide.Plugins
         {
             var position = monument.transform.TransformPoint(entityData.Position);
             var rotation = Quaternion.Euler(0, monument.transform.rotation.eulerAngles.y - entityData.RotationAngle, 0);
-            // var rotation = Quaternion.Euler(0, entityData.RotationAngle, 0);
-            // var rotation = monument.transform.rotation * Quaternion.Euler(0, -entityData.RotationAngle, 0);
-
-            // Puts($"{entityData.RotationAngle}, {monument.transform.rotation.eulerAngles.y}");
 
             var entity = GameManager.server.CreateEntity(entityData.PrefabName, position, rotation);
             if (entity == null)
@@ -314,12 +319,13 @@ namespace Oxide.Plugins
             // In case the plugin doesn't clean it up on server shutdown, make sure it doesn't come back so it's not duplicated.
             entity.enableSaving = false;
 
-            // Make BaseCombatEntities invincible.
             var combatEntity = entity as BaseCombatEntity;
             if (combatEntity != null)
+            {
                 combatEntity.baseProtection = ImmortalProtection;
+                combatEntity.pickup.enabled = false;
+            }
 
-            // Turn on electrical entities.
             var ioEntity = entity as IOEntity;
             if (ioEntity != null)
             {

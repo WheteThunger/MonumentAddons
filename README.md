@@ -3,19 +3,30 @@
 - Allows privileged players to spawn entities at monuments
 - Automatically saves spawned entities and restores them on plugin reload
 - Saves positions relative to monuments, allowing them to work across multiple map seeds
-- Prevents all damage to spawned entities
-- Provides free power to spawned electrical entities
+- Prevents pickup, all damage, and provides free electricity to spawned entities
 
 ### Example entities
 
+Defense:
+- `sentry.{bandit|scientist}`
+- `watchtower`
+
+Utility:
+- `modularcarlift.static`
+- `computerstation`
 - `recycler_static`
 - `repairbench_static`
 - `workbench{1|2}.static`
 - `workbench{1|2|3}.deployed`
+
+Role play:
+- `ceilinglight`
+- `simplelight`
+- `fireplace`
 - `chair.static`
 - `bbq.static`
-- `sentry.{bandit|scientist}`
-- `watchtower`
+- `drumkit.deployed.static`
+- `piano.deployed.static`
 
 ## Commands
 
@@ -49,10 +60,6 @@
   "Kill.Success": "Entity killed and removed from data file."
 }
 ```
-
-## Known issues
-
-- Some deployable entities can be picked up, such as mixing tables
 
 ## Uninstallation
 
