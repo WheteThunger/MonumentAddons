@@ -18,6 +18,7 @@ Utility:
 - `repairbench_static`
 - `workbench{1|2}.static`
 - `workbench{1|2|3}.deployed`
+- `researchtable_static`
 
 Role play:
 - `ceilinglight`
@@ -25,12 +26,21 @@ Role play:
 - `fireplace`
 - `chair.static`
 - `bbq.static`
+- `sofa.deployed`
+- `sign.post.town`
+- `sign.post.town.roof`
+
+Fun:
+- `arcademachine`
+- `xmas_tree.deployed`
 - `drumkit.deployed.static`
 - `piano.deployed.static`
+- `paddlingpool`
+- `abovegroundpool`
 
 ## Commands
 
-- `maspawn <entity>` -- Spawn an entity where you are aiming. Works just like the native `spawn` command.
+- `maspawn <entity>` -- Spawn an entity where you are aiming. Works just like the native `spawn` command. Must be at a monument.
   - This saves the entity to the plugin data file so that reloading the plugin will respawn the entity.
   - Tip: When figuring out the placement for a deployable entity, pull out the corresponding item, rotate it 180 degrees, then use it as a guide before running the command.
 - `makill` -- Kills the spawned entity that the player is looking at. Only works on entities that were spawned by this plugin.
