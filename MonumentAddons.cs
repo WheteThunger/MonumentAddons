@@ -3,9 +3,11 @@ using Newtonsoft.Json.Serialization;
 using Oxide.Core;
 using Oxide.Core.Libraries.Covalence;
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Text;
 using UnityEngine;
 
 namespace Oxide.Plugins
@@ -20,6 +22,7 @@ namespace Oxide.Plugins
 
         private const float MaxRaycastDistance = 20;
         private const float MaxDistanceForEqualityCheck = 0.01f;
+        private const float SpawnDelayPerEntity = 0.05f;
 
         private const string PermissionAdmin = "monumentaddons.admin";
 
@@ -33,6 +36,7 @@ namespace Oxide.Plugins
 
         private ProtectionProperties ImmortalProtection;
         private StoredData _pluginData;
+        private Coroutine _spawnCoroutine;
 
         #endregion
 
@@ -48,6 +52,8 @@ namespace Oxide.Plugins
 
         private void Unload()
         {
+            ServerMgr.Instance.StopCoroutine(_spawnCoroutine);
+
             foreach (var entityId in _spawnedEntityIds)
             {
                 var entity = BaseNetworkable.serverEntities.Find(entityId);
@@ -65,7 +71,7 @@ namespace Oxide.Plugins
             ImmortalProtection.name = "MonumentAddonsProtection";
             ImmortalProtection.Add(1);
 
-            SpawnSavedEntities();
+            _spawnCoroutine = ServerMgr.Instance.StartCoroutine(SpawnSavedEntities());
         }
 
         // This hook is exposed by plugin: Remover Tool (RemoverTool).
@@ -282,9 +288,14 @@ namespace Oxide.Plugins
             return closestMonument;
         }
 
-        private void SpawnSavedEntities()
+        private IEnumerator SpawnSavedEntities()
         {
-            var spawnReport = "Spawned Entities:";
+            var spawnDelay = Rust.Application.isLoading ? 0 : SpawnDelayPerEntity;
+            if (spawnDelay > 0)
+                Puts($"Spawning entities with {SpawnDelayPerEntity}s delay after each one...");
+
+            var sb = new StringBuilder();
+            sb.AppendLine("Spawned Entities:");
 
             foreach (var monument in TerrainMeta.Path.Monuments)
             {
@@ -300,11 +311,12 @@ namespace Oxide.Plugins
                 foreach (var entityData in entityDataList)
                 {
                     var entity = SpawnEntity(entityData, monument);
-                    spawnReport += $"\n - {monumentShortName}: {entity.ShortPrefabName} at {entity.transform.position}";
+                    sb.AppendLine($" - {monumentShortName}: {entity.ShortPrefabName} at {entity.transform.position}");
+                    yield return new WaitForSeconds(spawnDelay);
                 }
             }
 
-            Puts(spawnReport);
+            Puts(sb.ToString());
         }
 
         private BaseEntity SpawnEntity(EntityData entityData, MonumentInfo monument)
