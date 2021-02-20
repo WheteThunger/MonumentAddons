@@ -5,39 +5,6 @@
 - Saves positions relative to monuments, allowing them to work across multiple map seeds
 - Prevents pickup, all damage, and provides free electricity to spawned entities
 
-### Example entities
-
-Defense:
-- `sentry.{bandit|scientist}`
-- `watchtower`
-
-Utility:
-- `modularcarlift.static`
-- `computerstation`
-- `recycler_static`
-- `repairbench_static`
-- `workbench{1|2}.static`
-- `workbench{1|2|3}.deployed`
-- `researchtable_static`
-
-Role play:
-- `ceilinglight`
-- `simplelight`
-- `fireplace`
-- `chair.static`
-- `bbq.static`
-- `sofa.deployed`
-- `sign.post.town`
-- `sign.post.town.roof`
-
-Fun:
-- `arcademachine`
-- `xmas_tree.deployed`
-- `drumkit.deployed.static`
-- `piano.deployed.static`
-- `paddlingpool`
-- `abovegroundpool`
-
 ## Commands
 
 - `maspawn <entity>` -- Spawn an entity where you are aiming. Works just like the native `spawn` command. Must be at a monument.
@@ -76,3 +43,42 @@ Fun:
 Simply remove the plugin. Spawned entities are automatically killed when the plugin unloads.
 
 If you reinstall the plugin, you may want to delete the data file beforehand or entities will spawn in the positions you previously configured.
+
+## Example entities
+
+Structure/Defense:
+- `sentry.{bandit|scientist}`
+- `samsite.static`
+- `watchtower`
+- `door_barricade_{*}`
+- `barricade.{*}`
+
+Utility:
+- `modularcarlift.static`
+- `computerstation`
+- `recycler_static`
+- `repairbench_static`
+- `workbench{1|2}.static`
+- `workbench{1|2|3}.deployed`
+- `researchtable_static`
+- `npcvendingmachine_{*}"`
+
+Role play:
+- `ceilinglight`
+- `simplelight`
+- `fireplace`
+- `chair.static`
+- `bbq.static`
+- `sofa.deployed`
+- `sign.post.town`
+- `sign.post.town.roof`
+- `phonebooth.static`
+- `telephone.deployed`
+
+Fun:
+- `arcademachine`
+- `xmas_tree.deployed`
+- `drumkit.deployed.static`
+- `piano.deployed.static`
+- `paddlingpool`
+- `abovegroundpool`
