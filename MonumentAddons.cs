@@ -52,7 +52,8 @@ namespace Oxide.Plugins
 
         private void Unload()
         {
-            ServerMgr.Instance.StopCoroutine(_spawnCoroutine);
+            if (_spawnCoroutine != null)
+                ServerMgr.Instance.StopCoroutine(_spawnCoroutine);
 
             foreach (var entityId in _spawnedEntityIds)
             {
