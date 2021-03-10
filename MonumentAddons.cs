@@ -12,7 +12,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("Monument Addons", "WhiteThunder", "0.2.0")]
+    [Info("Monument Addons", "WhiteThunder", "0.3.0")]
     [Description("Allows privileged players to add permanent entities to monuments.")]
     internal class MonumentAddons : CovalencePlugin
     {
@@ -34,10 +34,26 @@ namespace Oxide.Plugins
 
         private static readonly Dictionary<string, Quaternion> StationRotations = new Dictionary<string, Quaternion>()
         {
+            ["station-sn-0"] = Quaternion.Euler(0, 180, 0),
+            ["station-sn-1"] = Quaternion.identity,
             ["station-sn-2"] = Quaternion.Euler(0, 180, 0),
             ["station-sn-3"] = Quaternion.identity,
+            ["station-we-0"] = Quaternion.Euler(0, 90, 0),
+            ["station-we-1"] = Quaternion.Euler(0, -90, 0),
             ["station-we-2"] = Quaternion.Euler(0, 90, 0),
             ["station-we-3"] = Quaternion.Euler(0, -90, 0),
+        };
+
+        private static readonly Dictionary<string, string> MonumentAliases = new Dictionary<string, string>()
+        {
+            ["station-sn-0"] = "station-*",
+            ["station-sn-1"] = "station-*",
+            ["station-sn-2"] = "station-*",
+            ["station-sn-3"] = "station-*",
+            ["station-we-0"] = "station-*",
+            ["station-we-1"] = "station-*",
+            ["station-we-2"] = "station-*",
+            ["station-we-3"] = "station-*",
         };
 
         private readonly List<uint> _spawnedEntityIds = new List<uint>();
@@ -149,7 +165,7 @@ namespace Oxide.Plugins
 
             var prefabName = matches[0];
 
-            var localPosition = monument.Transform.InverseTransformPoint(position);
+            var localPosition = monument.InverseTransformPoint(position);
             var localRotationAngle = (monument.Rotation.eulerAngles.y - basePlayer.GetNetworkRotation().eulerAngles.y + 180);
 
             var entityData = new EntityData
@@ -166,9 +182,9 @@ namespace Oxide.Plugins
                 return;
             }
 
-            _pluginData.AddEntityData(entityData, monument.ShortName);
+            _pluginData.AddEntityData(entityData, monument.SavedName);
 
-            ReplyToPlayer(player, "Spawn.Success", monument.ShortName);
+            ReplyToPlayer(player, "Spawn.Success", monument.SavedName);
         }
 
         [Command("makill")]
@@ -207,7 +223,7 @@ namespace Oxide.Plugins
                 return;
             }
 
-            var localPosition = monument.Transform.InverseTransformPoint(position);
+            var localPosition = monument.InverseTransformPoint(position);
 
             var monumentShortName = monument.ShortName;
             if (!_pluginData.TryRemoveEntityData(entity.PrefabName, localPosition, monumentShortName))
@@ -337,7 +353,7 @@ namespace Oxide.Plugins
         {
             var spawnDelay = Rust.Application.isLoading ? 0 : SpawnDelayPerEntity;
             if (spawnDelay > 0)
-                Puts($"Spawning entities with {SpawnDelayPerEntity}s delay after each one...");
+                Puts($"Spawning entities with {SpawnDelayPerEntity}s between each one...");
 
             var sb = new StringBuilder();
             sb.AppendLine("Spawned Entities:");
@@ -347,16 +363,16 @@ namespace Oxide.Plugins
                 if (monument == null)
                     continue;
 
-                var shortName = GetShortName(monument.name);
+                var monumentWrapper = MonumentWrapper.FromMonument(monument);
 
                 List<EntityData> entityDataList;
-                if (!_pluginData.MonumentMap.TryGetValue(shortName, out entityDataList))
+                if (!_pluginData.MonumentMap.TryGetValue(monumentWrapper.SavedName, out entityDataList))
                     continue;
 
                 foreach (var entityData in entityDataList)
                 {
-                    var entity = SpawnEntity(entityData, MonumentWrapper.FromMonument(monument));
-                    sb.AppendLine($" - {shortName}: {entity.ShortPrefabName} at {entity.transform.position}");
+                    var entity = SpawnEntity(entityData, monumentWrapper);
+                    sb.AppendLine($" - {monumentWrapper.ShortName}: {entity.ShortPrefabName} at {entity.transform.position}");
                     yield return new WaitForSeconds(spawnDelay);
                 }
             }
@@ -366,16 +382,16 @@ namespace Oxide.Plugins
                 if (dungeonCell == null)
                     continue;
 
-                var shortName = GetShortName(dungeonCell.name);
+                var monumentWrapper = MonumentWrapper.FromDungeon(dungeonCell);
 
                 List<EntityData> entityDataList;
-                if (!_pluginData.MonumentMap.TryGetValue(shortName, out entityDataList))
+                if (!_pluginData.MonumentMap.TryGetValue(monumentWrapper.SavedName, out entityDataList))
                     continue;
 
                 foreach (var entityData in entityDataList)
                 {
-                    var entity = SpawnEntity(entityData, MonumentWrapper.FromDungeon(dungeonCell));
-                    sb.AppendLine($" - {shortName}: {entity.ShortPrefabName} at {entity.transform.position}");
+                    var entity = SpawnEntity(entityData, monumentWrapper);
+                    sb.AppendLine($" - {monumentWrapper.ShortName}: {entity.ShortPrefabName} at {entity.transform.position}");
                     yield return new WaitForSeconds(spawnDelay);
                 }
             }
@@ -385,7 +401,7 @@ namespace Oxide.Plugins
 
         private BaseEntity SpawnEntity(EntityData entityData, MonumentWrapper monument)
         {
-            var position = monument.Transform.TransformPoint(entityData.Position);
+            var position = monument.TransformPoint(entityData.Position);
             var rotation = Quaternion.Euler(0, monument.Rotation.eulerAngles.y - entityData.RotationAngle, 0);
 
             var entity = GameManager.server.CreateEntity(entityData.PrefabName, position, rotation);
@@ -440,6 +456,8 @@ namespace Oxide.Plugins
                 }
             }
 
+            private Transform Transform => _monument?.transform ?? _dungeonCell.transform;
+
             public static MonumentWrapper FromMonument(MonumentInfo monument) =>
                 new MonumentWrapper() { _monument = monument };
 
@@ -451,9 +469,29 @@ namespace Oxide.Plugins
             public bool IsTrainStation => IsDungeon && StationRotations.ContainsKey(GetShortName(_dungeonCell.name));
             public string ShortName => GetShortName(_monument?.name ?? _dungeonCell?.name);
 
-            public Transform Transform => _monument?.transform ?? _dungeonCell.transform;
             public Vector3 Position => Transform?.position ?? Vector3.zero;
             public Quaternion Rotation => _monument?.transform.rotation ?? _trainStationRotation;
+
+            public Vector3 TransformPoint(Vector3 localPosition) =>
+                Transform.TransformPoint(IsTrainStation ? Rotation * localPosition : localPosition);
+
+            public Vector3 InverseTransformPoint(Vector3 localPosition)
+            {
+                var worldPosition = Transform.InverseTransformPoint(localPosition);
+                return IsTrainStation ? Rotation * worldPosition : worldPosition;
+            }
+
+            public string SavedName
+            {
+                get
+                {
+                    var shortanme = ShortName;
+                    string alias;
+                    return MonumentAliases.TryGetValue(shortanme, out alias)
+                        ? alias
+                        : shortanme;
+                }
+            }
         }
 
         #endregion
