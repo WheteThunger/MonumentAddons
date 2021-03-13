@@ -9,7 +9,7 @@
 
 - `maspawn <entity>` -- Spawn an entity where you are aiming. Works just like the native `spawn` command. Must be at a monument.
   - This saves the entity to the plugin data file so that reloading the plugin will respawn the entity.
-  - Tip: When figuring out the placement for a deployable entity, pull out the corresponding item, rotate it 180 degrees, then use it as a guide before running the command.
+  - Tip: When figuring out the placement for a deployable entity, pull out the corresponding item and use it as a guide before running the command.
 - `makill` -- Kills the spawned entity that the player is looking at. Only works on entities that were spawned by this plugin.
   - This removes the entity from the plugin data file so that it won't respawn later.
   - Note: If you kill an entity with the native `kill` command, it will respawn on plugin reload.
