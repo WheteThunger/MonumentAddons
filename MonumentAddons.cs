@@ -12,7 +12,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("Monument Addons", "WhiteThunder", "0.3.0")]
+    [Info("Monument Addons", "WhiteThunder", "0.3.1")]
     [Description("Allows privileged players to add permanent entities to monuments.")]
     internal class MonumentAddons : CovalencePlugin
     {
@@ -478,7 +478,7 @@ namespace Oxide.Plugins
             public Vector3 InverseTransformPoint(Vector3 localPosition)
             {
                 var worldPosition = Transform.InverseTransformPoint(localPosition);
-                return IsTrainStation ? Rotation * worldPosition : worldPosition;
+                return IsTrainStation ? Quaternion.Inverse(Rotation) * worldPosition : worldPosition;
             }
 
             public string SavedName
