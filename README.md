@@ -82,3 +82,5 @@ Fun:
 - `piano.deployed.static`
 - `paddlingpool`
 - `abovegroundpool`
+- `cardtable.static_config{a|b|c}`
+- `slotmachine`
