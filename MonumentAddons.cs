@@ -56,7 +56,7 @@ namespace Oxide.Plugins
             ["station-we-3"] = "station-*",
         };
 
-        private readonly List<uint> _spawnedEntityIds = new List<uint>();
+        private readonly HashSet<BaseEntity> _spawnedEntities = new HashSet<BaseEntity>();
 
         private ProtectionProperties ImmortalProtection;
         private StoredData _pluginData;
@@ -79,10 +79,9 @@ namespace Oxide.Plugins
             if (_spawnCoroutine != null)
                 ServerMgr.Instance.StopCoroutine(_spawnCoroutine);
 
-            foreach (var entityId in _spawnedEntityIds)
+            foreach (var entity in _spawnedEntities)
             {
-                var entity = BaseNetworkable.serverEntities.Find(entityId);
-                if (entity != null)
+                if (entity != null && !entity.IsDestroyed)
                     entity.Kill();
             }
 
@@ -99,10 +98,15 @@ namespace Oxide.Plugins
             _spawnCoroutine = ServerMgr.Instance.StartCoroutine(SpawnSavedEntities());
         }
 
+        private void OnEntityKill(BaseEntity entity)
+        {
+            _spawnedEntities.Remove(entity);
+        }
+
         // This hook is exposed by plugin: Remover Tool (RemoverTool).
         private object canRemove(BasePlayer player, BaseEntity entity)
         {
-            if (_spawnedEntityIds.Contains(entity.net.ID))
+            if (_spawnedEntities.Contains(entity))
                 return false;
 
             return null;
@@ -208,7 +212,7 @@ namespace Oxide.Plugins
                 return;
             }
 
-            if (!_spawnedEntityIds.Contains(entity.net.ID))
+            if (!_spawnedEntities.Contains(entity))
             {
                 ReplyToPlayer(player, "Kill.Error.NotEligible");
                 return;
@@ -232,7 +236,7 @@ namespace Oxide.Plugins
                 return;
             }
 
-            _spawnedEntityIds.Remove(entity.net.ID);
+            _spawnedEntities.Remove(entity);
             entity.Kill();
 
             ReplyToPlayer(player, "Kill.Success");
@@ -429,7 +433,7 @@ namespace Oxide.Plugins
 
             entity.Spawn();
 
-            _spawnedEntityIds.Add(entity.net.ID);
+            _spawnedEntities.Add(entity);
 
             return entity;
         }
