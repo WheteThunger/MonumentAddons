@@ -19,6 +19,16 @@
 
 - `monumentaddons.admin` -- Required to use the `maspawn` and `makill` commands.
 
+## Configuration
+
+Default configuration:
+
+```json
+{
+
+}
+```
+
 ## Localization
 
 ```json
