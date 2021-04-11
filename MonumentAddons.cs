@@ -20,7 +20,7 @@ namespace Oxide.Plugins
         #region Fields
 
         private static MonumentAddons _pluginInstance;
-        private Configuration _pluginConfig;
+        private static Configuration _pluginConfig;
 
         private const float MaxRaycastDistance = 20;
         private const float MaxDistanceForEqualityCheck = 0.01f;
@@ -44,18 +44,6 @@ namespace Oxide.Plugins
             ["station-we-1"] = Quaternion.Euler(0, -90, 0),
             ["station-we-2"] = Quaternion.Euler(0, 90, 0),
             ["station-we-3"] = Quaternion.Euler(0, -90, 0),
-        };
-
-        private static readonly Dictionary<string, string> MonumentAliases = new Dictionary<string, string>()
-        {
-            ["station-sn-0"] = "station-*",
-            ["station-sn-1"] = "station-*",
-            ["station-sn-2"] = "station-*",
-            ["station-sn-3"] = "station-*",
-            ["station-we-0"] = "station-*",
-            ["station-we-1"] = "station-*",
-            ["station-we-2"] = "station-*",
-            ["station-we-3"] = "station-*",
         };
 
         private readonly HashSet<BaseEntity> _spawnedEntities = new HashSet<BaseEntity>();
@@ -88,6 +76,8 @@ namespace Oxide.Plugins
             }
 
             UnityEngine.Object.Destroy(ImmortalProtection);
+
+            _pluginConfig = null;
             _pluginInstance = null;
         }
 
@@ -162,17 +152,21 @@ namespace Oxide.Plugins
                 return;
             }
 
-            var monument = FindMonument(position);
-            if (monument == null)
+            MonumentWrapper monumentWrapper;
+            float distance;
+            if (!NearMonument(position, out monumentWrapper, out distance))
             {
-                ReplyToPlayer(player, "Error.NoMonument");
+                if (monumentWrapper != null)
+                    ReplyToPlayer(player, "Error.NotAtMonument", monumentWrapper.ShortName, distance);
+                else
+                    ReplyToPlayer(player, "Error.NoMonuments");
                 return;
             }
 
             var prefabName = matches[0];
 
-            var localPosition = monument.InverseTransformPoint(position);
-            var localRotationAngle = (monument.Rotation.eulerAngles.y - basePlayer.GetNetworkRotation().eulerAngles.y + 180);
+            var localPosition = monumentWrapper.InverseTransformPoint(position);
+            var localRotationAngle = (monumentWrapper.Rotation.eulerAngles.y - basePlayer.GetNetworkRotation().eulerAngles.y + 180);
 
             var entityData = new EntityData
             {
@@ -181,16 +175,16 @@ namespace Oxide.Plugins
                 RotationAngle = localRotationAngle,
             };
 
-            var ent = SpawnEntity(entityData, monument);
+            var ent = SpawnEntity(entityData, monumentWrapper);
             if (ent == null)
             {
                 ReplyToPlayer(player, "Spawn.Error.Failed");
                 return;
             }
 
-            _pluginData.AddEntityData(entityData, monument.SavedName);
+            _pluginData.AddEntityData(entityData, monumentWrapper.SavedName);
 
-            ReplyToPlayer(player, "Spawn.Success", monument.SavedName);
+            ReplyToPlayer(player, "Spawn.Success", monumentWrapper.SavedName);
         }
 
         [Command("makill")]
@@ -222,16 +216,20 @@ namespace Oxide.Plugins
 
             var position = entity.transform.position;
 
-            var monument = FindMonument(position);
-            if (monument == null)
+            MonumentWrapper monumentWrapper;
+            float distance;
+            if (!NearMonument(position, out monumentWrapper, out distance))
             {
-                ReplyToPlayer(player, "Error.NoMonument");
+                if (monumentWrapper != null)
+                    ReplyToPlayer(player, "Error.NotAtMonument", monumentWrapper.ShortName, distance);
+                else
+                    ReplyToPlayer(player, "Error.NoMonuments");
                 return;
             }
 
-            var localPosition = monument.InverseTransformPoint(position);
+            var localPosition = monumentWrapper.InverseTransformPoint(position);
 
-            var monumentShortName = monument.ShortName;
+            var monumentShortName = monumentWrapper.ShortName;
             if (!_pluginData.TryRemoveEntityData(entity.PrefabName, localPosition, monumentShortName))
             {
                 ReplyToPlayer(player, "Kill.Error.NoPositionMatch", monumentShortName, localPosition);
@@ -297,7 +295,7 @@ namespace Oxide.Plugins
             return matches.ToArray();
         }
 
-        private MonumentInfo FindNearestMonument(Vector3 position)
+        private MonumentWrapper FindNearestMonument(Vector3 position, out float distanceFromBounds)
         {
             MonumentInfo closestMonument = null;
             float shortestDistance = float.MaxValue;
@@ -305,6 +303,9 @@ namespace Oxide.Plugins
             foreach (var monument in TerrainMeta.Path.Monuments)
             {
                 if (monument == null)
+                    continue;
+
+                if (_pluginConfig.IgnoredMonuments.Contains(GetShortName(monument.name)))
                     continue;
 
                 var distance = Vector3.Distance(monument.ClosestPointOnBounds(position), position);
@@ -315,10 +316,11 @@ namespace Oxide.Plugins
                 }
             }
 
-            return closestMonument;
+            distanceFromBounds = shortestDistance;
+            return MonumentWrapper.FromMonument(closestMonument);
         }
 
-        private DungeonCell FindNearestTrainStation(Vector3 position)
+        private MonumentWrapper FindNearestTrainStation(Vector3 position, out float distanceFromBounds)
         {
             DungeonCell closestStation = null;
             float shortestDistance = float.MaxValue;
@@ -326,6 +328,9 @@ namespace Oxide.Plugins
             foreach (var dungeon in TerrainMeta.Path.DungeonCells)
             {
                 if (dungeon == null)
+                    continue;
+
+                if (_pluginConfig.IgnoredMonuments.Contains(GetShortName(dungeon.name)))
                     continue;
 
                 if (!StationRotations.ContainsKey(GetShortName(dungeon.name)))
@@ -339,20 +344,30 @@ namespace Oxide.Plugins
                 }
             }
 
-            return closestStation;
+            distanceFromBounds = shortestDistance;
+            return MonumentWrapper.FromDungeon(closestStation);
         }
 
-        private MonumentWrapper FindMonument(Vector3 position)
+        private static bool IsCloseEnough(MonumentWrapper monumentWrapper, Vector3 position, float distanceFromBounds)
         {
-            var nearestMonument = FindNearestMonument(position);
-            if (nearestMonument != null && nearestMonument.IsInBounds(position))
-                return MonumentWrapper.FromMonument(nearestMonument);
+            if (monumentWrapper.IsMonument && monumentWrapper.Monument.IsInBounds(position))
+                return true;
 
-            var nearestTrainStation = FindNearestTrainStation(position);
-            if (nearestTrainStation != null && Vector3.Distance(nearestTrainStation.transform.position, position) < 100)
-                return MonumentWrapper.FromDungeon(nearestTrainStation);
+            return distanceFromBounds <= monumentWrapper.MaxAllowedDistance;
+        }
 
-            return null;
+        private bool NearMonument(Vector3 position, out MonumentWrapper nearestMonumentWrapper, out float distanceFromBounds)
+        {
+            distanceFromBounds = 0;
+
+            if (position.y < -100)
+            {
+                nearestMonumentWrapper = FindNearestTrainStation(position, out distanceFromBounds);
+                return IsCloseEnough(nearestMonumentWrapper, position, distanceFromBounds);
+            }
+
+            nearestMonumentWrapper = FindNearestMonument(position, out distanceFromBounds);
+            return IsCloseEnough(nearestMonumentWrapper, position, distanceFromBounds);
         }
 
         private IEnumerator SpawnSavedEntities()
@@ -446,14 +461,11 @@ namespace Oxide.Plugins
 
         private class MonumentWrapper
         {
-            private MonumentInfo _monument;
-            private DungeonCell _dungeonCell;
-
             private Quaternion _trainStationRotation
             {
                 get
                 {
-                    var dungeonShortName = GetShortName(_dungeonCell.name);
+                    var dungeonShortName = GetShortName(DungeonCell.name);
 
                     Quaternion rotation;
                     return StationRotations.TryGetValue(dungeonShortName, out rotation)
@@ -462,21 +474,24 @@ namespace Oxide.Plugins
                 }
             }
 
-            private Transform Transform => _monument?.transform ?? _dungeonCell.transform;
+            private Transform Transform => Monument?.transform ?? DungeonCell.transform;
+
+            public MonumentInfo Monument { get; private set; }
+            public DungeonCell DungeonCell { get; private set; }
 
             public static MonumentWrapper FromMonument(MonumentInfo monument) =>
-                new MonumentWrapper() { _monument = monument };
+                new MonumentWrapper() { Monument = monument };
 
             public static MonumentWrapper FromDungeon(DungeonCell dungeonCell) =>
-                new MonumentWrapper() { _dungeonCell = dungeonCell };
+                new MonumentWrapper() { DungeonCell = dungeonCell };
 
-            public bool IsMonument => _monument != null;
-            public bool IsDungeon => _dungeonCell != null;
-            public bool IsTrainStation => IsDungeon && StationRotations.ContainsKey(GetShortName(_dungeonCell.name));
-            public string ShortName => GetShortName(_monument?.name ?? _dungeonCell?.name);
+            public bool IsMonument => Monument != null;
+            public bool IsDungeon => DungeonCell != null;
+            public bool IsTrainStation => IsDungeon && StationRotations.ContainsKey(GetShortName(DungeonCell.name));
+            public string ShortName => GetShortName(Monument?.name ?? DungeonCell?.name);
 
             public Vector3 Position => Transform?.position ?? Vector3.zero;
-            public Quaternion Rotation => _monument?.transform.rotation ?? _trainStationRotation;
+            public Quaternion Rotation => Monument?.transform.rotation ?? _trainStationRotation;
 
             public Vector3 TransformPoint(Vector3 localPosition) =>
                 Transform.TransformPoint(IsTrainStation ? Rotation * localPosition : localPosition);
@@ -493,9 +508,20 @@ namespace Oxide.Plugins
                 {
                     var shortanme = ShortName;
                     string alias;
-                    return MonumentAliases.TryGetValue(shortanme, out alias)
+                    return _pluginConfig.MonumentAliases.TryGetValue(shortanme, out alias)
                         ? alias
                         : shortanme;
+                }
+            }
+
+            public float MaxAllowedDistance
+            {
+                get
+                {
+                    float maxAllowedDistance;
+                    return _pluginConfig.MaxDistanceFromMonument.TryGetValue(SavedName, out maxAllowedDistance)
+                        ? maxAllowedDistance
+                        : 0;
                 }
             }
         }
@@ -571,7 +597,45 @@ namespace Oxide.Plugins
 
         private class Configuration : SerializableConfiguration
         {
+            [JsonProperty("MonumentAliases")]
+            public readonly Dictionary<string, string> MonumentAliases = new Dictionary<string, string>()
+            {
+                ["station-sn-0"] = "TRAIN_STATION",
+                ["station-sn-1"] = "TRAIN_STATION",
+                ["station-sn-2"] = "TRAIN_STATION",
+                ["station-sn-3"] = "TRAIN_STATION",
+                ["station-we-0"] = "TRAIN_STATION",
+                ["station-we-1"] = "TRAIN_STATION",
+                ["station-we-2"] = "TRAIN_STATION",
+                ["station-we-3"] = "TRAIN_STATION",
+            };
 
+            [JsonProperty("MaxDistanceFromMonument")]
+            public Dictionary<string, float> MaxDistanceFromMonument = new Dictionary<string, float>()
+            {
+                ["launch_site_1"] = 300,
+                ["excavator_1"] = 120,
+                ["junkyard_1"] = 35,
+                ["lighthouse"] = 70,
+                ["military_tunnel_1"] = 40,
+                ["mining_quarry_c"] = 15,
+                ["OilrigAI"] = 60,
+                ["OilrigAI2"] = 85,
+                ["sphere_tank"] = 20,
+                ["swamp_c"] = 50,
+                ["trainyard_1"] = 40,
+                ["water_treatment_plant_1"] = 70,
+                ["TRAIN_STATION"] = 100,
+            };
+
+            [JsonProperty("IgnoredMonuments")]
+            public string[] IgnoredMonuments = new string[]
+            {
+                "power_sub_small_1",
+                "power_sub_small_2",
+                "power_sub_big_1",
+                "power_sub_big_2",
+            };
         }
 
         private Configuration GetDefaultConfig() => new Configuration();
@@ -705,16 +769,17 @@ namespace Oxide.Plugins
             lang.RegisterMessages(new Dictionary<string, string>
             {
                 ["Error.NoPermission"] = "You don't have permission to do that.",
-                ["Error.NoMonument"] = "Error: Not at a monument",
-                ["Spawn.Error.Syntax"] = "Syntax: <color=yellow>maspawn <entity></color>",
-                ["Spawn.Error.EntityNotFound"] = "Error: Entity {0} not found.",
+                ["Error.NoMonument"] = "Error: No monuments found.",
+                ["Error.NotAtMonument"] = "Error: Not at a monument. Nearest is <color=orange>{0}</color> with distance <color=orange>{1}</color>",
+                ["Spawn.Error.Syntax"] = "Syntax: <color=orange>maspawn <entity></color>",
+                ["Spawn.Error.EntityNotFound"] = "Error: Entity <color=orange>{0}</color> not found.",
                 ["Spawn.Error.MultipleMatches"] = "Multiple matches:\n",
                 ["Spawn.Error.NoTarget"] = "Error: No valid spawn position found.",
                 ["Spawn.Error.Failed"] = "Error: Failed to spawn enttiy.",
-                ["Spawn.Success"] = "Spawned entity and saved to data file for monument '{0}'.",
+                ["Spawn.Success"] = "Spawned entity and saved to data file for monument <color=orange>{0}</color>.",
                 ["Kill.Error.EntityNotFound"] = "Error: No entity found.",
                 ["Kill.Error.NotEligible"] = "Error: That entity is not controlled by Monument Addons.",
-                ["Kill.Error.NoPositionMatch"] = "Error: No saved entity found for monument '{0}' at position {1}.",
+                ["Kill.Error.NoPositionMatch"] = "Error: No saved entity found for monument <color=orange>{0}</color=orange> at position <color=orange>{1}</color>.",
                 ["Kill.Success"] = "Entity killed and removed from data file.",
             }, this, "en");
         }
