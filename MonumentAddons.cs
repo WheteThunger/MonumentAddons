@@ -260,7 +260,7 @@ namespace Oxide.Plugins
             UnityEngine.Object.DestroyImmediate(entity.GetComponent<GroundWatch>());
         }
 
-        private string[] FindPrefabMatches(string partialName)
+        private static string[] FindPrefabMatches(string partialName)
         {
             var matches = new List<string>();
 
@@ -276,7 +276,7 @@ namespace Oxide.Plugins
             return matches.ToArray();
         }
 
-        private MonumentWrapper FindNearestMonument(Vector3 position, out float distanceFromBounds)
+        private static MonumentWrapper FindNearestMonument(Vector3 position, out float distanceFromBounds)
         {
             MonumentInfo closestMonument = null;
             float shortestDistance = float.MaxValue;
@@ -301,7 +301,7 @@ namespace Oxide.Plugins
             return MonumentWrapper.FromMonument(closestMonument);
         }
 
-        private MonumentWrapper FindNearestTrainStation(Vector3 position, out float distanceFromBounds)
+        private static MonumentWrapper FindNearestTrainStation(Vector3 position, out float distanceFromBounds)
         {
             DungeonCell closestStation = null;
             float shortestDistance = float.MaxValue;
@@ -337,7 +337,7 @@ namespace Oxide.Plugins
             return distanceFromBounds <= monumentWrapper.MaxAllowedDistance;
         }
 
-        private bool NearMonument(Vector3 position, out MonumentWrapper nearestMonumentWrapper, out float distanceFromBounds)
+        private static bool NearMonument(Vector3 position, out MonumentWrapper nearestMonumentWrapper, out float distanceFromBounds)
         {
             distanceFromBounds = 0;
 
