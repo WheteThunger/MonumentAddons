@@ -637,7 +637,7 @@ namespace Oxide.Plugins
             [JsonProperty("MaxDistanceFromMonument")]
             public Dictionary<string, float> MaxDistanceFromMonument = new Dictionary<string, float>()
             {
-                ["launch_site_1"] = 300,
+                ["launch_site_1"] = 80,
                 ["excavator_1"] = 120,
                 ["junkyard_1"] = 35,
                 ["lighthouse"] = 70,
