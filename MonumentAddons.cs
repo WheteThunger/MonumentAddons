@@ -431,7 +431,7 @@ namespace Oxide.Plugins
 
             if (sb.Length > 0)
             {
-                sb.Insert(0, "Spawned Entities:");
+                sb.Insert(0, "Spawned Entities:\n");
                 Puts(sb.ToString());
             }
         }
