@@ -793,7 +793,7 @@ namespace Oxide.Plugins
             lang.RegisterMessages(new Dictionary<string, string>
             {
                 ["Error.NoPermission"] = "You don't have permission to do that.",
-                ["Error.NoMonument"] = "Error: No monuments found.",
+                ["Error.NoMonuments"] = "Error: No monuments found.",
                 ["Error.NotAtMonument"] = "Error: Not at a monument. Nearest is <color=orange>{0}</color> with distance <color=orange>{1}</color>",
                 ["Spawn.Error.Syntax"] = "Syntax: <color=orange>maspawn <entity></color>",
                 ["Spawn.Error.EntityNotFound"] = "Error: Entity <color=orange>{0}</color> not found.",
