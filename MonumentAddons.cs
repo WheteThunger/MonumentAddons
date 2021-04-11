@@ -23,7 +23,6 @@ namespace Oxide.Plugins
         private static Configuration _pluginConfig;
 
         private const float MaxRaycastDistance = 20;
-        private const float SpawnDelayPerEntity = 0.05f;
         private const float TerrainProximityTolerance = 0.001f;
 
         private const string PermissionAdmin = "monumentaddons.admin";
@@ -367,12 +366,9 @@ namespace Oxide.Plugins
 
         private IEnumerator SpawnSavedEntities()
         {
-            var spawnDelay = Rust.Application.isLoading ? 0 : SpawnDelayPerEntity;
-            if (spawnDelay > 0)
-                Puts($"Spawning entities with {SpawnDelayPerEntity}s between each one...");
+            var spawnDelay = Rust.Application.isLoading ? 0 : _pluginConfig.SpawnDelayBetweenEntities;
 
             var sb = new StringBuilder();
-            sb.AppendLine("Spawned Entities:");
 
             foreach (var monument in TerrainMeta.Path.Monuments)
             {
@@ -412,7 +408,11 @@ namespace Oxide.Plugins
                 }
             }
 
-            Puts(sb.ToString());
+            if (sb.Length > 0)
+            {
+                sb.Insert(0, "Spawned Entities:");
+                Puts(sb.ToString());
+            }
         }
 
         private BaseEntity SpawnEntity(EntityData entityData, MonumentWrapper monument)
@@ -589,6 +589,9 @@ namespace Oxide.Plugins
 
         private class Configuration : SerializableConfiguration
         {
+            [JsonProperty("SpawnDelayBetweenEntities")]
+            public float SpawnDelayBetweenEntities = 0;
+
             [JsonProperty("MonumentAliases")]
             public readonly Dictionary<string, string> MonumentAliases = new Dictionary<string, string>()
             {
