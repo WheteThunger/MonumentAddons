@@ -23,8 +23,8 @@ namespace Oxide.Plugins
         private static Configuration _pluginConfig;
 
         private const float MaxRaycastDistance = 20;
-        private const float MaxDistanceForEqualityCheck = 0.01f;
         private const float SpawnDelayPerEntity = 0.05f;
+        private const float TerrainProximityTolerance = 0.001f;
 
         private const string PermissionAdmin = "monumentaddons.admin";
 
@@ -46,7 +46,7 @@ namespace Oxide.Plugins
             ["station-we-3"] = Quaternion.Euler(0, -90, 0),
         };
 
-        private readonly HashSet<BaseEntity> _spawnedEntities = new HashSet<BaseEntity>();
+        private readonly Dictionary<BaseEntity, EntityData> _spawnedEntities = new Dictionary<BaseEntity, EntityData>();
 
         private ProtectionProperties ImmortalProtection;
         private StoredData _pluginData;
@@ -69,7 +69,7 @@ namespace Oxide.Plugins
             if (_spawnCoroutine != null)
                 ServerMgr.Instance.StopCoroutine(_spawnCoroutine);
 
-            foreach (var entity in _spawnedEntities)
+            foreach (var entity in _spawnedEntities.Keys)
             {
                 if (entity != null && !entity.IsDestroyed)
                     entity.Kill();
@@ -98,7 +98,7 @@ namespace Oxide.Plugins
         // This hook is exposed by plugin: Remover Tool (RemoverTool).
         private object canRemove(BasePlayer player, BaseEntity entity)
         {
-            if (_spawnedEntities.Contains(entity))
+            if (_spawnedEntities.ContainsKey(entity))
                 return false;
 
             return null;
@@ -173,6 +173,7 @@ namespace Oxide.Plugins
                 PrefabName = prefabName,
                 Position = localPosition,
                 RotationAngle = localRotationAngle,
+                OnTerrain = Math.Abs(position.y - TerrainMeta.HeightMap.GetHeight(position)) <= TerrainProximityTolerance
             };
 
             var ent = SpawnEntity(entityData, monumentWrapper);
@@ -208,7 +209,8 @@ namespace Oxide.Plugins
                 return;
             }
 
-            if (!_spawnedEntities.Contains(entity))
+            EntityData entityData;
+            if (!_spawnedEntities.TryGetValue(entity, out entityData))
             {
                 ReplyToPlayer(player, "Kill.Error.NotEligible");
                 return;
@@ -227,14 +229,7 @@ namespace Oxide.Plugins
                 return;
             }
 
-            var localPosition = monumentWrapper.InverseTransformPoint(position);
-
-            var monumentShortName = monumentWrapper.ShortName;
-            if (!_pluginData.TryRemoveEntityData(entity.PrefabName, localPosition, monumentShortName))
-            {
-                ReplyToPlayer(player, "Kill.Error.NoPositionMatch", monumentShortName, localPosition);
-                return;
-            }
+            _pluginData.RemoveEntityData(entityData);
 
             _spawnedEntities.Remove(entity);
             entity.Kill();
@@ -425,6 +420,9 @@ namespace Oxide.Plugins
             var position = monument.TransformPoint(entityData.Position);
             var rotation = Quaternion.Euler(0, monument.Rotation.eulerAngles.y - entityData.RotationAngle, 0);
 
+            if (entityData.OnTerrain)
+                position.y = TerrainMeta.HeightMap.GetHeight(position);
+
             var entity = GameManager.server.CreateEntity(entityData.PrefabName, position, rotation);
             if (entity == null)
                 return null;
@@ -450,7 +448,7 @@ namespace Oxide.Plugins
 
             entity.Spawn();
 
-            _spawnedEntities.Add(entity);
+            _spawnedEntities.Add(entity, entityData);
 
             return entity;
         }
@@ -554,24 +552,15 @@ namespace Oxide.Plugins
                 Save();
             }
 
-            public bool TryRemoveEntityData(string prefabName, Vector3 localPosition, string monumentShortName)
+            public bool RemoveEntityData(EntityData entityData)
             {
                 foreach (var entry in MonumentMap)
                 {
                     var entityDataList = entry.Value;
-                    for (var i = entityDataList.Count - 1; i >= 0; i--)
+                    if (entityDataList.Remove(entityData))
                     {
-                        var entityData = entityDataList[i];
-                        if (Vector3.Distance(entityData.Position, localPosition) <= MaxDistanceForEqualityCheck)
-                        {
-                            entityDataList.RemoveAt(i);
-
-                            if (entityDataList.Count == 0)
-                                MonumentMap.Remove(entry.Key);
-
-                            Save();
-                            return true;
-                        }
+                        Save();
+                        return true;
                     }
                 }
 
@@ -587,8 +576,11 @@ namespace Oxide.Plugins
             [JsonProperty("Position")]
             public Vector3 Position;
 
-            [JsonProperty("RotationAngle")]
+            [JsonProperty("RotationAngle", DefaultValueHandling = DefaultValueHandling.Ignore)]
             public float RotationAngle;
+
+            [JsonProperty("OnTerrain", DefaultValueHandling = DefaultValueHandling.Ignore)]
+            public bool OnTerrain = false;
         }
 
         #endregion
@@ -779,7 +771,6 @@ namespace Oxide.Plugins
                 ["Spawn.Success"] = "Spawned entity and saved to data file for monument <color=orange>{0}</color>.",
                 ["Kill.Error.EntityNotFound"] = "Error: No entity found.",
                 ["Kill.Error.NotEligible"] = "Error: That entity is not controlled by Monument Addons.",
-                ["Kill.Error.NoPositionMatch"] = "Error: No saved entity found for monument <color=orange>{0}</color=orange> at position <color=orange>{1}</color>.",
                 ["Kill.Success"] = "Entity killed and removed from data file.",
             }, this, "en");
         }
