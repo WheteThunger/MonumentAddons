@@ -389,8 +389,6 @@ namespace Oxide.Plugins
 
         private IEnumerator SpawnSavedEntities()
         {
-            var spawnDelay = Rust.Application.isLoading ? 0 : _pluginConfig.SpawnDelayBetweenEntities;
-
             var sb = new StringBuilder();
 
             foreach (var monument in TerrainMeta.Path.Monuments)
@@ -408,7 +406,7 @@ namespace Oxide.Plugins
                 {
                     var entity = SpawnEntity(entityData, monumentWrapper);
                     sb.AppendLine($" - {monumentWrapper.ShortName}: {entity.ShortPrefabName} at {entity.transform.position}");
-                    yield return new WaitForSeconds(spawnDelay);
+                    yield return CoroutineEx.waitForEndOfFrame;
                 }
             }
 
@@ -427,7 +425,7 @@ namespace Oxide.Plugins
                 {
                     var entity = SpawnEntity(entityData, monumentWrapper);
                     sb.AppendLine($" - {monumentWrapper.ShortName}: {entity.ShortPrefabName} at {entity.transform.position}");
-                    yield return new WaitForSeconds(spawnDelay);
+                    yield return CoroutineEx.waitForEndOfFrame;
                 }
             }
 
@@ -623,9 +621,6 @@ namespace Oxide.Plugins
 
         private class Configuration : SerializableConfiguration
         {
-            [JsonProperty("SpawnDelayBetweenEntities")]
-            public float SpawnDelayBetweenEntities = 0;
-
             [JsonProperty("MonumentAliases")]
             public readonly Dictionary<string, string> MonumentAliases = new Dictionary<string, string>()
             {
