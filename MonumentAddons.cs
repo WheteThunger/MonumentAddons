@@ -307,7 +307,7 @@ namespace Oxide.Plugins
                 if (monument == null)
                     continue;
 
-                var distance = Vector3.Distance(monument.transform.position, position);
+                var distance = Vector3.Distance(monument.ClosestPointOnBounds(position), position);
                 if (distance < shortestDistance)
                 {
                     shortestDistance = distance;
