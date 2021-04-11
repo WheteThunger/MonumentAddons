@@ -215,19 +215,6 @@ namespace Oxide.Plugins
                 return;
             }
 
-            var position = entity.transform.position;
-
-            MonumentWrapper monumentWrapper;
-            float distance;
-            if (!NearMonument(position, out monumentWrapper, out distance))
-            {
-                if (monumentWrapper != null)
-                    ReplyToPlayer(player, "Error.NotAtMonument", monumentWrapper.ShortName, distance);
-                else
-                    ReplyToPlayer(player, "Error.NoMonuments");
-                return;
-            }
-
             _pluginData.RemoveEntityData(entityData);
 
             _spawnedEntities.Remove(entity);
