@@ -217,10 +217,14 @@ namespace Oxide.Plugins
 
             _pluginData.RemoveEntityData(entityData);
 
-            _spawnedEntities.Remove(entity);
-            entity.Kill();
+            var matchingEntities = GetMatchingEntities(entityData);
+            foreach (var ent in matchingEntities)
+            {
+                _spawnedEntities.Remove(ent);
+                ent.Kill();
+            }
 
-            ReplyToPlayer(player, "Kill.Success");
+            ReplyToPlayer(player, "Kill.Success", matchingEntities.Count);
         }
 
         #endregion
@@ -438,6 +442,17 @@ namespace Oxide.Plugins
             _spawnedEntities.Add(entity, entityData);
 
             return entity;
+        }
+
+        private List<BaseEntity> GetMatchingEntities(EntityData entityData)
+        {
+            var list = new List<BaseEntity>();
+            foreach (var entry in _spawnedEntities)
+            {
+                if (entry.Value == entityData)
+                    list.Add(entry.Key);
+            }
+            return list;
         }
 
         #endregion
@@ -761,7 +776,7 @@ namespace Oxide.Plugins
                 ["Spawn.Success"] = "Spawned entity and saved to data file for monument <color=orange>{0}</color>.",
                 ["Kill.Error.EntityNotFound"] = "Error: No entity found.",
                 ["Kill.Error.NotEligible"] = "Error: That entity is not controlled by Monument Addons.",
-                ["Kill.Success"] = "Entity killed and removed from data file.",
+                ["Kill.Success"] = "Killed entity at {0} monument(s) and removed from data file.",
             }, this, "en");
         }
 
