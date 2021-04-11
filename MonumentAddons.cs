@@ -621,6 +621,15 @@ namespace Oxide.Plugins
 
         private class Configuration : SerializableConfiguration
         {
+            [JsonProperty("IgnoredMonuments")]
+            public string[] IgnoredMonuments = new string[]
+            {
+                "power_sub_small_1",
+                "power_sub_small_2",
+                "power_sub_big_1",
+                "power_sub_big_2",
+            };
+
             [JsonProperty("MonumentAliases")]
             public readonly Dictionary<string, string> MonumentAliases = new Dictionary<string, string>()
             {
@@ -637,9 +646,9 @@ namespace Oxide.Plugins
             [JsonProperty("MaxDistanceFromMonument")]
             public Dictionary<string, float> MaxDistanceFromMonument = new Dictionary<string, float>()
             {
-                ["launch_site_1"] = 80,
                 ["excavator_1"] = 120,
                 ["junkyard_1"] = 35,
+                ["launch_site_1"] = 80,
                 ["lighthouse"] = 70,
                 ["military_tunnel_1"] = 40,
                 ["mining_quarry_c"] = 15,
@@ -647,18 +656,9 @@ namespace Oxide.Plugins
                 ["OilrigAI2"] = 85,
                 ["sphere_tank"] = 20,
                 ["swamp_c"] = 50,
+                ["TRAIN_STATION"] = 100,
                 ["trainyard_1"] = 40,
                 ["water_treatment_plant_1"] = 70,
-                ["TRAIN_STATION"] = 100,
-            };
-
-            [JsonProperty("IgnoredMonuments")]
-            public string[] IgnoredMonuments = new string[]
-            {
-                "power_sub_small_1",
-                "power_sub_small_2",
-                "power_sub_big_1",
-                "power_sub_big_2",
             };
         }
 
