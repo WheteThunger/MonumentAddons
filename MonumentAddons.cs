@@ -22,7 +22,7 @@ namespace Oxide.Plugins
         private static MonumentAddons _pluginInstance;
         private static Configuration _pluginConfig;
 
-        private const float MaxRaycastDistance = 20;
+        private const float MaxRaycastDistance = 50;
         private const float TerrainProximityTolerance = 0.001f;
 
         private const string PermissionAdmin = "monumentaddons.admin";
