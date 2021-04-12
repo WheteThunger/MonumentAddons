@@ -61,6 +61,8 @@ namespace Oxide.Plugins
             _pluginData = StoredData.Load();
 
             permission.RegisterPermission(PermissionAdmin, this);
+
+            Unsubscribe(nameof(OnEntitySpawned));
         }
 
         private void Unload()
@@ -87,6 +89,18 @@ namespace Oxide.Plugins
             ImmortalProtection.Add(1);
 
             _spawnCoroutine = ServerMgr.Instance.StartCoroutine(SpawnSavedEntities());
+        }
+
+        private void OnEntitySpawned(CargoShip cargoShip)
+        {
+            var monumentWrapper = MonumentWrapper.FromCargoShip(cargoShip);
+
+            List<EntityData> entityDataList;
+            if (!_pluginData.MonumentMap.TryGetValue(monumentWrapper.SavedName, out entityDataList))
+                return;
+
+            foreach (var entityData in entityDataList)
+                SpawnEntity(entityData, monumentWrapper);
         }
 
         private void OnEntityKill(BaseEntity entity)
@@ -142,6 +156,7 @@ namespace Oxide.Plugins
                 return;
             }
 
+            var prefabName = matches[0];
             var basePlayer = player.Object as BasePlayer;
 
             Vector3 position;
@@ -153,7 +168,7 @@ namespace Oxide.Plugins
 
             MonumentWrapper nearestMonumentWrapper;
             float distance;
-            if (!NearMonument(position, out nearestMonumentWrapper, out distance))
+            if (!NearMonument(basePlayer, position, out nearestMonumentWrapper, out distance))
             {
                 if (nearestMonumentWrapper != null)
                     ReplyToPlayer(player, "Error.NotAtMonument", nearestMonumentWrapper.ShortName, distance);
@@ -162,10 +177,10 @@ namespace Oxide.Plugins
                 return;
             }
 
-            var prefabName = matches[0];
-
             var localPosition = nearestMonumentWrapper.InverseTransformPoint(position);
-            var localRotationAngle = (nearestMonumentWrapper.Rotation.eulerAngles.y - basePlayer.GetNetworkRotation().eulerAngles.y + 180);
+            var localRotationAngle = basePlayer.HasParent()
+                ? 180 - basePlayer.viewAngles.y
+                : nearestMonumentWrapper.Rotation.eulerAngles.y - basePlayer.viewAngles.y + 180;
 
             var entityData = new EntityData
             {
@@ -236,16 +251,20 @@ namespace Oxide.Plugins
 
         private static bool TryGetHitPosition(BasePlayer player, out Vector3 position, float maxDistance = MaxRaycastDistance)
         {
+            var layers = HitLayers;
+            if (player.GetParentEntity() is CargoShip)
+                layers += Rust.Layers.Mask.Vehicle_Large;
+
             RaycastHit hit;
-            if (Physics.Raycast(player.eyes.HeadRay(), out hit, maxDistance, HitLayers, QueryTriggerInteraction.Ignore))
+            if (Physics.Raycast(player.eyes.HeadRay(), out hit, maxDistance, layers, QueryTriggerInteraction.Ignore))
             {
                 position = hit.point;
                 return true;
             }
+
             position = Vector3.zero;
             return false;
         }
-
         private static BaseEntity GetLookEntity(BasePlayer basePlayer, float maxDistance = MaxRaycastDistance)
         {
             RaycastHit hit;
@@ -314,24 +333,38 @@ namespace Oxide.Plugins
 
             var list = new List<MonumentWrapper>();
 
-            foreach (var monument in TerrainMeta.Path.Monuments)
+            if (monumentWrapper.IsMonument)
             {
-                if (monument == null)
-                    continue;
+                foreach (var monument in TerrainMeta.Path.Monuments)
+                {
+                    if (monument == null)
+                        continue;
 
-                var wrapped = MonumentWrapper.FromMonument(monument);
-                if (wrapped.SavedName == savedName)
-                    list.Add(wrapped);
+                    var wrapped = MonumentWrapper.FromMonument(monument);
+                    if (wrapped.SavedName == savedName)
+                        list.Add(wrapped);
+                }
             }
-
-            foreach (var dungeon in TerrainMeta.Path.DungeonCells)
+            else if (monumentWrapper.IsDungeon)
             {
-                if (dungeon == null)
-                    continue;
+                foreach (var dungeon in TerrainMeta.Path.DungeonCells)
+                {
+                    if (dungeon == null)
+                        continue;
 
-                var wrapped = MonumentWrapper.FromDungeon(dungeon);
-                if (wrapped.SavedName == savedName)
-                    list.Add(wrapped);
+                    var wrapped = MonumentWrapper.FromDungeon(dungeon);
+                    if (wrapped.SavedName == savedName)
+                        list.Add(wrapped);
+                }
+            }
+            else if (monumentWrapper.IsCargoShip)
+            {
+                foreach (var entity in BaseNetworkable.serverEntities)
+                {
+                    var cargoShip = entity as CargoShip;
+                    if (cargoShip != null)
+                        list.Add(MonumentWrapper.FromCargoShip(cargoShip));
+                }
             }
 
             return list;
@@ -373,9 +406,12 @@ namespace Oxide.Plugins
             return distanceFromBounds <= monumentWrapper.MaxAllowedDistance;
         }
 
-        private static bool NearMonument(Vector3 position, out MonumentWrapper nearestMonumentWrapper, out float distanceFromBounds)
+        private static bool NearMonument(BasePlayer player, Vector3 position, out MonumentWrapper nearestMonumentWrapper, out float distanceFromBounds)
         {
             distanceFromBounds = 0;
+
+            if (OnCargoShip(player, position, out nearestMonumentWrapper))
+                return true;
 
             if (position.y < -100)
             {
@@ -385,6 +421,21 @@ namespace Oxide.Plugins
 
             nearestMonumentWrapper = FindNearestMonument(position, out distanceFromBounds);
             return IsCloseEnough(nearestMonumentWrapper, position, distanceFromBounds);
+        }
+
+        private static bool OnCargoShip(BasePlayer player, Vector3 position, out MonumentWrapper monumentWrapper)
+        {
+            monumentWrapper = null;
+
+            var cargoShip = player.GetParentEntity() as CargoShip;
+            if (cargoShip == null)
+                return false;
+
+            if (!cargoShip.WorldSpaceBounds().Contains(position))
+                return false;
+
+            monumentWrapper = MonumentWrapper.FromCargoShip(cargoShip);
+            return true;
         }
 
         private IEnumerator SpawnSavedEntities()
@@ -429,17 +480,41 @@ namespace Oxide.Plugins
                 }
             }
 
+            foreach (var serverEntity in BaseNetworkable.serverEntities)
+            {
+                var cargoShip = serverEntity as CargoShip;
+                if (cargoShip == null)
+                    continue;
+
+                var monumentWrapper = MonumentWrapper.FromCargoShip(cargoShip);
+
+                List<EntityData> entityDataList;
+                if (!_pluginData.MonumentMap.TryGetValue(monumentWrapper.SavedName, out entityDataList))
+                    continue;
+
+                foreach (var entityData in entityDataList)
+                {
+                    var entity = SpawnEntity(entityData, monumentWrapper);
+                    sb.AppendLine($" - {monumentWrapper.ShortName}: {entity.ShortPrefabName} at {entity.transform.position}");
+                    yield return CoroutineEx.waitForEndOfFrame;
+                }
+            }
+
             if (sb.Length > 0)
             {
                 sb.Insert(0, "Spawned Entities:\n");
                 Puts(sb.ToString());
             }
+
+            // We don't want to be subscribed to OnEntitySpawned(CargoShip) until the coroutine is done.
+            // Otherwise, a cargo ship could spawn while the coroutine is running and could get double entities.
+            Subscribe(nameof(OnEntitySpawned));
         }
 
-        private BaseEntity SpawnEntity(EntityData entityData, MonumentWrapper monument)
+        private BaseEntity SpawnEntity(EntityData entityData, MonumentWrapper monumentWrapper)
         {
-            var position = monument.TransformPoint(entityData.Position);
-            var rotation = Quaternion.Euler(0, monument.Rotation.eulerAngles.y - entityData.RotationAngle, 0);
+            var position = monumentWrapper.TransformPoint(entityData.Position);
+            var rotation = Quaternion.Euler(0, monumentWrapper.Rotation.eulerAngles.y - entityData.RotationAngle, 0);
 
             if (entityData.OnTerrain)
                 position.y = TerrainMeta.HeightMap.GetHeight(position);
@@ -466,6 +541,9 @@ namespace Oxide.Plugins
             }
 
             DestroyProblemComponents(entity);
+
+            if (monumentWrapper.IsCargoShip)
+                entity.SetParent(monumentWrapper.CargoShip, worldPositionStays: true, sendImmediate: true);
 
             entity.Spawn();
 
@@ -497,6 +575,9 @@ namespace Oxide.Plugins
             public static MonumentWrapper FromDungeon(DungeonCell dungeonCell) =>
                 new MonumentWrapper() { DungeonCell = dungeonCell };
 
+            public static MonumentWrapper FromCargoShip(CargoShip cargoShip) =>
+                new MonumentWrapper() { CargoShip = cargoShip };
+
             private Quaternion _trainStationRotation
             {
                 get
@@ -510,18 +591,20 @@ namespace Oxide.Plugins
                 }
             }
 
-            private Transform Transform => Monument?.transform ?? DungeonCell.transform;
-
             public MonumentInfo Monument { get; private set; }
             public DungeonCell DungeonCell { get; private set; }
+            public CargoShip CargoShip { get; private set; }
 
             public bool IsMonument => Monument != null;
             public bool IsDungeon => DungeonCell != null;
             public bool IsTrainStation => IsDungeon && StationRotations.ContainsKey(GetShortName(DungeonCell.name));
-            public string ShortName => GetShortName(Monument?.name ?? DungeonCell?.name);
+            public bool IsCargoShip => CargoShip != null;
 
+            public string ShortName => GetShortName(Monument?.name ?? DungeonCell?.name ?? CargoShip?.name);
+
+            public Transform Transform => Monument?.transform ?? DungeonCell?.transform ?? CargoShip?.transform;
             public Vector3 Position => Transform?.position ?? Vector3.zero;
-            public Quaternion Rotation => Monument?.transform.rotation ?? _trainStationRotation;
+            public Quaternion Rotation => IsTrainStation ? _trainStationRotation : Transform.rotation;
 
             public Vector3 TransformPoint(Vector3 localPosition) =>
                 Transform.TransformPoint(IsTrainStation ? Rotation * localPosition : localPosition);
