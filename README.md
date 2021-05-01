@@ -1,9 +1,11 @@
 ## Features
 
-- Allows spawning entities at monuments, which respawn after server restarts and wipes
-- Familiar syntax for spawning entities, similar to `spawn <entity>`
-- Placement is automatically determined relative to monuments, so you only need to place each entity once, and it will respawn in the correct position and rotation on any map seed for every monument with the same prefab name
-- Spawned entities are indestructible, have free electricity, and cannot be picked up
+Easily spawn entities at monuments, which auto spawn after restarts and wipes.
+
+- Setup is done in-game, no config needed
+- Uses familiar command syntax, based on `spawn <entity>`
+- Works on any map seed and accounts for terrain height
+- Monument entities are indestructible, have free electricity, and cannot be picked up
 - Supports cargo ship and train stations
 
 ### Compared to similar plugins
