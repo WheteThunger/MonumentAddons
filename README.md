@@ -1,9 +1,16 @@
 ## Features
 
-- Allows spawning permanent entities at monuments, which respawn after server restarts and even map wipes
+- Allows spawning entities at monuments, which respawn after server restarts and wipes
 - Familiar syntax for spawning entities, similar to `spawn <entity>`
 - Placement is automatically determined relative to monuments, so you only need to place each entity once, and it will respawn in the correct position and rotation on any map seed for every monument with the same prefab name
 - Spawned entities are indestructible, have free electricity, and cannot be picked up
+- Supports cargo ship and train stations
+
+### Compared to similar plugins
+
+Monument Plus Lite and Monument Entities fulfill the same purpose, but those plugins require a multi-step process where you use a command in game, type something into the config, and then reload the plugin.
+
+This plugin allows you to simply spawn the entity with a command in-game. The entity is automatically spawned at all similar monuments and saved in the data file.
 
 ## Getting started
 
@@ -11,7 +18,7 @@
 2. Aim somewhere where you would like to spawn an entity, such as on a flat surface, wall, or ceiling.
 3. Run the `maspawn <entity>` command to spawn an entity of your choice (for example, `maspawn modularcarlift.static`).
 
-This does several things.
+This will do several things.
 - It spawns the entity where you are aiming.
 - It spawns the entity at all other identical monuments (for example, at every gas station) using the correct relative position and rotation for those monuments.
 - It saves this information in the plugin data file, so that the entity can be respawned when the plugin is reloaded, when the server is restarted, or when the server is wiped, even if using a new map seed (don't worry, this works perfectly).
