@@ -5,7 +5,7 @@ Easily spawn entities at monuments, which auto spawn after restarts and wipes.
 - Setup is done in-game, no config needed
 - Uses familiar command syntax, based on `spawn <entity>`
 - Works on any map seed and accounts for terrain height
-- Monument entities are indestructible, have free electricity, and cannot be picked up
+- Entities are indestructible, have free electricity, and cannot be picked up
 - Supports cargo ship and train stations
 
 ### Compared to similar plugins
@@ -16,7 +16,7 @@ This plugin allows you to simply spawn the entity with a command in-game. The en
 
 ## Getting started
 
-1. After installing the plugin and granting permission, go to a monument where you want to spawn a permanent entity (for example, at Oxum's Gas Station).
+1. After installing the plugin and granting permission, go to a monument where you want to spawn an entity (for example, at Oxum's Gas Station).
 2. Aim somewhere where you would like to spawn an entity, such as on a flat surface, wall, or ceiling.
 3. Run the `maspawn <entity>` command to spawn an entity of your choice (for example, `maspawn modularcarlift.static`).
 
@@ -33,7 +33,7 @@ This will do several things.
 
 ## Troubleshooting
 
-If you are unable to spawn an entity at a particular monument, you may need to add a distance override in the plugin config for that entity's short prefab name.
+If you receive the "Not at a monument" error, you may need to update the `MaxDistanceFromMonument` config for that monument.
 
 ## Commands
 
@@ -94,7 +94,7 @@ Default configuration:
 - `IgnoredMonuments` -- This list allows you to exclude certain monuments from being found when using the `maspawn` command. This is useful for cases where monuments are essentially overlapping each other, since the plugin can have trouble selecting the correct monument.
   - The power substations are ignored by default since they tend to overlap monuments such as the Launch Site.
 - `MonumentAliases` -- This allows you to give each monument an alias. Assigning the same alias to multiple monuments causes the same entities to spawn at all of them.
-- `MaxDistanceFromMonument` -- These values help the `maspawn` command find nearby monuments that don't have proper bounds. This supports monument short prefab names as well as aliases. Add or update this section if you are seeing the "Not at a monument" error.
+- `MaxDistanceFromMonument` -- These values help the `maspawn` command find nearby monuments that don't have proper bounds. This supports monument short prefab names as well as aliases. Add to or update this section if you are seeing the "Not at a monument" error.
   - Caution: Avoid setting these limits too high. Having a low limit helps prevent you from accidentally spawning an entity outside of a monument, or relative to a monument that is very far away.
 
 ## Localization
