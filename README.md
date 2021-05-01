@@ -7,7 +7,7 @@
 
 ## Getting started
 
-1. After installing the plugin and granting permission, go to a monument where you want to spawn a permanent entity (for example, Oxum's Gas Station).
+1. After installing the plugin and granting permission, go to a monument where you want to spawn a permanent entity (for example, at Oxum's Gas Station).
 2. Aim somewhere where you would like to spawn an entity, such as on a flat surface, wall, or ceiling.
 3. Run the `maspawn <entity>` command to spawn an entity of your choice (for example, `maspawn modularcarlift.static`).
 
@@ -28,11 +28,13 @@ If you are unable to spawn an entity at a particular monument, you may need to a
 
 ## Commands
 
-- `maspawn <entity>` -- Spawns an entity where you are aiming, and at all matching monuments. Must be at or near a monument.
-  - Works just like the native `spawn` command, so if the entity name isn't specific enough, all matching entity names will be printed in chat or console.
+- `maspawn <entity>` -- Spawns an entity where you are aiming, and at all matching monuments.
+  - You must be at or near a monument.
+  - Works just like the native `spawn` command, so if the entity name isn't specific enough, it will print all matching entity names.
   - A monument is considered a match if it has the same short prefab name or the same configured alias as the monument you are aiming at.
   - This saves the entity info to the plugin data file so that reloading the plugin will respawn the entity.
-- `makill` -- Kills the entity that the player is looking at, and all entities places in the same spot at matching monuments. Only works on entities that were spawned by this plugin.
+- `makill` -- Kills the entity that the player is looking at, and all entities places in the same spot at matching monuments.
+  - Only works on entities that were spawned by this plugin.
   - This removes the entity from the plugin data file so that it won't respawn later.
   - Tip: Bind this to a key to save time while setting up entities.
 
@@ -80,12 +82,11 @@ Default configuration:
 }
 ```
 
-- `IgnoredMonuments` -- List of monument short prefab names to ignore when running the `maspawn` command.
-  - The power substations are ignored by default since they can nearly overlap other monuments, which can cause placement issues.
-- `MonumentAliases` -- Mapping of monument short prefab names to aliases. This basically allows you to group similar monuments so they all receive the same entities in the same positions.
-  - How it works: When an entity is saved to a monument that has an alias, the entity info will be saved under the alias instead of under the monument short prefab name. When the plugin spawns entities at a given monument that has an alias mapped here, only entities saved under the alias will be spawned.
-- `MaxDistanceFromMonument` -- Mapping of monument short prefab names (or aliases) to allowed distance that entities can be placed with `maspawn`. This is useful for certain monuments where the vanilla bounds are not large enough to cover the whole visual monument, especially for some monuments which have basically zero bounds.
-  - Caution: Avoid setting these limits too high. Having a low limit helps prevent you from spawning an entity outside of a monument, or relative to a monument that is very far away by accident.
+- `IgnoredMonuments` -- This list allows you to exclude certain monuments from being found when using the `maspawn` command. This is useful for cases where monuments are essentially overlapping each other, since the plugin can have trouble selecting the correct monument.
+  - The power substations are ignored by default since they tend to overlap monuments such as the Launch Site.
+- `MonumentAliases` -- This allows you to give each monument an alias. Assigning the same alias to multiple monuments causes the same entities to spawn at all of them.
+- `MaxDistanceFromMonument` -- These values help the `maspawn` command find nearby monuments that don't have proper bounds. This supports monument short prefab names as well as aliases. Add or update this section if you are seeing the "Not at a monument" error.
+  - Caution: Avoid setting these limits too high. Having a low limit helps prevent you from accidentally spawning an entity outside of a monument, or relative to a monument that is very far away.
 
 ## Localization
 
