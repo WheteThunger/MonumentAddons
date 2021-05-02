@@ -1,6 +1,6 @@
 ## Features
 
-Easily spawn entities at monuments, which auto spawn after restarts and wipes.
+Easily spawn permanent entities at monuments, which auto respawn after restarts and wipes.
 
 - Setup is done in-game, no config needed
 - Uses familiar command syntax, based on `spawn <entity>`
@@ -12,44 +12,36 @@ Easily spawn entities at monuments, which auto spawn after restarts and wipes.
 
 Monument Plus Lite and Monument Entities fulfill the same purpose, but those plugins require a multi-step process where you use a command in game, type something into the config, and then reload the plugin.
 
-This plugin allows you to simply spawn the entity with a command in-game. The entity is automatically spawned at all similar monuments and saved in the data file.
+This plugin allows you to simply spawn the entity with a command in-game. The entity is automatically spawned at all similar monuments and saved in the data file so it can be respawned later.
 
 ## Getting started
 
-1. After installing the plugin and granting permission, go to a monument where you want to spawn an entity (for example, at Oxum's Gas Station).
-2. Aim somewhere where you would like to spawn an entity, such as on a flat surface, wall, or ceiling.
-3. Run the `maspawn <entity>` command to spawn an entity of your choice (for example, `maspawn modularcarlift.static`).
+1. Install the plugin and grant the `monumentaddons.admin` permission.
+2. Go to any monument, such as a gas station.
+3. Aim somewhere, such as a floor, wall or ceiling.
+4. Run the `maspawn <entity>` command to spawn an entity of your choice. For example, `maspawn modularcarlift.static`.
 
 This will do several things.
 - It spawns the entity where you are aiming.
 - It spawns the entity at all other identical monuments (for example, at every gas station) using the correct relative position and rotation for those monuments.
 - It saves this information in the plugin data file, so that the entity can be respawned when the plugin is reloaded, when the server is restarted, or when the server is wiped, even if using a new map seed (don't worry, this works perfectly).
 
-## Tips
+## Permissions
 
-- Be careful where you spawn entities. Make sure you are aiming at a point that is clearly inside a monument, or it may spawn in an unexpected location at other instances of that monument or for different map seeds. If you are aiming at a point where the terrain is not flat, that usually means it is not in the monument, though there are some exceptions.
-- When placing an entity that has a matching deployable, equip the corresponding item and use it as a placement guide for pinpoint precision before running the `maspawn` command. Note: You may need to rotate the placement guide.
-- If you accidentally `ent kill` an entity that you spawned with this plugin, you can reload the plugin to restore it.
-
-## Troubleshooting
-
-If you receive the "Not at a monument" error, you may need to update the `MaxDistanceFromMonument` config for that monument.
+- `monumentaddons.admin` -- Allows use of the `maspawn` and `makill` commands.
 
 ## Commands
 
-- `maspawn <entity>` -- Spawns an entity where you are aiming, and at all matching monuments.
+- `maspawn <entity>` -- Spawns an entity where you are aiming, using the entity short prefab name.
   - You must be at or near a monument.
   - Works just like the native `spawn` command, so if the entity name isn't specific enough, it will print all matching entity names.
-  - A monument is considered a match if it has the same short prefab name or the same configured alias as the monument you are aiming at.
-  - This saves the entity info to the plugin data file so that reloading the plugin will respawn the entity.
-- `makill` -- Kills the entity that the player is looking at, and all entities places in the same spot at matching monuments.
+  - Also spawns the entity at other matching monuments (e.g., if at a gas station, will spawn at all gas stations).
+    - A monument is considered a match if it has the same short prefab name or the same configured alias as the monument you are aiming at.
+  - This saves the entity info to the plugin data file so that reloading the plugin (or restarting the server) will respawn the entity.
+- `makill` -- Kills the entity that you are aiming at.
   - Only works on entities that were spawned by this plugin.
+  - Also removes the entity from other matching monuments.
   - This removes the entity from the plugin data file so that it won't respawn later.
-  - Tip: Bind this to a key to save time while setting up entities.
-
-## Permissions
-
-- `monumentaddons.admin` -- Required to use the `maspawn` and `makill` commands.
 
 ## Configuration
 
@@ -116,49 +108,56 @@ Default configuration:
 }
 ```
 
-## Uninstallation
-
-Simply remove the plugin. Spawned entities are automatically removed when the plugin unloads.
-
-If you reinstall the plugin, you may want to delete the data file beforehand, or else entities will spawn in the positions you previously saved.
-
 ## Example entities
 
 Structure/Defense:
-- `sentry.{bandit|scientist}`
-- `sam_static`
-- `watchtower`
-- `door_barricade_{*}`
 - `barricade.{*}`
+- `door_barricade_{*}`
+- `sam_static`
+- `sentry.{bandit|scientist}`
+- `watchtower`
 
 Utility:
-- `modularcarlift.static`
+- `bbq.static`
+- `ceilinglight`
 - `computerstation`
+- `fireplace`
+- `modularcarlift.static`
+- `npcvendingmachine_{*}"`
+- `phonebooth.static`
 - `recycler_static`
 - `repairbench_static`
+- `researchtable_static`
+- `simplelight`
+- `telephone.deployed`
 - `workbench{1|2}.static`
 - `workbench{1|2|3}.deployed`
-- `researchtable_static`
-- `npcvendingmachine_{*}"`
-- `ceilinglight`
-- `simplelight`
-- `fireplace`
-- `bbq.static`
 
-Role play:
-- `chair.static`
-- `sofa.deployed`
-- `sign.post.town`
-- `sign.post.town.roof`
-- `phonebooth.static`
-- `telephone.deployed`
-
-Fun:
-- `arcademachine`
-- `xmas_tree.deployed`
-- `drumkit.deployed.static`
-- `piano.deployed.static`
-- `paddlingpool`
+Fun / role play:
 - `abovegroundpool`
+- `arcademachine`
 - `cardtable.static_config{a|b|c|d}`
+- `chair.static`
+- `paddlingpool`
+- `piano.deployed.static`
+- `sign.post.town.roof`
+- `sign.post.town`
 - `slotmachine`
+- `sofa.deployed`
+- `xmas_tree.deployed`
+
+## Tips
+
+- Be careful where you spawn entities. Make sure you are aiming at a point that is clearly inside a monument, or it may spawn in an unexpected location at other instances of that monument or for different map seeds. If you are aiming at a point where the terrain is not flat, that usually means it is not in the monument, though there are some exceptions.
+- When placing an entity that has a matching deployable, equip the corresponding item and use it as a placement guide for pinpoint precision before running the `maspawn` command. Note: You may need to rotate the placement guide.
+- Bind `makill` to a key while setting up entities to save time, since you may need to remove and replace an entity a few times to get it where you want.
+
+## Troubleshooting
+
+- If you receive the "Not at a monument" error, you may need to update the `MaxDistanceFromMonument` config for that monument.
+- If you accidentally `ent kill` an entity that you spawned with this plugin, you can reload the plugin to restore it.
+- If you spawn an entity that is either invisible or doesn't have a collider, and you want to remove it, you can unload the plugin, remove the entity from the plugin's data file, and then reload the plugin.
+
+## Uninstallation
+
+Simply remove the plugin. Spawned entities are automatically removed when the plugin unloads.
