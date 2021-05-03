@@ -6,7 +6,7 @@ Easily spawn permanent entities at monuments, which auto respawn after restarts 
 - Uses familiar command syntax, based on `spawn <entity>`
 - Works on any map seed and accounts for terrain height
 - Entities are indestructible, have free electricity, and cannot be picked up
-- Supports cargo ship and train stations
+- Supports custom monuments, train stations and cargo ship
 
 ### Compared to similar plugins
 
@@ -154,7 +154,7 @@ Fun / role play:
 
 ## Troubleshooting
 
-- If you receive the "Not at a monument" error, you may need to update the `MaxDistanceFromMonument` config for that monument.
+- If you receive the "Not at a monument" error, you may need to update the `MaxDistanceFromMonument` config for that monument. This is needed for custom monuments.
 - If you accidentally `ent kill` an entity that you spawned with this plugin, you can reload the plugin to restore it.
 - If you spawn an entity that is either invisible or doesn't have a collider, and you want to remove it, you can unload the plugin, remove the entity from the plugin's data file, and then reload the plugin.
 
