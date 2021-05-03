@@ -13,7 +13,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("Monument Addons", "WhiteThunder", "0.3.1")]
+    [Info("Monument Addons", "WhiteThunder", "0.4.0")]
     [Description("Allows privileged players to add permanent entities to monuments.")]
     internal class MonumentAddons : CovalencePlugin
     {
@@ -600,7 +600,19 @@ namespace Oxide.Plugins
             public bool IsTrainStation => IsDungeon && StationRotations.ContainsKey(GetShortName(DungeonCell.name));
             public bool IsCargoShip => CargoShip != null;
 
-            public string ShortName => GetShortName(Monument?.name ?? DungeonCell?.name ?? CargoShip?.name);
+            public string ShortName
+            {
+                get
+                {
+                    var obj = Monument ?? DungeonCell ?? CargoShip as MonoBehaviour;
+
+                    var name = obj.name;
+                    if (name.Contains("monument_marker.prefab"))
+                        name = obj.transform.root.name;
+
+                    return GetShortName(name);
+                }
+            }
 
             public Transform Transform => Monument?.transform ?? DungeonCell?.transform ?? CargoShip?.transform;
             public Vector3 Position => Transform?.position ?? Vector3.zero;
