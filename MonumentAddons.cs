@@ -543,7 +543,12 @@ namespace Oxide.Plugins
             DestroyProblemComponents(entity);
 
             if (monumentWrapper.IsCargoShip)
+            {
                 entity.SetParent(monumentWrapper.CargoShip, worldPositionStays: true, sendImmediate: true);
+                var mountable = entity as BaseMountable;
+                if (mountable != null)
+                    mountable.isMobile = true;
+            }
 
             entity.Spawn();
 
