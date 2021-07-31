@@ -265,6 +265,7 @@ namespace Oxide.Plugins
             position = Vector3.zero;
             return false;
         }
+
         private static BaseEntity GetLookEntity(BasePlayer basePlayer, float maxDistance = MaxRaycastDistance)
         {
             RaycastHit hit;
