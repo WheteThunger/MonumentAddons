@@ -347,7 +347,7 @@ namespace Oxide.Plugins
             }
             else if (monumentWrapper.IsDungeon)
             {
-                foreach (var dungeon in TerrainMeta.Path.DungeonCells)
+                foreach (var dungeon in TerrainMeta.Path.DungeonGridCells)
                 {
                     if (dungeon == null)
                         continue;
@@ -372,10 +372,10 @@ namespace Oxide.Plugins
 
         private static MonumentWrapper FindNearestTrainStation(Vector3 position, out float distanceFromBounds)
         {
-            DungeonCell closestStation = null;
+            DungeonGridCell closestStation = null;
             float shortestDistance = float.MaxValue;
 
-            foreach (var dungeon in TerrainMeta.Path.DungeonCells)
+            foreach (var dungeon in TerrainMeta.Path.DungeonGridCells)
             {
                 if (dungeon == null)
                     continue;
@@ -461,7 +461,7 @@ namespace Oxide.Plugins
                 }
             }
 
-            foreach (var dungeonCell in TerrainMeta.Path.DungeonCells)
+            foreach (var dungeonCell in TerrainMeta.Path.DungeonGridCells)
             {
                 if (dungeonCell == null)
                     continue;
@@ -577,7 +577,7 @@ namespace Oxide.Plugins
             public static MonumentWrapper FromMonument(MonumentInfo monument) =>
                 new MonumentWrapper() { Monument = monument };
 
-            public static MonumentWrapper FromDungeon(DungeonCell dungeonCell) =>
+            public static MonumentWrapper FromDungeon(DungeonGridCell dungeonCell) =>
                 new MonumentWrapper() { DungeonCell = dungeonCell };
 
             public static MonumentWrapper FromCargoShip(CargoShip cargoShip) =>
@@ -597,7 +597,7 @@ namespace Oxide.Plugins
             }
 
             public MonumentInfo Monument { get; private set; }
-            public DungeonCell DungeonCell { get; private set; }
+            public DungeonGridCell DungeonCell { get; private set; }
             public CargoShip CargoShip { get; private set; }
 
             public bool IsMonument => Monument != null;
