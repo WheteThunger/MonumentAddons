@@ -63,7 +63,11 @@ Default configuration:
     "station-we-0": "TRAIN_STATION",
     "station-we-1": "TRAIN_STATION",
     "station-we-2": "TRAIN_STATION",
-    "station-we-3": "TRAIN_STATION"
+    "station-we-3": "TRAIN_STATION",
+    "entrance_bunker_a": "ENTRANCE_BUNKER",
+    "entrance_bunker_b": "ENTRANCE_BUNKER",
+    "entrance_bunker_c": "ENTRANCE_BUNKER",
+    "entrance_bunker_d": "ENTRANCE_BUNKER"
   },
   "MaxDistanceFromMonument": {
     "excavator_1": 120.0,
