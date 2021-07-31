@@ -167,11 +167,11 @@ namespace Oxide.Plugins
             }
 
             MonumentWrapper nearestMonumentWrapper;
-            float distance;
-            if (!NearMonument(basePlayer, position, out nearestMonumentWrapper, out distance))
+            float sqrDistance;
+            if (!NearMonument(basePlayer, position, out nearestMonumentWrapper, out sqrDistance))
             {
                 if (nearestMonumentWrapper != null)
-                    ReplyToPlayer(player, "Error.NotAtMonument", nearestMonumentWrapper.ShortName, distance);
+                    ReplyToPlayer(player, "Error.NotAtMonument", nearestMonumentWrapper.ShortName, Mathf.Sqrt(sqrDistance).ToString("f1"));
                 else
                     ReplyToPlayer(player, "Error.NoMonuments");
                 return;
@@ -302,10 +302,10 @@ namespace Oxide.Plugins
             return matches.ToArray();
         }
 
-        private static MonumentWrapper FindNearestMonument(Vector3 position, out float distanceFromBounds)
+        private static MonumentWrapper FindNearestMonument(Vector3 position, out float sqrDistanceFromBounds)
         {
             MonumentInfo closestMonument = null;
-            float shortestDistance = float.MaxValue;
+            float shortestSqrDistance = float.MaxValue;
 
             foreach (var monument in TerrainMeta.Path.Monuments)
             {
@@ -315,15 +315,15 @@ namespace Oxide.Plugins
                 if (_pluginConfig.IgnoredMonuments.Contains(GetShortName(monument.name)))
                     continue;
 
-                var distance = Vector3.Distance(monument.ClosestPointOnBounds(position), position);
-                if (distance < shortestDistance)
+                var sqrDistance = (monument.ClosestPointOnBounds(position) - position).sqrMagnitude;
+                if (sqrDistance < shortestSqrDistance)
                 {
-                    shortestDistance = distance;
+                    shortestSqrDistance = sqrDistance;
                     closestMonument = monument;
                 }
             }
 
-            distanceFromBounds = shortestDistance;
+            sqrDistanceFromBounds = shortestSqrDistance;
             return MonumentWrapper.FromMonument(closestMonument);
         }
 
@@ -370,10 +370,10 @@ namespace Oxide.Plugins
             return list;
         }
 
-        private static MonumentWrapper FindNearestTrainStation(Vector3 position, out float distanceFromBounds)
+        private static MonumentWrapper FindNearestTrainStation(Vector3 position, out float sqrDistanceFromBounds)
         {
             DungeonGridCell closestStation = null;
-            float shortestDistance = float.MaxValue;
+            float shortestSqrDistance = float.MaxValue;
 
             foreach (var dungeon in TerrainMeta.Path.DungeonGridCells)
             {
@@ -386,41 +386,41 @@ namespace Oxide.Plugins
                 if (!StationRotations.ContainsKey(GetShortName(dungeon.name)))
                     continue;
 
-                var distance = Vector3.Distance(dungeon.transform.position, position);
-                if (distance < shortestDistance)
+                var sqrDistance = (dungeon.transform.position - position).sqrMagnitude;
+                if (sqrDistance < shortestSqrDistance)
                 {
-                    shortestDistance = distance;
+                    shortestSqrDistance = sqrDistance;
                     closestStation = dungeon;
                 }
             }
 
-            distanceFromBounds = shortestDistance;
+            sqrDistanceFromBounds = shortestSqrDistance;
             return MonumentWrapper.FromDungeon(closestStation);
         }
 
-        private static bool IsCloseEnough(MonumentWrapper monumentWrapper, Vector3 position, float distanceFromBounds)
+        private static bool IsCloseEnough(MonumentWrapper monumentWrapper, Vector3 position, float sqrDistanceFromBounds)
         {
             if (monumentWrapper.IsMonument && monumentWrapper.Monument.IsInBounds(position))
                 return true;
 
-            return distanceFromBounds <= monumentWrapper.MaxAllowedDistance;
+            return sqrDistanceFromBounds <= Math.Pow(monumentWrapper.MaxAllowedDistance, 2);
         }
 
-        private static bool NearMonument(BasePlayer player, Vector3 position, out MonumentWrapper nearestMonumentWrapper, out float distanceFromBounds)
+        private static bool NearMonument(BasePlayer player, Vector3 position, out MonumentWrapper nearestMonumentWrapper, out float sqrDistanceFromBounds)
         {
-            distanceFromBounds = 0;
+            sqrDistanceFromBounds = 0;
 
             if (OnCargoShip(player, position, out nearestMonumentWrapper))
                 return true;
 
             if (position.y < -100)
             {
-                nearestMonumentWrapper = FindNearestTrainStation(position, out distanceFromBounds);
-                return IsCloseEnough(nearestMonumentWrapper, position, distanceFromBounds);
+                nearestMonumentWrapper = FindNearestTrainStation(position, out sqrDistanceFromBounds);
+                return IsCloseEnough(nearestMonumentWrapper, position, sqrDistanceFromBounds);
             }
 
-            nearestMonumentWrapper = FindNearestMonument(position, out distanceFromBounds);
-            return IsCloseEnough(nearestMonumentWrapper, position, distanceFromBounds);
+            nearestMonumentWrapper = FindNearestMonument(position, out sqrDistanceFromBounds);
+            return IsCloseEnough(nearestMonumentWrapper, position, sqrDistanceFromBounds);
         }
 
         private static bool OnCargoShip(BasePlayer player, Vector3 position, out MonumentWrapper monumentWrapper)
