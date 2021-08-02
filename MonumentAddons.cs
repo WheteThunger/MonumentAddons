@@ -1038,7 +1038,6 @@ namespace Oxide.Plugins
                 ["OilrigAI2"] = 85,
                 ["sphere_tank"] = 20,
                 ["swamp_c"] = 50,
-                ["TRAIN_STATION"] = 100,
                 ["trainyard_1"] = 40,
                 ["water_treatment_plant_1"] = 70,
             };
