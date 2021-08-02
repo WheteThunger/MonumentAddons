@@ -33,7 +33,7 @@ namespace Oxide.Plugins
             + Rust.Layers.Mask.Terrain
             + Rust.Layers.Mask.World;
 
-        private static readonly Dictionary<string, Quaternion> StationRotations = new Dictionary<string, Quaternion>()
+        private static readonly Dictionary<string, Quaternion> DungeonRotations = new Dictionary<string, Quaternion>()
         {
             ["station-sn-0"] = Quaternion.Euler(0, 180, 0),
             ["station-sn-1"] = Quaternion.identity,
@@ -43,7 +43,72 @@ namespace Oxide.Plugins
             ["station-we-1"] = Quaternion.Euler(0, -90, 0),
             ["station-we-2"] = Quaternion.Euler(0, 90, 0),
             ["station-we-3"] = Quaternion.Euler(0, -90, 0),
+
+            ["straight-sn-0"] = Quaternion.identity,
+            ["straight-sn-1"] = Quaternion.Euler(0, 180, 0),
+            ["straight-we-0"] = Quaternion.Euler(0, -90, 0),
+            ["straight-we-1"] = Quaternion.Euler(0, 90, 0),
+
+            ["straight-sn-4"] = Quaternion.identity,
+            ["straight-sn-5"] = Quaternion.Euler(0, 180, 0),
+            ["straight-we-4"] = Quaternion.Euler(0, -90, 0),
+            ["straight-we-5"] = Quaternion.Euler(0, 90, 0),
+
+            ["intersection-n"] = Quaternion.identity,
+            ["intersection-e"] = Quaternion.Euler(0, 90, 0),
+            ["intersection-s"] = Quaternion.Euler(0, 180, 0),
+            ["intersection-w"] = Quaternion.Euler(0, -90, 0),
+
+            ["intersection"] = Quaternion.identity,
         };
+
+        private static readonly Dictionary<string, TunnelType> DungeonCellTypes = new Dictionary<string, TunnelType>()
+        {
+            ["station-sn-0"] = TunnelType.TrainStation,
+            ["station-sn-1"] = TunnelType.TrainStation,
+            ["station-sn-2"] = TunnelType.TrainStation,
+            ["station-sn-3"] = TunnelType.TrainStation,
+            ["station-we-0"] = TunnelType.TrainStation,
+            ["station-we-1"] = TunnelType.TrainStation,
+            ["station-we-2"] = TunnelType.TrainStation,
+            ["station-we-3"] = TunnelType.TrainStation,
+
+            ["straight-sn-0"] = TunnelType.LootTunnel,
+            ["straight-sn-1"] = TunnelType.LootTunnel,
+            ["straight-we-0"] = TunnelType.LootTunnel,
+            ["straight-we-1"] = TunnelType.LootTunnel,
+
+            ["straight-sn-4"] = TunnelType.BarricadeTunnel,
+            ["straight-sn-5"] = TunnelType.BarricadeTunnel,
+            ["straight-we-4"] = TunnelType.BarricadeTunnel,
+            ["straight-we-5"] = TunnelType.BarricadeTunnel,
+
+            ["intersection-n"] = TunnelType.Intersection,
+            ["intersection-e"] = TunnelType.Intersection,
+            ["intersection-s"] = TunnelType.Intersection,
+            ["intersection-w"] = TunnelType.Intersection,
+
+            ["intersection"] = TunnelType.LargeIntersection,
+        };
+
+        private static readonly Dictionary<TunnelType, Bounds> DungeonCellBounds = new Dictionary<TunnelType, Bounds>()
+        {
+            [TunnelType.TrainStation] = new Bounds(new Vector3(0, 4.25f, 0), new Vector3(108, 9, 216)),
+            [TunnelType.BarricadeTunnel] = new Bounds(new Vector3(0, 4.25f, 0), new Vector3(45f, 9, 216)),
+            [TunnelType.LootTunnel] = new Bounds(new Vector3(0, 4.25f, 0), new Vector3(16.5f, 9, 216)),
+            [TunnelType.Intersection] = new Bounds(new Vector3(0, 4.25f, 56), new Vector3(216, 9, 128)),
+            [TunnelType.LargeIntersection] = new Bounds(new Vector3(0, 4.25f, 0), new Vector3(216, 9, 216)),
+        };
+
+        private enum TunnelType
+        {
+            TrainStation,
+            BarricadeTunnel,
+            LootTunnel,
+            Intersection,
+            LargeIntersection,
+            Unsupported
+        }
 
         private readonly Dictionary<BaseEntity, EntityData> _spawnedEntities = new Dictionary<BaseEntity, EntityData>();
 
@@ -168,12 +233,18 @@ namespace Oxide.Plugins
 
             MonumentWrapper nearestMonumentWrapper;
             float sqrDistance;
-            if (!NearMonument(basePlayer, position, out nearestMonumentWrapper, out sqrDistance))
+            var isNearMonument = NearMonument(basePlayer, position, out nearestMonumentWrapper, out sqrDistance);
+
+            if (nearestMonumentWrapper != null && _pluginConfig.Debug && player.IsAdmin)
+                nearestMonumentWrapper.DrawBox(basePlayer);
+
+            if (!isNearMonument)
             {
                 if (nearestMonumentWrapper != null)
-                    ReplyToPlayer(player, "Error.NotAtMonument", nearestMonumentWrapper.ShortName, Mathf.Sqrt(sqrDistance).ToString("f1"));
+                    ReplyToPlayer(player, "Error.NotAtMonument", nearestMonumentWrapper.SavedName, Mathf.Sqrt(sqrDistance).ToString("f1"));
                 else
                     ReplyToPlayer(player, "Error.NoMonuments");
+
                 return;
             }
 
@@ -247,6 +318,115 @@ namespace Oxide.Plugins
 
         #endregion
 
+        #region Ddraw
+
+        private static class Ddraw
+        {
+            public static void Sphere(BasePlayer player, Vector3 origin, float radius, Color color, float duration) =>
+                player.SendConsoleCommand("ddraw.sphere", duration, color, origin, radius);
+
+            public static void Line(BasePlayer player, Vector3 origin, Vector3 target, Color color, float duration) =>
+                player.SendConsoleCommand("ddraw.line", duration, color, origin, target);
+
+            public static void Text(BasePlayer player, Vector3 origin, string text, Color color, float duration) =>
+                player.SendConsoleCommand("ddraw.text", duration, color, origin, text);
+
+            public static void Segments(BasePlayer player, Vector3 origin, Vector3 target, Color color, float duration)
+            {
+                var delta = target - origin;
+                var distance = delta.magnitude;
+                var direction = delta.normalized;
+
+                var segmentLength = 10f;
+                var numSegments = Mathf.CeilToInt(distance / segmentLength);
+
+                for (var i = 0; i < numSegments; i++)
+                {
+                    var length = (i == numSegments - 1)
+                        ? distance % segmentLength
+                        : segmentLength;
+
+                    var start = origin + i * segmentLength * direction;
+                    var end = start + length * direction;
+                    Line(player, start, end, color, duration);
+                }
+            }
+
+            public static void Box(BasePlayer player, Vector3 center, Quaternion rotation, Vector3 halfExtents, Color color, float duration)
+            {
+                var sphereRadius = 1;
+
+                var forwardUpperLeft = center + rotation * halfExtents.WithX(-halfExtents.x);
+                var forwardUpperRight = center + rotation * halfExtents;
+                var forwardLowerLeft = center + rotation * halfExtents.WithX(-halfExtents.x).WithY(-halfExtents.y);
+                var forwardLowerRight = center + rotation * halfExtents.WithY(-halfExtents.y);
+
+                var backLowerRight = center + rotation * -halfExtents.WithX(-halfExtents.x);
+                var backLowerLeft = center + rotation * -halfExtents;
+                var backUpperRight = center + rotation * -halfExtents.WithX(-halfExtents.x).WithY(-halfExtents.y);
+                var backUpperLeft = center + rotation * -halfExtents.WithY(-halfExtents.y);
+
+                var forwardLowerMiddle = Vector3.Lerp(forwardLowerLeft, forwardLowerRight, 0.5f);
+                var forwardUpperMiddle = Vector3.Lerp(forwardUpperLeft, forwardUpperRight, 0.5f);
+
+                var backLowerMiddle = Vector3.Lerp(backLowerLeft, backLowerRight, 0.5f);
+                var backUpperMiddle = Vector3.Lerp(backUpperLeft, backUpperRight, 0.5f);
+
+                var leftLowerMiddle = Vector3.Lerp(forwardLowerLeft, backLowerLeft, 0.5f);
+                var leftUpperMiddle = Vector3.Lerp(forwardUpperLeft, backUpperLeft, 0.5f);
+
+                var rightLowerMiddle = Vector3.Lerp(forwardLowerRight, backLowerRight, 0.5f);
+                var rightUpperMiddle = Vector3.Lerp(forwardUpperRight, backUpperRight, 0.5f);
+
+                Ddraw.Sphere(player, forwardUpperLeft, sphereRadius, color, duration);
+                Ddraw.Sphere(player, forwardUpperRight, sphereRadius, color, duration);
+                Ddraw.Sphere(player, forwardLowerLeft, sphereRadius, color, duration);
+                Ddraw.Sphere(player, forwardLowerRight, sphereRadius, color, duration);
+
+                Ddraw.Sphere(player, forwardLowerMiddle, sphereRadius, color, duration);
+                Ddraw.Sphere(player, forwardUpperMiddle, sphereRadius, color, duration);
+                Ddraw.Sphere(player, backLowerMiddle, sphereRadius, color, duration);
+                Ddraw.Sphere(player, backUpperMiddle, sphereRadius, color, duration);
+
+                Ddraw.Sphere(player, leftLowerMiddle, sphereRadius, color, duration);
+                Ddraw.Sphere(player, leftUpperMiddle, sphereRadius, color, duration);
+                Ddraw.Sphere(player, rightLowerMiddle, sphereRadius, color, duration);
+                Ddraw.Sphere(player, rightUpperMiddle, sphereRadius, color, duration);
+
+                Ddraw.Text(player, forwardUpperLeft, "x", color, duration);
+                Ddraw.Text(player, forwardUpperRight, "x", color, duration);
+                Ddraw.Text(player, forwardLowerLeft, "x", color, duration);
+                Ddraw.Text(player, forwardLowerRight, "x", color, duration);
+
+                Ddraw.Sphere(player, backLowerRight, sphereRadius, color, duration);
+                Ddraw.Sphere(player, backLowerLeft, sphereRadius, color, duration);
+                Ddraw.Sphere(player, backUpperRight, sphereRadius, color, duration);
+                Ddraw.Sphere(player, backUpperLeft, sphereRadius, color, duration);
+
+                Ddraw.Text(player, backLowerRight, "x", color, duration);
+                Ddraw.Text(player, backLowerLeft, "x", color, duration);
+                Ddraw.Text(player, backUpperRight, "x", color, duration);
+                Ddraw.Text(player, backUpperLeft, "x", color, duration);
+
+                Ddraw.Segments(player, forwardUpperLeft, forwardUpperRight, color, duration);
+                Ddraw.Segments(player, forwardLowerLeft, forwardLowerRight, color, duration);
+                Ddraw.Segments(player, forwardUpperLeft, forwardLowerLeft, color, duration);
+                Ddraw.Segments(player, forwardUpperRight, forwardLowerRight, color, duration);
+
+                Ddraw.Segments(player, backUpperLeft, backUpperRight, color, duration);
+                Ddraw.Segments(player, backLowerLeft, backLowerRight, color, duration);
+                Ddraw.Segments(player, backUpperLeft, backLowerLeft, color, duration);
+                Ddraw.Segments(player, backUpperRight, backLowerRight, color, duration);
+
+                Ddraw.Segments(player, forwardUpperLeft, backUpperLeft, color, duration);
+                Ddraw.Segments(player, forwardLowerLeft, backLowerLeft, color, duration);
+                Ddraw.Segments(player, forwardUpperRight, backUpperRight, color, duration);
+                Ddraw.Segments(player, forwardLowerRight, backLowerRight, color, duration);
+            }
+        }
+
+        #endregion
+
         #region Helper Methods
 
         private static bool TryGetHitPosition(BasePlayer player, out Vector3 position, float maxDistance = MaxRaycastDistance)
@@ -305,7 +485,7 @@ namespace Oxide.Plugins
 
         private static MonumentWrapper FindNearestMonument(Vector3 position, out float sqrDistanceFromBounds)
         {
-            MonumentInfo closestMonument = null;
+            MonumentWrapper closestMonument = null;
             float shortestSqrDistance = float.MaxValue;
 
             foreach (var monument in TerrainMeta.Path.Monuments)
@@ -316,16 +496,17 @@ namespace Oxide.Plugins
                 if (_pluginConfig.IgnoredMonuments.Contains(GetShortName(monument.name)))
                     continue;
 
-                var sqrDistance = (monument.ClosestPointOnBounds(position) - position).sqrMagnitude;
+                var monumentWrapper = MonumentWrapper.FromMonument(monument);
+                var sqrDistance = (monumentWrapper.ClosestPointOnBounds(position) - position).sqrMagnitude;
                 if (sqrDistance < shortestSqrDistance)
                 {
                     shortestSqrDistance = sqrDistance;
-                    closestMonument = monument;
+                    closestMonument = monumentWrapper;
                 }
             }
 
             sqrDistanceFromBounds = shortestSqrDistance;
-            return MonumentWrapper.FromMonument(closestMonument);
+            return closestMonument;
         }
 
         private static List<MonumentWrapper> FindMatchingMonuments(MonumentWrapper monumentWrapper)
@@ -373,7 +554,7 @@ namespace Oxide.Plugins
 
         private static MonumentWrapper FindNearestTrainStation(Vector3 position, out float sqrDistanceFromBounds)
         {
-            DungeonGridCell closestStation = null;
+            MonumentWrapper closestStation = null;
             float shortestSqrDistance = float.MaxValue;
 
             foreach (var dungeon in TerrainMeta.Path.DungeonGridCells)
@@ -381,30 +562,25 @@ namespace Oxide.Plugins
                 if (dungeon == null)
                     continue;
 
-                if (_pluginConfig.IgnoredMonuments.Contains(GetShortName(dungeon.name)))
+                var shortname = GetShortName(dungeon.name);
+
+                if (_pluginConfig.IgnoredMonuments.Contains(shortname))
                     continue;
 
-                if (!StationRotations.ContainsKey(GetShortName(dungeon.name)))
+                if (!DungeonRotations.ContainsKey(shortname))
                     continue;
 
-                var sqrDistance = (dungeon.transform.position - position).sqrMagnitude;
+                var monumentWrapper = MonumentWrapper.FromDungeon(dungeon);
+                var sqrDistance = (monumentWrapper.ClosestPointOnBounds(position) - position).sqrMagnitude;
                 if (sqrDistance < shortestSqrDistance)
                 {
                     shortestSqrDistance = sqrDistance;
-                    closestStation = dungeon;
+                    closestStation = monumentWrapper;
                 }
             }
 
             sqrDistanceFromBounds = shortestSqrDistance;
-            return MonumentWrapper.FromDungeon(closestStation);
-        }
-
-        private static bool IsCloseEnough(MonumentWrapper monumentWrapper, Vector3 position, float sqrDistanceFromBounds)
-        {
-            if (monumentWrapper.IsMonument && monumentWrapper.Monument.IsInBounds(position))
-                return true;
-
-            return sqrDistanceFromBounds <= Math.Pow(monumentWrapper.MaxAllowedDistance, 2);
+            return closestStation;
         }
 
         private static bool NearMonument(BasePlayer player, Vector3 position, out MonumentWrapper nearestMonumentWrapper, out float sqrDistanceFromBounds)
@@ -414,14 +590,35 @@ namespace Oxide.Plugins
             if (OnCargoShip(player, position, out nearestMonumentWrapper))
                 return true;
 
-            if (position.y < -100)
+            float sqrDistanceFromDungeonCellBounds = 0;
+            var dungeonCellWrapper = FindNearestTrainStation(position, out sqrDistanceFromDungeonCellBounds);
+            if (dungeonCellWrapper?.IsInBounds(position) ?? false)
             {
-                nearestMonumentWrapper = FindNearestTrainStation(position, out sqrDistanceFromBounds);
-                return IsCloseEnough(nearestMonumentWrapper, position, sqrDistanceFromBounds);
+                nearestMonumentWrapper = dungeonCellWrapper;
+                return true;
             }
 
-            nearestMonumentWrapper = FindNearestMonument(position, out sqrDistanceFromBounds);
-            return IsCloseEnough(nearestMonumentWrapper, position, sqrDistanceFromBounds);
+            float sqrDistanceFromMonumentBounds = 0;
+            var monumentWrapper = FindNearestMonument(position, out sqrDistanceFromMonumentBounds);
+            if (monumentWrapper != null && (monumentWrapper.IsInBounds(position) || sqrDistanceFromMonumentBounds <= Math.Pow(monumentWrapper.MaxAllowedDistance, 2)))
+            {
+                nearestMonumentWrapper = monumentWrapper;
+                return true;
+            }
+
+            // Show the nearest monument or dungeon cell.
+            if (sqrDistanceFromMonumentBounds < sqrDistanceFromDungeonCellBounds)
+            {
+                nearestMonumentWrapper = monumentWrapper;
+                sqrDistanceFromBounds = sqrDistanceFromMonumentBounds;
+            }
+            else
+            {
+                nearestMonumentWrapper = dungeonCellWrapper;
+                sqrDistanceFromBounds = sqrDistanceFromDungeonCellBounds;
+            }
+
+            return false;
         }
 
         private static bool OnCargoShip(BasePlayer player, Vector3 position, out MonumentWrapper monumentWrapper)
@@ -432,10 +629,11 @@ namespace Oxide.Plugins
             if (cargoShip == null)
                 return false;
 
-            if (!cargoShip.WorldSpaceBounds().Contains(position))
+            monumentWrapper = MonumentWrapper.FromCargoShip(cargoShip);
+
+            if (!monumentWrapper.IsInBounds(position))
                 return false;
 
-            monumentWrapper = MonumentWrapper.FromCargoShip(cargoShip);
             return true;
         }
 
@@ -584,14 +782,25 @@ namespace Oxide.Plugins
             public static MonumentWrapper FromCargoShip(CargoShip cargoShip) =>
                 new MonumentWrapper() { CargoShip = cargoShip };
 
-            private Quaternion _trainStationRotation
+            public static TunnelType GetTunnelType(DungeonGridCell dungeonCell) =>
+                GetTunnelType(GetShortName(dungeonCell.name));
+
+            private static TunnelType GetTunnelType(string shortName)
+            {
+                TunnelType tunnelType;
+                return DungeonCellTypes.TryGetValue(shortName, out tunnelType)
+                    ? tunnelType
+                    : TunnelType.Unsupported;
+            }
+
+            private Quaternion _dungeonCellRotation
             {
                 get
                 {
                     var dungeonShortName = GetShortName(DungeonCell.name);
 
                     Quaternion rotation;
-                    return StationRotations.TryGetValue(dungeonShortName, out rotation)
+                    return DungeonRotations.TryGetValue(dungeonShortName, out rotation)
                         ? rotation
                         : Quaternion.identity;
                 }
@@ -603,7 +812,7 @@ namespace Oxide.Plugins
 
             public bool IsMonument => Monument != null;
             public bool IsDungeon => DungeonCell != null;
-            public bool IsTrainStation => IsDungeon && StationRotations.ContainsKey(GetShortName(DungeonCell.name));
+            public bool IsTrainStation => IsDungeon && DungeonRotations.ContainsKey(ShortName);
             public bool IsCargoShip => CargoShip != null;
 
             public string ShortName
@@ -622,7 +831,47 @@ namespace Oxide.Plugins
 
             public Transform Transform => Monument?.transform ?? DungeonCell?.transform ?? CargoShip?.transform;
             public Vector3 Position => Transform?.position ?? Vector3.zero;
-            public Quaternion Rotation => IsTrainStation ? _trainStationRotation : Transform.rotation;
+            public Quaternion Rotation => IsTrainStation ? _dungeonCellRotation : Transform.rotation;
+
+            public Bounds Bounds
+            {
+                get
+                {
+                    if (Monument != null)
+                        return Monument.Bounds;
+
+                    if (DungeonCell != null)
+                    {
+                        Bounds bounds;
+                        if (DungeonCellBounds.TryGetValue(GetTunnelType(ShortName), out bounds))
+                            return bounds;
+                    }
+
+                    return new Bounds();
+                }
+            }
+
+            public OBB GetOBB()
+            {
+                if (CargoShip != null)
+                    return CargoShip.WorldSpaceBounds();
+
+                return new OBB(Position, Rotation, Bounds);
+            }
+
+            public bool IsInBounds(Vector3 position) =>
+                GetOBB().Contains(position);
+
+            public Vector3 ClosestPointOnBounds(Vector3 position)
+            {
+                if (Monument != null)
+                    return Monument.ClosestPointOnBounds(position);
+
+                if (DungeonCell != null)
+                    return GetOBB().ClosestPoint(position);
+
+                return Position;
+            }
 
             public Vector3 TransformPoint(Vector3 localPosition) =>
                 Transform.TransformPoint(IsTrainStation ? Rotation * localPosition : localPosition);
@@ -637,11 +886,11 @@ namespace Oxide.Plugins
             {
                 get
                 {
-                    var shortanme = ShortName;
+                    var shortname = ShortName;
                     string alias;
-                    return _pluginConfig.MonumentAliases.TryGetValue(shortanme, out alias)
+                    return _pluginConfig.MonumentAliases.TryGetValue(shortname, out alias)
                         ? alias
-                        : shortanme;
+                        : shortname;
                 }
             }
 
@@ -654,6 +903,13 @@ namespace Oxide.Plugins
                         ? maxAllowedDistance
                         : 0;
                 }
+            }
+
+            public void DrawBox(BasePlayer player)
+            {
+                var rotation = Rotation;
+                var bounds = Bounds;
+                Ddraw.Box(player, Position + rotation * bounds.center, rotation, bounds.extents, new Color(10, 0, 10), 30);
             }
         }
 
@@ -722,6 +978,9 @@ namespace Oxide.Plugins
 
         private class Configuration : SerializableConfiguration
         {
+            [JsonProperty("Debug", DefaultValueHandling = DefaultValueHandling.Ignore)]
+            public bool Debug = false;
+
             [JsonProperty("IgnoredMonuments")]
             public string[] IgnoredMonuments = new string[]
             {
@@ -742,6 +1001,24 @@ namespace Oxide.Plugins
                 ["station-we-1"] = "TRAIN_STATION",
                 ["station-we-2"] = "TRAIN_STATION",
                 ["station-we-3"] = "TRAIN_STATION",
+
+                ["straight-sn-0"] = "LOOT_TUNNEL",
+                ["straight-sn-1"] = "LOOT_TUNNEL",
+                ["straight-we-0"] = "LOOT_TUNNEL",
+                ["straight-we-1"] = "LOOT_TUNNEL",
+
+                ["straight-sn-4"] = "BARRICADE_TUNNEL",
+                ["straight-sn-5"] = "BARRICADE_TUNNEL",
+                ["straight-we-4"] = "BARRICADE_TUNNEL",
+                ["straight-we-5"] = "BARRICADE_TUNNEL",
+
+                ["intersection-n"] = "3_WAY_INTERSECTION",
+                ["intersection-e"] = "3_WAY_INTERSECTION",
+                ["intersection-s"] = "3_WAY_INTERSECTION",
+                ["intersection-w"] = "3_WAY_INTERSECTION",
+
+                ["intersection"] = "4_WAY_INTERSECTION",
+
                 ["entrance_bunker_a"] = "ENTRANCE_BUNKER",
                 ["entrance_bunker_b"] = "ENTRANCE_BUNKER",
                 ["entrance_bunker_c"] = "ENTRANCE_BUNKER",
