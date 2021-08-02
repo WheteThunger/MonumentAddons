@@ -1018,11 +1018,6 @@ namespace Oxide.Plugins
                 ["intersection-w"] = "3_WAY_INTERSECTION",
 
                 ["intersection"] = "4_WAY_INTERSECTION",
-
-                ["entrance_bunker_a"] = "ENTRANCE_BUNKER",
-                ["entrance_bunker_b"] = "ENTRANCE_BUNKER",
-                ["entrance_bunker_c"] = "ENTRANCE_BUNKER",
-                ["entrance_bunker_d"] = "ENTRANCE_BUNKER",
             };
 
             [JsonProperty("MaxDistanceFromMonument")]
