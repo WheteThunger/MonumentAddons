@@ -64,6 +64,15 @@ Default configuration:
     "station-we-1": "TRAIN_STATION",
     "station-we-2": "TRAIN_STATION",
     "station-we-3": "TRAIN_STATION",
+    "straight-sn-0": "LOOT_TUNNEL",
+    "straight-sn-1": "LOOT_TUNNEL",
+    "straight-we-0": "LOOT_TUNNEL",
+    "straight-we-1": "LOOT_TUNNEL",
+    "intersection": "4_WAY_INTERSECTION",
+    "intersection-n": "3_WAY_INTERSECTION",
+    "intersection-e": "3_WAY_INTERSECTION",
+    "intersection-s": "3_WAY_INTERSECTION",
+    "intersection-w": "3_WAY_INTERSECTION",
     "entrance_bunker_a": "ENTRANCE_BUNKER",
     "entrance_bunker_b": "ENTRANCE_BUNKER",
     "entrance_bunker_c": "ENTRANCE_BUNKER",
@@ -80,7 +89,6 @@ Default configuration:
     "OilrigAI2": 85.0,
     "sphere_tank": 20.0,
     "swamp_c": 50.0,
-    "TRAIN_STATION": 100.0,
     "trainyard_1": 40.0,
     "water_treatment_plant_1": 70.0
   }
