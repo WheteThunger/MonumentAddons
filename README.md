@@ -24,7 +24,7 @@ This plugin allows you to simply spawn the entity with a command in-game. The en
 This will do several things.
 - It spawns the entity where you are aiming.
 - It spawns the entity at all other identical monuments (for example, at every gas station) using the correct relative position and rotation for those monuments.
-- It saves this information in the plugin data file, so that the entity can be respawned when the plugin is reloaded, when the server is restarted, or when the server is wiped, even if using a new map seed (don't worry, this works perfectly).
+- It saves this information in the plugin data file, so that the entity can be respawned when the plugin is reloaded, when the server is restarted, or when the server is wiped, even if using a new map seed (don't worry, this works well as long as the monuments don't significantly change between Rust updates).
 
 ## Permissions
 
@@ -97,7 +97,7 @@ Default configuration:
 
 - `IgnoredMonuments` -- This list allows you to exclude certain monuments from being found when using the `maspawn` command. This is useful for cases where monuments are essentially overlapping each other, since the plugin can have trouble selecting the correct monument.
   - The power substations are ignored by default since they tend to overlap monuments such as the Launch Site.
-- `MonumentAliases` -- This allows you to give each monument an alias. Assigning the same alias to multiple monuments causes the same entities to spawn at all of them.
+- `MonumentAliases` -- This allows you to give each monument an alias. Assigning the same alias to multiple monuments causes the same entities to spawn at all of them. This only works well for monuments that are basically identical.
 - `MaxDistanceFromMonument` -- These values help the `maspawn` command find nearby monuments that don't have proper bounds. This supports monument short prefab names as well as aliases. Add to or update this section if you are seeing the "Not at a monument" error.
   - Caution: Avoid setting these limits too high. Having a low limit helps prevent you from accidentally spawning an entity outside of a monument, or relative to a monument that is very far away.
 
