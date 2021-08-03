@@ -93,7 +93,7 @@ namespace Oxide.Plugins
 
         private static readonly Dictionary<TunnelType, Bounds> DungeonCellBounds = new Dictionary<TunnelType, Bounds>()
         {
-            [TunnelType.TrainStation] = new Bounds(new Vector3(0, 4.25f, 0), new Vector3(108, 9, 216)),
+            [TunnelType.TrainStation] = new Bounds(new Vector3(0, 8.75f, 0), new Vector3(108, 18, 216)),
             [TunnelType.BarricadeTunnel] = new Bounds(new Vector3(0, 4.25f, 0), new Vector3(45f, 9, 216)),
             [TunnelType.LootTunnel] = new Bounds(new Vector3(0, 4.25f, 0), new Vector3(16.5f, 9, 216)),
             [TunnelType.Intersection] = new Bounds(new Vector3(0, 4.25f, 56), new Vector3(216, 9, 128)),
