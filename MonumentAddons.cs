@@ -3,12 +3,12 @@ using Newtonsoft.Json.Linq;
 using Newtonsoft.Json.Serialization;
 using Oxide.Core;
 using Oxide.Core.Libraries.Covalence;
+using Oxide.Core.Plugins;
 using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
-using System.Text;
 using UnityEngine;
 
 namespace Oxide.Plugins
@@ -19,6 +19,9 @@ namespace Oxide.Plugins
     {
         #region Fields
 
+        [PluginReference]
+        private Plugin MonumentFinder;
+
         private static MonumentAddons _pluginInstance;
         private static Configuration _pluginConfig;
 
@@ -27,94 +30,22 @@ namespace Oxide.Plugins
 
         private const string PermissionAdmin = "monumentaddons.admin";
 
+        private const string CargoShipAlias = "cargoshiptest";
+
         private static readonly int HitLayers = Rust.Layers.Mask.Construction
             + Rust.Layers.Mask.Default
             + Rust.Layers.Mask.Deployed
             + Rust.Layers.Mask.Terrain
             + Rust.Layers.Mask.World;
 
-        private static readonly Dictionary<string, Quaternion> DungeonRotations = new Dictionary<string, Quaternion>()
-        {
-            ["station-sn-0"] = Quaternion.Euler(0, 180, 0),
-            ["station-sn-1"] = Quaternion.identity,
-            ["station-sn-2"] = Quaternion.Euler(0, 180, 0),
-            ["station-sn-3"] = Quaternion.identity,
-            ["station-we-0"] = Quaternion.Euler(0, 90, 0),
-            ["station-we-1"] = Quaternion.Euler(0, -90, 0),
-            ["station-we-2"] = Quaternion.Euler(0, 90, 0),
-            ["station-we-3"] = Quaternion.Euler(0, -90, 0),
+        private readonly EntityManager _entityManager = new EntityManager();
+        private readonly CoroutineManager _coroutineManager = new CoroutineManager();
 
-            ["straight-sn-0"] = Quaternion.identity,
-            ["straight-sn-1"] = Quaternion.Euler(0, 180, 0),
-            ["straight-we-0"] = Quaternion.Euler(0, -90, 0),
-            ["straight-we-1"] = Quaternion.Euler(0, 90, 0),
-
-            ["straight-sn-4"] = Quaternion.identity,
-            ["straight-sn-5"] = Quaternion.Euler(0, 180, 0),
-            ["straight-we-4"] = Quaternion.Euler(0, -90, 0),
-            ["straight-we-5"] = Quaternion.Euler(0, 90, 0),
-
-            ["intersection-n"] = Quaternion.identity,
-            ["intersection-e"] = Quaternion.Euler(0, 90, 0),
-            ["intersection-s"] = Quaternion.Euler(0, 180, 0),
-            ["intersection-w"] = Quaternion.Euler(0, -90, 0),
-
-            ["intersection"] = Quaternion.identity,
-        };
-
-        private static readonly Dictionary<string, TunnelType> DungeonCellTypes = new Dictionary<string, TunnelType>()
-        {
-            ["station-sn-0"] = TunnelType.TrainStation,
-            ["station-sn-1"] = TunnelType.TrainStation,
-            ["station-sn-2"] = TunnelType.TrainStation,
-            ["station-sn-3"] = TunnelType.TrainStation,
-            ["station-we-0"] = TunnelType.TrainStation,
-            ["station-we-1"] = TunnelType.TrainStation,
-            ["station-we-2"] = TunnelType.TrainStation,
-            ["station-we-3"] = TunnelType.TrainStation,
-
-            ["straight-sn-0"] = TunnelType.LootTunnel,
-            ["straight-sn-1"] = TunnelType.LootTunnel,
-            ["straight-we-0"] = TunnelType.LootTunnel,
-            ["straight-we-1"] = TunnelType.LootTunnel,
-
-            ["straight-sn-4"] = TunnelType.BarricadeTunnel,
-            ["straight-sn-5"] = TunnelType.BarricadeTunnel,
-            ["straight-we-4"] = TunnelType.BarricadeTunnel,
-            ["straight-we-5"] = TunnelType.BarricadeTunnel,
-
-            ["intersection-n"] = TunnelType.Intersection,
-            ["intersection-e"] = TunnelType.Intersection,
-            ["intersection-s"] = TunnelType.Intersection,
-            ["intersection-w"] = TunnelType.Intersection,
-
-            ["intersection"] = TunnelType.LargeIntersection,
-        };
-
-        private static readonly Dictionary<TunnelType, Bounds> DungeonCellBounds = new Dictionary<TunnelType, Bounds>()
-        {
-            [TunnelType.TrainStation] = new Bounds(new Vector3(0, 8.75f, 0), new Vector3(108, 18, 216)),
-            [TunnelType.BarricadeTunnel] = new Bounds(new Vector3(0, 4.25f, 0), new Vector3(45f, 9, 216)),
-            [TunnelType.LootTunnel] = new Bounds(new Vector3(0, 4.25f, 0), new Vector3(16.5f, 9, 216)),
-            [TunnelType.Intersection] = new Bounds(new Vector3(0, 4.25f, 56), new Vector3(216, 9, 128)),
-            [TunnelType.LargeIntersection] = new Bounds(new Vector3(0, 4.25f, 0), new Vector3(216, 9, 216)),
-        };
-
-        private enum TunnelType
-        {
-            TrainStation,
-            BarricadeTunnel,
-            LootTunnel,
-            Intersection,
-            LargeIntersection,
-            Unsupported
-        }
-
-        private readonly Dictionary<BaseEntity, EntityData> _spawnedEntities = new Dictionary<BaseEntity, EntityData>();
-
-        private ProtectionProperties ImmortalProtection;
+        private ProtectionProperties _immortalProtection;
         private StoredData _pluginData;
-        private Coroutine _spawnCoroutine;
+
+        private Coroutine _startupCoroutine;
+        private bool _serverInitialized = false;
 
         #endregion
 
@@ -130,56 +61,96 @@ namespace Oxide.Plugins
             Unsubscribe(nameof(OnEntitySpawned));
         }
 
+        private void OnServerInitialized()
+        {
+            _coroutineManager.OnServerInitialized();
+
+            _immortalProtection = ScriptableObject.CreateInstance<ProtectionProperties>();
+            _immortalProtection.name = "MonumentAddonsProtection";
+            _immortalProtection.Add(1);
+
+            if (CheckDependencies())
+                StartupRoutine();
+
+            _serverInitialized = true;
+        }
+
         private void Unload()
         {
-            if (_spawnCoroutine != null)
-                ServerMgr.Instance.StopCoroutine(_spawnCoroutine);
+            _coroutineManager.Unload();
+            _coroutineManager.FireAndForgetCoroutine(_entityManager.UnloadRoutine());
 
-            foreach (var entity in _spawnedEntities.Keys)
-            {
-                if (entity != null && !entity.IsDestroyed)
-                    entity.Kill();
-            }
-
-            UnityEngine.Object.Destroy(ImmortalProtection);
+            UnityEngine.Object.Destroy(_immortalProtection);
 
             _pluginConfig = null;
             _pluginInstance = null;
         }
 
-        private void OnServerInitialized()
+        private void OnPluginLoaded(Plugin plugin)
         {
-            ImmortalProtection = ScriptableObject.CreateInstance<ProtectionProperties>();
-            ImmortalProtection.name = "MonumentAddonsProtection";
-            ImmortalProtection.Add(1);
-
-            _spawnCoroutine = ServerMgr.Instance.StartCoroutine(SpawnSavedEntities());
+            // Check whether initialized to detect only late (re)loads.
+            // Note: We are not dynamically subscribing to OnPluginLoaded since that interferes with [PluginReference] for some reason.
+            if (_serverInitialized && plugin == MonumentFinder)
+            {
+                StartupRoutine();
+            }
         }
 
         private void OnEntitySpawned(CargoShip cargoShip)
         {
-            var monumentWrapper = MonumentWrapper.FromCargoShip(cargoShip);
-
             List<EntityData> entityDataList;
-            if (!_pluginData.MonumentMap.TryGetValue(monumentWrapper.SavedName, out entityDataList))
+            if (!_pluginData.MonumentMap.TryGetValue(CargoShipAlias, out entityDataList))
                 return;
 
-            foreach (var entityData in entityDataList)
-                SpawnEntity(entityData, monumentWrapper);
-        }
-
-        private void OnEntityKill(BaseEntity entity)
-        {
-            _spawnedEntities.Remove(entity);
+            _coroutineManager.StartCoroutine(
+                _entityManager.SpawnEntitiesAtMonumentRoutine(entityDataList, new CargoShipMonument(cargoShip))
+            );
         }
 
         // This hook is exposed by plugin: Remover Tool (RemoverTool).
         private object canRemove(BasePlayer player, BaseEntity entity)
         {
-            if (_spawnedEntities.ContainsKey(entity))
+            if (AddonComponent.GetForEntity(entity) != null)
                 return false;
 
             return null;
+        }
+
+        #endregion
+
+        #region Dependencies
+
+        private bool CheckDependencies()
+        {
+            if (MonumentFinder == null)
+            {
+                LogError("MonumentFinder is not loaded, get it at http://umod.org.");
+                return false;
+            }
+
+            return true;
+        }
+
+        private MonumentProxy GetClosestMonumentProxy(Vector3 position)
+        {
+            var dictResult = MonumentFinder.Call("API_GetClosest", position) as Dictionary<string, object>;
+            if (dictResult == null)
+                return null;
+
+            return new MonumentProxy(dictResult);
+        }
+
+        private List<BaseMonument> GetMonumentProxiesMatchingAlias(string alias)
+        {
+            var dictList = MonumentFinder.Call("API_FindByAlias", alias) as List<Dictionary<string, object>>;
+            if (dictList == null)
+                return null;
+
+            var monumentProxyList = new List<BaseMonument>();
+            foreach (var dict in dictList)
+                monumentProxyList.Add(new MonumentProxy(dict));
+
+            return monumentProxyList;
         }
 
         #endregion
@@ -231,49 +202,41 @@ namespace Oxide.Plugins
                 return;
             }
 
-            MonumentWrapper nearestMonumentWrapper;
-            float sqrDistance;
-            var isNearMonument = NearMonument(basePlayer, position, out nearestMonumentWrapper, out sqrDistance);
-
-            if (nearestMonumentWrapper != null && _pluginConfig.Debug && player.IsAdmin)
-                nearestMonumentWrapper.DrawBox(basePlayer);
-
-            if (!isNearMonument)
+            var closestMonument = GetClosestMonument(basePlayer, position);
+            if (closestMonument == null)
             {
-                if (nearestMonumentWrapper != null)
-                    ReplyToPlayer(player, "Error.NotAtMonument", nearestMonumentWrapper.SavedName, Mathf.Sqrt(sqrDistance).ToString("f1"));
-                else
-                    ReplyToPlayer(player, "Error.NoMonuments");
-
+                ReplyToPlayer(player, "Error.NoMonuments");
                 return;
             }
 
-            var localPosition = nearestMonumentWrapper.InverseTransformPoint(position);
+            if (!closestMonument.IsInBounds(position))
+            {
+                var closestPoint = closestMonument.ClosestPointOnBounds(position);
+                var distance = (position - closestPoint).magnitude;
+                ReplyToPlayer(player, "Error.NotAtMonument", closestMonument.Alias, distance.ToString("f1"));
+                return;
+            }
+
+            var localPosition = closestMonument.InverseTransformPoint(position);
             var localRotationAngle = basePlayer.HasParent()
-                ? 180 - basePlayer.viewAngles.y
-                : nearestMonumentWrapper.Rotation.eulerAngles.y - basePlayer.viewAngles.y + 180;
+                ? basePlayer.viewAngles.y - 180
+                : basePlayer.viewAngles.y - closestMonument.Rotation.eulerAngles.y + 180;
 
             var entityData = new EntityData
             {
                 PrefabName = prefabName,
                 Position = localPosition,
-                RotationAngle = localRotationAngle,
+                RotationAngle = (localRotationAngle + 360) % 360,
                 OnTerrain = Math.Abs(position.y - TerrainMeta.HeightMap.GetHeight(position)) <= TerrainProximityTolerance
             };
 
-            var matchingMonumentWrappers = FindMatchingMonuments(nearestMonumentWrapper);
-            foreach (var wrapper in matchingMonumentWrappers)
-            {
-                var ent = SpawnEntity(entityData, wrapper);
-                if (ent == null)
-                {
-                    ReplyToPlayer(player, "Spawn.Error.Failed");
-                    return;
-                }
-            }
+            var matchingMonuments = GetMonumentsMatchingAlias(closestMonument.Alias);
+            _coroutineManager.StartCoroutine(
+                _entityManager.SpawnEntityAtMonumentsRoutine(entityData, matchingMonuments)
+            );
 
-            _pluginData.AddEntityData(entityData, nearestMonumentWrapper.SavedName);
-            ReplyToPlayer(player, "Spawn.Success", matchingMonumentWrappers.Count, nearestMonumentWrapper.SavedName);
+            _pluginData.AddEntityData(entityData, closestMonument.Alias);
+            ReplyToPlayer(player, "Spawn.Success", matchingMonuments.Count, closestMonument.Alias);
         }
 
         [Command("makill")]
@@ -297,132 +260,19 @@ namespace Oxide.Plugins
                 return;
             }
 
-            EntityData entityData;
-            if (!_spawnedEntities.TryGetValue(entity, out entityData))
+            var component = AddonComponent.GetForEntity(entity);
+            if (component == null)
             {
                 ReplyToPlayer(player, "Kill.Error.NotEligible");
                 return;
             }
 
-            _pluginData.RemoveEntityData(entityData);
+            var controller = component.Adapter.Controller;
+            var numEntities = controller.Adapters.Count;
+            controller.Destroy();
 
-            var matchingEntities = GetMatchingEntities(entityData);
-            foreach (var ent in matchingEntities)
-            {
-                _spawnedEntities.Remove(ent);
-                ent.Kill();
-            }
-
-            ReplyToPlayer(player, "Kill.Success", matchingEntities.Count);
-        }
-
-        #endregion
-
-        #region Ddraw
-
-        private static class Ddraw
-        {
-            public static void Sphere(BasePlayer player, Vector3 origin, float radius, Color color, float duration) =>
-                player.SendConsoleCommand("ddraw.sphere", duration, color, origin, radius);
-
-            public static void Line(BasePlayer player, Vector3 origin, Vector3 target, Color color, float duration) =>
-                player.SendConsoleCommand("ddraw.line", duration, color, origin, target);
-
-            public static void Text(BasePlayer player, Vector3 origin, string text, Color color, float duration) =>
-                player.SendConsoleCommand("ddraw.text", duration, color, origin, text);
-
-            public static void Segments(BasePlayer player, Vector3 origin, Vector3 target, Color color, float duration)
-            {
-                var delta = target - origin;
-                var distance = delta.magnitude;
-                var direction = delta.normalized;
-
-                var segmentLength = 10f;
-                var numSegments = Mathf.CeilToInt(distance / segmentLength);
-
-                for (var i = 0; i < numSegments; i++)
-                {
-                    var length = (i == numSegments - 1)
-                        ? distance % segmentLength
-                        : segmentLength;
-
-                    var start = origin + i * segmentLength * direction;
-                    var end = start + length * direction;
-                    Line(player, start, end, color, duration);
-                }
-            }
-
-            public static void Box(BasePlayer player, Vector3 center, Quaternion rotation, Vector3 halfExtents, Color color, float duration)
-            {
-                var sphereRadius = 1;
-
-                var forwardUpperLeft = center + rotation * halfExtents.WithX(-halfExtents.x);
-                var forwardUpperRight = center + rotation * halfExtents;
-                var forwardLowerLeft = center + rotation * halfExtents.WithX(-halfExtents.x).WithY(-halfExtents.y);
-                var forwardLowerRight = center + rotation * halfExtents.WithY(-halfExtents.y);
-
-                var backLowerRight = center + rotation * -halfExtents.WithX(-halfExtents.x);
-                var backLowerLeft = center + rotation * -halfExtents;
-                var backUpperRight = center + rotation * -halfExtents.WithX(-halfExtents.x).WithY(-halfExtents.y);
-                var backUpperLeft = center + rotation * -halfExtents.WithY(-halfExtents.y);
-
-                var forwardLowerMiddle = Vector3.Lerp(forwardLowerLeft, forwardLowerRight, 0.5f);
-                var forwardUpperMiddle = Vector3.Lerp(forwardUpperLeft, forwardUpperRight, 0.5f);
-
-                var backLowerMiddle = Vector3.Lerp(backLowerLeft, backLowerRight, 0.5f);
-                var backUpperMiddle = Vector3.Lerp(backUpperLeft, backUpperRight, 0.5f);
-
-                var leftLowerMiddle = Vector3.Lerp(forwardLowerLeft, backLowerLeft, 0.5f);
-                var leftUpperMiddle = Vector3.Lerp(forwardUpperLeft, backUpperLeft, 0.5f);
-
-                var rightLowerMiddle = Vector3.Lerp(forwardLowerRight, backLowerRight, 0.5f);
-                var rightUpperMiddle = Vector3.Lerp(forwardUpperRight, backUpperRight, 0.5f);
-
-                Ddraw.Sphere(player, forwardUpperLeft, sphereRadius, color, duration);
-                Ddraw.Sphere(player, forwardUpperRight, sphereRadius, color, duration);
-                Ddraw.Sphere(player, forwardLowerLeft, sphereRadius, color, duration);
-                Ddraw.Sphere(player, forwardLowerRight, sphereRadius, color, duration);
-
-                Ddraw.Sphere(player, forwardLowerMiddle, sphereRadius, color, duration);
-                Ddraw.Sphere(player, forwardUpperMiddle, sphereRadius, color, duration);
-                Ddraw.Sphere(player, backLowerMiddle, sphereRadius, color, duration);
-                Ddraw.Sphere(player, backUpperMiddle, sphereRadius, color, duration);
-
-                Ddraw.Sphere(player, leftLowerMiddle, sphereRadius, color, duration);
-                Ddraw.Sphere(player, leftUpperMiddle, sphereRadius, color, duration);
-                Ddraw.Sphere(player, rightLowerMiddle, sphereRadius, color, duration);
-                Ddraw.Sphere(player, rightUpperMiddle, sphereRadius, color, duration);
-
-                Ddraw.Text(player, forwardUpperLeft, "x", color, duration);
-                Ddraw.Text(player, forwardUpperRight, "x", color, duration);
-                Ddraw.Text(player, forwardLowerLeft, "x", color, duration);
-                Ddraw.Text(player, forwardLowerRight, "x", color, duration);
-
-                Ddraw.Sphere(player, backLowerRight, sphereRadius, color, duration);
-                Ddraw.Sphere(player, backLowerLeft, sphereRadius, color, duration);
-                Ddraw.Sphere(player, backUpperRight, sphereRadius, color, duration);
-                Ddraw.Sphere(player, backUpperLeft, sphereRadius, color, duration);
-
-                Ddraw.Text(player, backLowerRight, "x", color, duration);
-                Ddraw.Text(player, backLowerLeft, "x", color, duration);
-                Ddraw.Text(player, backUpperRight, "x", color, duration);
-                Ddraw.Text(player, backUpperLeft, "x", color, duration);
-
-                Ddraw.Segments(player, forwardUpperLeft, forwardUpperRight, color, duration);
-                Ddraw.Segments(player, forwardLowerLeft, forwardLowerRight, color, duration);
-                Ddraw.Segments(player, forwardUpperLeft, forwardLowerLeft, color, duration);
-                Ddraw.Segments(player, forwardUpperRight, forwardLowerRight, color, duration);
-
-                Ddraw.Segments(player, backUpperLeft, backUpperRight, color, duration);
-                Ddraw.Segments(player, backLowerLeft, backLowerRight, color, duration);
-                Ddraw.Segments(player, backUpperLeft, backLowerLeft, color, duration);
-                Ddraw.Segments(player, backUpperRight, backLowerRight, color, duration);
-
-                Ddraw.Segments(player, forwardUpperLeft, backUpperLeft, color, duration);
-                Ddraw.Segments(player, forwardLowerLeft, backLowerLeft, color, duration);
-                Ddraw.Segments(player, forwardUpperRight, backUpperRight, color, duration);
-                Ddraw.Segments(player, forwardLowerRight, backLowerRight, color, duration);
-            }
+            _pluginData.RemoveEntityData(controller.EntityData);
+            ReplyToPlayer(player, "Kill.Success", numEntities);
         }
 
         #endregion
@@ -483,433 +333,468 @@ namespace Oxide.Plugins
             return matches.ToArray();
         }
 
-        private static MonumentWrapper FindNearestMonument(Vector3 position, out float sqrDistanceFromBounds)
+        private static bool OnCargoShip(BasePlayer player, Vector3 position, out CargoShipMonument cargoShipMonument)
         {
-            MonumentWrapper closestMonument = null;
-            float shortestSqrDistance = float.MaxValue;
-
-            foreach (var monument in TerrainMeta.Path.Monuments)
-            {
-                if (monument == null)
-                    continue;
-
-                if (_pluginConfig.IgnoredMonuments.Contains(GetShortName(monument.name)))
-                    continue;
-
-                var monumentWrapper = MonumentWrapper.FromMonument(monument);
-                var sqrDistance = (monumentWrapper.ClosestPointOnBounds(position) - position).sqrMagnitude;
-                if (sqrDistance < shortestSqrDistance)
-                {
-                    shortestSqrDistance = sqrDistance;
-                    closestMonument = monumentWrapper;
-                }
-            }
-
-            sqrDistanceFromBounds = shortestSqrDistance;
-            return closestMonument;
-        }
-
-        private static List<MonumentWrapper> FindMatchingMonuments(MonumentWrapper monumentWrapper)
-        {
-            var savedName = monumentWrapper.SavedName;
-
-            var list = new List<MonumentWrapper>();
-
-            if (monumentWrapper.IsMonument)
-            {
-                foreach (var monument in TerrainMeta.Path.Monuments)
-                {
-                    if (monument == null)
-                        continue;
-
-                    var wrapped = MonumentWrapper.FromMonument(monument);
-                    if (wrapped.SavedName == savedName)
-                        list.Add(wrapped);
-                }
-            }
-            else if (monumentWrapper.IsDungeon)
-            {
-                foreach (var dungeon in TerrainMeta.Path.DungeonGridCells)
-                {
-                    if (dungeon == null)
-                        continue;
-
-                    var wrapped = MonumentWrapper.FromDungeon(dungeon);
-                    if (wrapped.SavedName == savedName)
-                        list.Add(wrapped);
-                }
-            }
-            else if (monumentWrapper.IsCargoShip)
-            {
-                foreach (var entity in BaseNetworkable.serverEntities)
-                {
-                    var cargoShip = entity as CargoShip;
-                    if (cargoShip != null)
-                        list.Add(MonumentWrapper.FromCargoShip(cargoShip));
-                }
-            }
-
-            return list;
-        }
-
-        private static MonumentWrapper FindNearestTrainStation(Vector3 position, out float sqrDistanceFromBounds)
-        {
-            MonumentWrapper closestStation = null;
-            float shortestSqrDistance = float.MaxValue;
-
-            foreach (var dungeon in TerrainMeta.Path.DungeonGridCells)
-            {
-                if (dungeon == null)
-                    continue;
-
-                var shortname = GetShortName(dungeon.name);
-
-                if (_pluginConfig.IgnoredMonuments.Contains(shortname))
-                    continue;
-
-                if (!DungeonRotations.ContainsKey(shortname))
-                    continue;
-
-                var monumentWrapper = MonumentWrapper.FromDungeon(dungeon);
-                var sqrDistance = (monumentWrapper.ClosestPointOnBounds(position) - position).sqrMagnitude;
-                if (sqrDistance < shortestSqrDistance)
-                {
-                    shortestSqrDistance = sqrDistance;
-                    closestStation = monumentWrapper;
-                }
-            }
-
-            sqrDistanceFromBounds = shortestSqrDistance;
-            return closestStation;
-        }
-
-        private static bool NearMonument(BasePlayer player, Vector3 position, out MonumentWrapper nearestMonumentWrapper, out float sqrDistanceFromBounds)
-        {
-            sqrDistanceFromBounds = 0;
-
-            if (OnCargoShip(player, position, out nearestMonumentWrapper))
-                return true;
-
-            float sqrDistanceFromDungeonCellBounds = 0;
-            var dungeonCellWrapper = FindNearestTrainStation(position, out sqrDistanceFromDungeonCellBounds);
-            if (dungeonCellWrapper?.IsInBounds(position) ?? false)
-            {
-                nearestMonumentWrapper = dungeonCellWrapper;
-                return true;
-            }
-
-            float sqrDistanceFromMonumentBounds = 0;
-            var monumentWrapper = FindNearestMonument(position, out sqrDistanceFromMonumentBounds);
-            if (monumentWrapper != null && (monumentWrapper.IsInBounds(position) || sqrDistanceFromMonumentBounds <= Math.Pow(monumentWrapper.MaxAllowedDistance, 2)))
-            {
-                nearestMonumentWrapper = monumentWrapper;
-                return true;
-            }
-
-            // Show the nearest monument or dungeon cell.
-            if (sqrDistanceFromMonumentBounds < sqrDistanceFromDungeonCellBounds)
-            {
-                nearestMonumentWrapper = monumentWrapper;
-                sqrDistanceFromBounds = sqrDistanceFromMonumentBounds;
-            }
-            else
-            {
-                nearestMonumentWrapper = dungeonCellWrapper;
-                sqrDistanceFromBounds = sqrDistanceFromDungeonCellBounds;
-            }
-
-            return false;
-        }
-
-        private static bool OnCargoShip(BasePlayer player, Vector3 position, out MonumentWrapper monumentWrapper)
-        {
-            monumentWrapper = null;
+            cargoShipMonument = null;
 
             var cargoShip = player.GetParentEntity() as CargoShip;
             if (cargoShip == null)
                 return false;
 
-            monumentWrapper = MonumentWrapper.FromCargoShip(cargoShip);
+            cargoShipMonument = new CargoShipMonument(cargoShip);
 
-            if (!monumentWrapper.IsInBounds(position))
+            if (!cargoShipMonument.IsInBounds(position))
                 return false;
 
             return true;
         }
 
-        private IEnumerator SpawnSavedEntities()
+        private BaseMonument GetClosestMonument(BasePlayer player, Vector3 position)
         {
-            var sb = new StringBuilder();
+            CargoShipMonument cargoShipMonument;
+            if (OnCargoShip(player, position, out cargoShipMonument))
+                return cargoShipMonument;
 
-            foreach (var monument in TerrainMeta.Path.Monuments)
+            return GetClosestMonumentProxy(position);
+        }
+
+        private List<BaseMonument> GetMonumentsMatchingAlias(string alias)
+        {
+            if (alias == CargoShipAlias)
             {
-                if (monument == null)
+                var cargoShipList = new List<BaseMonument>();
+                foreach (var entity in BaseNetworkable.serverEntities)
+                {
+                    var cargoShip = entity as CargoShip;
+                    if (cargoShip != null)
+                        cargoShipList.Add(new CargoShipMonument(cargoShip));
+                }
+                return cargoShipList;
+            }
+
+            return GetMonumentProxiesMatchingAlias(alias);
+        }
+
+        private IEnumerator SpawnAllEntitiesRoutine()
+        {
+            var spawnedEntities = 0;
+
+            foreach (var entry in _pluginData.MonumentMap)
+            {
+                var monumentAlias = entry.Key;
+                var entityDataList = entry.Value;
+
+                var matchingMonuments = GetMonumentsMatchingAlias(monumentAlias);
+                if (matchingMonuments == null)
                     continue;
 
-                var monumentWrapper = MonumentWrapper.FromMonument(monument);
-
-                List<EntityData> entityDataList;
-                if (!_pluginData.MonumentMap.TryGetValue(monumentWrapper.SavedName, out entityDataList))
-                    continue;
+                spawnedEntities += matchingMonuments.Count;
 
                 foreach (var entityData in entityDataList)
                 {
-                    var entity = SpawnEntity(entityData, monumentWrapper);
-                    sb.AppendLine($" - {monumentWrapper.ShortName}: {entity.ShortPrefabName} at {entity.transform.position}");
-                    yield return CoroutineEx.waitForEndOfFrame;
+                    yield return _entityManager.SpawnEntityAtMonumentsRoutine(entityData, matchingMonuments);
                 }
             }
 
-            foreach (var dungeonCell in TerrainMeta.Path.DungeonGridCells)
-            {
-                if (dungeonCell == null)
-                    continue;
-
-                var monumentWrapper = MonumentWrapper.FromDungeon(dungeonCell);
-
-                List<EntityData> entityDataList;
-                if (!_pluginData.MonumentMap.TryGetValue(monumentWrapper.SavedName, out entityDataList))
-                    continue;
-
-                foreach (var entityData in entityDataList)
-                {
-                    var entity = SpawnEntity(entityData, monumentWrapper);
-                    sb.AppendLine($" - {monumentWrapper.ShortName}: {entity.ShortPrefabName} at {entity.transform.position}");
-                    yield return CoroutineEx.waitForEndOfFrame;
-                }
-            }
-
-            foreach (var serverEntity in BaseNetworkable.serverEntities)
-            {
-                var cargoShip = serverEntity as CargoShip;
-                if (cargoShip == null)
-                    continue;
-
-                var monumentWrapper = MonumentWrapper.FromCargoShip(cargoShip);
-
-                List<EntityData> entityDataList;
-                if (!_pluginData.MonumentMap.TryGetValue(monumentWrapper.SavedName, out entityDataList))
-                    continue;
-
-                foreach (var entityData in entityDataList)
-                {
-                    var entity = SpawnEntity(entityData, monumentWrapper);
-                    sb.AppendLine($" - {monumentWrapper.ShortName}: {entity.ShortPrefabName} at {entity.transform.position}");
-                    yield return CoroutineEx.waitForEndOfFrame;
-                }
-            }
-
-            if (sb.Length > 0)
-            {
-                sb.Insert(0, "Spawned Entities:\n");
-                Puts(sb.ToString());
-            }
+            if (spawnedEntities > 0)
+                Puts($"Spawned {spawnedEntities} entities at monuments.");
 
             // We don't want to be subscribed to OnEntitySpawned(CargoShip) until the coroutine is done.
             // Otherwise, a cargo ship could spawn while the coroutine is running and could get double entities.
             Subscribe(nameof(OnEntitySpawned));
         }
 
-        private BaseEntity SpawnEntity(EntityData entityData, MonumentWrapper monumentWrapper)
+        private void StartupRoutine()
         {
-            var position = monumentWrapper.TransformPoint(entityData.Position);
-            var rotation = Quaternion.Euler(0, monumentWrapper.Rotation.eulerAngles.y - entityData.RotationAngle, 0);
+            // Don't spawn entities if that's already been done.
+            if (_startupCoroutine != null)
+                return;
 
-            if (entityData.OnTerrain)
-                position.y = TerrainMeta.HeightMap.GetHeight(position);
-
-            var entity = GameManager.server.CreateEntity(entityData.PrefabName, position, rotation);
-            if (entity == null)
-                return null;
-
-            // In case the plugin doesn't clean it up on server shutdown, make sure it doesn't come back so it's not duplicated.
-            entity.enableSaving = false;
-
-            var combatEntity = entity as BaseCombatEntity;
-            if (combatEntity != null)
-            {
-                combatEntity.baseProtection = ImmortalProtection;
-                combatEntity.pickup.enabled = false;
-            }
-
-            var ioEntity = entity as IOEntity;
-            if (ioEntity != null)
-            {
-                ioEntity.SetFlag(BaseEntity.Flags.On, true);
-                ioEntity.SetFlag(IOEntity.Flag_HasPower, true);
-            }
-
-            DestroyProblemComponents(entity);
-
-            if (monumentWrapper.IsCargoShip)
-            {
-                entity.SetParent(monumentWrapper.CargoShip, worldPositionStays: true, sendImmediate: true);
-                var mountable = entity as BaseMountable;
-                if (mountable != null)
-                    mountable.isMobile = true;
-            }
-
-            entity.Spawn();
-
-            _spawnedEntities.Add(entity, entityData);
-
-            return entity;
-        }
-
-        private List<BaseEntity> GetMatchingEntities(EntityData entityData)
-        {
-            var list = new List<BaseEntity>();
-            foreach (var entry in _spawnedEntities)
-            {
-                if (entry.Value == entityData)
-                    list.Add(entry.Key);
-            }
-            return list;
+            _startupCoroutine = _coroutineManager.StartCoroutine(SpawnAllEntitiesRoutine());
         }
 
         #endregion
 
-        #region Classes
+        #region Coroutine Manager
 
-        private class MonumentWrapper
+        private class EmptyMonoBehavior : MonoBehaviour {}
+
+        private class CoroutineManager
         {
-            public static MonumentWrapper FromMonument(MonumentInfo monument) =>
-                new MonumentWrapper() { Monument = monument };
+            // Object for tracking all coroutines for spawning or updating entities.
+            // This allows easily stopping all those coroutines by simply destroying the game object.
+            private MonoBehaviour _coroutineComponent;
 
-            public static MonumentWrapper FromDungeon(DungeonGridCell dungeonCell) =>
-                new MonumentWrapper() { DungeonCell = dungeonCell };
-
-            public static MonumentWrapper FromCargoShip(CargoShip cargoShip) =>
-                new MonumentWrapper() { CargoShip = cargoShip };
-
-            public static TunnelType GetTunnelType(DungeonGridCell dungeonCell) =>
-                GetTunnelType(GetShortName(dungeonCell.name));
-
-            private static TunnelType GetTunnelType(string shortName)
+            public void OnServerInitialized()
             {
-                TunnelType tunnelType;
-                return DungeonCellTypes.TryGetValue(shortName, out tunnelType)
-                    ? tunnelType
-                    : TunnelType.Unsupported;
+                _coroutineComponent = new GameObject().AddComponent<EmptyMonoBehavior>();
             }
 
-            private Quaternion _dungeonCellRotation
+            public Coroutine StartCoroutine(IEnumerator enumerator)
             {
-                get
-                {
-                    var dungeonShortName = GetShortName(DungeonCell.name);
-
-                    Quaternion rotation;
-                    return DungeonRotations.TryGetValue(dungeonShortName, out rotation)
-                        ? rotation
-                        : Quaternion.identity;
-                }
+                return _coroutineComponent.StartCoroutine(enumerator);
             }
 
-            public MonumentInfo Monument { get; private set; }
-            public DungeonGridCell DungeonCell { get; private set; }
+            public void FireAndForgetCoroutine(IEnumerator enumerator)
+            {
+                ServerMgr.Instance?.StartCoroutine(enumerator);
+            }
+
+            public void Unload()
+            {
+                UnityEngine.Object.Destroy(_coroutineComponent?.gameObject);
+            }
+        }
+
+        #endregion
+
+        #region Monuments
+
+        private abstract class BaseMonument
+        {
+            public MonoBehaviour Object { get; private set; }
+            public virtual string PrefabName => Object.name;
+            public virtual string ShortName => GetShortName(PrefabName);
+            public virtual string Alias => ShortName;
+            public virtual Vector3 Position => Object.transform.position;
+            public virtual Quaternion Rotation => Object.transform.rotation;
+
+            public BaseMonument(MonoBehaviour behavior)
+            {
+                Object = behavior;
+            }
+
+            public abstract bool IsInBounds(Vector3 position);
+            public abstract Vector3 ClosestPointOnBounds(Vector3 position);
+
+            public virtual Vector3 TransformPoint(Vector3 localPosition) =>
+                Object.transform.TransformPoint(localPosition);
+
+            public virtual Vector3 InverseTransformPoint(Vector3 worldPosition) =>
+                Object.transform.InverseTransformPoint(worldPosition);
+        }
+
+        private class MonumentProxy : BaseMonument
+        {
+            public override string PrefabName => (string)_monumentInfo["PrefabName"];
+            public override string ShortName => (string)_monumentInfo["ShortName"];
+            public override string Alias => (string)_monumentInfo["Alias"];
+            public override Vector3 Position => (Vector3)_monumentInfo["Position"];
+            public override Quaternion Rotation => (Quaternion)_monumentInfo["Rotation"];
+
+            private Dictionary<string, object> _monumentInfo;
+
+            public MonumentProxy(Dictionary<string, object> monumentInfo) : base((MonoBehaviour)monumentInfo["Object"])
+            {
+                _monumentInfo = monumentInfo;
+            }
+
+            public override Vector3 TransformPoint(Vector3 localPosition) =>
+                ((Func<Vector3, Vector3>)_monumentInfo["TransformPoint"]).Invoke(localPosition);
+
+            public override Vector3 InverseTransformPoint(Vector3 worldPosition) =>
+                ((Func<Vector3, Vector3>)_monumentInfo["InverseTransformPoint"]).Invoke(worldPosition);
+
+            public override bool IsInBounds(Vector3 position) =>
+                ((Func<Vector3, bool>)_monumentInfo["IsInBounds"]).Invoke(position);
+
+            public override Vector3 ClosestPointOnBounds(Vector3 position) =>
+                ((Func<Vector3, Vector3>)_monumentInfo["ClosestPointOnBounds"]).Invoke(position);
+        }
+
+        private class CargoShipMonument : BaseMonument
+        {
             public CargoShip CargoShip { get; private set; }
 
-            public bool IsMonument => Monument != null;
-            public bool IsDungeon => DungeonCell != null;
-            public bool IsTrainStation => IsDungeon && DungeonRotations.ContainsKey(ShortName);
-            public bool IsCargoShip => CargoShip != null;
+            private OBB BoundingBox => CargoShip.WorldSpaceBounds();
 
-            public string ShortName
+            public CargoShipMonument(CargoShip cargoShip) : base(cargoShip)
             {
-                get
+                CargoShip = cargoShip;
+            }
+
+            public override bool IsInBounds(Vector3 position) =>
+                BoundingBox.Contains(position);
+
+            public override Vector3 ClosestPointOnBounds(Vector3 position) =>
+                BoundingBox.ClosestPoint(position);
+        }
+
+        #endregion
+
+        #region Component
+
+        private class AddonComponent : FacepunchBehaviour
+        {
+            public static void AddToEntity(BaseEntity entity, EntityAdapter adapter, BaseMonument monument) =>
+                entity.gameObject.AddComponent<AddonComponent>().Init(adapter, monument);
+
+            public static AddonComponent GetForEntity(BaseEntity entity) =>
+                entity.GetComponent<AddonComponent>();
+
+            public EntityAdapter Adapter;
+
+            private BaseEntity _entity;
+
+            private void Awake()
+            {
+                _entity = GetComponent<BaseEntity>();
+            }
+
+            public void Init(EntityAdapter adapter, BaseMonument monument)
+            {
+                Adapter = adapter;
+
+                // In case the entity persists after unload, ensure it doesn't come back after restart which would cause duplication.
+                _entity.EnableSaving(false);
+
+                var combatEntity = _entity as BaseCombatEntity;
+                if (combatEntity != null)
                 {
-                    var obj = Monument ?? DungeonCell ?? CargoShip as MonoBehaviour;
+                    combatEntity.baseProtection = _pluginInstance._immortalProtection;
+                    combatEntity.pickup.enabled = false;
+                }
 
-                    var name = obj.name;
-                    if (name.Contains("monument_marker.prefab"))
-                        name = obj.transform.root.name;
+                var ioEntity = _entity as IOEntity;
+                if (ioEntity != null)
+                {
+                    ioEntity.SetFlag(BaseEntity.Flags.On, true);
+                    ioEntity.SetFlag(IOEntity.Flag_HasPower, true);
+                }
 
-                    return GetShortName(name);
+                DestroyProblemComponents(_entity);
+
+                var cargoShipMonument = monument as CargoShipMonument;
+                if (cargoShipMonument != null)
+                {
+                    _entity.SetParent(cargoShipMonument.CargoShip, worldPositionStays: true);
+
+                    var mountable = _entity as BaseMountable;
+                    if (mountable != null)
+                        mountable.isMobile = true;
                 }
             }
 
-            public Transform Transform => Monument?.transform ?? DungeonCell?.transform ?? CargoShip?.transform;
-            public Vector3 Position => Transform?.position ?? Vector3.zero;
-            public Quaternion Rotation => IsTrainStation ? _dungeonCellRotation : Transform.rotation;
-
-            public Bounds Bounds
+            private void OnDestroy()
             {
-                get
+                Adapter.OnEntityKilled(_entity);
+            }
+        }
+
+        #endregion
+
+        #region Entity Adapter
+
+        private abstract class EntityAdapterBase
+        {
+            public EntityControllerBase Controller { get; private set; }
+            public BaseMonument Monument { get; private set; }
+
+            public EntityAdapterBase(EntityControllerBase controller, BaseMonument monument)
+            {
+                Controller = controller;
+            }
+
+            public abstract void Kill();
+            public abstract void OnEntityKilled(BaseEntity entity);
+        }
+
+        private class EntityAdapter : EntityAdapterBase
+        {
+            private BaseEntity _entity;
+
+            public EntityAdapter(EntityControllerBase controller, BaseMonument monument, BaseEntity entity) : base(controller, monument)
+            {
+                _entity = entity;
+            }
+
+            public override void Kill()
+            {
+                if (!_entity.IsDestroyed)
+                    _entity.Kill();
+            }
+
+            public override void OnEntityKilled(BaseEntity entity)
+            {
+                Controller.OnAdapterKilled(this);
+            }
+        }
+
+        #endregion
+
+        #region Entity Controller
+
+        private abstract class EntityControllerBase
+        {
+            public EntityManager Manager { get; private set; }
+            public EntityData EntityData { get; private set; }
+            public List<EntityAdapter> Adapters { get; private set; } = new List<EntityAdapter>();
+
+            public EntityControllerBase(EntityManager manager, EntityData entityData)
+            {
+                Manager = manager;
+                EntityData = entityData;
+            }
+
+            public abstract EntityAdapter SpawnAtMonument(BaseMonument monument);
+
+            public IEnumerator SpawnAtMonumentsRoutine(IEnumerable<BaseMonument> monumentList)
+            {
+                foreach (var monument in monumentList)
                 {
-                    if (Monument != null)
-                        return Monument.Bounds;
-
-                    if (DungeonCell != null)
-                    {
-                        Bounds bounds;
-                        if (DungeonCellBounds.TryGetValue(GetTunnelType(ShortName), out bounds))
-                            return bounds;
-                    }
-
-                    return new Bounds();
+                    _pluginInstance.TrackStart();
+                    SpawnAtMonument(monument);
+                    _pluginInstance.TrackEnd();
+                    yield return CoroutineEx.waitForEndOfFrame;
                 }
             }
 
-            public OBB GetOBB()
+            public virtual IEnumerator DestroyRoutine()
             {
-                if (CargoShip != null)
-                    return CargoShip.WorldSpaceBounds();
-
-                return new OBB(Position, Rotation, Bounds);
-            }
-
-            public bool IsInBounds(Vector3 position) =>
-                GetOBB().Contains(position);
-
-            public Vector3 ClosestPointOnBounds(Vector3 position)
-            {
-                if (Monument != null)
-                    return Monument.ClosestPointOnBounds(position);
-
-                if (DungeonCell != null)
-                    return GetOBB().ClosestPoint(position);
-
-                return Position;
-            }
-
-            public Vector3 TransformPoint(Vector3 localPosition) =>
-                Transform.TransformPoint(IsTrainStation ? Rotation * localPosition : localPosition);
-
-            public Vector3 InverseTransformPoint(Vector3 localPosition)
-            {
-                var worldPosition = Transform.InverseTransformPoint(localPosition);
-                return IsTrainStation ? Quaternion.Inverse(Rotation) * worldPosition : worldPosition;
-            }
-
-            public string SavedName
-            {
-                get
+                foreach (var adapter in Adapters.ToArray())
                 {
-                    var shortname = ShortName;
-                    string alias;
-                    return _pluginConfig.MonumentAliases.TryGetValue(shortname, out alias)
-                        ? alias
-                        : shortname;
+                    // Null check the plugin instance in case this is running after plugin unload.
+                    _pluginInstance?.TrackStart();
+                    adapter.Kill();
+                    _pluginInstance?.TrackEnd();
+                    yield return CoroutineEx.waitForEndOfFrame;
                 }
             }
 
-            public float MaxAllowedDistance
+            public void Destroy()
             {
-                get
+                Manager.UnregisterController(EntityData);
+                _pluginInstance._coroutineManager.FireAndForgetCoroutine(DestroyRoutine());
+            }
+
+            public void OnAdapterKilled(EntityAdapter adapter)
+            {
+                Adapters.Remove(adapter);
+
+                if (Adapters.Count == 0)
+                    Manager.UnregisterController(EntityData);
+            }
+        }
+
+        private class EntityController : EntityControllerBase
+        {
+            public EntityController(EntityManager manager, EntityData data) : base(manager, data) {}
+
+            public override EntityAdapter SpawnAtMonument(BaseMonument monument)
+            {
+                var position = monument.TransformPoint(EntityData.Position);
+                var rotation = Quaternion.Euler(0, monument.Rotation.eulerAngles.y + EntityData.RotationAngle, 0);
+
+                if (EntityData.OnTerrain)
+                    position.y = TerrainMeta.HeightMap.GetHeight(position);
+
+                var entity = GameManager.server.CreateEntity(EntityData.PrefabName, position, rotation);
+                if (entity == null)
+                    return null;
+
+                // In case the plugin doesn't clean it up on server shutdown, make sure it doesn't come back so it's not duplicated. x
+                entity.EnableSaving(false);
+
+                var combatEntity = entity as BaseCombatEntity;
+                if (combatEntity != null)
                 {
-                    float maxAllowedDistance;
-                    return _pluginConfig.MaxDistanceFromMonument.TryGetValue(SavedName, out maxAllowedDistance)
-                        ? maxAllowedDistance
-                        : 0;
+                    combatEntity.baseProtection = _pluginInstance._immortalProtection;
+                    combatEntity.pickup.enabled = false;
+                }
+
+                var ioEntity = entity as IOEntity;
+                if (ioEntity != null)
+                {
+                    ioEntity.SetFlag(BaseEntity.Flags.On, true);
+                    ioEntity.SetFlag(IOEntity.Flag_HasPower, true);
+                }
+
+                DestroyProblemComponents(entity);
+
+                var cargoShipMonument = monument as CargoShipMonument;
+                if (cargoShipMonument != null)
+                {
+                    entity.SetParent(cargoShipMonument.CargoShip, worldPositionStays: true, sendImmediate: true);
+
+                    var mountable = entity as BaseMountable;
+                    if (mountable != null)
+                        mountable.isMobile = true;
+                }
+
+                var adapter = new EntityAdapter(this, monument, entity);
+                Adapters.Add(adapter);
+                AddonComponent.AddToEntity(entity, adapter, monument);
+
+                entity.Spawn();
+
+                return adapter;
+            }
+        }
+
+        #endregion
+
+        #region Entity Manager
+
+        private class EntityManager
+        {
+            private Dictionary<EntityData, EntityControllerBase> _controllersByEntityData = new Dictionary<EntityData, EntityControllerBase>();
+
+            public IEnumerator SpawnEntityAtMonumentsRoutine(EntityData entityData, IEnumerable<BaseMonument> monumentList)
+            {
+                _pluginInstance.TrackStart();
+                var controller = EnsureController(entityData);
+                _pluginInstance.TrackEnd();
+                yield return controller.SpawnAtMonumentsRoutine(monumentList);
+            }
+
+            public IEnumerator SpawnEntitiesAtMonumentRoutine(IEnumerable<EntityData> entityDataList, BaseMonument monument)
+            {
+                foreach (var entityData in entityDataList)
+                {
+                    // Check for null in case the cargo ship was destroyed.
+                    if (monument.Object == null)
+                        yield break;
+
+                    _pluginInstance.TrackStart();
+                    SpawnEntityAtMonument(entityData, monument);
+                    _pluginInstance.TrackEnd();
+                    yield return CoroutineEx.waitForEndOfFrame;
                 }
             }
 
-            public void DrawBox(BasePlayer player)
+            public void UnregisterController(EntityData entityData)
             {
-                var rotation = Rotation;
-                var bounds = Bounds;
-                Ddraw.Box(player, Position + rotation * bounds.center, rotation, bounds.extents, new Color(10, 0, 10), 30);
+                _controllersByEntityData.Remove(entityData);
+            }
+
+            public IEnumerator UnloadRoutine()
+            {
+                foreach (var controller in _controllersByEntityData.Values.ToArray())
+                    yield return controller.DestroyRoutine();
+            }
+
+            private void SpawnEntityAtMonument(EntityData entityData, BaseMonument monument)
+            {
+                EnsureController(entityData).SpawnAtMonument(monument);
+            }
+
+            private EntityControllerBase GetController(EntityData entityData)
+            {
+                EntityControllerBase controller;
+                return _controllersByEntityData.TryGetValue(entityData, out controller)
+                    ? controller
+                    : null;
+            }
+
+            private EntityControllerBase EnsureController(EntityData entityData)
+            {
+                var controller = GetController(entityData);
+                if (controller == null)
+                {
+                    controller = new EntityController(this, entityData);
+                    _controllersByEntityData[entityData] = controller;
+                }
+                return controller;
             }
         }
 
@@ -917,13 +802,97 @@ namespace Oxide.Plugins
 
         #region Data
 
+        private interface IDataMigration
+        {
+            bool Migrate(StoredData data);
+        }
+
+        private class DataMigrationV1 : IDataMigration
+        {
+            private static readonly Dictionary<string, string> MigrateMonumentNames = new Dictionary<string, string>
+            {
+                ["TRAIN_STATION"] = "TrainStation",
+                ["BARRICADE_TUNNEL"] = "BarricadeTunnel",
+                ["LOOT_TUNNEL"] = "LootTunnel",
+                ["3_WAY_INTERSECTION"] = "Intersection",
+                ["4_WAY_INTERSECTION"] = "LargeIntersection",
+            };
+
+            public bool Migrate(StoredData data)
+            {
+                if (data.DataFileVersion != 0)
+                    return false;
+
+                data.DataFileVersion++;
+
+                var dataMigrated = false;
+
+                foreach (var monumentEntry in data.MonumentMap.ToArray())
+                {
+                    var alias = monumentEntry.Key;
+                    var entityList = monumentEntry.Value;
+
+                    string newAlias;
+                    if (MigrateMonumentNames.TryGetValue(alias, out newAlias))
+                    {
+                        data.MonumentMap[newAlias] = entityList;
+                        data.MonumentMap.Remove(alias);
+                        alias = newAlias;
+                    }
+
+                    foreach (var entityData in entityList)
+                    {
+                        if (alias == "LootTunnel" || alias == "BarricadeTunnel")
+                        {
+                            // Migrate from the original rotations to the rotations used by MonumentFinder.
+                            entityData.RotationAngle = (entityData.RotationAngle + 180) % 360;
+                            entityData.Position = Quaternion.Euler(0, 180, 0) * entityData.Position;
+                            dataMigrated = true;
+                        }
+
+                        // Migrate from the backwards rotations to the correct ones.
+                        var newAngle = (720 - entityData.RotationAngle) % 360;
+                        entityData.RotationAngle = newAngle;
+                        dataMigrated = true;
+                    }
+                }
+
+                return dataMigrated;
+            }
+        }
+
         private class StoredData
         {
+            public static StoredData Load()
+            {
+                var data = Interface.Oxide.DataFileSystem.ReadObject<StoredData>(_pluginInstance.Name) ?? new StoredData();
+
+                var dataMigrated = false;
+                var migrationList = new List<IDataMigration>
+                {
+                    new DataMigrationV1(),
+                };
+
+                foreach (var migration in migrationList)
+                {
+                    if (migration.Migrate(data))
+                        dataMigrated = true;
+                }
+
+                if (dataMigrated)
+                {
+                    _pluginInstance.LogWarning("Data file has been automatically migrated.");
+                    data.Save();
+                }
+
+                return data;
+            }
+
+            [JsonProperty("DataFileVersion", DefaultValueHandling = DefaultValueHandling.Ignore)]
+            public float DataFileVersion;
+
             [JsonProperty("Monuments")]
             public Dictionary<string, List<EntityData>> MonumentMap = new Dictionary<string, List<EntityData>>();
-
-            public static StoredData Load() =>
-                Interface.Oxide.DataFileSystem.ReadObject<StoredData>(_pluginInstance.Name);
 
             private void Save() =>
                 Interface.Oxide.DataFileSystem.WriteObject(_pluginInstance.Name, this);
@@ -943,9 +912,8 @@ namespace Oxide.Plugins
 
             public bool RemoveEntityData(EntityData entityData)
             {
-                foreach (var entry in MonumentMap)
+                foreach (var entityDataList in MonumentMap.Values)
                 {
-                    var entityDataList = entry.Value;
                     if (entityDataList.Remove(entityData))
                     {
                         Save();
@@ -980,62 +948,6 @@ namespace Oxide.Plugins
         {
             [JsonProperty("Debug", DefaultValueHandling = DefaultValueHandling.Ignore)]
             public bool Debug = false;
-
-            [JsonProperty("IgnoredMonuments")]
-            public string[] IgnoredMonuments = new string[]
-            {
-                "power_sub_small_1",
-                "power_sub_small_2",
-                "power_sub_big_1",
-                "power_sub_big_2",
-            };
-
-            [JsonProperty("MonumentAliases")]
-            public readonly Dictionary<string, string> MonumentAliases = new Dictionary<string, string>()
-            {
-                ["station-sn-0"] = "TRAIN_STATION",
-                ["station-sn-1"] = "TRAIN_STATION",
-                ["station-sn-2"] = "TRAIN_STATION",
-                ["station-sn-3"] = "TRAIN_STATION",
-                ["station-we-0"] = "TRAIN_STATION",
-                ["station-we-1"] = "TRAIN_STATION",
-                ["station-we-2"] = "TRAIN_STATION",
-                ["station-we-3"] = "TRAIN_STATION",
-
-                ["straight-sn-0"] = "LOOT_TUNNEL",
-                ["straight-sn-1"] = "LOOT_TUNNEL",
-                ["straight-we-0"] = "LOOT_TUNNEL",
-                ["straight-we-1"] = "LOOT_TUNNEL",
-
-                ["straight-sn-4"] = "BARRICADE_TUNNEL",
-                ["straight-sn-5"] = "BARRICADE_TUNNEL",
-                ["straight-we-4"] = "BARRICADE_TUNNEL",
-                ["straight-we-5"] = "BARRICADE_TUNNEL",
-
-                ["intersection-n"] = "3_WAY_INTERSECTION",
-                ["intersection-e"] = "3_WAY_INTERSECTION",
-                ["intersection-s"] = "3_WAY_INTERSECTION",
-                ["intersection-w"] = "3_WAY_INTERSECTION",
-
-                ["intersection"] = "4_WAY_INTERSECTION",
-            };
-
-            [JsonProperty("MaxDistanceFromMonument")]
-            public Dictionary<string, float> MaxDistanceFromMonument = new Dictionary<string, float>()
-            {
-                ["excavator_1"] = 120,
-                ["junkyard_1"] = 35,
-                ["launch_site_1"] = 80,
-                ["lighthouse"] = 70,
-                ["military_tunnel_1"] = 40,
-                ["mining_quarry_c"] = 15,
-                ["OilrigAI"] = 60,
-                ["OilrigAI2"] = 85,
-                ["sphere_tank"] = 20,
-                ["swamp_c"] = 50,
-                ["trainyard_1"] = 40,
-                ["water_treatment_plant_1"] = 70,
-            };
         }
 
         private Configuration GetDefaultConfig() => new Configuration();
@@ -1176,7 +1088,6 @@ namespace Oxide.Plugins
                 ["Spawn.Error.EntityNotFound"] = "Error: Entity <color=orange>{0}</color> not found.",
                 ["Spawn.Error.MultipleMatches"] = "Multiple matches:\n",
                 ["Spawn.Error.NoTarget"] = "Error: No valid spawn position found.",
-                ["Spawn.Error.Failed"] = "Error: Failed to spawn enttiy.",
                 ["Spawn.Success"] = "Spawned entity at <color=orange>{0}</color> matching monument(s) and saved to data file for monument <color=orange>{1}</color>.",
                 ["Kill.Error.EntityNotFound"] = "Error: No entity found.",
                 ["Kill.Error.NotEligible"] = "Error: That entity is not managed by Monument Addons.",
