@@ -165,26 +165,26 @@ namespace Oxide.Plugins
 
             if (!player.HasPermission(PermissionAdmin))
             {
-                ReplyToPlayer(player, "Error.NoPermission");
+                ReplyToPlayer(player, Lang.ErrorNoPermission);
                 return;
             }
 
             if (args.Length == 0 || string.IsNullOrWhiteSpace(args[0]))
             {
-                ReplyToPlayer(player, "Spawn.Error.Syntax");
+                ReplyToPlayer(player, Lang.SpawnErrorSyntax);
                 return;
             }
 
             var matches = FindPrefabMatches(args[0]);
             if (matches.Length == 0)
             {
-                ReplyToPlayer(player, "Spawn.Error.EntityNotFound", args[0]);
+                ReplyToPlayer(player, Lang.SpawnErrorEntityNotFound, args[0]);
                 return;
             }
 
             if (matches.Length > 1)
             {
-                var replyMessage = GetMessage(player, "Spawn.Error.MultipleMatches");
+                var replyMessage = GetMessage(player, Lang.SpawnErrorMultipleMatches);
                 foreach (var match in matches)
                     replyMessage += $"\n{GetShortName(match)}";
 
@@ -198,14 +198,14 @@ namespace Oxide.Plugins
             Vector3 position;
             if (!TryGetHitPosition(basePlayer, out position))
             {
-                ReplyToPlayer(player, "Spawn.Error.NoTarget");
+                ReplyToPlayer(player, Lang.SpawnErrorNoTarget);
                 return;
             }
 
             var closestMonument = GetClosestMonument(basePlayer, position);
             if (closestMonument == null)
             {
-                ReplyToPlayer(player, "Error.NoMonuments");
+                ReplyToPlayer(player, Lang.ErrorNoMonuments);
                 return;
             }
 
@@ -213,7 +213,7 @@ namespace Oxide.Plugins
             {
                 var closestPoint = closestMonument.ClosestPointOnBounds(position);
                 var distance = (position - closestPoint).magnitude;
-                ReplyToPlayer(player, "Error.NotAtMonument", closestMonument.Alias, distance.ToString("f1"));
+                ReplyToPlayer(player, Lang.ErrorNotAtMonument, closestMonument.Alias, distance.ToString("f1"));
                 return;
             }
 
@@ -236,7 +236,7 @@ namespace Oxide.Plugins
             );
 
             _pluginData.AddEntityData(entityData, closestMonument.Alias);
-            ReplyToPlayer(player, "Spawn.Success", matchingMonuments.Count, closestMonument.Alias);
+            ReplyToPlayer(player, Lang.SpawnSuccess, matchingMonuments.Count, closestMonument.Alias);
         }
 
         [Command("makill")]
@@ -247,7 +247,7 @@ namespace Oxide.Plugins
 
             if (!player.HasPermission(PermissionAdmin))
             {
-                ReplyToPlayer(player, "Error.NoPermission");
+                ReplyToPlayer(player, Lang.ErrorNoPermission);
                 return;
             }
 
@@ -256,14 +256,14 @@ namespace Oxide.Plugins
             var entity = GetLookEntity(basePlayer);
             if (entity == null)
             {
-                ReplyToPlayer(player, "Kill.Error.EntityNotFound");
+                ReplyToPlayer(player, Lang.KillErrorEntityNotFound);
                 return;
             }
 
             var component = AddonComponent.GetForEntity(entity);
             if (component == null)
             {
-                ReplyToPlayer(player, "Kill.Error.NotEligible");
+                ReplyToPlayer(player, Lang.KillErrorNotEligible);
                 return;
             }
 
@@ -272,7 +272,7 @@ namespace Oxide.Plugins
             controller.Destroy();
 
             _pluginData.RemoveEntityData(controller.EntityData);
-            ReplyToPlayer(player, "Kill.Success", numEntities);
+            ReplyToPlayer(player, Lang.KillSuccess, numEntities);
         }
 
         #endregion
@@ -1062,36 +1062,51 @@ namespace Oxide.Plugins
 
         #region Localization
 
-        private void ReplyToPlayer(IPlayer player, string messageName, params object[] args) =>
-            player.Reply(string.Format(GetMessage(player, messageName), args));
-
-        private void ChatMessage(BasePlayer player, string messageName, params object[] args) =>
-            player.ChatMessage(string.Format(GetMessage(player.IPlayer, messageName), args));
-
-        private string GetMessage(IPlayer player, string messageName, params object[] args) =>
-            GetMessage(player.Id, messageName, args);
-
         private string GetMessage(string playerId, string messageName, params object[] args)
         {
             var message = lang.GetMessage(messageName, this, playerId);
             return args.Length > 0 ? string.Format(message, args) : message;
         }
 
+        private string GetMessage(IPlayer player, string messageName, params object[] args) =>
+            GetMessage(player.Id, messageName, args);
+
+        private void ReplyToPlayer(IPlayer player, string messageName, params object[] args) =>
+            player.Reply(string.Format(GetMessage(player, messageName), args));
+
+        private void ChatMessage(BasePlayer player, string messageName, params object[] args) =>
+            player.ChatMessage(string.Format(GetMessage(player.UserIDString, messageName), args));
+
+        private class Lang
+        {
+            public const string ErrorNoPermission = "Error.NoPermission";
+            public const string ErrorNoMonuments = "Error.NoMonuments";
+            public const string ErrorNotAtMonument = "Error.NotAtMonument";
+            public const string SpawnErrorSyntax = "Spawn.Error.Syntax";
+            public const string SpawnErrorEntityNotFound = "Spawn.Error.EntityNotFound";
+            public const string SpawnErrorMultipleMatches = "Spawn.Error.MultipleMatches";
+            public const string SpawnErrorNoTarget = "Spawn.Error.NoTarget";
+            public const string SpawnSuccess = "Spawn.Success";
+            public const string KillErrorEntityNotFound = "Kill.Error.EntityNotFound";
+            public const string KillErrorNotEligible = "Kill.Error.NotEligible";
+            public const string KillSuccess = "Kill.Success";
+        }
+
         protected override void LoadDefaultMessages()
         {
             lang.RegisterMessages(new Dictionary<string, string>
             {
-                ["Error.NoPermission"] = "You don't have permission to do that.",
-                ["Error.NoMonuments"] = "Error: No monuments found.",
-                ["Error.NotAtMonument"] = "Error: Not at a monument. Nearest is <color=orange>{0}</color> with distance <color=orange>{1}</color>",
-                ["Spawn.Error.Syntax"] = "Syntax: <color=orange>maspawn <entity></color>",
-                ["Spawn.Error.EntityNotFound"] = "Error: Entity <color=orange>{0}</color> not found.",
-                ["Spawn.Error.MultipleMatches"] = "Multiple matches:\n",
-                ["Spawn.Error.NoTarget"] = "Error: No valid spawn position found.",
-                ["Spawn.Success"] = "Spawned entity at <color=orange>{0}</color> matching monument(s) and saved to data file for monument <color=orange>{1}</color>.",
-                ["Kill.Error.EntityNotFound"] = "Error: No entity found.",
-                ["Kill.Error.NotEligible"] = "Error: That entity is not managed by Monument Addons.",
-                ["Kill.Success"] = "Killed entity at <color=orange>{0}</color> matching monument(s) and removed from data file.",
+                [Lang.ErrorNoPermission] = "You don't have permission to do that.",
+                [Lang.ErrorNoMonuments] = "Error: No monuments found.",
+                [Lang.ErrorNotAtMonument] = "Error: Not at a monument. Nearest is <color=orange>{0}</color> with distance <color=orange>{1}</color>",
+                [Lang.SpawnErrorSyntax] = "Syntax: <color=orange>maspawn <entity></color>",
+                [Lang.SpawnErrorEntityNotFound] = "Error: Entity <color=orange>{0}</color> not found.",
+                [Lang.SpawnErrorMultipleMatches] = "Multiple matches:\n",
+                [Lang.SpawnErrorNoTarget] = "Error: No valid spawn position found.",
+                [Lang.SpawnSuccess] = "Spawned entity at <color=orange>{0}</color> matching monument(s) and saved to data file for monument <color=orange>{1}</color>.",
+                [Lang.KillErrorEntityNotFound] = "Error: No entity found.",
+                [Lang.KillErrorNotEligible] = "Error: That entity is not managed by Monument Addons.",
+                [Lang.KillSuccess] = "Killed entity at <color=orange>{0}</color> matching monument(s) and removed from data file.",
             }, this, "en");
         }
 
