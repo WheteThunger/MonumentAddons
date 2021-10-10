@@ -169,6 +169,12 @@ namespace Oxide.Plugins
                 return;
             }
 
+            if (MonumentFinder == null)
+            {
+                ReplyToPlayer(player, Lang.ErrorMonumentFinderNotLoaded);
+                return;
+            }
+
             if (args.Length == 0 || string.IsNullOrWhiteSpace(args[0]))
             {
                 ReplyToPlayer(player, Lang.SpawnErrorSyntax);
@@ -1080,6 +1086,7 @@ namespace Oxide.Plugins
         private class Lang
         {
             public const string ErrorNoPermission = "Error.NoPermission";
+            public const string ErrorMonumentFinderNotLoaded = "Error.MonumentFinderNotLoaded";
             public const string ErrorNoMonuments = "Error.NoMonuments";
             public const string ErrorNotAtMonument = "Error.NotAtMonument";
             public const string SpawnErrorSyntax = "Spawn.Error.Syntax";
@@ -1097,6 +1104,7 @@ namespace Oxide.Plugins
             lang.RegisterMessages(new Dictionary<string, string>
             {
                 [Lang.ErrorNoPermission] = "You don't have permission to do that.",
+                [Lang.ErrorMonumentFinderNotLoaded] = "Error: Monument Finder is not loaded.",
                 [Lang.ErrorNoMonuments] = "Error: No monuments found.",
                 [Lang.ErrorNotAtMonument] = "Error: Not at a monument. Nearest is <color=orange>{0}</color> with distance <color=orange>{1}</color>",
                 [Lang.SpawnErrorSyntax] = "Syntax: <color=orange>maspawn <entity></color>",
