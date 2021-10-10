@@ -110,7 +110,7 @@ namespace Oxide.Plugins
         // This hook is exposed by plugin: Remover Tool (RemoverTool).
         private object canRemove(BasePlayer player, BaseEntity entity)
         {
-            if (AddonComponent.GetForEntity(entity) != null)
+            if (MonumentEntityComponent.GetForEntity(entity) != null)
                 return false;
 
             return null;
@@ -131,26 +131,26 @@ namespace Oxide.Plugins
             return true;
         }
 
-        private MonumentProxy GetClosestMonumentProxy(Vector3 position)
+        private MonumentAdapter GetClosestMonumentAdapter(Vector3 position)
         {
             var dictResult = MonumentFinder.Call("API_GetClosest", position) as Dictionary<string, object>;
             if (dictResult == null)
                 return null;
 
-            return new MonumentProxy(dictResult);
+            return new MonumentAdapter(dictResult);
         }
 
-        private List<BaseMonument> GetMonumentProxiesMatchingAlias(string alias)
+        private List<BaseMonument> GetMonumentAdaptersMatchingAlias(string alias)
         {
             var dictList = MonumentFinder.Call("API_FindByAlias", alias) as List<Dictionary<string, object>>;
             if (dictList == null)
                 return null;
 
-            var monumentProxyList = new List<BaseMonument>();
+            var monumentList = new List<BaseMonument>();
             foreach (var dict in dictList)
-                monumentProxyList.Add(new MonumentProxy(dict));
+                monumentList.Add(new MonumentAdapter(dict));
 
-            return monumentProxyList;
+            return monumentList;
         }
 
         #endregion
@@ -266,7 +266,7 @@ namespace Oxide.Plugins
                 return;
             }
 
-            var component = AddonComponent.GetForEntity(entity);
+            var component = MonumentEntityComponent.GetForEntity(entity);
             if (component == null)
             {
                 ReplyToPlayer(player, Lang.KillErrorNotEligible);
@@ -361,7 +361,7 @@ namespace Oxide.Plugins
             if (OnCargoShip(player, position, out cargoShipMonument))
                 return cargoShipMonument;
 
-            return GetClosestMonumentProxy(position);
+            return GetClosestMonumentAdapter(position);
         }
 
         private List<BaseMonument> GetMonumentsMatchingAlias(string alias)
@@ -378,7 +378,7 @@ namespace Oxide.Plugins
                 return cargoShipList;
             }
 
-            return GetMonumentProxiesMatchingAlias(alias);
+            return GetMonumentAdaptersMatchingAlias(alias);
         }
 
         private IEnumerator SpawnAllEntitiesRoutine()
@@ -470,17 +470,17 @@ namespace Oxide.Plugins
                 Object = behavior;
             }
 
-            public abstract bool IsInBounds(Vector3 position);
-            public abstract Vector3 ClosestPointOnBounds(Vector3 position);
-
             public virtual Vector3 TransformPoint(Vector3 localPosition) =>
                 Object.transform.TransformPoint(localPosition);
 
             public virtual Vector3 InverseTransformPoint(Vector3 worldPosition) =>
                 Object.transform.InverseTransformPoint(worldPosition);
+
+            public abstract Vector3 ClosestPointOnBounds(Vector3 position);
+            public abstract bool IsInBounds(Vector3 position);
         }
 
-        private class MonumentProxy : BaseMonument
+        private class MonumentAdapter : BaseMonument
         {
             public override string PrefabName => (string)_monumentInfo["PrefabName"];
             public override string ShortName => (string)_monumentInfo["ShortName"];
@@ -490,7 +490,7 @@ namespace Oxide.Plugins
 
             private Dictionary<string, object> _monumentInfo;
 
-            public MonumentProxy(Dictionary<string, object> monumentInfo) : base((MonoBehaviour)monumentInfo["Object"])
+            public MonumentAdapter(Dictionary<string, object> monumentInfo) : base((MonoBehaviour)monumentInfo["Object"])
             {
                 _monumentInfo = monumentInfo;
             }
@@ -501,11 +501,11 @@ namespace Oxide.Plugins
             public override Vector3 InverseTransformPoint(Vector3 worldPosition) =>
                 ((Func<Vector3, Vector3>)_monumentInfo["InverseTransformPoint"]).Invoke(worldPosition);
 
-            public override bool IsInBounds(Vector3 position) =>
-                ((Func<Vector3, bool>)_monumentInfo["IsInBounds"]).Invoke(position);
-
             public override Vector3 ClosestPointOnBounds(Vector3 position) =>
                 ((Func<Vector3, Vector3>)_monumentInfo["ClosestPointOnBounds"]).Invoke(position);
+
+            public override bool IsInBounds(Vector3 position) =>
+                ((Func<Vector3, bool>)_monumentInfo["IsInBounds"]).Invoke(position);
         }
 
         private class CargoShipMonument : BaseMonument
@@ -519,24 +519,24 @@ namespace Oxide.Plugins
                 CargoShip = cargoShip;
             }
 
-            public override bool IsInBounds(Vector3 position) =>
-                BoundingBox.Contains(position);
-
             public override Vector3 ClosestPointOnBounds(Vector3 position) =>
                 BoundingBox.ClosestPoint(position);
+
+            public override bool IsInBounds(Vector3 position) =>
+                BoundingBox.Contains(position);
         }
 
         #endregion
 
-        #region Component
+        #region Entity Component
 
-        private class AddonComponent : FacepunchBehaviour
+        private class MonumentEntityComponent : FacepunchBehaviour
         {
             public static void AddToEntity(BaseEntity entity, EntityAdapter adapter, BaseMonument monument) =>
-                entity.gameObject.AddComponent<AddonComponent>().Init(adapter, monument);
+                entity.gameObject.AddComponent<MonumentEntityComponent>().Init(adapter, monument);
 
-            public static AddonComponent GetForEntity(BaseEntity entity) =>
-                entity.GetComponent<AddonComponent>();
+            public static MonumentEntityComponent GetForEntity(BaseEntity entity) =>
+                entity.GetComponent<MonumentEntityComponent>();
 
             public EntityAdapter Adapter;
 
@@ -729,7 +729,7 @@ namespace Oxide.Plugins
 
                 var adapter = new EntityAdapter(this, monument, entity);
                 Adapters.Add(adapter);
-                AddonComponent.AddToEntity(entity, adapter, monument);
+                MonumentEntityComponent.AddToEntity(entity, adapter, monument);
 
                 entity.Spawn();
 

@@ -6,7 +6,7 @@ Easily spawn permanent entities at monuments, which auto respawn after restarts 
 - Uses familiar command syntax, based on `spawn <entity>`
 - Works on any map seed and accounts for terrain height
 - Entities are indestructible, have free electricity, and cannot be picked up
-- Supports vanilla monuments, custom monuments, underground tunnels, underwater labs, and cargo ship
+- Supports vanilla monuments, custom monuments, train tunnels, underwater labs, and cargo ship
 
 ## Required plugins
 
