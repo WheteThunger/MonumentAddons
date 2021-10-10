@@ -6,13 +6,11 @@ Easily spawn permanent entities at monuments, which auto respawn after restarts 
 - Uses familiar command syntax, based on `spawn <entity>`
 - Works on any map seed and accounts for terrain height
 - Entities are indestructible, have free electricity, and cannot be picked up
-- Supports custom monuments, train stations and cargo ship
+- Supports vanilla monuments, custom monuments, underground tunnels, underwater labs, and cargo ship
 
-### Compared to similar plugins
+## Required plugins
 
-Monument Plus Lite and Monument Entities fulfill the same purpose, but those plugins require a multi-step process where you use a command in game, type something into the config, and then reload the plugin.
-
-This plugin allows you to simply spawn the entity with a command in-game. The entity is automatically spawned at all similar monuments and saved in the data file so it can be respawned later.
+- [Monument Finder](https://umod.org/plugins/monument-finder) -- Simply install. No configuration needed. You may optionally update that plugin's configuration to change the bounds of monuments.
 
 ## Getting started
 
@@ -21,10 +19,16 @@ This plugin allows you to simply spawn the entity with a command in-game. The en
 3. Aim somewhere, such as a floor, wall or ceiling.
 4. Run the `maspawn <entity>` command to spawn an entity of your choice. For example, `maspawn modularcarlift.static`.
 
-This will do several things.
+This does several things.
 - It spawns the entity where you are aiming.
 - It spawns the entity at all other identical monuments (for example, at every gas station) using the correct relative position and rotation for those monuments.
 - It saves this information in the plugin data file, so that the entity can be respawned when the plugin is reloaded, when the server is restarted, or when the server is wiped, even if using a new map seed (don't worry, this works well as long as the monuments don't significantly change between Rust updates).
+
+## How underwater labs work
+
+Since underwater labs are procedurally generated, this plugin does not spawn entities relative to the monuments themselves. Instead, entities are spawned relative to specific rooms. For example, if you spawn an entity in a moonpool room, the entity will also be spawned at all moonpool rooms in the same lab and other labs.
+
+Note that some rooms have multiple possible vanilla configurations, so multiple instances of the same room might have slightly different placement of vanilla objects. This plugin does not currently differentiate between these room-specific configurations, so after spawning something into a lab room, be sure to inspect other instances of that room to make sure the entity placement makes sense for all of them.
 
 ## Permissions
 
@@ -33,86 +37,28 @@ This will do several things.
 ## Commands
 
 - `maspawn <entity>` -- Spawns an entity where you are aiming, using the entity short prefab name.
-  - You must be at or near a monument.
+  - You must be at a monument.
   - Works just like the native `spawn` command, so if the entity name isn't specific enough, it will print all matching entity names.
   - Also spawns the entity at other matching monuments (e.g., if at a gas station, will spawn at all gas stations).
-    - A monument is considered a match if it has the same short prefab name or the same configured alias as the monument you are aiming at.
-  - This saves the entity info to the plugin data file so that reloading the plugin (or restarting the server) will respawn the entity.
+    - A monument is considered a match if it has the same short prefab name or the same alias as the monument you are aiming at. The Monument Finder plugin will assign aliases for primarily underground tunnels. For example, `station-sn-0` and `station-we-0` will both use the `TrainStation` alias, allowing all train stations to have the same entities.
+  - Saves the entity info to the plugin data file so that reloading the plugin (or restarting the server) will respawn the entity.
 - `makill` -- Kills the entity that you are aiming at.
   - Only works on entities that were spawned by this plugin.
   - Also removes the entity from other matching monuments.
-  - This removes the entity from the plugin data file so that it won't respawn later.
-
-## Configuration
-
-Default configuration:
-
-```json
-{
-  "IgnoredMonuments": [
-    "power_sub_small_1",
-    "power_sub_small_2",
-    "power_sub_big_1",
-    "power_sub_big_2"
-  ],
-  "MonumentAliases": {
-    "station-sn-0": "TRAIN_STATION",
-    "station-sn-1": "TRAIN_STATION",
-    "station-sn-2": "TRAIN_STATION",
-    "station-sn-3": "TRAIN_STATION",
-    "station-we-0": "TRAIN_STATION",
-    "station-we-1": "TRAIN_STATION",
-    "station-we-2": "TRAIN_STATION",
-    "station-we-3": "TRAIN_STATION",
-    "straight-sn-0": "LOOT_TUNNEL",
-    "straight-sn-1": "LOOT_TUNNEL",
-    "straight-we-0": "LOOT_TUNNEL",
-    "straight-we-1": "LOOT_TUNNEL",
-    "intersection": "4_WAY_INTERSECTION",
-    "intersection-n": "3_WAY_INTERSECTION",
-    "intersection-e": "3_WAY_INTERSECTION",
-    "intersection-s": "3_WAY_INTERSECTION",
-    "intersection-w": "3_WAY_INTERSECTION",
-    "entrance_bunker_a": "ENTRANCE_BUNKER",
-    "entrance_bunker_b": "ENTRANCE_BUNKER",
-    "entrance_bunker_c": "ENTRANCE_BUNKER",
-    "entrance_bunker_d": "ENTRANCE_BUNKER"
-  },
-  "MaxDistanceFromMonument": {
-    "excavator_1": 120.0,
-    "junkyard_1": 35.0,
-    "launch_site_1": 80.0,
-    "lighthouse": 70.0,
-    "military_tunnel_1": 40.0,
-    "mining_quarry_c": 15.0,
-    "OilrigAI": 60.0,
-    "OilrigAI2": 85.0,
-    "sphere_tank": 20.0,
-    "swamp_c": 50.0,
-    "trainyard_1": 40.0,
-    "water_treatment_plant_1": 70.0
-  }
-}
-```
-
-- `IgnoredMonuments` -- This list allows you to exclude certain monuments from being found when using the `maspawn` command. This is useful for cases where monuments are essentially overlapping each other, since the plugin can have trouble selecting the correct monument.
-  - The power substations are ignored by default since they tend to overlap monuments such as the Launch Site.
-- `MonumentAliases` -- This allows you to give each monument an alias. Assigning the same alias to multiple monuments causes the same entities to spawn at all of them. This only works well for monuments that are basically identical.
-- `MaxDistanceFromMonument` -- These values help the `maspawn` command find nearby monuments that don't have proper bounds. This supports monument short prefab names as well as aliases. Add to or update this section if you are seeing the "Not at a monument" error.
-  - Caution: Avoid setting these limits too high. Having a low limit helps prevent you from accidentally spawning an entity outside of a monument, or relative to a monument that is very far away.
+  - Removes the entity from the plugin data file so that it won't respawn later.
 
 ## Localization
 
 ```json
 {
   "Error.NoPermission": "You don't have permission to do that.",
+  "Error.MonumentFinderNotLoaded": "Error: Monument Finder is not loaded.",
   "Error.NoMonuments": "Error: No monuments found.",
   "Error.NotAtMonument": "Error: Not at a monument. Nearest is <color=orange>{0}</color> with distance <color=orange>{1}</color>",
   "Spawn.Error.Syntax": "Syntax: <color=orange>maspawn <entity></color>",
   "Spawn.Error.EntityNotFound": "Error: Entity <color=orange>{0}</color> not found.",
   "Spawn.Error.MultipleMatches": "Multiple matches:\n",
   "Spawn.Error.NoTarget": "Error: No valid spawn position found.",
-  "Spawn.Error.Failed": "Error: Failed to spawn enttiy.",
   "Spawn.Success": "Spawned entity at <color=orange>{0}</color> matching monument(s) and saved to data file for monument <color=orange>{1}</color>.",
   "Kill.Error.EntityNotFound": "Error: No entity found.",
   "Kill.Error.NotEligible": "Error: That entity is not managed by Monument Addons.",
@@ -166,7 +112,7 @@ Fun / role play:
 
 ## Troubleshooting
 
-- If you receive the "Not at a monument" error, you may need to update the `MaxDistanceFromMonument` config for that monument. This is needed for custom monuments.
+- If you receive the "Not at a monument" error, and you think you are at a monument, it means the Monument Finder plugin may have inaccurate bounds for that monument, such as if the monument is new to the game, or if it's a custom monument. Monument Finder provides commands to visualize the monument bounds, and configuration options to change them per monument.
 - If you accidentally `ent kill` an entity that you spawned with this plugin, you can reload the plugin to restore it.
 - If you spawn an entity that is either invisible or doesn't have a collider, and you want to remove it, you can unload the plugin, remove the entity from the plugin's data file, and then reload the plugin.
 
