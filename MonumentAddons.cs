@@ -30,7 +30,7 @@ namespace Oxide.Plugins
 
         private const string PermissionAdmin = "monumentaddons.admin";
 
-        private const string CargoShipAlias = "cargoshiptest";
+        private const string CargoShipShortName = "cargoshiptest";
 
         private static readonly int HitLayers = Rust.Layers.Mask.Construction
             + Rust.Layers.Mask.Default
@@ -99,7 +99,7 @@ namespace Oxide.Plugins
         private void OnEntitySpawned(CargoShip cargoShip)
         {
             List<EntityData> entityDataList;
-            if (!_pluginData.MonumentMap.TryGetValue(CargoShipAlias, out entityDataList))
+            if (!_pluginData.MonumentMap.TryGetValue(CargoShipShortName, out entityDataList))
                 return;
 
             _coroutineManager.StartCoroutine(
@@ -140,9 +140,8 @@ namespace Oxide.Plugins
             return new MonumentAdapter(dictResult);
         }
 
-        private List<BaseMonument> GetMonumentAdaptersMatchingAlias(string alias)
+        private List<BaseMonument> WrapFindMonumentResults(List<Dictionary<string, object>> dictList)
         {
-            var dictList = MonumentFinder.Call("API_FindByAlias", alias) as List<Dictionary<string, object>>;
             if (dictList == null)
                 return null;
 
@@ -152,6 +151,12 @@ namespace Oxide.Plugins
 
             return monumentList;
         }
+
+        private List<BaseMonument> FindMonumentsByAlias(string alias) =>
+            WrapFindMonumentResults(MonumentFinder.Call("API_FindByAlias", alias) as List<Dictionary<string, object>>);
+
+        private List<BaseMonument> FindMonumentsByShortName(string shortName) =>
+            WrapFindMonumentResults(MonumentFinder.Call("API_FindByShortName", shortName) as List<Dictionary<string, object>>);
 
         #endregion
 
@@ -219,7 +224,7 @@ namespace Oxide.Plugins
             {
                 var closestPoint = closestMonument.ClosestPointOnBounds(position);
                 var distance = (position - closestPoint).magnitude;
-                ReplyToPlayer(player, Lang.ErrorNotAtMonument, closestMonument.Alias, distance.ToString("f1"));
+                ReplyToPlayer(player, Lang.ErrorNotAtMonument, closestMonument.AliasOrShortName, distance.ToString("f1"));
                 return;
             }
 
@@ -236,13 +241,13 @@ namespace Oxide.Plugins
                 OnTerrain = Math.Abs(position.y - TerrainMeta.HeightMap.GetHeight(position)) <= TerrainProximityTolerance
             };
 
-            var matchingMonuments = GetMonumentsMatchingAlias(closestMonument.Alias);
+            var matchingMonuments = GetMonumentsByAliasOrShortName(closestMonument.AliasOrShortName);
             _coroutineManager.StartCoroutine(
                 _entityManager.SpawnEntityAtMonumentsRoutine(entityData, matchingMonuments)
             );
 
-            _pluginData.AddEntityData(entityData, closestMonument.Alias);
-            ReplyToPlayer(player, Lang.SpawnSuccess, matchingMonuments.Count, closestMonument.Alias);
+            _pluginData.AddEntityData(entityData, closestMonument.AliasOrShortName);
+            ReplyToPlayer(player, Lang.SpawnSuccess, matchingMonuments.Count, closestMonument.AliasOrShortName);
         }
 
         [Command("makill")]
@@ -364,9 +369,9 @@ namespace Oxide.Plugins
             return GetClosestMonumentAdapter(position);
         }
 
-        private List<BaseMonument> GetMonumentsMatchingAlias(string alias)
+        private List<BaseMonument> GetMonumentsByAliasOrShortName(string aliasOrShortName)
         {
-            if (alias == CargoShipAlias)
+            if (aliasOrShortName == CargoShipShortName)
             {
                 var cargoShipList = new List<BaseMonument>();
                 foreach (var entity in BaseNetworkable.serverEntities)
@@ -375,10 +380,14 @@ namespace Oxide.Plugins
                     if (cargoShip != null)
                         cargoShipList.Add(new CargoShipMonument(cargoShip));
                 }
-                return cargoShipList;
+                return cargoShipList.Count > 0 ? cargoShipList : null;
             }
 
-            return GetMonumentAdaptersMatchingAlias(alias);
+            var monuments = FindMonumentsByAlias(aliasOrShortName);
+            if (monuments.Count > 0)
+                return monuments;
+
+            return FindMonumentsByShortName(aliasOrShortName);
         }
 
         private IEnumerator SpawnAllEntitiesRoutine()
@@ -387,16 +396,13 @@ namespace Oxide.Plugins
 
             foreach (var entry in _pluginData.MonumentMap)
             {
-                var monumentAlias = entry.Key;
-                var entityDataList = entry.Value;
-
-                var matchingMonuments = GetMonumentsMatchingAlias(monumentAlias);
+                var matchingMonuments = GetMonumentsByAliasOrShortName(entry.Key);
                 if (matchingMonuments == null)
                     continue;
 
                 spawnedEntities += matchingMonuments.Count;
 
-                foreach (var entityData in entityDataList)
+                foreach (var entityData in entry.Value)
                 {
                     yield return _entityManager.SpawnEntityAtMonumentsRoutine(entityData, matchingMonuments);
                 }
@@ -461,7 +467,8 @@ namespace Oxide.Plugins
             public MonoBehaviour Object { get; private set; }
             public virtual string PrefabName => Object.name;
             public virtual string ShortName => GetShortName(PrefabName);
-            public virtual string Alias => ShortName;
+            public virtual string Alias => null;
+            public virtual string AliasOrShortName => Alias ?? ShortName;
             public virtual Vector3 Position => Object.transform.position;
             public virtual Quaternion Rotation => Object.transform.rotation;
 
