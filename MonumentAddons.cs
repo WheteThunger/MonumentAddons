@@ -557,35 +557,6 @@ namespace Oxide.Plugins
             public void Init(EntityAdapter adapter, BaseMonument monument)
             {
                 Adapter = adapter;
-
-                // In case the entity persists after unload, ensure it doesn't come back after restart which would cause duplication.
-                _entity.EnableSaving(false);
-
-                var combatEntity = _entity as BaseCombatEntity;
-                if (combatEntity != null)
-                {
-                    combatEntity.baseProtection = _pluginInstance._immortalProtection;
-                    combatEntity.pickup.enabled = false;
-                }
-
-                var ioEntity = _entity as IOEntity;
-                if (ioEntity != null)
-                {
-                    ioEntity.SetFlag(BaseEntity.Flags.On, true);
-                    ioEntity.SetFlag(IOEntity.Flag_HasPower, true);
-                }
-
-                DestroyProblemComponents(_entity);
-
-                var cargoShipMonument = monument as CargoShipMonument;
-                if (cargoShipMonument != null)
-                {
-                    _entity.SetParent(cargoShipMonument.CargoShip, worldPositionStays: true);
-
-                    var mountable = _entity as BaseMountable;
-                    if (mountable != null)
-                        mountable.isMobile = true;
-                }
             }
 
             private void OnDestroy()
