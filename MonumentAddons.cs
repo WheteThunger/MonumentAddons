@@ -82,6 +82,8 @@ namespace Oxide.Plugins
 
             UnityEngine.Object.Destroy(_immortalProtection);
 
+            EntityAdapterBase.ClearEntityCache();
+
             _pluginConfig = null;
             _pluginInstance = null;
         }
@@ -110,7 +112,7 @@ namespace Oxide.Plugins
         // This hook is exposed by plugin: Remover Tool (RemoverTool).
         private object canRemove(BasePlayer player, BaseEntity entity)
         {
-            if (MonumentEntityComponent.GetForEntity(entity) != null)
+            if (EntityAdapterBase.IsMonumentEntity(entity))
                 return false;
 
             return null;
@@ -539,14 +541,16 @@ namespace Oxide.Plugins
 
         private class MonumentEntityComponent : FacepunchBehaviour
         {
-            public static void AddToEntity(BaseEntity entity, EntityAdapter adapter, BaseMonument monument) =>
+            public static void AddToEntity(BaseEntity entity, EntityAdapterBase adapter, BaseMonument monument) =>
                 entity.gameObject.AddComponent<MonumentEntityComponent>().Init(adapter, monument);
 
             public static MonumentEntityComponent GetForEntity(BaseEntity entity) =>
                 entity.GetComponent<MonumentEntityComponent>();
 
-            public EntityAdapter Adapter;
+            public static MonumentEntityComponent GetForEntity(uint id) =>
+                BaseNetworkable.serverEntities.Find(id)?.GetComponent<MonumentEntityComponent>();
 
+            public EntityAdapterBase Adapter;
             private BaseEntity _entity;
 
             private void Awake()
@@ -554,7 +558,7 @@ namespace Oxide.Plugins
                 _entity = GetComponent<BaseEntity>();
             }
 
-            public void Init(EntityAdapter adapter, BaseMonument monument)
+            public void Init(EntityAdapterBase adapter, BaseMonument monument)
             {
                 Adapter = adapter;
             }
@@ -571,25 +575,89 @@ namespace Oxide.Plugins
 
         private abstract class EntityAdapterBase
         {
+            public static bool IsMonumentEntity(uint id) => _registeredEntities.Contains(id);
+            public static bool IsMonumentEntity(BaseEntity entity) => IsMonumentEntity(entity.net.ID);
+            public static void ClearEntityCache() => _registeredEntities.Clear();
+
             public EntityControllerBase Controller { get; private set; }
+            public EntityData EntityData { get; private set; }
             public BaseMonument Monument { get; private set; }
 
-            public EntityAdapterBase(EntityControllerBase controller, BaseMonument monument)
+            protected static readonly HashSet<uint> _registeredEntities = new HashSet<uint>();
+
+            public EntityAdapterBase(EntityControllerBase controller, EntityData entityData, BaseMonument monument)
             {
                 Controller = controller;
+                EntityData = entityData;
+                Monument = monument;
             }
 
+            public abstract void Spawn();
             public abstract void Kill();
             public abstract void OnEntityKilled(BaseEntity entity);
+
+            protected void FinishSpawningEntity(BaseEntity entity)
+            {
+                // In case the plugin doesn't clean it up on server shutdown, make sure it doesn't come back so it's not duplicated. x
+                entity.EnableSaving(false);
+
+                DestroyProblemComponents(entity);
+
+                MonumentEntityComponent.AddToEntity(entity, this, Monument);
+                entity.Spawn();
+                _registeredEntities.Add(entity.net.ID);
+            }
+
+            protected BaseEntity SpawnEntity(string prefabName, Vector3 position, Quaternion rotation)
+            {
+                var entity = GameManager.server.CreateEntity(EntityData.PrefabName, position, rotation);
+                if (entity == null)
+                    return null;
+
+                var combatEntity = entity as BaseCombatEntity;
+                if (combatEntity != null)
+                {
+                    combatEntity.baseProtection = _pluginInstance._immortalProtection;
+                    combatEntity.pickup.enabled = false;
+                }
+
+                var ioEntity = entity as IOEntity;
+                if (ioEntity != null)
+                {
+                    ioEntity.SetFlag(BaseEntity.Flags.On, true);
+                    ioEntity.SetFlag(IOEntity.Flag_HasPower, true);
+                }
+
+                var cargoShipMonument = Monument as CargoShipMonument;
+                if (cargoShipMonument != null)
+                {
+                    entity.SetParent(cargoShipMonument.CargoShip, worldPositionStays: true, sendImmediate: true);
+
+                    var mountable = entity as BaseMountable;
+                    if (mountable != null)
+                        mountable.isMobile = true;
+                }
+
+                FinishSpawningEntity(entity);
+                return entity;
+            }
         }
 
-        private class EntityAdapter : EntityAdapterBase
+        private class SingleEntityAdapter : EntityAdapterBase
         {
-            private BaseEntity _entity;
+            protected BaseEntity _entity;
 
-            public EntityAdapter(EntityControllerBase controller, BaseMonument monument, BaseEntity entity) : base(controller, monument)
+            public SingleEntityAdapter(EntityControllerBase controller, EntityData entityData, BaseMonument monument) : base(controller, entityData, monument) {}
+
+            public override void Spawn()
             {
-                _entity = entity;
+                var position = Monument.TransformPoint(EntityData.Position);
+                var rotation = Quaternion.Euler(0, Monument.Rotation.eulerAngles.y + EntityData.RotationAngle, 0);
+
+                if (EntityData.OnTerrain)
+                    position.y = TerrainMeta.HeightMap.GetHeight(position);
+
+                _entity = SpawnEntity(EntityData.PrefabName, position, rotation);
             }
 
             public override void Kill()
@@ -600,6 +668,9 @@ namespace Oxide.Plugins
 
             public override void OnEntityKilled(BaseEntity entity)
             {
+                if (entity.net != null)
+                    _registeredEntities.Remove(entity.net.ID);
+
                 Controller.OnAdapterKilled(this);
             }
         }
@@ -612,7 +683,7 @@ namespace Oxide.Plugins
         {
             public EntityManager Manager { get; private set; }
             public EntityData EntityData { get; private set; }
-            public List<EntityAdapter> Adapters { get; private set; } = new List<EntityAdapter>();
+            public List<EntityAdapterBase> Adapters { get; private set; } = new List<EntityAdapterBase>();
 
             public EntityControllerBase(EntityManager manager, EntityData entityData)
             {
@@ -620,9 +691,9 @@ namespace Oxide.Plugins
                 EntityData = entityData;
             }
 
-            public abstract EntityAdapter SpawnAtMonument(BaseMonument monument);
+            public abstract EntityAdapterBase SpawnAtMonument(BaseMonument monument);
 
-            public IEnumerator SpawnAtMonumentsRoutine(IEnumerable<BaseMonument> monumentList)
+            public virtual IEnumerator SpawnAtMonumentsRoutine(IEnumerable<BaseMonument> monumentList)
             {
                 foreach (var monument in monumentList)
                 {
@@ -651,7 +722,7 @@ namespace Oxide.Plugins
                 _pluginInstance._coroutineManager.FireAndForgetCoroutine(DestroyRoutine());
             }
 
-            public void OnAdapterKilled(EntityAdapter adapter)
+            public void OnAdapterKilled(SingleEntityAdapter adapter)
             {
                 Adapters.Remove(adapter);
 
@@ -660,57 +731,15 @@ namespace Oxide.Plugins
             }
         }
 
-        private class EntityController : EntityControllerBase
+        private class SingleEntityController : EntityControllerBase
         {
-            public EntityController(EntityManager manager, EntityData data) : base(manager, data) {}
+            public SingleEntityController(EntityManager manager, EntityData data) : base(manager, data) {}
 
-            public override EntityAdapter SpawnAtMonument(BaseMonument monument)
+            public override EntityAdapterBase SpawnAtMonument(BaseMonument monument)
             {
-                var position = monument.TransformPoint(EntityData.Position);
-                var rotation = Quaternion.Euler(0, monument.Rotation.eulerAngles.y + EntityData.RotationAngle, 0);
-
-                if (EntityData.OnTerrain)
-                    position.y = TerrainMeta.HeightMap.GetHeight(position);
-
-                var entity = GameManager.server.CreateEntity(EntityData.PrefabName, position, rotation);
-                if (entity == null)
-                    return null;
-
-                // In case the plugin doesn't clean it up on server shutdown, make sure it doesn't come back so it's not duplicated. x
-                entity.EnableSaving(false);
-
-                var combatEntity = entity as BaseCombatEntity;
-                if (combatEntity != null)
-                {
-                    combatEntity.baseProtection = _pluginInstance._immortalProtection;
-                    combatEntity.pickup.enabled = false;
-                }
-
-                var ioEntity = entity as IOEntity;
-                if (ioEntity != null)
-                {
-                    ioEntity.SetFlag(BaseEntity.Flags.On, true);
-                    ioEntity.SetFlag(IOEntity.Flag_HasPower, true);
-                }
-
-                DestroyProblemComponents(entity);
-
-                var cargoShipMonument = monument as CargoShipMonument;
-                if (cargoShipMonument != null)
-                {
-                    entity.SetParent(cargoShipMonument.CargoShip, worldPositionStays: true, sendImmediate: true);
-
-                    var mountable = entity as BaseMountable;
-                    if (mountable != null)
-                        mountable.isMobile = true;
-                }
-
-                var adapter = new EntityAdapter(this, monument, entity);
+                var adapter = new SingleEntityAdapter(this, EntityData, monument);
                 Adapters.Add(adapter);
-                MonumentEntityComponent.AddToEntity(entity, adapter, monument);
-
-                entity.Spawn();
-
+                adapter.Spawn();
                 return adapter;
             }
         }
@@ -775,7 +804,7 @@ namespace Oxide.Plugins
                 var controller = GetController(entityData);
                 if (controller == null)
                 {
-                    controller = new EntityController(this, entityData);
+                    controller = new SingleEntityController(this, entityData);
                     _controllersByEntityData[entityData] = controller;
                 }
                 return controller;
