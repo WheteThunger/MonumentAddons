@@ -903,10 +903,14 @@ namespace Oxide.Plugins
 
             public override void OnEntityKilled(BaseEntity entity)
             {
+                _pluginInstance?.TrackStart();
+
                 if (entity.net != null)
                     _registeredEntities.Remove(entity.net.ID);
 
                 Controller.OnAdapterKilled(this);
+
+                _pluginInstance?.TrackEnd();
             }
         }
 
