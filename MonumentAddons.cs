@@ -20,7 +20,7 @@ namespace Oxide.Plugins
         #region Fields
 
         [PluginReference]
-        private Plugin MonumentFinder;
+        private Plugin MonumentFinder, SignArtist;
 
         private static MonumentAddons _pluginInstance;
         private static Configuration _pluginConfig;
@@ -59,6 +59,8 @@ namespace Oxide.Plugins
             permission.RegisterPermission(PermissionAdmin, this);
 
             Unsubscribe(nameof(OnEntitySpawned));
+
+            _entityManager.Init();
         }
 
         private void OnServerInitialized()
@@ -118,6 +120,55 @@ namespace Oxide.Plugins
             return null;
         }
 
+        private bool? CanUpdateSign(BasePlayer player, ISignage signage)
+        {
+            if (EntityAdapterBase.IsMonumentEntity(signage.NetworkID)
+                && !permission.UserHasPermission(player.UserIDString, PermissionAdmin))
+            {
+                ChatMessage(player, Lang.ErrorNoPermission);
+                return false;
+            }
+
+            return null;
+        }
+
+        private void OnSignUpdated(ISignage signage, BasePlayer player)
+        {
+            if (!EntityAdapterBase.IsMonumentEntity(signage.NetworkID))
+                return;
+
+            var component = MonumentEntityComponent.GetForEntity(signage.NetworkID);
+            if (component == null)
+                return;
+
+            var controller = component.Adapter.Controller as SignEntityController;
+            if (controller == null)
+                return;
+
+            controller.UpdateSign(signage.GetTextureCRCs());
+        }
+
+        // This hook is exposed by plugin: Sign Arist (SignArtist).
+        private void OnImagePost(BasePlayer player, string url, bool raw, ISignage signage)
+        {
+            if (!EntityAdapterBase.IsMonumentEntity(signage.NetworkID))
+                return;
+
+            var component = MonumentEntityComponent.GetForEntity(signage.NetworkID);
+            if (component == null)
+                return;
+
+            var controller = component.Adapter.Controller as SignEntityController;
+            if (controller == null)
+                return;
+
+            controller.EntityData.SignArtistImages = new SignArtistImage[]
+            {
+                new SignArtistImage { Url = url, Raw = raw },
+            };
+            _pluginData.Save();
+        }
+
         #endregion
 
         #region Dependencies
@@ -159,6 +210,17 @@ namespace Oxide.Plugins
 
         private List<BaseMonument> FindMonumentsByShortName(string shortName) =>
             WrapFindMonumentResults(MonumentFinder.Call("API_FindByShortName", shortName) as List<Dictionary<string, object>>);
+
+        private void SkinSign(ISignage signage, SignArtistImage[] signArtistImages)
+        {
+            if (signArtistImages.Length == 0)
+                return;
+
+            if (signage is Signage)
+                SignArtist?.Call("API_SkinSign", (BasePlayer)null, signage as Signage, signArtistImages[0].Url, signArtistImages[0].Raw);
+            else if (signage is PhotoFrame)
+                SignArtist?.Call("API_SkinPhotoFrame", (BasePlayer)null, signage as PhotoFrame, signArtistImages[0].Url, signArtistImages[0].Raw);
+        }
 
         #endregion
 
@@ -571,7 +633,7 @@ namespace Oxide.Plugins
 
         #endregion
 
-        #region Entity Adapter
+        #region Entity Adapter/Controller/Manager
 
         private abstract class EntityAdapterBase
         {
@@ -606,6 +668,11 @@ namespace Oxide.Plugins
                 MonumentEntityComponent.AddToEntity(entity, this, Monument);
                 entity.Spawn();
                 _registeredEntities.Add(entity.net.ID);
+
+                // This must be done after spawning to allow the animation to work.
+                var neonSign = entity as NeonSign;
+                if (neonSign != null)
+                    neonSign.UpdateFromInput(neonSign.ConsumptionAmount(), 0);
             }
 
             protected BaseEntity SpawnEntity(string prefabName, Vector3 position, Quaternion rotation)
@@ -628,6 +695,12 @@ namespace Oxide.Plugins
                     ioEntity.SetFlag(IOEntity.Flag_HasPower, true);
                 }
 
+                if (entity is ISignage)
+                {
+                    (entity as Signage)?.EnsureInitialized();
+                    entity.SetFlag(BaseEntity.Flags.Locked, true);
+                }
+
                 var cargoShipMonument = Monument as CargoShipMonument;
                 if (cargoShipMonument != null)
                 {
@@ -643,49 +716,13 @@ namespace Oxide.Plugins
             }
         }
 
-        private class SingleEntityAdapter : EntityAdapterBase
-        {
-            protected BaseEntity _entity;
-
-            public SingleEntityAdapter(EntityControllerBase controller, EntityData entityData, BaseMonument monument) : base(controller, entityData, monument) {}
-
-            public override void Spawn()
-            {
-                var position = Monument.TransformPoint(EntityData.Position);
-                var rotation = Quaternion.Euler(0, Monument.Rotation.eulerAngles.y + EntityData.RotationAngle, 0);
-
-                if (EntityData.OnTerrain)
-                    position.y = TerrainMeta.HeightMap.GetHeight(position);
-
-                _entity = SpawnEntity(EntityData.PrefabName, position, rotation);
-            }
-
-            public override void Kill()
-            {
-                if (!_entity.IsDestroyed)
-                    _entity.Kill();
-            }
-
-            public override void OnEntityKilled(BaseEntity entity)
-            {
-                if (entity.net != null)
-                    _registeredEntities.Remove(entity.net.ID);
-
-                Controller.OnAdapterKilled(this);
-            }
-        }
-
-        #endregion
-
-        #region Entity Controller
-
         private abstract class EntityControllerBase
         {
-            public EntityManager Manager { get; private set; }
+            public EntityManagerBase Manager { get; private set; }
             public EntityData EntityData { get; private set; }
             public List<EntityAdapterBase> Adapters { get; private set; } = new List<EntityAdapterBase>();
 
-            public EntityControllerBase(EntityManager manager, EntityData entityData)
+            public EntityControllerBase(EntityManagerBase manager, EntityData entityData)
             {
                 Manager = manager;
                 EntityData = entityData;
@@ -722,7 +759,7 @@ namespace Oxide.Plugins
                 _pluginInstance._coroutineManager.FireAndForgetCoroutine(DestroyRoutine());
             }
 
-            public void OnAdapterKilled(SingleEntityAdapter adapter)
+            public virtual void OnAdapterKilled(EntityAdapterBase adapter)
             {
                 Adapters.Remove(adapter);
 
@@ -731,9 +768,141 @@ namespace Oxide.Plugins
             }
         }
 
+        private abstract class EntityManagerBase
+        {
+            protected Dictionary<EntityData, EntityControllerBase> _controllersByEntityData = new Dictionary<EntityData, EntityControllerBase>();
+
+            public abstract EntityControllerBase CreateController(EntityData entityData);
+            public abstract bool AppliesToEntity(BaseEntity entity);
+
+            public virtual void Init() {}
+
+            protected virtual void RegisterController(EntityData entityData, EntityControllerBase controller)
+            {
+                _controllersByEntityData[entityData] = controller;
+            }
+
+            public virtual void UnregisterController(EntityData entityData)
+            {
+                _controllersByEntityData.Remove(entityData);
+            }
+
+            public IEnumerator UnloadRoutine()
+            {
+                foreach (var controller in _controllersByEntityData.Values.ToArray())
+                    yield return controller.DestroyRoutine();
+            }
+
+            public IEnumerator SpawnEntityAtMonumentsRoutine(EntityData entityData, IEnumerable<BaseMonument> monumentList)
+            {
+                _pluginInstance.TrackStart();
+                var controller = EnsureController(entityData);
+                _pluginInstance.TrackEnd();
+                yield return controller.SpawnAtMonumentsRoutine(monumentList);
+            }
+
+            public void SpawnAtMonument(EntityData entityData, BaseMonument monument)
+            {
+                EnsureController(entityData).SpawnAtMonument(monument);
+            }
+
+            private EntityControllerBase EnsureController(EntityData entityData)
+            {
+                var controller = GetController(entityData);
+                if (controller == null)
+                {
+                    controller = CreateController(entityData);
+                    RegisterController(entityData, controller);
+                }
+                return controller;
+            }
+
+            private EntityControllerBase GetController(EntityData entityData)
+            {
+                EntityControllerBase controller;
+                return _controllersByEntityData.TryGetValue(entityData, out controller)
+                    ? controller
+                    : null;
+            }
+        }
+
+        private abstract class DyanmicHookEntityManager : EntityManagerBase
+        {
+            protected string[] _dynamicHookNames = new string[0];
+
+            public override void Init()
+            {
+                UnsubscribeAll();
+            }
+
+            protected override void RegisterController(EntityData entityData, EntityControllerBase controller)
+            {
+                base.RegisterController(entityData, controller);
+
+                if (_controllersByEntityData.Count == 1)
+                    SubscribeAll();
+            }
+
+            public override void UnregisterController(EntityData entityData)
+            {
+                base.UnregisterController(entityData);
+
+                if (_controllersByEntityData.Count == 0)
+                    UnsubscribeAll();
+            }
+
+            private void SubscribeAll()
+            {
+                foreach (var hookName in _dynamicHookNames)
+                    _pluginInstance?.Subscribe(hookName);
+            }
+
+            private void UnsubscribeAll()
+            {
+                foreach (var hookName in _dynamicHookNames)
+                    _pluginInstance?.Unsubscribe(hookName);
+            }
+        }
+
+        #endregion
+
+        #region Entity Adapter/Controller/Manager - Single
+
+        private class SingleEntityAdapter : EntityAdapterBase
+        {
+            protected BaseEntity _entity;
+
+            public SingleEntityAdapter(EntityControllerBase controller, EntityData entityData, BaseMonument monument) : base(controller, entityData, monument) {}
+
+            public override void Spawn()
+            {
+                var position = Monument.TransformPoint(EntityData.Position);
+                var rotation = Quaternion.Euler(0, Monument.Rotation.eulerAngles.y + EntityData.RotationAngle, 0);
+
+                if (EntityData.OnTerrain)
+                    position.y = TerrainMeta.HeightMap.GetHeight(position);
+
+                _entity = SpawnEntity(EntityData.PrefabName, position, rotation);
+            }
+
+            public override void Kill()
+            {
+                if (!_entity.IsDestroyed)
+                    _entity.Kill();
+            }
+
+            public override void OnEntityKilled(BaseEntity entity)
+            {
+                if (entity.net != null)
+                    _registeredEntities.Remove(entity.net.ID);
+
+                Controller.OnAdapterKilled(this);
+            }
+        }
+
         private class SingleEntityController : EntityControllerBase
         {
-            public SingleEntityController(EntityManager manager, EntityData data) : base(manager, data) {}
+            public SingleEntityController(EntityManagerBase manager, EntityData data) : base(manager, data) {}
 
             public override EntityAdapterBase SpawnAtMonument(BaseMonument monument)
             {
@@ -744,20 +913,129 @@ namespace Oxide.Plugins
             }
         }
 
+        private class SingleEntityManager : EntityManagerBase
+        {
+            public override bool AppliesToEntity(BaseEntity entity) => true;
+
+            public override EntityControllerBase CreateController(EntityData entityData) =>
+                new SingleEntityController(this, entityData);
+        }
+
+        #endregion
+
+        #region Entity Adapter/Controller/Manager - Signs
+
+        private class SignEntityAdapter : SingleEntityAdapter
+        {
+            public SignEntityAdapter(EntityControllerBase controller, EntityData entityData, BaseMonument monument) : base(controller, entityData, monument) {}
+
+            public uint[] GetTextureIds() => (_entity as ISignage)?.GetTextureCRCs();
+
+            public void SetTextureIds(uint[] textureIds)
+            {
+                var sign = _entity as ISignage;
+                if (textureIds == null || textureIds.Equals(sign.GetTextureCRCs()))
+                    return;
+
+                sign.SetTextureCRCs(textureIds);
+            }
+
+            public void SkinSign()
+            {
+                if (EntityData.SignArtistImages == null)
+                    return;
+
+                _pluginInstance.SkinSign(_entity as ISignage, EntityData.SignArtistImages);
+            }
+        }
+
+        private class SignEntityController : SingleEntityController
+        {
+            public SignEntityController(EntityManagerBase manager, EntityData data) : base(manager, data) {}
+
+            // Sign artist will only be called for the primary adapter.
+            // Texture ids are copied to the others.
+            protected SignEntityAdapter _primaryAdapter;
+
+            public override EntityAdapterBase SpawnAtMonument(BaseMonument monument)
+            {
+                var adapter = new SignEntityAdapter(this, EntityData, monument);
+                Adapters.Add(adapter);
+                adapter.Spawn();
+
+                if (_primaryAdapter != null)
+                {
+                    var textureIds = _primaryAdapter.GetTextureIds();
+                    if (textureIds != null)
+                        adapter.SetTextureIds(textureIds);
+                }
+                else
+                {
+                    _primaryAdapter = adapter;
+                    _primaryAdapter.SkinSign();
+                }
+
+                return adapter;
+            }
+
+            public override void OnAdapterKilled(EntityAdapterBase adapter)
+            {
+                base.OnAdapterKilled(adapter);
+
+                if (adapter == _primaryAdapter)
+                    _primaryAdapter = Adapters.FirstOrDefault() as SignEntityAdapter;
+            }
+
+            public void UpdateSign(uint[] textureIds)
+            {
+                foreach (var adapter in Adapters)
+                    (adapter as SignEntityAdapter).SetTextureIds(textureIds);
+            }
+        }
+
+        private class SignEntityManager : DyanmicHookEntityManager
+        {
+            public SignEntityManager()
+            {
+                _dynamicHookNames = new string[]
+                {
+                    nameof(CanUpdateSign),
+                    nameof(OnSignUpdated),
+                    nameof(OnImagePost),
+                };
+            }
+
+            public override bool AppliesToEntity(BaseEntity entity) => entity is ISignage;
+
+            public override EntityControllerBase CreateController(EntityData entityData) =>
+                new SignEntityController(this, entityData);
+        }
+
         #endregion
 
         #region Entity Manager
 
         private class EntityManager
         {
-            private Dictionary<EntityData, EntityControllerBase> _controllersByEntityData = new Dictionary<EntityData, EntityControllerBase>();
+            private List<EntityManagerBase> _controllerManagers = new List<EntityManagerBase>
+            {
+                // The first manager that matches will be used.
+                new SignEntityManager(),
+                new SingleEntityManager(),
+            };
+
+            public void Init()
+            {
+                foreach (var manager in _controllerManagers)
+                    manager.Init();
+            }
 
             public IEnumerator SpawnEntityAtMonumentsRoutine(EntityData entityData, IEnumerable<BaseMonument> monumentList)
             {
                 _pluginInstance.TrackStart();
-                var controller = EnsureController(entityData);
+                var manager = DetermineControllerManager(entityData);
                 _pluginInstance.TrackEnd();
-                yield return controller.SpawnAtMonumentsRoutine(monumentList);
+                yield return manager.SpawnEntityAtMonumentsRoutine(entityData, monumentList);
             }
 
             public IEnumerator SpawnEntitiesAtMonumentRoutine(IEnumerable<EntityData> entityDataList, BaseMonument monument)
@@ -769,45 +1047,35 @@ namespace Oxide.Plugins
                         yield break;
 
                     _pluginInstance.TrackStart();
-                    SpawnEntityAtMonument(entityData, monument);
+                    DetermineControllerManager(entityData).SpawnAtMonument(entityData, monument);
                     _pluginInstance.TrackEnd();
                     yield return CoroutineEx.waitForEndOfFrame;
                 }
             }
 
-            public void UnregisterController(EntityData entityData)
-            {
-                _controllersByEntityData.Remove(entityData);
-            }
-
             public IEnumerator UnloadRoutine()
             {
-                foreach (var controller in _controllersByEntityData.Values.ToArray())
-                    yield return controller.DestroyRoutine();
+                foreach (var controllerManager in _controllerManagers)
+                    yield return controllerManager.UnloadRoutine();
             }
 
-            private void SpawnEntityAtMonument(EntityData entityData, BaseMonument monument)
+            private EntityManagerBase DetermineControllerManager(EntityData entityData)
             {
-                EnsureController(entityData).SpawnAtMonument(monument);
-            }
+                var prefab = GameManager.server.FindPrefab(entityData.PrefabName);
+                if (prefab == null)
+                    return null;
 
-            private EntityControllerBase GetController(EntityData entityData)
-            {
-                EntityControllerBase controller;
-                return _controllersByEntityData.TryGetValue(entityData, out controller)
-                    ? controller
-                    : null;
-            }
+                var baseEntity = prefab.GetComponent<BaseEntity>();
+                if (baseEntity == null)
+                    return null;
 
-            private EntityControllerBase EnsureController(EntityData entityData)
-            {
-                var controller = GetController(entityData);
-                if (controller == null)
+                foreach (var controllerManager in _controllerManagers)
                 {
-                    controller = new SingleEntityController(this, entityData);
-                    _controllersByEntityData[entityData] = controller;
+                    if (controllerManager.AppliesToEntity(baseEntity))
+                        return controllerManager;
                 }
-                return controller;
+
+                return null;
             }
         }
 
@@ -907,7 +1175,7 @@ namespace Oxide.Plugins
             [JsonProperty("Monuments")]
             public Dictionary<string, List<EntityData>> MonumentMap = new Dictionary<string, List<EntityData>>();
 
-            private void Save() =>
+            public void Save() =>
                 Interface.Oxide.DataFileSystem.WriteObject(_pluginInstance.Name, this);
 
             public void AddEntityData(EntityData entityData, string monumentShortName)
@@ -938,6 +1206,15 @@ namespace Oxide.Plugins
             }
         }
 
+        private class SignArtistImage
+        {
+            [JsonProperty("Url")]
+            public string Url;
+
+            [JsonProperty("Raw", DefaultValueHandling = DefaultValueHandling.Ignore)]
+            public bool Raw;
+        }
+
         private class EntityData
         {
             [JsonProperty("PrefabName")]
@@ -951,6 +1228,9 @@ namespace Oxide.Plugins
 
             [JsonProperty("OnTerrain", DefaultValueHandling = DefaultValueHandling.Ignore)]
             public bool OnTerrain = false;
+
+            [JsonProperty("SignArtistImages", DefaultValueHandling = DefaultValueHandling.Ignore)]
+            public SignArtistImage[] SignArtistImages;
         }
 
         #endregion
