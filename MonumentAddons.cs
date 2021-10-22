@@ -535,6 +535,7 @@ namespace Oxide.Plugins
             public virtual string AliasOrShortName => Alias ?? ShortName;
             public virtual Vector3 Position => Object.transform.position;
             public virtual Quaternion Rotation => Object.transform.rotation;
+            public virtual bool IsValid => Object != null;
 
             public BaseMonument(MonoBehaviour behavior)
             {
@@ -582,6 +583,7 @@ namespace Oxide.Plugins
         private class CargoShipMonument : BaseMonument
         {
             public CargoShip CargoShip { get; private set; }
+            public override bool IsValid => base.IsValid && !CargoShip.IsDestroyed;
 
             private OBB BoundingBox => CargoShip.WorldSpaceBounds();
 
