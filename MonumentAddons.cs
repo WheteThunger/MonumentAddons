@@ -107,7 +107,7 @@ namespace Oxide.Plugins
                 return;
 
             _coroutineManager.StartCoroutine(
-                _entityManager.SpawnEntitiesAtMonumentRoutine(entityDataList, new CargoShipMonument(cargoShip))
+                _entityManager.SpawnEverythingRoutine(entityDataList, new CargoShipMonument(cargoShip))
             );
         }
 
@@ -307,7 +307,7 @@ namespace Oxide.Plugins
 
             var matchingMonuments = GetMonumentsByAliasOrShortName(closestMonument.AliasOrShortName);
             _coroutineManager.StartCoroutine(
-                _entityManager.SpawnEntityAtMonumentsRoutine(entityData, matchingMonuments)
+                _entityManager.SpawnAtMonumentsRoutine(entityData, matchingMonuments)
             );
 
             _pluginData.AddEntityData(entityData, closestMonument.AliasOrShortName);
@@ -458,7 +458,7 @@ namespace Oxide.Plugins
         {
             var spawnedEntities = 0;
 
-            foreach (var entry in _pluginData.MonumentMap)
+            foreach (var entry in _pluginData.MonumentMap.ToArray())
             {
                 var matchingMonuments = GetMonumentsByAliasOrShortName(entry.Key);
                 if (matchingMonuments == null)
@@ -466,9 +466,9 @@ namespace Oxide.Plugins
 
                 spawnedEntities += matchingMonuments.Count;
 
-                foreach (var entityData in entry.Value)
+                foreach (var entityData in entry.Value.ToArray())
                 {
-                    yield return _entityManager.SpawnEntityAtMonumentsRoutine(entityData, matchingMonuments);
+                    yield return _entityManager.SpawnAtMonumentsRoutine(entityData, matchingMonuments);
                 }
             }
 
@@ -793,10 +793,18 @@ namespace Oxide.Plugins
                     yield return controller.DestroyRoutine();
             }
 
-            public IEnumerator SpawnEntityAtMonumentsRoutine(EntityData entityData, IEnumerable<BaseMonument> monumentList)
+            public IEnumerator SpawnAtMonumentsRoutine(EntityData entityData, IEnumerable<BaseMonument> monumentList)
             {
                 _pluginInstance.TrackStart();
-                var controller = EnsureController(entityData);
+                var controller = GetController(entityData);
+                if (controller != null)
+                {
+                    // If the controller already exists, the entity was added while the plugin was still spawning entities.
+                    _pluginInstance.TrackEnd();
+                    yield break;
+                }
+
+                controller = EnsureController(entityData);
                 _pluginInstance.TrackEnd();
                 yield return controller.SpawnAtMonumentsRoutine(monumentList);
             }
@@ -1030,15 +1038,15 @@ namespace Oxide.Plugins
                     manager.Init();
             }
 
-            public IEnumerator SpawnEntityAtMonumentsRoutine(EntityData entityData, IEnumerable<BaseMonument> monumentList)
+            public IEnumerator SpawnAtMonumentsRoutine(EntityData entityData, IEnumerable<BaseMonument> monumentList)
             {
                 _pluginInstance.TrackStart();
                 var manager = DetermineControllerManager(entityData);
                 _pluginInstance.TrackEnd();
-                yield return manager.SpawnEntityAtMonumentsRoutine(entityData, monumentList);
+                yield return manager.SpawnAtMonumentsRoutine(entityData, monumentList);
             }
 
-            public IEnumerator SpawnEntitiesAtMonumentRoutine(IEnumerable<EntityData> entityDataList, BaseMonument monument)
+            public IEnumerator SpawnEverythingRoutine(IEnumerable<EntityData> entityDataList, BaseMonument monument)
             {
                 foreach (var entityData in entityDataList)
                 {
