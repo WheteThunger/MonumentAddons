@@ -703,6 +703,9 @@ namespace Oxide.Plugins
                     entity.SetFlag(BaseEntity.Flags.Locked, true);
                 }
 
+                if (entity is BigWheelGame)
+                    entity.transform.eulerAngles = entity.transform.eulerAngles.WithX(90);
+
                 var cargoShipMonument = Monument as CargoShipMonument;
                 if (cargoShipMonument != null)
                 {
