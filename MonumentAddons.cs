@@ -38,7 +38,7 @@ namespace Oxide.Plugins
             + Rust.Layers.Mask.Terrain
             + Rust.Layers.Mask.World;
 
-        private readonly EntityManager _entityManager = new EntityManager();
+        private readonly CentralEntityManager _centralEntityManager = new CentralEntityManager();
         private readonly CoroutineManager _coroutineManager = new CoroutineManager();
 
         private ProtectionProperties _immortalProtection;
@@ -60,7 +60,7 @@ namespace Oxide.Plugins
 
             Unsubscribe(nameof(OnEntitySpawned));
 
-            _entityManager.Init();
+            _centralEntityManager.Init();
         }
 
         private void OnServerInitialized()
@@ -80,7 +80,7 @@ namespace Oxide.Plugins
         private void Unload()
         {
             _coroutineManager.Unload();
-            _coroutineManager.FireAndForgetCoroutine(_entityManager.UnloadRoutine());
+            _coroutineManager.FireAndForgetCoroutine(_centralEntityManager.UnloadRoutine());
 
             UnityEngine.Object.Destroy(_immortalProtection);
 
@@ -107,7 +107,7 @@ namespace Oxide.Plugins
                 return;
 
             _coroutineManager.StartCoroutine(
-                _entityManager.SpawnEverythingRoutine(entityDataList, new CargoShipMonument(cargoShip))
+                _centralEntityManager.SpawnEntitiesAtMonumentRoutine(entityDataList, new CargoShipMonument(cargoShip))
             );
         }
 
@@ -307,7 +307,7 @@ namespace Oxide.Plugins
 
             var matchingMonuments = GetMonumentsByAliasOrShortName(closestMonument.AliasOrShortName);
             _coroutineManager.StartCoroutine(
-                _entityManager.SpawnAtMonumentsRoutine(entityData, matchingMonuments)
+                _centralEntityManager.SpawnEntityAtMonumentsRoutine(entityData, matchingMonuments)
             );
 
             _pluginData.AddEntityData(entityData, closestMonument.AliasOrShortName);
@@ -468,7 +468,7 @@ namespace Oxide.Plugins
 
                 foreach (var entityData in entry.Value.ToArray())
                 {
-                    yield return _entityManager.SpawnAtMonumentsRoutine(entityData, matchingMonuments);
+                    yield return _centralEntityManager.SpawnEntityAtMonumentsRoutine(entityData, matchingMonuments);
                 }
             }
 
@@ -730,9 +730,18 @@ namespace Oxide.Plugins
                 EntityData = entityData;
             }
 
-            public abstract EntityAdapterBase SpawnAtMonument(BaseMonument monument);
+            public abstract EntityAdapterBase CreateAdapter(BaseMonument monument);
 
-            public virtual IEnumerator SpawnAtMonumentsRoutine(IEnumerable<BaseMonument> monumentList)
+            public EntityAdapterBase SpawnAtMonument(BaseMonument monument)
+            {
+                var adapter = CreateAdapter(monument);
+                Adapters.Add(adapter);
+                adapter.Spawn();
+                OnAdapterSpawned(adapter);
+                return adapter;
+            }
+
+            public IEnumerator SpawnAtMonumentsRoutine(IEnumerable<BaseMonument> monumentList)
             {
                 foreach (var monument in monumentList)
                 {
@@ -743,7 +752,7 @@ namespace Oxide.Plugins
                 }
             }
 
-            public virtual IEnumerator DestroyRoutine()
+            public IEnumerator DestroyRoutine()
             {
                 foreach (var adapter in Adapters.ToArray())
                 {
@@ -757,16 +766,20 @@ namespace Oxide.Plugins
 
             public void Destroy()
             {
-                Manager.UnregisterController(EntityData);
-                _pluginInstance._coroutineManager.FireAndForgetCoroutine(DestroyRoutine());
+                if (Adapters.Count > 0)
+                    _pluginInstance._coroutineManager.FireAndForgetCoroutine(DestroyRoutine());
+
+                Manager.OnControllerKilled(this);
             }
+
+            public virtual void OnAdapterSpawned(EntityAdapterBase adapter) {}
 
             public virtual void OnAdapterKilled(EntityAdapterBase adapter)
             {
                 Adapters.Remove(adapter);
 
                 if (Adapters.Count == 0)
-                    Manager.UnregisterController(EntityData);
+                    Manager.OnControllerKilled(this);
             }
         }
 
@@ -774,19 +787,14 @@ namespace Oxide.Plugins
         {
             protected Dictionary<EntityData, EntityControllerBase> _controllersByEntityData = new Dictionary<EntityData, EntityControllerBase>();
 
-            public abstract EntityControllerBase CreateController(EntityData entityData);
+            protected string[] _dynamicHookNames;
+
             public abstract bool AppliesToEntity(BaseEntity entity);
+            public abstract EntityControllerBase CreateController(EntityData entityData);
 
-            public virtual void Init() {}
-
-            protected virtual void RegisterController(EntityData entityData, EntityControllerBase controller)
+            public virtual void Init()
             {
-                _controllersByEntityData[entityData] = controller;
-            }
-
-            public virtual void UnregisterController(EntityData entityData)
-            {
-                _controllersByEntityData.Remove(entityData);
+                UnsubscribeHooks();
             }
 
             public IEnumerator UnloadRoutine()
@@ -816,13 +824,29 @@ namespace Oxide.Plugins
                 EnsureController(entityData).SpawnAtMonument(monument);
             }
 
+            public virtual void OnControllerCreated(EntityControllerBase controller)
+            {
+                _controllersByEntityData[controller.EntityData] = controller;
+
+                if (_controllersByEntityData.Count == 1)
+                    SubscribeHooks();
+            }
+
+            public virtual void OnControllerKilled(EntityControllerBase controller)
+            {
+                _controllersByEntityData.Remove(controller.EntityData);
+
+                if (_controllersByEntityData.Count == 0)
+                    UnsubscribeHooks();
+            }
+
             private EntityControllerBase EnsureController(EntityData entityData)
             {
                 var controller = GetController(entityData);
                 if (controller == null)
                 {
                     controller = CreateController(entityData);
-                    RegisterController(entityData, controller);
+                    OnControllerCreated(controller);
                 }
                 return controller;
             }
@@ -834,41 +858,21 @@ namespace Oxide.Plugins
                     ? controller
                     : null;
             }
-        }
 
-        private abstract class DyanmicHookEntityManager : EntityManagerBase
-        {
-            protected string[] _dynamicHookNames = new string[0];
-
-            public override void Init()
+            private void SubscribeHooks()
             {
-                UnsubscribeAll();
-            }
+                if (_dynamicHookNames == null)
+                    return;
 
-            protected override void RegisterController(EntityData entityData, EntityControllerBase controller)
-            {
-                base.RegisterController(entityData, controller);
-
-                if (_controllersByEntityData.Count == 1)
-                    SubscribeAll();
-            }
-
-            public override void UnregisterController(EntityData entityData)
-            {
-                base.UnregisterController(entityData);
-
-                if (_controllersByEntityData.Count == 0)
-                    UnsubscribeAll();
-            }
-
-            private void SubscribeAll()
-            {
                 foreach (var hookName in _dynamicHookNames)
                     _pluginInstance?.Subscribe(hookName);
             }
 
-            private void UnsubscribeAll()
+            private void UnsubscribeHooks()
             {
+                if (_dynamicHookNames == null)
+                    return;
+
                 foreach (var hookName in _dynamicHookNames)
                     _pluginInstance?.Unsubscribe(hookName);
             }
@@ -918,13 +922,8 @@ namespace Oxide.Plugins
         {
             public SingleEntityController(EntityManagerBase manager, EntityData data) : base(manager, data) {}
 
-            public override EntityAdapterBase SpawnAtMonument(BaseMonument monument)
-            {
-                var adapter = new SingleEntityAdapter(this, EntityData, monument);
-                Adapters.Add(adapter);
-                adapter.Spawn();
-                return adapter;
-            }
+            public override EntityAdapterBase CreateAdapter(BaseMonument monument) =>
+                new SingleEntityAdapter(this, EntityData, monument);
         }
 
         private class SingleEntityManager : EntityManagerBase
@@ -971,25 +970,24 @@ namespace Oxide.Plugins
             // Texture ids are copied to the others.
             protected SignEntityAdapter _primaryAdapter;
 
-            public override EntityAdapterBase SpawnAtMonument(BaseMonument monument)
+            public override EntityAdapterBase CreateAdapter(BaseMonument monument) =>
+                new SignEntityAdapter(this, EntityData, monument);
+
+            public override void OnAdapterSpawned(EntityAdapterBase adapter)
             {
-                var adapter = new SignEntityAdapter(this, EntityData, monument);
-                Adapters.Add(adapter);
-                adapter.Spawn();
+                var signEntityAdapter = adapter as SignEntityAdapter;
 
                 if (_primaryAdapter != null)
                 {
                     var textureIds = _primaryAdapter.GetTextureIds();
                     if (textureIds != null)
-                        adapter.SetTextureIds(textureIds);
+                        signEntityAdapter.SetTextureIds(textureIds);
                 }
                 else
                 {
-                    _primaryAdapter = adapter;
+                    _primaryAdapter = signEntityAdapter;
                     _primaryAdapter.SkinSign();
                 }
-
-                return adapter;
             }
 
             public override void OnAdapterKilled(EntityAdapterBase adapter)
@@ -1007,7 +1005,7 @@ namespace Oxide.Plugins
             }
         }
 
-        private class SignEntityManager : DyanmicHookEntityManager
+        private class SignEntityManager : EntityManagerBase
         {
             public SignEntityManager()
             {
@@ -1027,11 +1025,11 @@ namespace Oxide.Plugins
 
         #endregion
 
-        #region Entity Manager
+        #region Central Entity Manager
 
-        private class EntityManager
+        private class CentralEntityManager
         {
-            private List<EntityManagerBase> _controllerManagers = new List<EntityManagerBase>
+            private List<EntityManagerBase> _managers = new List<EntityManagerBase>
             {
                 // The first manager that matches will be used.
                 new SignEntityManager(),
@@ -1040,28 +1038,28 @@ namespace Oxide.Plugins
 
             public void Init()
             {
-                foreach (var manager in _controllerManagers)
+                foreach (var manager in _managers)
                     manager.Init();
             }
 
-            public IEnumerator SpawnAtMonumentsRoutine(EntityData entityData, IEnumerable<BaseMonument> monumentList)
+            public IEnumerator SpawnEntityAtMonumentsRoutine(EntityData entityData, IEnumerable<BaseMonument> monumentList)
             {
                 _pluginInstance.TrackStart();
-                var manager = DetermineControllerManager(entityData);
+                var manager = DetermineManager(entityData);
                 _pluginInstance.TrackEnd();
                 yield return manager.SpawnAtMonumentsRoutine(entityData, monumentList);
             }
 
-            public IEnumerator SpawnEverythingRoutine(IEnumerable<EntityData> entityDataList, BaseMonument monument)
+            public IEnumerator SpawnEntitiesAtMonumentRoutine(IEnumerable<EntityData> entityDataList, BaseMonument monument)
             {
                 foreach (var entityData in entityDataList)
                 {
                     // Check for null in case the cargo ship was destroyed.
-                    if (monument.Object == null)
+                    if (!monument.IsValid)
                         yield break;
 
                     _pluginInstance.TrackStart();
-                    DetermineControllerManager(entityData).SpawnAtMonument(entityData, monument);
+                    DetermineManager(entityData).SpawnAtMonument(entityData, monument);
                     _pluginInstance.TrackEnd();
                     yield return CoroutineEx.waitForEndOfFrame;
                 }
@@ -1069,11 +1067,11 @@ namespace Oxide.Plugins
 
             public IEnumerator UnloadRoutine()
             {
-                foreach (var controllerManager in _controllerManagers)
-                    yield return controllerManager.UnloadRoutine();
+                foreach (var manager in _managers)
+                    yield return manager.UnloadRoutine();
             }
 
-            private EntityManagerBase DetermineControllerManager(EntityData entityData)
+            private EntityManagerBase DetermineManager(EntityData entityData)
             {
                 var prefab = GameManager.server.FindPrefab(entityData.PrefabName);
                 if (prefab == null)
@@ -1083,10 +1081,10 @@ namespace Oxide.Plugins
                 if (baseEntity == null)
                     return null;
 
-                foreach (var controllerManager in _controllerManagers)
+                foreach (var manager in _managers)
                 {
-                    if (controllerManager.AppliesToEntity(baseEntity))
-                        return controllerManager;
+                    if (manager.AppliesToEntity(baseEntity))
+                        return manager;
                 }
 
                 return null;
