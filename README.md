@@ -57,35 +57,6 @@ Note that some rooms have multiple possible vanilla configurations, so multiple 
   - Also updates the direction of copies of this CCTV at other matching monuments.
   - Updates the direction in the data file so it can be reaplied when the entity is respawned.
 
-## Entity-specific integrations
-
-#### Signs
-
-Use the following steps to set persistent images for signs or photo frames.
-
-1. Spawn a sign with `maspawn sign.large`. Doesn't have to be specifically `sign.large`, as many other signs and photo frames will work. Neon Signs are currently **not** supported.
-2. Use a [Sign Artist](https://umod.org/plugins/sign-artist) command such as `sil`, `silt` or `sili` to apply an image to the sign.
-
-That's all you need to do. This plugin detects when you use a Sign Artist command and automatically saves the corresponding image URL or item short name in the data file for that particular sign or photo frame. When the plugin reloads, Sign Artist will be called to reapply that image. Any change to a sign will also automatically propagate to all copies of that sign at other monuments.
-
-Note: Only players with the `monumentaddons.admin` permission can edit signs that are managed by this plugin, so you don't have to worry about random players vandalizing the signs.
-
-#### CCTV cameras & computer stations
-
-Use the following steps to set up CCTV cameras and computer stations.
-
-1. Spawn a CCTV camera with `maspawn cctv.static`.
-2. Update the camera's RC identifier with `masetid <id>` while looking at the base of the camera.
-3. Update the direction the camera is facing with `masetdir` while looking at the base of the camera. This will cause the camera to face you, just like with deployable CCTV cameras.
-4. Spawn a static computer station with `maspawn computerstation.static`.
-
-That's all you need to do. The rest is automatic. Read below if you are interested in how it works.
-- When a camera spawns, or when its RC identifier changes, it automatically adds itself to nearby static computer stations, including vanilla static computer stations (e.g., at bunker entrances or underwater labs).
-- When a camera despawns, it automatically removes itself from nearby static computer stations.
-- When a static computer station spawns, it automatically adds nearby static CCTV cameras.
-
-Note: As of this writing, there is currently a client bug where having lots of RC identifiers saved in a computer station may cause some of them to not be displayed. This is especially an issue at large underwater labs. If you add custom CCTVs in such a location, some of them may not show up in the list at the computer station. One thing you can do to partially mitigate this issue is to use shorter RC identifier names.
-
 ## Localization
 
 ```json
@@ -108,6 +79,48 @@ Note: As of this writing, there is currently a client bug where having lots of R
   "CCTV.SetDirection.Success": "Updated CCTV direction at <color=orange>{0}</color> matching monument(s) and saved to data file."
 }
 ```
+
+## Entity-specific instructions
+
+### Signs
+
+Use the following steps to set persistent images for signs or photo frames.
+
+1. Spawn a sign with `maspawn sign.large`. You can also use other sign entities or photo frames, but neon signs are currently **not** supported.
+2. Use a [Sign Artist](https://umod.org/plugins/sign-artist) command such as `sil`, `silt` or `sili` to apply an image to the sign.
+
+That's all you need to do. This plugin detects when you use a Sign Artist command and automatically saves the corresponding image URL or item short name in the data file for that particular sign or photo frame. When the plugin reloads, Sign Artist will be called to reapply that image. Any change to a sign will also automatically propagate to all copies of that sign at other monuments.
+
+Note: Only players with the `monumentaddons.admin` permission can edit signs that are managed by this plugin, so you don't have to worry about random players vandalizing the signs.
+
+### CCTV cameras & computer stations
+
+Use the following steps to set up CCTV cameras and computer stations.
+
+1. Spawn a CCTV camera with `maspawn cctv.static`.
+2. Update the camera's RC identifier with `masetid <id>` while looking at the base of the camera.
+3. Update the direction the camera is facing with `masetdir` while looking at the base of the camera. This will cause the camera to face you, just like with deployable CCTV cameras.
+4. Spawn a static computer station with `maspawn computerstation.static`.
+
+That's all you need to do. The rest is automatic. Read below if you are interested in how it works.
+- When a camera spawns, or when its RC identifier changes, it automatically adds itself to nearby static computer stations, including vanilla static computer stations (e.g., at bunker entrances or underwater labs).
+- When a camera despawns, it automatically removes itself from nearby static computer stations.
+- When a static computer station spawns, it automatically adds nearby static CCTV cameras.
+
+Note: As of this writing, there is currently a client bug where having lots of RC identifiers saved in a computer station may cause some of them to not be displayed. This is especially an issue at large underwater labs. If you add custom CCTVs in such a location, some of them may not show up in the list at the computer station. One thing you can do to partially mitigate this issue is to use shorter RC identifier names.
+
+### Bandit wheel
+
+Use the following steps to set up a custom bandit wheel to allow players to gamble scrap.
+
+1. Spawn a chair with `maspawn chair.static`. You can also use other mountable entities.
+2. Spawn a betting terminal next to the chair with `maspawn bigwheelbettingterminal`. This needs to be close enough to the chair so that players can reach it while sitting.
+3. Keep spawning as many chairs and betting terminals as you want.
+4. Spawn a bandit wheel with `maspawn big_wheel`. This needs to be within 30 meters (equivalent to 10 foundations) of the betting terminals to find them.
+
+Notes:
+- The `big_wheel` entity does not have a collider so you cannot currently use `makill` on it. If you need to reposition it, you will have to remove it from the data file and reload the plugin.
+- If a betting terminal spawns more than 3 seconds after the wheel, the wheel won't know about it. This means that if you add more betting terminals after spawning the wheel, you will likely have to reload the plugin to respawn the wheel so that it can find all the betting terminals.
 
 ## Example entities
 
