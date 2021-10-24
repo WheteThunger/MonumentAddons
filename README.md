@@ -7,11 +7,13 @@ Easily spawn permanent entities at monuments, which auto respawn after restarts 
 - Works on any map seed and accounts for terrain height
 - Entities are indestructible, have free electricity, and cannot be picked up
 - Supports vanilla monuments, custom monuments, train tunnels, underwater labs, and cargo ship
-- [Sign Artist](https://umod.org/plugins/sign-artist) integration allows creating persistent sign images
+- [Sign Artist](https://umod.org/plugins/sign-artist) integration allows persisting sign images
+- [Entity Scale Manager](https://umod.org/plugins/entity-scale-manager) integration allows persisting entity scale
 
 ## Required plugins
 
-- [Monument Finder](https://umod.org/plugins/monument-finder) -- Simply install. No configuration needed. You may optionally update that plugin's configuration to change the bounds of monuments.
+- [Monument Finder](https://umod.org/plugins/monument-finder) -- Simply install. No configuration or permissions
+needed.
 
 ## Getting started
 
@@ -80,18 +82,29 @@ Note that some rooms have multiple possible vanilla configurations, so multiple 
 }
 ```
 
-## Entity-specific instructions
+## Instructions for plugin integrations
 
-### Signs
+### Sign Arist integration
 
-Use the following steps to set persistent images for signs or photo frames.
+Use the following steps to set persistent images for signs or photo frames. Requires the [Sign Artist](https://umod.org/plugins/sign-artist) plugin to be installed with the appropriate permissions granted.
 
 1. Spawn a sign with `maspawn sign.large`. You can also use other sign entities or photo frames, but neon signs are currently **not** supported.
-2. Use a [Sign Artist](https://umod.org/plugins/sign-artist) command such as `sil`, `silt` or `sili` to apply an image to the sign.
+2. Use a Sign Artist command such as `sil`, `silt` or `sili` to apply an image to the sign.
 
-That's all you need to do. This plugin detects when you use a Sign Artist command and automatically saves the corresponding image URL or item short name in the data file for that particular sign or photo frame. When the plugin reloads, Sign Artist will be called to reapply that image. Any change to a sign will also automatically propagate to all copies of that sign at other monuments.
+That's all you need to do. This plugin detects when you use a Sign Artist command and automatically saves the corresponding image URL or item short name in the data file for that particular sign or photo frame. When the plugin reloads, Sign Artist is called to reapply that image. Any change to a sign will also automatically propagate to all copies of that sign at other monuments.
 
 Note: Only players with the `monumentaddons.admin` permission can edit signs that are managed by this plugin, so you don't have to worry about random players vandalizing the signs.
+
+### Entity Scale Manager integration
+
+Use the following steps to resize entities. Requires the [Entity Scale Manager](https://umod.org/plugins/entity-scale-manager) plugin to be installed with the appropriate permissions granted.
+
+1. Spawn any entity with `maspawn <entity>`.
+2. Resize the entity with `scale <size>`.
+
+That's all you need to do. This plugin detects when an entity is resized and automatically applies that scale to copies of the entity as matching monuments, and saves the scale in the data file for that particular entity. When the plugin reloads, Entity Scale manager is called to reapply that scale.
+
+## Instructions for specific entities
 
 ### CCTV cameras & computer stations
 

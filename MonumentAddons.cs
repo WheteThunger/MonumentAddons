@@ -7,6 +7,7 @@ using Oxide.Core.Plugins;
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Globalization;
 using System.Linq;
 using UnityEngine;
@@ -20,7 +21,7 @@ namespace Oxide.Plugins
         #region Fields
 
         [PluginReference]
-        private Plugin MonumentFinder, SignArtist;
+        private Plugin EntityScaleManager, MonumentFinder, SignArtist;
 
         private static MonumentAddons _pluginInstance;
         private static Configuration _pluginConfig;
@@ -169,6 +170,24 @@ namespace Oxide.Plugins
             _pluginData.Save();
         }
 
+        private void OnEntityScaled(BaseEntity entity, float scale)
+        {
+            if (!EntityAdapterBase.IsMonumentEntity(entity))
+                return;
+
+            var component = MonumentEntityComponent.GetForEntity(entity);
+            if (component == null)
+                return;
+
+            var controller = component.Adapter.Controller as SingleEntityController;
+            if (controller == null || controller.EntityData.Scale == scale)
+                return;
+
+            controller.EntityData.Scale = scale;
+            controller.UpdateScale();
+            _pluginData.Save();
+        }
+
         #endregion
 
         #region Dependencies
@@ -210,6 +229,11 @@ namespace Oxide.Plugins
 
         private List<BaseMonument> FindMonumentsByShortName(string shortName) =>
             WrapFindMonumentResults(MonumentFinder.Call("API_FindByShortName", shortName) as List<Dictionary<string, object>>);
+
+        private void ScaleEntity(BaseEntity entity, float scale)
+        {
+            EntityScaleManager?.Call("API_ScaleEntity", entity, scale);
+        }
 
         private void SkinSign(ISignage signage, SignArtistImage[] signArtistImages)
         {
@@ -990,6 +1014,11 @@ namespace Oxide.Plugins
                 _pluginInstance?.TrackEnd();
             }
 
+            public void UpdateScale()
+            {
+                _pluginInstance.ScaleEntity(_entity, EntityData.Scale);
+            }
+
             protected virtual void OnEntitySpawn()
             {
                 var combatEntity = _entity as BaseCombatEntity;
@@ -1018,6 +1047,9 @@ namespace Oxide.Plugins
                     computerStation.CancelInvoke(computerStation.GatherStaticCameras);
                     computerStation.Invoke(computerStation.GatherStaticCameras, 1);
                 }
+
+                if (EntityData.Scale != 1)
+                    UpdateScale();
             }
         }
 
@@ -1027,6 +1059,24 @@ namespace Oxide.Plugins
 
             public override EntityAdapterBase CreateAdapter(BaseMonument monument) =>
                 new SingleEntityAdapter(this, EntityData, monument);
+
+            public void UpdateScale()
+            {
+                _pluginInstance._coroutineManager.StartCoroutine(UpdateScaleRoutine());
+            }
+
+            public IEnumerator UpdateScaleRoutine()
+            {
+                foreach (var adapter in Adapters.ToArray())
+                {
+                    var singleAdapter = adapter as SingleEntityAdapter;
+                    if (singleAdapter.IsDestroyed)
+                        continue;
+
+                    singleAdapter.UpdateScale();
+                    yield return CoroutineEx.waitForEndOfFrame;
+                }
+            }
         }
 
         private class SingleEntityManager : EntityManagerBase
@@ -1587,6 +1637,10 @@ namespace Oxide.Plugins
             [JsonProperty("OnTerrain", DefaultValueHandling = DefaultValueHandling.Ignore)]
             public bool OnTerrain = false;
 
+            [JsonProperty("Scale", DefaultValueHandling = DefaultValueHandling.Ignore)]
+            [DefaultValue(1f)]
+            public float Scale = 1;
+
             [JsonProperty("CCTV", DefaultValueHandling = DefaultValueHandling.Ignore)]
             public CCTVInfo CCTV;
 
@@ -1740,6 +1794,7 @@ namespace Oxide.Plugins
             public const string ErrorNotAtMonument = "Error.NotAtMonument";
             public const string ErrorSuitableEntityNotFound = "Error.SuitableEntityNotFound";
             public const string ErrorEntityNotEligible = "Error.EntityNotEligible";
+
             public const string SpawnErrorSyntax = "Spawn.Error.Syntax";
             public const string SpawnErrorEntityNotFound = "Spawn.Error.EntityNotFound";
             public const string SpawnErrorMultipleMatches = "Spawn.Error.MultipleMatches";
@@ -1763,6 +1818,7 @@ namespace Oxide.Plugins
                 [Lang.ErrorNotAtMonument] = "Error: Not at a monument. Nearest is <color=orange>{0}</color> with distance <color=orange>{1}</color>",
                 [Lang.ErrorSuitableEntityNotFound] = "Error: No suitable entity found.",
                 [Lang.ErrorEntityNotEligible] = "Error: That entity is not managed by Monument Addons.",
+
                 [Lang.SpawnErrorSyntax] = "Syntax: <color=orange>maspawn <entity></color>",
                 [Lang.SpawnErrorEntityNotFound] = "Error: Entity <color=orange>{0}</color> not found.",
                 [Lang.SpawnErrorMultipleMatches] = "Multiple matches:\n",
