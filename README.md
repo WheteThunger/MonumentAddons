@@ -3,10 +3,11 @@
 Easily spawn permanent entities at monuments, which auto respawn after restarts and wipes.
 
 - Setup is done in-game, no config needed
-- Uses familiar command syntax, based on `spawn <entity>`
+- Uses familiar command syntax, inspired by `spawn <entity>`
 - Works on any map seed and accounts for terrain height
 - Entities are indestructible, have free electricity, and cannot be picked up
 - Supports vanilla monuments, custom monuments, train tunnels, underwater labs, and cargo ship
+- [Sign Artist](https://umod.org/plugins/sign-artist) integration allows creating persistent sign images
 
 ## Required plugins
 
@@ -32,7 +33,7 @@ Note that some rooms have multiple possible vanilla configurations, so multiple 
 
 ## Permissions
 
-- `monumentaddons.admin` -- Allows use of the `maspawn` and `makill` commands.
+- `monumentaddons.admin` -- Allows use of all commands.
 
 ## Commands
 
@@ -46,23 +47,65 @@ Note that some rooms have multiple possible vanilla configurations, so multiple 
   - Only works on entities that were spawned by this plugin.
   - Also removes the entity from other matching monuments.
   - Removes the entity from the plugin data file so that it won't respawn later.
+- `masetid <id>` -- Updates the RC identifier of the CCTV you are looking at.
+  - You must be looking at the base of the camera.
+  - Also updates the RC identifier of copies of this CCTV at other matching monuments.
+  - Updates the RC identifier in the data file so it can be reaplied when the entity is respawned.
+  - Note: Each CCTV's RC identifier will have a numeric suffix like `1`, `2`, `3` and so on. This is done because each CCTV must have a unique identifier.
+- `masetdir` -- Updates the direction of the CCTV you are looking at, so that it points toward you.
+  - You must be looking at the base of the camera.
+  - Also updates the direction of copies of this CCTV at other matching monuments.
+  - Updates the direction in the data file so it can be reaplied when the entity is respawned.
+
+## Entity-specific integrations
+
+#### Signs
+
+Use the following steps to set persistent images for signs or photo frames.
+
+1. Spawn a sign with `maspawn sign.large`. Doesn't have to be specifically `sign.large`, as many other signs and photo frames will work. Neon Signs are currently **not** supported.
+2. Use a [Sign Artist](https://umod.org/plugins/sign-artist) command such as `sil`, `silt` or `sili` to apply an image to the sign.
+
+That's all you need to do. This plugin detects when you use a Sign Artist command and automatically saves the corresponding image URL or item short name in the data file for that particular sign or photo frame. When the plugin reloads, Sign Artist will be called to reapply that image. Any change to a sign will also automatically propagate to all copies of that sign at other monuments.
+
+Note: Only players with the `monumentaddons.admin` permission can edit signs that are managed by this plugin, so you don't have to worry about random players vandalizing the signs.
+
+#### CCTV cameras & computer stations
+
+Use the following steps to set up CCTV cameras and computer stations.
+
+1. Spawn a CCTV camera with `maspawn cctv.static`.
+2. Update the camera's RC identifier with `masetid <id>` while looking at the base of the camera.
+3. Update the direction the camera is facing with `masetdir` while looking at the base of the camera. This will cause the camera to face you, just like with deployable CCTV cameras.
+4. Spawn a static computer station with `maspawn computerstation.static`.
+
+That's all you need to do. The rest is automatic. Read below if you are interested in how it works.
+- When a camera spawns, or when its RC identifier changes, it automatically adds itself to nearby static computer stations, including vanilla static computer stations (e.g., at bunker entrances or underwater labs).
+- When a camera despawns, it automatically removes itself from nearby static computer stations.
+- When a static computer station spawns, it automatically adds nearby static CCTV cameras.
+
+Note: As of this writing, there is currently a client bug where having lots of RC identifiers saved in a computer station may cause some of them to not be displayed. This is especially an issue at large underwater labs. If you add custom CCTVs in such a location, some of them may not show up in the list at the computer station. One thing you can do to partially mitigate this issue is to use shorter RC identifier names.
 
 ## Localization
 
 ```json
 {
   "Error.NoPermission": "You don't have permission to do that.",
+  "Error.Unexpected": "An unexpected error occurred. Please notify the plugin developer.",
   "Error.MonumentFinderNotLoaded": "Error: Monument Finder is not loaded.",
   "Error.NoMonuments": "Error: No monuments found.",
   "Error.NotAtMonument": "Error: Not at a monument. Nearest is <color=orange>{0}</color> with distance <color=orange>{1}</color>",
+  "Error.SuitableEntityNotFound": "Error: No suitable entity found.",
+  "Error.EntityNotEligible": "Error: That entity is not managed by Monument Addons.",
   "Spawn.Error.Syntax": "Syntax: <color=orange>maspawn <entity></color>",
   "Spawn.Error.EntityNotFound": "Error: Entity <color=orange>{0}</color> not found.",
   "Spawn.Error.MultipleMatches": "Multiple matches:\n",
   "Spawn.Error.NoTarget": "Error: No valid spawn position found.",
   "Spawn.Success": "Spawned entity at <color=orange>{0}</color> matching monument(s) and saved to data file for monument <color=orange>{1}</color>.",
-  "Kill.Error.EntityNotFound": "Error: No entity found.",
-  "Kill.Error.NotEligible": "Error: That entity is not managed by Monument Addons.",
-  "Kill.Success": "Killed entity at <color=orange>{0}</color> matching monument(s) and removed from data file."
+  "Kill.Success": "Killed entity at <color=orange>{0}</color> matching monument(s) and removed from data file.",
+  "CCTV.SetId.Error.Syntax": "Syntax: <color=orange>{0} <id></color>",
+  "CCTV.SetId.Success": "Updated CCTV id to <color=orange>{0}</color> at <color=orange>{1}</color> matching monument(s) and saved to data file. Nearby static computer stations will automatically register this CCTV.",
+  "CCTV.SetDirection.Success": "Updated CCTV direction at <color=orange>{0}</color> matching monument(s) and saved to data file."
 }
 ```
 
