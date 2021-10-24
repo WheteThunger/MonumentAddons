@@ -122,7 +122,7 @@ namespace Oxide.Plugins
 
         private bool? CanUpdateSign(BasePlayer player, ISignage signage)
         {
-            if (EntityAdapterBase.IsMonumentEntity(signage.NetworkID)
+            if (EntityAdapterBase.IsMonumentEntity(signage as BaseEntity)
                 && !permission.UserHasPermission(player.UserIDString, PermissionAdmin))
             {
                 ChatMessage(player, Lang.ErrorNoPermission);
@@ -134,7 +134,7 @@ namespace Oxide.Plugins
 
         private void OnSignUpdated(ISignage signage, BasePlayer player)
         {
-            if (!EntityAdapterBase.IsMonumentEntity(signage.NetworkID))
+            if (!EntityAdapterBase.IsMonumentEntity(signage as BaseEntity))
                 return;
 
             var component = MonumentEntityComponent.GetForEntity(signage.NetworkID);
@@ -151,7 +151,7 @@ namespace Oxide.Plugins
         // This hook is exposed by plugin: Sign Arist (SignArtist).
         private void OnImagePost(BasePlayer player, string url, bool raw, ISignage signage)
         {
-            if (!EntityAdapterBase.IsMonumentEntity(signage.NetworkID))
+            if (!EntityAdapterBase.IsMonumentEntity(signage as BaseEntity))
                 return;
 
             var component = MonumentEntityComponent.GetForEntity(signage.NetworkID);
@@ -229,14 +229,8 @@ namespace Oxide.Plugins
         [Command("maspawn")]
         private void CommandSpawn(IPlayer player, string cmd, string[] args)
         {
-            if (player.IsServer)
+            if (player.IsServer || !VerifyHasPermission(player))
                 return;
-
-            if (!player.HasPermission(PermissionAdmin))
-            {
-                ReplyToPlayer(player, Lang.ErrorNoPermission);
-                return;
-            }
 
             if (MonumentFinder == null)
             {
@@ -317,30 +311,16 @@ namespace Oxide.Plugins
         [Command("makill")]
         private void CommandKill(IPlayer player, string cmd, string[] args)
         {
-            if (player.IsServer)
+            if (player.IsServer || !VerifyHasPermission(player))
                 return;
 
-            if (!player.HasPermission(PermissionAdmin))
-            {
-                ReplyToPlayer(player, Lang.ErrorNoPermission);
+            BaseEntity entity;
+            if (!VerifyLookEntity(player, out entity, Lang.ErrorSuitableEntityNotFound))
                 return;
-            }
 
-            var basePlayer = player.Object as BasePlayer;
-
-            var entity = GetLookEntity(basePlayer);
-            if (entity == null)
-            {
-                ReplyToPlayer(player, Lang.KillErrorEntityNotFound);
+            MonumentEntityComponent component;
+            if (!VerifyMonumentEntity(player, entity, out component))
                 return;
-            }
-
-            var component = MonumentEntityComponent.GetForEntity(entity);
-            if (component == null)
-            {
-                ReplyToPlayer(player, Lang.KillErrorNotEligible);
-                return;
-            }
 
             var controller = component.Adapter.Controller;
             var numEntities = controller.Adapters.Count;
@@ -348,6 +328,118 @@ namespace Oxide.Plugins
 
             _pluginData.RemoveEntityData(controller.EntityData);
             ReplyToPlayer(player, Lang.KillSuccess, numEntities);
+        }
+
+        [Command("masetid")]
+        private void CommandSetId(IPlayer player, string cmd, string[] args)
+        {
+            if (player.IsServer || !VerifyHasPermission(player))
+                return;
+
+            if (args.Length < 1 || !ComputerStation.IsValidIdentifier(args[0]))
+            {
+                ReplyToPlayer(player, Lang.CCTVSetIdSyntax, cmd);
+                return;
+            }
+
+            CCTV_RC cctv;
+            if (!VerifyLookEntity(player, out cctv, Lang.ErrorSuitableEntityNotFound))
+                return;
+
+            MonumentEntityComponent component;
+            if (!VerifyMonumentEntity(player, cctv, out component))
+                return;
+
+            CCTVEntityController controller;
+            if (!VerifyControllerType(player, component, out controller))
+                return;
+
+            if (controller.EntityData.CCTV == null)
+                controller.EntityData.CCTV = new CCTVInfo();
+
+            controller.EntityData.CCTV.RCIdentifier = args[0];
+            controller.UpdateIdentifier();
+            _pluginData.Save();
+
+            ReplyToPlayer(player, Lang.CCTVSetIdSuccess, args[0], controller.Adapters.Count);
+        }
+
+        [Command("masetdir")]
+        private void CommandSetDirection(IPlayer player, string cmd, string[] args)
+        {
+            if (player.IsServer || !VerifyHasPermission(player))
+                return;
+
+            CCTV_RC cctv;
+            if (!VerifyLookEntity(player, out cctv, Lang.ErrorSuitableEntityNotFound))
+                return;
+
+            MonumentEntityComponent component;
+            if (!VerifyMonumentEntity(player, cctv, out component))
+                return;
+
+            CCTVEntityController controller;
+            if (!VerifyControllerType(player, component, out controller))
+                return;
+
+            var basePlayer = player.Object as BasePlayer;
+            var direction = Vector3Ex.Direction(basePlayer.eyes.position, cctv.transform.position);
+            direction = cctv.transform.InverseTransformDirection(direction);
+            var lookAngles = BaseMountable.ConvertVector(Quaternion.LookRotation(direction).eulerAngles);
+
+            if (controller.EntityData.CCTV == null)
+                controller.EntityData.CCTV = new CCTVInfo();
+
+            controller.EntityData.CCTV.Pitch = lookAngles.x;
+            controller.EntityData.CCTV.Yaw = lookAngles.y;
+            controller.UpdateDirection();
+            _pluginData.Save();
+
+            ReplyToPlayer(player, Lang.CCTVSetDirectionSuccess, controller.Adapters.Count);
+        }
+
+        #endregion
+
+        #region Helper Methods - Command Checks
+
+        private bool VerifyHasPermission(IPlayer player, string perm = PermissionAdmin)
+        {
+            if (player.HasPermission(perm))
+                return true;
+
+            ReplyToPlayer(player, Lang.ErrorNoPermission);
+            return false;
+        }
+
+        private bool VerifyMonumentEntity(IPlayer player, BaseEntity entity, out MonumentEntityComponent component)
+        {
+            component = MonumentEntityComponent.GetForEntity(entity);
+            if (component != null)
+                return true;
+
+            ReplyToPlayer(player, Lang.ErrorEntityNotEligible);
+            return false;
+        }
+
+        private bool VerifyLookEntity<T>(IPlayer player, out T entity, string errorMessageName) where T : BaseEntity
+        {
+            var basePlayer = player.Object as BasePlayer;
+            entity = GetLookEntity(basePlayer) as T;
+            if (entity != null)
+                return true;
+
+            ReplyToPlayer(player, errorMessageName);
+            return false;
+        }
+
+        private bool VerifyControllerType<T>(IPlayer player, MonumentEntityComponent component, out T controller) where T : EntityControllerBase
+        {
+            controller = component.Adapter.Controller as T;
+            if (controller.GetType() == typeof(T))
+                return true;
+
+            ReplyToPlayer(player, Lang.ErrorUnexpected);
+            return false;
         }
 
         #endregion
@@ -635,19 +727,21 @@ namespace Oxide.Plugins
 
         #endregion
 
-        #region Entity Adapter/Controller/Manager
+        #region Entity Adapter/Controller/Manager - Base
 
         private abstract class EntityAdapterBase
         {
-            public static bool IsMonumentEntity(uint id) => _registeredEntities.Contains(id);
-            public static bool IsMonumentEntity(BaseEntity entity) => IsMonumentEntity(entity.net.ID);
+            public static bool IsMonumentEntity(BaseEntity entity) =>
+                entity != null && _registeredEntities.Contains(entity);
+
             public static void ClearEntityCache() => _registeredEntities.Clear();
 
             public EntityControllerBase Controller { get; private set; }
             public EntityData EntityData { get; private set; }
             public BaseMonument Monument { get; private set; }
+            public virtual bool IsDestroyed { get; }
 
-            protected static readonly HashSet<uint> _registeredEntities = new HashSet<uint>();
+            protected static readonly HashSet<BaseEntity> _registeredEntities = new HashSet<BaseEntity>();
 
             public EntityAdapterBase(EntityControllerBase controller, EntityData entityData, BaseMonument monument)
             {
@@ -660,63 +754,30 @@ namespace Oxide.Plugins
             public abstract void Kill();
             public abstract void OnEntityKilled(BaseEntity entity);
 
-            protected void FinishSpawningEntity(BaseEntity entity)
-            {
-                // In case the plugin doesn't clean it up on server shutdown, make sure it doesn't come back so it's not duplicated. x
-                entity.EnableSaving(false);
-
-                DestroyProblemComponents(entity);
-
-                MonumentEntityComponent.AddToEntity(entity, this, Monument);
-                entity.Spawn();
-                _registeredEntities.Add(entity.net.ID);
-
-                // This must be done after spawning to allow the animation to work.
-                var neonSign = entity as NeonSign;
-                if (neonSign != null)
-                    neonSign.UpdateFromInput(neonSign.ConsumptionAmount(), 0);
-            }
-
-            protected BaseEntity SpawnEntity(string prefabName, Vector3 position, Quaternion rotation)
+            protected BaseEntity CreateEntity(string prefabName, Vector3 position, Quaternion rotation)
             {
                 var entity = GameManager.server.CreateEntity(EntityData.PrefabName, position, rotation);
                 if (entity == null)
                     return null;
 
-                var combatEntity = entity as BaseCombatEntity;
-                if (combatEntity != null)
-                {
-                    combatEntity.baseProtection = _pluginInstance._immortalProtection;
-                    combatEntity.pickup.enabled = false;
-                }
-
-                var ioEntity = entity as IOEntity;
-                if (ioEntity != null)
-                {
-                    ioEntity.SetFlag(BaseEntity.Flags.On, true);
-                    ioEntity.SetFlag(IOEntity.Flag_HasPower, true);
-                }
-
-                if (entity is ISignage)
-                {
-                    (entity as Signage)?.EnsureInitialized();
-                    entity.SetFlag(BaseEntity.Flags.Locked, true);
-                }
-
-                if (entity is BigWheelGame)
-                    entity.transform.eulerAngles = entity.transform.eulerAngles.WithX(90);
+                // In case the plugin doesn't clean it up on server shutdown, make sure it doesn't come back so it's not duplicated. x
+                entity.EnableSaving(false);
 
                 var cargoShipMonument = Monument as CargoShipMonument;
                 if (cargoShipMonument != null)
                 {
-                    entity.SetParent(cargoShipMonument.CargoShip, worldPositionStays: true, sendImmediate: true);
+                    entity.SetParent(cargoShipMonument.CargoShip, worldPositionStays: true);
 
                     var mountable = entity as BaseMountable;
                     if (mountable != null)
                         mountable.isMobile = true;
                 }
 
-                FinishSpawningEntity(entity);
+                DestroyProblemComponents(entity);
+
+                MonumentEntityComponent.AddToEntity(entity, this, Monument);
+                _registeredEntities.Add(entity);
+
                 return entity;
             }
         }
@@ -799,6 +860,8 @@ namespace Oxide.Plugins
             {
                 UnsubscribeHooks();
             }
+
+            public virtual void PreUnload() {}
 
             public IEnumerator UnloadRoutine()
             {
@@ -889,6 +952,8 @@ namespace Oxide.Plugins
         {
             protected BaseEntity _entity;
 
+            public override bool IsDestroyed => _entity == null || _entity.IsDestroyed;
+
             public SingleEntityAdapter(EntityControllerBase controller, EntityData entityData, BaseMonument monument) : base(controller, entityData, monument) {}
 
             public override void Spawn()
@@ -899,13 +964,18 @@ namespace Oxide.Plugins
                 if (EntityData.OnTerrain)
                     position.y = TerrainMeta.HeightMap.GetHeight(position);
 
-                _entity = SpawnEntity(EntityData.PrefabName, position, rotation);
+                _entity = CreateEntity(EntityData.PrefabName, position, rotation);
+                OnEntitySpawn();
+                _entity.Spawn();
+                OnEntitySpawned();
             }
 
             public override void Kill()
             {
-                if (!_entity.IsDestroyed)
-                    _entity.Kill();
+                if (_entity == null || _entity.IsDestroyed)
+                    return;
+
+                _entity.Kill();
             }
 
             public override void OnEntityKilled(BaseEntity entity)
@@ -913,11 +983,41 @@ namespace Oxide.Plugins
                 _pluginInstance?.TrackStart();
 
                 if (entity.net != null)
-                    _registeredEntities.Remove(entity.net.ID);
+                    _registeredEntities.Remove(entity);
 
                 Controller.OnAdapterKilled(this);
 
                 _pluginInstance?.TrackEnd();
+            }
+
+            protected virtual void OnEntitySpawn()
+            {
+                var combatEntity = _entity as BaseCombatEntity;
+                if (combatEntity != null)
+                {
+                    combatEntity.baseProtection = _pluginInstance._immortalProtection;
+                    combatEntity.pickup.enabled = false;
+                }
+
+                var ioEntity = _entity as IOEntity;
+                if (ioEntity != null)
+                {
+                    ioEntity.SetFlag(BaseEntity.Flags.On, true);
+                    ioEntity.SetFlag(IOEntity.Flag_HasPower, true);
+                }
+
+                if (_entity is BigWheelGame)
+                    _entity.transform.eulerAngles = _entity.transform.eulerAngles.WithX(90);
+            }
+
+            protected virtual void OnEntitySpawned()
+            {
+                var computerStation = _entity as ComputerStation;
+                if (computerStation != null && computerStation.isStatic)
+                {
+                    computerStation.CancelInvoke(computerStation.GatherStaticCameras);
+                    computerStation.Invoke(computerStation.GatherStaticCameras, 1);
+                }
             }
         }
 
@@ -962,6 +1062,24 @@ namespace Oxide.Plugins
                     return;
 
                 _pluginInstance.SkinSign(_entity as ISignage, EntityData.SignArtistImages);
+            }
+
+            protected override void OnEntitySpawn()
+            {
+                base.OnEntitySpawn();
+
+                (_entity as Signage)?.EnsureInitialized();
+                _entity.SetFlag(BaseEntity.Flags.Locked, true);
+            }
+
+            protected override void OnEntitySpawned()
+            {
+                base.OnEntitySpawned();
+
+                // This must be done after spawning to allow the animation to work.
+                var neonSign = _entity as NeonSign;
+                if (neonSign != null)
+                    neonSign.UpdateFromInput(neonSign.ConsumptionAmount(), 0);
             }
         }
 
@@ -1028,6 +1146,215 @@ namespace Oxide.Plugins
 
         #endregion
 
+        #region Entity Adapter/Controller/Manager - CCTV
+
+        private class CCTVEntityAdapter : SingleEntityAdapter
+        {
+            private int _idSuffix;
+            private string _cachedIdentifier;
+            private string _savedIdentifier => EntityData.CCTV?.RCIdentifier;
+
+            public CCTVEntityAdapter(EntityControllerBase controller, EntityData entityData, BaseMonument monument, int idSuffix) : base(controller, entityData, monument)
+            {
+                _idSuffix = idSuffix;
+            }
+
+            protected override void OnEntitySpawn()
+            {
+                base.OnEntitySpawn();
+
+                UpdateIdentifier();
+                UpdateDirection();
+            }
+
+            protected override void OnEntitySpawned()
+            {
+                base.OnEntitySpawned();
+
+                if (_cachedIdentifier != null)
+                {
+                    var computerStationList = GetNearbyStaticComputerStations();
+                    if (computerStationList != null)
+                    {
+                        foreach (var computerStation in computerStationList)
+                            computerStation.ForceAddBookmark(_cachedIdentifier);
+                    }
+                }
+            }
+
+            public override void OnEntityKilled(BaseEntity entity)
+            {
+                base.OnEntityKilled(entity);
+
+                _pluginInstance?.TrackStart();
+
+                if (_cachedIdentifier != null)
+                {
+                    var computerStationList = GetNearbyStaticComputerStations();
+                    if (computerStationList != null)
+                    {
+                        foreach (var computerStation in computerStationList)
+                            computerStation.controlBookmarks.Remove(_cachedIdentifier);
+                    }
+                }
+
+                _pluginInstance?.TrackEnd();
+            }
+
+            public void UpdateIdentifier()
+            {
+                if (_savedIdentifier == null)
+                {
+                    SetIdentifier(string.Empty);
+                    return;
+                }
+
+                var newIdentifier = $"{_savedIdentifier}{_idSuffix}";
+                if (newIdentifier == _cachedIdentifier)
+                    return;
+
+                if (RemoteControlEntity.IDInUse(newIdentifier))
+                {
+                    _pluginInstance.LogWarning($"CCTV ID in use: {newIdentifier}");
+                    return;
+                }
+
+                SetIdentifier(newIdentifier);
+
+                if (_entity.IsFullySpawned())
+                {
+                    _entity.SendNetworkUpdate();
+
+                    var computerStationList = GetNearbyStaticComputerStations();
+                    if (computerStationList != null)
+                    {
+                        foreach (var computerStation in computerStationList)
+                        {
+                            if (_cachedIdentifier != null)
+                                computerStation.controlBookmarks.Remove(_cachedIdentifier);
+
+                            computerStation.ForceAddBookmark(newIdentifier);
+                        }
+                    }
+                }
+
+                _cachedIdentifier = newIdentifier;
+            }
+
+            public void ResetIdentifier() => SetIdentifier(string.Empty);
+
+            public void UpdateDirection()
+            {
+                var cctvInfo = EntityData.CCTV;
+                if (cctvInfo == null)
+                    return;
+
+                var cctv = _entity as CCTV_RC;
+                cctv.pitchAmount = cctvInfo.Pitch;
+                cctv.yawAmount = cctvInfo.Yaw;
+
+                cctv.pitchAmount = Mathf.Clamp(cctv.pitchAmount, cctv.pitchClamp.x, cctv.pitchClamp.y);
+                cctv.yawAmount = Mathf.Clamp(cctv.yawAmount, cctv.yawClamp.x, cctv.yawClamp.y);
+
+                cctv.pitch.transform.localRotation = Quaternion.Euler(cctv.pitchAmount, 0f, 0f);
+                cctv.yaw.transform.localRotation = Quaternion.Euler(0f, cctv.yawAmount, 0f);
+
+                if (_entity.IsFullySpawned())
+                    _entity.SendNetworkUpdate();
+            }
+
+            private void SetIdentifier(string id) =>
+                (_entity as CCTV_RC).rcIdentifier = id;
+
+            private List<ComputerStation> GetNearbyStaticComputerStations()
+            {
+                var entityList = new List<BaseEntity>();
+                Vis.Entities(_entity.transform.position, 100, entityList, Rust.Layers.Mask.Deployed, QueryTriggerInteraction.Ignore);
+                if (entityList.Count == 0)
+                    return null;
+
+                var computerStationList = new List<ComputerStation>();
+
+                foreach (var entity in entityList)
+                {
+                    var computerStation = entity as ComputerStation;
+                    if (computerStation != null && !computerStation.IsDestroyed && computerStation.isStatic)
+                        computerStationList.Add(computerStation);
+                }
+
+                return computerStationList;
+            }
+        }
+
+        private class CCTVEntityController : SingleEntityController
+        {
+            private int _nextId = 1;
+
+            public CCTVEntityController(EntityManagerBase manager, EntityData data) : base(manager, data) {}
+
+            public override EntityAdapterBase CreateAdapter(BaseMonument monument) =>
+                new CCTVEntityAdapter(this, EntityData, monument, _nextId++);
+
+            public void UpdateIdentifier()
+            {
+                _pluginInstance._coroutineManager.StartCoroutine(UpdateIdentifierRoutine());
+            }
+
+            public void ResetIdentifier()
+            {
+                foreach (var adapter in Adapters)
+                    (adapter as CCTVEntityAdapter).ResetIdentifier();
+            }
+
+            public void UpdateDirection()
+            {
+                _pluginInstance._coroutineManager.StartCoroutine(UpdateDirectionRoutine());
+            }
+
+            private IEnumerator UpdateIdentifierRoutine()
+            {
+                foreach (var adapter in Adapters.ToArray())
+                {
+                    var cctvAdapter = adapter as CCTVEntityAdapter;
+                    if (cctvAdapter.IsDestroyed)
+                        continue;
+
+                    cctvAdapter.UpdateIdentifier();
+                    yield return CoroutineEx.waitForEndOfFrame;
+                }
+            }
+
+            private IEnumerator UpdateDirectionRoutine()
+            {
+                foreach (var adapter in Adapters.ToArray())
+                {
+                    var cctvAdapter = adapter as CCTVEntityAdapter;
+                    if (cctvAdapter.IsDestroyed)
+                        continue;
+
+                    cctvAdapter.UpdateDirection();
+                    yield return CoroutineEx.waitForEndOfFrame;
+                }
+            }
+        }
+
+        private class CCTVEntityManager : EntityManagerBase
+        {
+            public override bool AppliesToEntity(BaseEntity entity) => entity is CCTV_RC;
+
+            public override EntityControllerBase CreateController(EntityData entityData) =>
+                new CCTVEntityController(this, entityData);
+
+            public override void PreUnload()
+            {
+                // Make sure the ids are cleared immediately, so if reloading, newly spawned entities won't have id conflicts.
+                foreach (var controller in _controllersByEntityData.Values)
+                    (controller as CCTVEntityController).ResetIdentifier();
+            }
+        }
+
+        #endregion
+
         #region Central Entity Manager
 
         private class CentralEntityManager
@@ -1035,6 +1362,7 @@ namespace Oxide.Plugins
             private List<EntityManagerBase> _managers = new List<EntityManagerBase>
             {
                 // The first manager that matches will be used.
+                new CCTVEntityManager(),
                 new SignEntityManager(),
                 new SingleEntityManager(),
             };
@@ -1070,6 +1398,9 @@ namespace Oxide.Plugins
 
             public IEnumerator UnloadRoutine()
             {
+                foreach (var manager in _managers)
+                    manager.PreUnload();
+
                 foreach (var manager in _managers)
                     yield return manager.UnloadRoutine();
             }
@@ -1221,6 +1552,18 @@ namespace Oxide.Plugins
             }
         }
 
+        private class CCTVInfo
+        {
+            [JsonProperty("RCIdentifier", DefaultValueHandling = DefaultValueHandling.Ignore)]
+            public string RCIdentifier;
+
+            [JsonProperty("Pitch", DefaultValueHandling = DefaultValueHandling.Ignore)]
+            public float Pitch;
+
+            [JsonProperty("Yaw", DefaultValueHandling = DefaultValueHandling.Ignore)]
+            public float Yaw;
+        }
+
         private class SignArtistImage
         {
             [JsonProperty("Url")]
@@ -1243,6 +1586,9 @@ namespace Oxide.Plugins
 
             [JsonProperty("OnTerrain", DefaultValueHandling = DefaultValueHandling.Ignore)]
             public bool OnTerrain = false;
+
+            [JsonProperty("CCTV", DefaultValueHandling = DefaultValueHandling.Ignore)]
+            public CCTVInfo CCTV;
 
             [JsonProperty("SignArtistImages", DefaultValueHandling = DefaultValueHandling.Ignore)]
             public SignArtistImage[] SignArtistImages;
@@ -1388,17 +1734,22 @@ namespace Oxide.Plugins
         private class Lang
         {
             public const string ErrorNoPermission = "Error.NoPermission";
+            public const string ErrorUnexpected = "Error.Unexpected";
             public const string ErrorMonumentFinderNotLoaded = "Error.MonumentFinderNotLoaded";
             public const string ErrorNoMonuments = "Error.NoMonuments";
             public const string ErrorNotAtMonument = "Error.NotAtMonument";
+            public const string ErrorSuitableEntityNotFound = "Error.SuitableEntityNotFound";
+            public const string ErrorEntityNotEligible = "Error.EntityNotEligible";
             public const string SpawnErrorSyntax = "Spawn.Error.Syntax";
             public const string SpawnErrorEntityNotFound = "Spawn.Error.EntityNotFound";
             public const string SpawnErrorMultipleMatches = "Spawn.Error.MultipleMatches";
             public const string SpawnErrorNoTarget = "Spawn.Error.NoTarget";
             public const string SpawnSuccess = "Spawn.Success";
-            public const string KillErrorEntityNotFound = "Kill.Error.EntityNotFound";
-            public const string KillErrorNotEligible = "Kill.Error.NotEligible";
             public const string KillSuccess = "Kill.Success";
+
+            public const string CCTVSetIdSyntax = "CCTV.SetId.Error.Syntax";
+            public const string CCTVSetIdSuccess = "CCTV.SetId.Success";
+            public const string CCTVSetDirectionSuccess = "CCTV.SetDirection.Success";
         }
 
         protected override void LoadDefaultMessages()
@@ -1406,17 +1757,22 @@ namespace Oxide.Plugins
             lang.RegisterMessages(new Dictionary<string, string>
             {
                 [Lang.ErrorNoPermission] = "You don't have permission to do that.",
+                [Lang.ErrorUnexpected] = "An unexpected error occurred. Please notify the plugin developer.",
                 [Lang.ErrorMonumentFinderNotLoaded] = "Error: Monument Finder is not loaded.",
                 [Lang.ErrorNoMonuments] = "Error: No monuments found.",
                 [Lang.ErrorNotAtMonument] = "Error: Not at a monument. Nearest is <color=orange>{0}</color> with distance <color=orange>{1}</color>",
+                [Lang.ErrorSuitableEntityNotFound] = "Error: No suitable entity found.",
+                [Lang.ErrorEntityNotEligible] = "Error: That entity is not managed by Monument Addons.",
                 [Lang.SpawnErrorSyntax] = "Syntax: <color=orange>maspawn <entity></color>",
                 [Lang.SpawnErrorEntityNotFound] = "Error: Entity <color=orange>{0}</color> not found.",
                 [Lang.SpawnErrorMultipleMatches] = "Multiple matches:\n",
                 [Lang.SpawnErrorNoTarget] = "Error: No valid spawn position found.",
                 [Lang.SpawnSuccess] = "Spawned entity at <color=orange>{0}</color> matching monument(s) and saved to data file for monument <color=orange>{1}</color>.",
-                [Lang.KillErrorEntityNotFound] = "Error: No entity found.",
-                [Lang.KillErrorNotEligible] = "Error: That entity is not managed by Monument Addons.",
                 [Lang.KillSuccess] = "Killed entity at <color=orange>{0}</color> matching monument(s) and removed from data file.",
+
+                [Lang.CCTVSetIdSyntax] = "Syntax: <color=orange>{0} <id></color>",
+                [Lang.CCTVSetIdSuccess] = "Updated CCTV id to <color=orange>{0}</color> at <color=orange>{1}</color> matching monument(s) and saved to data file. Nearby static computer stations will automatically register this CCTV.",
+                [Lang.CCTVSetDirectionSuccess] = "Updated CCTV direction at <color=orange>{0}</color> matching monument(s) and saved to data file.",
             }, this, "en");
         }
 
