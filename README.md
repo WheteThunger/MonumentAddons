@@ -100,6 +100,8 @@ Notes:
 - Only players with the `monumentaddons.admin` permission can edit signs that are managed by this plugin, so you don't have to worry about random players vandalizing the signs.
 - Due to a client bug with parenting, having multiple signs or photo frames on cargo ship will cause them to all display the same image.
 
+**Please donate if you use this feature for sponsorship revenue.**
+
 ### Entity Scale Manager integration
 
 Use the following steps to resize entities. Requires the [Entity Scale Manager](https://umod.org/plugins/entity-scale-manager) plugin to be installed with the appropriate permissions granted.
