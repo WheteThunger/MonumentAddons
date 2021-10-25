@@ -12,8 +12,11 @@ Easily spawn permanent entities at monuments, which auto respawn after restarts 
 
 ## Required plugins
 
-- [Monument Finder](https://umod.org/plugins/monument-finder) -- Simply install. No configuration or permissions
-needed.
+- [Monument Finder](https://umod.org/plugins/monument-finder) -- Simply install. No configuration or permissions needed.
+
+## Recommended compatible plugins
+
+- [Custom Vending Setup](https://umod.org/plugins/custom-vending-setup) -- Allows customizing sale orders and names of vending machines at monuments. Works out-of-the-box with NPC vending machines spawned by this plugin.
 
 ## Getting started
 
