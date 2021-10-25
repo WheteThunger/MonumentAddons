@@ -339,14 +339,10 @@ namespace Oxide.Plugins
                 return;
 
             BaseEntity entity;
-            if (!VerifyLookEntity(player, out entity, Lang.ErrorSuitableEntityNotFound))
+            EntityControllerBase controller;
+            if (!VerifyLookEntity(player, out entity, out controller))
                 return;
 
-            MonumentEntityComponent component;
-            if (!VerifyMonumentEntity(player, entity, out component))
-                return;
-
-            var controller = component.Adapter.Controller;
             var numEntities = controller.Adapters.Count;
             controller.Destroy();
 
@@ -367,15 +363,8 @@ namespace Oxide.Plugins
             }
 
             CCTV_RC cctv;
-            if (!VerifyLookEntity(player, out cctv, Lang.ErrorSuitableEntityNotFound))
-                return;
-
-            MonumentEntityComponent component;
-            if (!VerifyMonumentEntity(player, cctv, out component))
-                return;
-
             CCTVEntityController controller;
-            if (!VerifyControllerType(player, component, out controller))
+            if (!VerifyLookEntity(player, out cctv, out controller))
                 return;
 
             if (controller.EntityData.CCTV == null)
@@ -395,15 +384,8 @@ namespace Oxide.Plugins
                 return;
 
             CCTV_RC cctv;
-            if (!VerifyLookEntity(player, out cctv, Lang.ErrorSuitableEntityNotFound))
-                return;
-
-            MonumentEntityComponent component;
-            if (!VerifyMonumentEntity(player, cctv, out component))
-                return;
-
             CCTVEntityController controller;
-            if (!VerifyControllerType(player, component, out controller))
+            if (!VerifyLookEntity(player, out cctv, out controller))
                 return;
 
             var basePlayer = player.Object as BasePlayer;
@@ -422,6 +404,44 @@ namespace Oxide.Plugins
             ReplyToPlayer(player, Lang.CCTVSetDirectionSuccess, controller.Adapters.Count);
         }
 
+        [Command("maskin")]
+        private void CommandSkin(IPlayer player, string cmd, string[] args)
+        {
+            if (player.IsServer || !VerifyHasPermission(player))
+                return;
+
+            BaseEntity entity;
+            SingleEntityController controller;
+            if (!VerifyLookEntity(player, out entity, out controller))
+                return;
+
+            if (args.Length == 0)
+            {
+                ReplyToPlayer(player, Lang.SkinGet, entity.skinID, cmd);
+                return;
+            }
+
+            ulong skinId;
+            if (!ulong.TryParse(args[0], out skinId))
+            {
+                ReplyToPlayer(player, Lang.SkinSetSyntax, cmd);
+                return;
+            }
+
+            string alternativeShortName;
+            if (IsRedirectSkin(skinId, out alternativeShortName))
+            {
+                ReplyToPlayer(player, Lang.SkinErrorRedirect, skinId, alternativeShortName);
+                return;
+            }
+
+            controller.EntityData.Skin = skinId;
+            controller.UpdateSkin();
+            _pluginData.Save();
+
+            ReplyToPlayer(player, Lang.SkinSetSuccess, skinId, controller.Adapters.Count);
+        }
+
         #endregion
 
         #region Helper Methods - Command Checks
@@ -435,35 +455,40 @@ namespace Oxide.Plugins
             return false;
         }
 
-        private bool VerifyMonumentEntity(IPlayer player, BaseEntity entity, out MonumentEntityComponent component)
-        {
-            component = MonumentEntityComponent.GetForEntity(entity);
-            if (component != null)
-                return true;
-
-            ReplyToPlayer(player, Lang.ErrorEntityNotEligible);
-            return false;
-        }
-
-        private bool VerifyLookEntity<T>(IPlayer player, out T entity, string errorMessageName) where T : BaseEntity
+        private bool VerifyLookEntity<T>(IPlayer player, out T entity) where T : BaseEntity
         {
             var basePlayer = player.Object as BasePlayer;
             entity = GetLookEntity(basePlayer) as T;
             if (entity != null)
                 return true;
 
-            ReplyToPlayer(player, errorMessageName);
+            ReplyToPlayer(player, Lang.ErrorNoSuitableEntityFound);
             return false;
         }
 
-        private bool VerifyControllerType<T>(IPlayer player, MonumentEntityComponent component, out T controller) where T : EntityControllerBase
+        private bool VerifyLookEntity<TEntity, TController>(IPlayer player, out TEntity entity, out TController controller)
+            where TEntity : BaseEntity where TController : EntityControllerBase
         {
-            controller = component.Adapter.Controller as T;
-            if (controller.GetType() == typeof(T))
-                return true;
+            controller = null;
 
-            ReplyToPlayer(player, Lang.ErrorUnexpected);
-            return false;
+            if (!VerifyLookEntity(player, out entity))
+                return false;
+
+            var component = MonumentEntityComponent.GetForEntity(entity);
+            if (component == null)
+            {
+                ReplyToPlayer(player, Lang.ErrorEntityNotEligible);
+                return false;
+            }
+
+            controller = component.Adapter.Controller as TController;
+            if (controller == null)
+            {
+                ReplyToPlayer(player, Lang.ErrorNoSuitableEntityFound);
+                return false;
+            }
+
+            return true;
         }
 
         #endregion
@@ -538,6 +563,35 @@ namespace Oxide.Plugins
                 return false;
 
             return true;
+        }
+
+        private static bool IsRedirectSkin(ulong skinId, out string alternativeShortName)
+        {
+            alternativeShortName = null;
+
+            if (skinId > int.MaxValue)
+                return false;
+
+            var skinIdInt = Convert.ToInt32(skinId);
+
+            foreach (var skin in ItemSkinDirectory.Instance.skins)
+            {
+                var itemSkin = skin.invItem as ItemSkin;
+                if (itemSkin == null || itemSkin.id != skinIdInt)
+                    continue;
+
+                var redirect = itemSkin.Redirect;
+                if (redirect == null)
+                    return false;
+
+                var modDeployable = redirect.GetComponent<ItemModDeployable>();
+                if (modDeployable != null)
+                    alternativeShortName = GetShortName(modDeployable.entityPrefab.resourcePath);
+
+                return true;
+            }
+
+            return false;
         }
 
         private BaseMonument GetClosestMonument(BasePlayer player, Vector3 position)
@@ -1019,8 +1073,20 @@ namespace Oxide.Plugins
                 _pluginInstance.ScaleEntity(_entity, EntityData.Scale);
             }
 
+            public void UpdateSkin()
+            {
+                if (_entity.skinID == EntityData.Skin)
+                    return;
+
+                _entity.skinID = EntityData.Skin;
+                _entity.SendNetworkUpdate();
+            }
+
             protected virtual void OnEntitySpawn()
             {
+                if (EntityData.Skin != 0)
+                    _entity.skinID = EntityData.Skin;
+
                 var combatEntity = _entity as BaseCombatEntity;
                 if (combatEntity != null)
                 {
@@ -1060,9 +1126,27 @@ namespace Oxide.Plugins
             public override EntityAdapterBase CreateAdapter(BaseMonument monument) =>
                 new SingleEntityAdapter(this, EntityData, monument);
 
+            public void UpdateSkin()
+            {
+                _pluginInstance._coroutineManager.StartCoroutine(UpdateSkinRoutine());
+            }
+
             public void UpdateScale()
             {
                 _pluginInstance._coroutineManager.StartCoroutine(UpdateScaleRoutine());
+            }
+
+            public IEnumerator UpdateSkinRoutine()
+            {
+                foreach (var adapter in Adapters.ToArray())
+                {
+                    var singleAdapter = adapter as SingleEntityAdapter;
+                    if (singleAdapter.IsDestroyed)
+                        continue;
+
+                    singleAdapter.UpdateSkin();
+                    yield return CoroutineEx.waitForEndOfFrame;
+                }
             }
 
             public IEnumerator UpdateScaleRoutine()
@@ -1637,6 +1721,9 @@ namespace Oxide.Plugins
             [JsonProperty("OnTerrain", DefaultValueHandling = DefaultValueHandling.Ignore)]
             public bool OnTerrain = false;
 
+            [JsonProperty("Skin", DefaultValueHandling = DefaultValueHandling.Ignore)]
+            public ulong Skin;
+
             [JsonProperty("Scale", DefaultValueHandling = DefaultValueHandling.Ignore)]
             [DefaultValue(1f)]
             public float Scale = 1;
@@ -1788,11 +1875,10 @@ namespace Oxide.Plugins
         private class Lang
         {
             public const string ErrorNoPermission = "Error.NoPermission";
-            public const string ErrorUnexpected = "Error.Unexpected";
             public const string ErrorMonumentFinderNotLoaded = "Error.MonumentFinderNotLoaded";
             public const string ErrorNoMonuments = "Error.NoMonuments";
             public const string ErrorNotAtMonument = "Error.NotAtMonument";
-            public const string ErrorSuitableEntityNotFound = "Error.SuitableEntityNotFound";
+            public const string ErrorNoSuitableEntityFound = "Error.NoSuitableEntityFound";
             public const string ErrorEntityNotEligible = "Error.EntityNotEligible";
 
             public const string SpawnErrorSyntax = "Spawn.Error.Syntax";
@@ -1801,6 +1887,11 @@ namespace Oxide.Plugins
             public const string SpawnErrorNoTarget = "Spawn.Error.NoTarget";
             public const string SpawnSuccess = "Spawn.Success";
             public const string KillSuccess = "Kill.Success";
+
+            public const string SkinGet = "Skin.Get";
+            public const string SkinSetSyntax = "Skin.Set.Syntax";
+            public const string SkinSetSuccess = "Skin.Set.Success";
+            public const string SkinErrorRedirect = "Skin.Error.Redirect";
 
             public const string CCTVSetIdSyntax = "CCTV.SetId.Error.Syntax";
             public const string CCTVSetIdSuccess = "CCTV.SetId.Success";
@@ -1812,11 +1903,10 @@ namespace Oxide.Plugins
             lang.RegisterMessages(new Dictionary<string, string>
             {
                 [Lang.ErrorNoPermission] = "You don't have permission to do that.",
-                [Lang.ErrorUnexpected] = "An unexpected error occurred. Please notify the plugin developer.",
                 [Lang.ErrorMonumentFinderNotLoaded] = "Error: Monument Finder is not loaded.",
                 [Lang.ErrorNoMonuments] = "Error: No monuments found.",
                 [Lang.ErrorNotAtMonument] = "Error: Not at a monument. Nearest is <color=orange>{0}</color> with distance <color=orange>{1}</color>",
-                [Lang.ErrorSuitableEntityNotFound] = "Error: No suitable entity found.",
+                [Lang.ErrorNoSuitableEntityFound] = "Error: No suitable entity found.",
                 [Lang.ErrorEntityNotEligible] = "Error: That entity is not managed by Monument Addons.",
 
                 [Lang.SpawnErrorSyntax] = "Syntax: <color=orange>maspawn <entity></color>",
@@ -1825,6 +1915,11 @@ namespace Oxide.Plugins
                 [Lang.SpawnErrorNoTarget] = "Error: No valid spawn position found.",
                 [Lang.SpawnSuccess] = "Spawned entity at <color=orange>{0}</color> matching monument(s) and saved to data file for monument <color=orange>{1}</color>.",
                 [Lang.KillSuccess] = "Killed entity at <color=orange>{0}</color> matching monument(s) and removed from data file.",
+
+                [Lang.SkinGet] = "Skin ID: <color=orange>{0}</color>. Run <color=orange>{1} <skin id></color> to change it.",
+                [Lang.SkinSetSyntax] = "Syntax: <color=orange>{0} <skin id></color>",
+                [Lang.SkinSetSuccess] = "Updated skin ID to <color=orange>{0}</color> at <color=orange>{1}</color> matching monument(s) and saved to data file.",
+                [Lang.SkinErrorRedirect] = "Error: Skin <color=orange>{0}</color> is a redirect skin and cannot be set directly. Instead, spawn the entity as <color=orange>{1}</color>.",
 
                 [Lang.CCTVSetIdSyntax] = "Syntax: <color=orange>{0} <id></color>",
                 [Lang.CCTVSetIdSuccess] = "Updated CCTV id to <color=orange>{0}</color> at <color=orange>{1}</color> matching monument(s) and saved to data file. Nearby static computer stations will automatically register this CCTV.",

@@ -35,7 +35,7 @@ Note that some rooms have multiple possible vanilla configurations, so multiple 
 
 ## Permissions
 
-- `monumentaddons.admin` -- Allows use of all commands.
+- `monumentaddons.admin` -- Allows all commands.
 
 ## Commands
 
@@ -45,30 +45,26 @@ Note that some rooms have multiple possible vanilla configurations, so multiple 
   - Also spawns the entity at other matching monuments (e.g., if at a gas station, will spawn at all gas stations).
     - A monument is considered a match if it has the same short prefab name or the same alias as the monument you are aiming at. The Monument Finder plugin will assign aliases for primarily underground tunnels. For example, `station-sn-0` and `station-we-0` will both use the `TrainStation` alias, allowing all train stations to have the same entities.
   - Saves the entity info to the plugin data file so that reloading the plugin (or restarting the server) will respawn the entity.
+
+The following commands only work on entities spawned by this plugin. The effect of these commands automatically applies to all copies of the entity at matching monuments, and also applies updates the data file.
+
 - `makill` -- Kills the entity that you are aiming at.
-  - Only works on entities that were spawned by this plugin.
-  - Also removes the entity from other matching monuments.
-  - Removes the entity from the plugin data file so that it won't respawn later.
-- `masetid <id>` -- Updates the RC identifier of the CCTV you are looking at.
-  - You must be looking at the base of the camera.
-  - Also updates the RC identifier of copies of this CCTV at other matching monuments.
-  - Updates the RC identifier in the data file so it can be reaplied when the entity is respawned.
+- `maskin <skin id>` -- Updates the skin of the entity you are aiming at.
+- `masetid <id>` -- Updates the RC identifier of the CCTV you are aiming at.
+  - You must be aiming at the base of the camera.
   - Note: Each CCTV's RC identifier will have a numeric suffix like `1`, `2`, `3` and so on. This is done because each CCTV must have a unique identifier.
-- `masetdir` -- Updates the direction of the CCTV you are looking at, so that it points toward you.
-  - You must be looking at the base of the camera.
-  - Also updates the direction of copies of this CCTV at other matching monuments.
-  - Updates the direction in the data file so it can be reaplied when the entity is respawned.
+- `masetdir` -- Updates the direction of the CCTV you are aiming at, so that it points toward you.
+  - You must be aiming at the base of the camera.
 
 ## Localization
 
 ```json
 {
   "Error.NoPermission": "You don't have permission to do that.",
-  "Error.Unexpected": "An unexpected error occurred. Please notify the plugin developer.",
   "Error.MonumentFinderNotLoaded": "Error: Monument Finder is not loaded.",
   "Error.NoMonuments": "Error: No monuments found.",
   "Error.NotAtMonument": "Error: Not at a monument. Nearest is <color=orange>{0}</color> with distance <color=orange>{1}</color>",
-  "Error.SuitableEntityNotFound": "Error: No suitable entity found.",
+  "Error.NoSuitableEntityFound": "Error: No suitable entity found.",
   "Error.EntityNotEligible": "Error: That entity is not managed by Monument Addons.",
   "Spawn.Error.Syntax": "Syntax: <color=orange>maspawn <entity></color>",
   "Spawn.Error.EntityNotFound": "Error: Entity <color=orange>{0}</color> not found.",
@@ -76,6 +72,10 @@ Note that some rooms have multiple possible vanilla configurations, so multiple 
   "Spawn.Error.NoTarget": "Error: No valid spawn position found.",
   "Spawn.Success": "Spawned entity at <color=orange>{0}</color> matching monument(s) and saved to data file for monument <color=orange>{1}</color>.",
   "Kill.Success": "Killed entity at <color=orange>{0}</color> matching monument(s) and removed from data file.",
+  "Skin.Get": "Skin ID: <color=orange>{0}</color>. Run <color=orange>{1} <skin id></color> to change it.",
+  "Skin.Set.Syntax": "Syntax: <color=orange>{0} <skin id></color>",
+  "Skin.Set.Success": "Updated skin ID to <color=orange>{0}</color> at <color=orange>{1}</color> matching monument(s) and saved to data file.",
+  "Skin.Error.Redirect": "Error: Skin <color=orange>{0}</color> is a redirect skin and cannot be set directly. Instead, spawn the entity as <color=orange>{1}</color>.",
   "CCTV.SetId.Error.Syntax": "Syntax: <color=orange>{0} <id></color>",
   "CCTV.SetId.Success": "Updated CCTV id to <color=orange>{0}</color> at <color=orange>{1}</color> matching monument(s) and saved to data file. Nearby static computer stations will automatically register this CCTV.",
   "CCTV.SetDirection.Success": "Updated CCTV direction at <color=orange>{0}</color> matching monument(s) and saved to data file."
