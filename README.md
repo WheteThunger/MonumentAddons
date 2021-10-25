@@ -127,7 +127,7 @@ Note: As of this writing, there is currently a client bug where having lots of R
 Use the following steps to set up a custom bandit wheel to allow players to gamble scrap.
 
 1. Spawn a chair with `maspawn chair.static`. You can also use other mountable entities.
-2. Spawn a betting terminal next to the chair with `maspawn bigwheelbettingterminal`. This needs to be close enough to the chair so that players can reach it while sitting.
+2. Spawn a betting terminal next to the chair with `maspawn bigwheelbettingterminal`. This needs to be close to the front of the chair so that players can reach it while sitting. Getting this position correct is the hardest part.
 3. Keep spawning as many chairs and betting terminals as you want.
 4. Spawn a bandit wheel with `maspawn big_wheel`. This needs to be within 30 meters (equivalent to 10 foundations) of the betting terminals to find them.
 
