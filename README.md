@@ -96,7 +96,9 @@ Use the following steps to set persistent images for signs or photo frames. Requ
 
 That's all you need to do. This plugin detects when you use a Sign Artist command and automatically saves the corresponding image URL or item short name in the data file for that particular sign or photo frame. When the plugin reloads, Sign Artist is called to reapply that image. Any change to a sign will also automatically propagate to all copies of that sign at other monuments.
 
-Note: Only players with the `monumentaddons.admin` permission can edit signs that are managed by this plugin, so you don't have to worry about random players vandalizing the signs.
+Notes:
+- Only players with the `monumentaddons.admin` permission can edit signs that are managed by this plugin, so you don't have to worry about random players vandalizing the signs.
+- Due to a client bug with parenting, having multiple signs or photo frames on cargo ship will cause them to all display the same image.
 
 ### Entity Scale Manager integration
 
