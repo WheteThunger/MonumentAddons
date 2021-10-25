@@ -634,7 +634,7 @@ namespace Oxide.Plugins
                 if (matchingMonuments == null)
                     continue;
 
-                spawnedEntities += matchingMonuments.Count;
+                spawnedEntities += entry.Value.Count * matchingMonuments.Count;
 
                 foreach (var entityData in entry.Value.ToArray())
                 {
