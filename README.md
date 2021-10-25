@@ -30,12 +30,6 @@ This does several things.
 - It spawns the entity at all other identical monuments (for example, at every gas station) using the correct relative position and rotation for those monuments.
 - It saves this information in the plugin data file, so that the entity can be respawned when the plugin is reloaded, when the server is restarted, or when the server is wiped, even if using a new map seed (don't worry, this works well as long as the monuments don't significantly change between Rust updates).
 
-## How underwater labs work
-
-Since underwater labs are procedurally generated, this plugin does not spawn entities relative to the monuments themselves. Instead, entities are spawned relative to specific rooms. For example, if you spawn an entity in a moonpool room, the entity will also be spawned at all moonpool rooms in the same lab and other labs.
-
-Note that some rooms have multiple possible vanilla configurations, so multiple instances of the same room might have slightly different placement of vanilla objects. This plugin does not currently differentiate between these room-specific configurations, so after spawning something into a lab room, be sure to inspect other instances of that room to make sure the entity placement makes sense for all of them.
-
 ## Permissions
 
 - `monumentaddons.admin` -- Allows all commands.
@@ -84,6 +78,12 @@ The following commands only work on entities spawned by this plugin. The effect 
   "CCTV.SetDirection.Success": "Updated CCTV direction at <color=orange>{0}</color> matching monument(s) and saved to data file."
 }
 ```
+
+## How underwater labs work
+
+Since underwater labs are procedurally generated, this plugin does not spawn entities relative to the monuments themselves. Instead, entities are spawned relative to specific rooms. For example, if you spawn an entity in a moonpool room, the entity will also be spawned at all moonpool rooms in the same lab and other labs.
+
+Note that some rooms have multiple possible vanilla configurations, so multiple instances of the same room might have slightly different placement of vanilla objects. This plugin does not currently differentiate between these room-specific configurations, so after spawning something into a lab room, be sure to inspect other instances of that room to make sure the entity placement makes sense for all of them.
 
 ## Instructions for plugin integrations
 
