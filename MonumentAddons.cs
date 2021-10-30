@@ -1111,11 +1111,51 @@ namespace Oxide.Plugins
                 if (computerStation != null && computerStation.isStatic)
                 {
                     computerStation.CancelInvoke(computerStation.GatherStaticCameras);
-                    computerStation.Invoke(computerStation.GatherStaticCameras, 1);
+                    computerStation.Invoke(() => GatherStaticCameras(computerStation), 1);
                 }
 
                 if (EntityData.Scale != 1)
                     UpdateScale();
+            }
+
+            private List<CCTV_RC> GetNearbyStaticCameras()
+            {
+                var cargoShip = _entity.GetParentEntity() as CargoShip;
+                if (cargoShip != null)
+                {
+                    var cargoCameraList = new List<CCTV_RC>();
+                    foreach (var child in cargoShip.children)
+                    {
+                        var cctv = child as CCTV_RC;
+                        if (cctv != null && cctv.isStatic)
+                            cargoCameraList.Add(cctv);
+                    }
+                    return cargoCameraList;
+                }
+
+                var entityList = new List<BaseEntity>();
+                Vis.Entities(_entity.transform.position, 100, entityList, Rust.Layers.Mask.Deployed, QueryTriggerInteraction.Ignore);
+                if (entityList.Count == 0)
+                    return null;
+
+                var cameraList = new List<CCTV_RC>();
+                foreach (var entity in entityList)
+                {
+                    var cctv = entity as CCTV_RC;
+                    if (cctv != null && !cctv.IsDestroyed && cctv.isStatic)
+                        cameraList.Add(cctv);
+                }
+                return cameraList;
+            }
+
+            private void GatherStaticCameras(ComputerStation computerStation)
+            {
+                var cameraList = GetNearbyStaticCameras();
+                if (cameraList == null)
+                    return;
+
+                foreach (var cctv in cameraList)
+                    computerStation.ForceAddBookmark(cctv.rcIdentifier);
             }
         }
 
@@ -1402,20 +1442,31 @@ namespace Oxide.Plugins
 
             private List<ComputerStation> GetNearbyStaticComputerStations()
             {
+                var cargoShip = _entity.GetParentEntity() as CargoShip;
+                if (cargoShip != null)
+                {
+                    var cargoComputerStationList = new List<ComputerStation>();
+                    foreach (var child in cargoShip.children)
+                    {
+                        var computerStation = child as ComputerStation;
+                        if (computerStation != null && computerStation.isStatic)
+                            cargoComputerStationList.Add(computerStation);
+                    }
+                    return cargoComputerStationList;
+                }
+
                 var entityList = new List<BaseEntity>();
                 Vis.Entities(_entity.transform.position, 100, entityList, Rust.Layers.Mask.Deployed, QueryTriggerInteraction.Ignore);
                 if (entityList.Count == 0)
                     return null;
 
                 var computerStationList = new List<ComputerStation>();
-
                 foreach (var entity in entityList)
                 {
                     var computerStation = entity as ComputerStation;
                     if (computerStation != null && !computerStation.IsDestroyed && computerStation.isStatic)
                         computerStationList.Add(computerStation);
                 }
-
                 return computerStationList;
             }
         }
