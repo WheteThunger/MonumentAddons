@@ -1107,6 +1107,9 @@ namespace Oxide.Plugins
 
             protected virtual void OnEntitySpawned()
             {
+                if (_entity is NPCVendingMachine)
+                    UpdateSkin();
+
                 var computerStation = _entity as ComputerStation;
                 if (computerStation != null && computerStation.isStatic)
                 {
