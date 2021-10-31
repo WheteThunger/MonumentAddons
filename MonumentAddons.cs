@@ -2,6 +2,7 @@
 using Newtonsoft.Json.Linq;
 using Newtonsoft.Json.Serialization;
 using Oxide.Core;
+using Oxide.Core.Configuration;
 using Oxide.Core.Libraries.Covalence;
 using Oxide.Core.Plugins;
 using System;
@@ -10,6 +11,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Globalization;
 using System.Linq;
+using System.Text;
 using UnityEngine;
 
 namespace Oxide.Plugins
@@ -25,6 +27,7 @@ namespace Oxide.Plugins
 
         private static MonumentAddons _pluginInstance;
         private static Configuration _pluginConfig;
+        private static StoredData _pluginData;
 
         private const float MaxRaycastDistance = 50;
         private const float TerrainProximityTolerance = 0.001f;
@@ -33,17 +36,19 @@ namespace Oxide.Plugins
 
         private const string CargoShipShortName = "cargoshiptest";
 
+        private const string DefaultProfileName = "Default";
+
         private static readonly int HitLayers = Rust.Layers.Mask.Construction
             + Rust.Layers.Mask.Default
             + Rust.Layers.Mask.Deployed
             + Rust.Layers.Mask.Terrain
             + Rust.Layers.Mask.World;
 
-        private readonly CentralEntityManager _centralEntityManager = new CentralEntityManager();
+        private readonly EntityManager _entityManager = new EntityManager();
         private readonly CoroutineManager _coroutineManager = new CoroutineManager();
+        private ProfileManager _profileManager;
 
         private ProtectionProperties _immortalProtection;
-        private StoredData _pluginData;
 
         private Coroutine _startupCoroutine;
         private bool _serverInitialized = false;
@@ -57,11 +62,16 @@ namespace Oxide.Plugins
             _pluginInstance = this;
             _pluginData = StoredData.Load();
 
+            _profileManager = new ProfileManager(_entityManager);
+
+            // Ensure the profile folder is created to avoid errors.
+            Profile.LoadDefaultProfile();
+
             permission.RegisterPermission(PermissionAdmin, this);
 
             Unsubscribe(nameof(OnEntitySpawned));
 
-            _centralEntityManager.Init();
+            _entityManager.Init();
         }
 
         private void OnServerInitialized()
@@ -80,13 +90,14 @@ namespace Oxide.Plugins
 
         private void Unload()
         {
-            _coroutineManager.Unload();
-            _coroutineManager.FireAndForgetCoroutine(_centralEntityManager.UnloadRoutine());
+            _coroutineManager.Destroy();
+            _profileManager.UnloadAllProfiles();
 
             UnityEngine.Object.Destroy(_immortalProtection);
 
             EntityAdapterBase.ClearEntityCache();
 
+            _pluginData = null;
             _pluginConfig = null;
             _pluginInstance = null;
         }
@@ -103,13 +114,8 @@ namespace Oxide.Plugins
 
         private void OnEntitySpawned(CargoShip cargoShip)
         {
-            List<EntityData> entityDataList;
-            if (!_pluginData.MonumentMap.TryGetValue(CargoShipShortName, out entityDataList))
-                return;
-
-            _coroutineManager.StartCoroutine(
-                _centralEntityManager.SpawnEntitiesAtMonumentRoutine(entityDataList, new CargoShipMonument(cargoShip))
-            );
+            var cargoShipMonument = new CargoShipMonument(cargoShip);
+            _coroutineManager.StartCoroutine(_profileManager.PartialLoadForLateMonumentRoutine(cargoShipMonument));
         }
 
         // This hook is exposed by plugin: Remover Tool (RemoverTool).
@@ -167,7 +173,7 @@ namespace Oxide.Plugins
             {
                 new SignArtistImage { Url = url, Raw = raw },
             };
-            _pluginData.Save();
+            controller.ProfileController.Profile.Save();
         }
 
         private void OnEntityScaled(BaseEntity entity, float scale)
@@ -185,7 +191,7 @@ namespace Oxide.Plugins
 
             controller.EntityData.Scale = scale;
             controller.UpdateScale();
-            _pluginData.Save();
+            controller.ProfileController.Profile.Save();
         }
 
         #endregion
@@ -262,6 +268,13 @@ namespace Oxide.Plugins
                 return;
             }
 
+            var controller = _profileManager.GetPlayerProfileControllerOrDefault(player.Id);
+            if (controller == null)
+            {
+                ReplyToPlayer(player, Lang.SpawnErrorNoProfileSelected);
+                return;
+            }
+
             if (args.Length == 0 || string.IsNullOrWhiteSpace(args[0]))
             {
                 ReplyToPlayer(player, Lang.SpawnErrorSyntax);
@@ -324,12 +337,11 @@ namespace Oxide.Plugins
             };
 
             var matchingMonuments = GetMonumentsByAliasOrShortName(closestMonument.AliasOrShortName);
-            _coroutineManager.StartCoroutine(
-                _centralEntityManager.SpawnEntityAtMonumentsRoutine(entityData, matchingMonuments)
-            );
 
-            _pluginData.AddEntityData(entityData, closestMonument.AliasOrShortName);
-            ReplyToPlayer(player, Lang.SpawnSuccess, matchingMonuments.Count, closestMonument.AliasOrShortName);
+            controller.Profile.AddEntityData(closestMonument.AliasOrShortName, entityData);
+            controller.SpawnNewEntity(entityData, matchingMonuments);
+
+            ReplyToPlayer(player, Lang.SpawnSuccess, matchingMonuments.Count, controller.Profile.Name, closestMonument.AliasOrShortName);
         }
 
         [Command("makill")]
@@ -346,8 +358,9 @@ namespace Oxide.Plugins
             var numEntities = controller.Adapters.Count;
             controller.Destroy();
 
-            _pluginData.RemoveEntityData(controller.EntityData);
-            ReplyToPlayer(player, Lang.KillSuccess, numEntities);
+            var profile = controller.ProfileController.Profile;
+            profile.RemoveEntityData(controller.EntityData);
+            ReplyToPlayer(player, Lang.KillSuccess, numEntities, profile.Name);
         }
 
         [Command("masetid")]
@@ -372,9 +385,11 @@ namespace Oxide.Plugins
 
             controller.EntityData.CCTV.RCIdentifier = args[0];
             controller.UpdateIdentifier();
-            _pluginData.Save();
 
-            ReplyToPlayer(player, Lang.CCTVSetIdSuccess, args[0], controller.Adapters.Count);
+            var profile = controller.ProfileController.Profile;
+            profile.Save();
+
+            ReplyToPlayer(player, Lang.CCTVSetIdSuccess, args[0], controller.Adapters.Count, profile.Name);
         }
 
         [Command("masetdir")]
@@ -399,9 +414,11 @@ namespace Oxide.Plugins
             controller.EntityData.CCTV.Pitch = lookAngles.x;
             controller.EntityData.CCTV.Yaw = lookAngles.y;
             controller.UpdateDirection();
-            _pluginData.Save();
 
-            ReplyToPlayer(player, Lang.CCTVSetDirectionSuccess, controller.Adapters.Count);
+            var profile = controller.ProfileController.Profile;
+            profile.Save();
+
+            ReplyToPlayer(player, Lang.CCTVSetDirectionSuccess, controller.Adapters.Count, profile.Name);
         }
 
         [Command("maskin")]
@@ -437,9 +454,291 @@ namespace Oxide.Plugins
 
             controller.EntityData.Skin = skinId;
             controller.UpdateSkin();
-            _pluginData.Save();
 
-            ReplyToPlayer(player, Lang.SkinSetSuccess, skinId, controller.Adapters.Count);
+            var profile = controller.ProfileController.Profile;
+            profile.Save();
+
+            ReplyToPlayer(player, Lang.SkinSetSuccess, skinId, controller.Adapters.Count, profile.Name);
+        }
+
+        [Command("maprofile")]
+        private void CommandProfile(IPlayer player, string cmd, string[] args)
+        {
+            if (!_serverInitialized)
+                return;
+
+            if (!player.IsServer && !VerifyHasPermission(player))
+                return;
+
+            if (args.Length == 0)
+            {
+                SubCommandHelp(player);
+                return;
+            }
+
+            switch (args[0].ToLower())
+            {
+                case "list":
+                {
+                    var profileList = ProfileInfo.GetList();
+                    if (profileList.Length == 0)
+                    {
+                        ReplyToPlayer(player, Lang.ProfileListEmpty);
+                        return;
+                    }
+
+                    var playerProfileName = player.IsServer ? null : _pluginData.GetSelectedProfileName(player.Id);
+
+                    profileList = profileList
+                        .OrderByDescending(profile => profile.Name == playerProfileName)
+                        .ThenByDescending(profile => profile.Enabled)
+                        .ThenBy(profile => profile.Name)
+                        .ToArray();
+
+                    var sb = new StringBuilder();
+                    sb.AppendLine(GetMessage(player, Lang.ProfileListHeader));
+                    foreach (var profile in profileList)
+                    {
+                        var messageName = profile.Name == playerProfileName
+                            ? Lang.ProfileListItemSelected
+                            : profile.Enabled
+                            ? Lang.ProfileListItemEnabled
+                            : Lang.ProfileListItemDisabled;
+
+                        sb.AppendLine(GetMessage(player, messageName, profile.Name));
+                    }
+                    player.Reply(sb.ToString());
+                    break;
+                }
+
+                case "describe":
+                {
+                    ProfileController controller;
+                    if (!VerifyProfile(player, args, out controller, Lang.ProfileDescribeSyntax))
+                        return;
+
+                    if (controller.Profile.IsEmpty())
+                    {
+                        ReplyToPlayer(player, Lang.ProfileEmpty, controller.Profile.Name);
+                        return;
+                    }
+
+                    var sb = new StringBuilder();
+                    sb.AppendLine(GetMessage(player, Lang.ProfileDescribeHeader, controller.Profile.Name));
+                    foreach (var monumentEntry in controller.Profile.GetEntityAggregates())
+                    {
+                        var aliasOrShortName = monumentEntry.Key;
+                        foreach (var countEntry in monumentEntry.Value)
+                            sb.AppendLine(GetMessage(player, Lang.ProfileDescribeItem, GetShortName(countEntry.Key), countEntry.Value, aliasOrShortName));
+                    }
+                    player.Reply(sb.ToString());
+                    break;
+                }
+
+                case "select":
+                {
+                    if (player.IsServer)
+                        return;
+
+                    if (args.Length <= 1)
+                    {
+                        ReplyToPlayer(player, Lang.ProfileSelectSyntax);
+                        return;
+                    }
+
+                    ProfileController controller;
+                    if (!VerifyProfile(player, args, out controller, Lang.ProfileSelectSyntax))
+                        return;
+
+                    _pluginData.SetProfileSelected(player.Id, controller.Profile.Name);
+                    controller.Enable();
+                    ReplyToPlayer(player, Lang.ProfileSelectSuccess, controller.Profile.Name);
+                    break;
+                }
+
+                case "create":
+                {
+                    if (args.Length < 2)
+                    {
+                        ReplyToPlayer(player, Lang.ProfileCreateSyntax);
+                        return;
+                    }
+
+                    var newName = DynamicConfigFile.SanitizeName(args[1]);
+                    if (string.IsNullOrWhiteSpace(newName))
+                    {
+                        ReplyToPlayer(player, Lang.ProfileCreateSyntax);
+                        return;
+                    }
+
+                    if (!VerifyProfileNameAvailable(player, newName))
+                        return;
+
+                    var controller = _profileManager.CreateProfile(newName);
+                    if (!player.IsServer)
+                        _pluginData.SetProfileSelected(player.Id, newName);
+
+                    ReplyToPlayer(player, Lang.ProfileCreateSuccess, controller.Profile.Name);
+                    break;
+                }
+
+                case "rename":
+                {
+                    if (args.Length < 2)
+                    {
+                        ReplyToPlayer(player, Lang.ProfileRenameSyntax);
+                        return;
+                    }
+
+                    ProfileController controller;
+                    if (args.Length == 2)
+                    {
+                        controller = player.IsServer ? null : _profileManager.GetPlayerProfileController(player.Id);
+                        if (controller == null)
+                        {
+                            ReplyToPlayer(player, Lang.ProfileRenameSyntax);
+                            return;
+                        }
+                    }
+                    else if (!VerifyProfileExists(player, args[1], out controller))
+                        return;
+
+                    string newName = DynamicConfigFile.SanitizeName(args.Length == 2 ? args[1] : args[2]);
+                    if (string.IsNullOrWhiteSpace(newName))
+                    {
+                        ReplyToPlayer(player, Lang.ProfileRenameSyntax);
+                        return;
+                    }
+
+                    if (!VerifyProfileNameAvailable(player, newName))
+                        return;
+
+                    // Cache the actual old name in case it was case-insensitive matched.
+                    var actualOldName = controller.Profile.Name;
+
+                    controller.Rename(newName);
+                    ReplyToPlayer(player, Lang.ProfileRenameSuccess, actualOldName, controller.Profile.Name);
+                    break;
+                }
+
+                case "reload":
+                {
+                    ProfileController controller;
+                    if (!VerifyProfile(player, args, out controller, Lang.ProfileReloadSyntax))
+                        return;
+
+                    controller.Reload();
+                    ReplyToPlayer(player, Lang.ProfileReloadSuccess, controller.Profile.Name);
+                    break;
+                }
+
+                case "enable":
+                {
+                    if (args.Length < 2)
+                    {
+                        ReplyToPlayer(player, Lang.ProfileEnableSyntax);
+                        return;
+                    }
+
+                    ProfileController controller;
+                    if (!VerifyProfileExists(player, args[1], out controller))
+                        return;
+
+                    var profileName = controller.Profile.Name;
+                    if (controller.IsEnabled)
+                    {
+                        ReplyToPlayer(player, Lang.ProfileAlreadyEnabled, profileName);
+                        return;
+                    }
+
+                    controller.Enable();
+                    _pluginData.SetProfileEnabled(profileName);
+                    _pluginData.Save();
+                    ReplyToPlayer(player, Lang.ProfileEnableSuccess, profileName);
+                    break;
+                }
+
+                case "disable":
+                {
+                    ProfileController controller;
+                    if (!VerifyProfile(player, args, out controller, Lang.ProfileDisableSyntax))
+                        return;
+
+                    var profileName = controller.Profile.Name;
+                    if (!controller.IsEnabled)
+                    {
+                        ReplyToPlayer(player, Lang.ProfileAlreadyDisabled, profileName);
+                        return;
+                    }
+
+                    controller.Disable();
+                    _pluginData.SetProfileDisabled(profileName);
+                    _pluginData.Save();
+                    ReplyToPlayer(player, Lang.ProfileDisableSuccess, profileName);
+                    break;
+                }
+
+                case "moveto":
+                {
+                    BaseEntity entity;
+                    EntityControllerBase entityController;
+                    if (!VerifyLookEntity(player, out entity, out entityController))
+                        return;
+
+                    ProfileController profileController;
+                    if (!VerifyProfile(player, args, out profileController, Lang.ProfileMoveToSyntax))
+                        return;
+
+                    var entityData = entityController.EntityData;
+                    var oldProfile = entityController.ProfileController.Profile;
+
+                    if (profileController == entityController.ProfileController)
+                    {
+                        ReplyToPlayer(player, Lang.ProfileMoveToAlreadyPresent, GetShortName(entityData.PrefabName), oldProfile.Name);
+                        return;
+                    }
+
+                    string monumentAliasOrShortName;
+                    if (!oldProfile.RemoveEntityData(entityData, out monumentAliasOrShortName))
+                        return;
+
+                    if (profileController.ProfileState == ProfileState.Unloading
+                        || profileController.ProfileState == ProfileState.Unloaded)
+                    {
+                        entityController.PreUnload();
+                        entityController.Destroy();
+                    }
+
+                    entityController.ProfileController = profileController;
+
+                    var newProfile = profileController.Profile;
+                    newProfile.AddEntityData(monumentAliasOrShortName, entityData);
+                    ReplyToPlayer(player, Lang.ProfileMoveToSuccess, GetShortName(entityData.PrefabName), oldProfile.Name, newProfile.Name);
+                    break;
+                }
+
+                default:
+                {
+                    SubCommandHelp(player);
+                    break;
+                }
+            }
+        }
+
+        private void SubCommandHelp(IPlayer player)
+        {
+            var sb = new StringBuilder();
+            sb.AppendLine(GetMessage(player, Lang.ProfileHelpHeader));
+            sb.AppendLine(GetMessage(player, Lang.ProfileHelpList));
+            sb.AppendLine(GetMessage(player, Lang.ProfileHelpDescribe));
+            sb.AppendLine(GetMessage(player, Lang.ProfileHelpEnable));
+            sb.AppendLine(GetMessage(player, Lang.ProfileHelpDisable));
+            sb.AppendLine(GetMessage(player, Lang.ProfileHelpReload));
+            sb.AppendLine(GetMessage(player, Lang.ProfileHelpSelect));
+            sb.AppendLine(GetMessage(player, Lang.ProfileHelpCreate));
+            sb.AppendLine(GetMessage(player, Lang.ProfileHelpRename));
+            sb.AppendLine(GetMessage(player, Lang.ProfileHelpMoveTo));
+            ReplyToPlayer(player, sb.ToString());
         }
 
         #endregion
@@ -489,6 +788,40 @@ namespace Oxide.Plugins
             }
 
             return true;
+        }
+
+        private bool VerifyProfileNameAvailable(IPlayer player, string profileName)
+        {
+            if (!_profileManager.ProfileExists(profileName))
+                return true;
+
+            ReplyToPlayer(player, Lang.ProfileAlreadyExists, profileName);
+            return false;
+        }
+
+        private bool VerifyProfileExists(IPlayer player, string profileName, out ProfileController controller)
+        {
+            controller = _profileManager.GetProfileController(profileName);
+            if (controller != null)
+                return true;
+
+            ReplyToPlayer(player, Lang.ProfileNotFound, profileName);
+            return false;
+        }
+
+        private bool VerifyProfile(IPlayer player, string[] args, out ProfileController controller, string syntaxMessageName)
+        {
+            if (args.Length <= 1)
+            {
+                controller = player.IsServer ? null : _profileManager.GetPlayerProfileControllerOrDefault(player.Id);
+                if (controller != null)
+                    return true;
+
+                ReplyToPlayer(player, syntaxMessageName);
+                return false;
+            }
+
+            return VerifyProfileExists(player, args[1], out controller);
         }
 
         #endregion
@@ -624,26 +957,9 @@ namespace Oxide.Plugins
             return FindMonumentsByShortName(aliasOrShortName);
         }
 
-        private IEnumerator SpawnAllEntitiesRoutine()
+        private IEnumerator SpawnAllProfilesRoutine()
         {
-            var spawnedEntities = 0;
-
-            foreach (var entry in _pluginData.MonumentMap.ToArray())
-            {
-                var matchingMonuments = GetMonumentsByAliasOrShortName(entry.Key);
-                if (matchingMonuments == null)
-                    continue;
-
-                spawnedEntities += entry.Value.Count * matchingMonuments.Count;
-
-                foreach (var entityData in entry.Value.ToArray())
-                {
-                    yield return _centralEntityManager.SpawnEntityAtMonumentsRoutine(entityData, matchingMonuments);
-                }
-            }
-
-            if (spawnedEntities > 0)
-                Puts($"Spawned {spawnedEntities} entities at monuments.");
+            yield return _profileManager.LoadAllProfilesRoutine();
 
             // We don't want to be subscribed to OnEntitySpawned(CargoShip) until the coroutine is done.
             // Otherwise, a cargo ship could spawn while the coroutine is running and could get double entities.
@@ -656,7 +972,7 @@ namespace Oxide.Plugins
             if (_startupCoroutine != null)
                 return;
 
-            _startupCoroutine = _coroutineManager.StartCoroutine(SpawnAllEntitiesRoutine());
+            _startupCoroutine = _coroutineManager.StartCoroutine(SpawnAllProfilesRoutine());
         }
 
         #endregion
@@ -667,6 +983,9 @@ namespace Oxide.Plugins
 
         private class CoroutineManager
         {
+            public static Coroutine StartGlobalCoroutine(IEnumerator enumerator) =>
+                ServerMgr.Instance?.StartCoroutine(enumerator);
+
             // Object for tracking all coroutines for spawning or updating entities.
             // This allows easily stopping all those coroutines by simply destroying the game object.
             private MonoBehaviour _coroutineComponent;
@@ -681,12 +1000,12 @@ namespace Oxide.Plugins
                 return _coroutineComponent.StartCoroutine(enumerator);
             }
 
-            public void FireAndForgetCoroutine(IEnumerator enumerator)
+            public void StopAll()
             {
-                ServerMgr.Instance?.StartCoroutine(enumerator);
+                _coroutineComponent.StopAllCoroutines();
             }
 
-            public void Unload()
+            public void Destroy()
             {
                 UnityEngine.Object.Destroy(_coroutineComponent?.gameObject);
             }
@@ -799,13 +1118,13 @@ namespace Oxide.Plugins
 
             private void OnDestroy()
             {
-                Adapter.OnEntityKilled(_entity);
+                Adapter.OnEntityDestroyed(_entity);
             }
         }
 
         #endregion
 
-        #region Entity Adapter/Controller/Manager - Base
+        #region Entity Adapter/Controller - Base
 
         private abstract class EntityAdapterBase
         {
@@ -830,7 +1149,7 @@ namespace Oxide.Plugins
 
             public abstract void Spawn();
             public abstract void Kill();
-            public abstract void OnEntityKilled(BaseEntity entity);
+            public abstract void OnEntityDestroyed(BaseEntity entity);
 
             protected BaseEntity CreateEntity(string prefabName, Vector3 position, Quaternion rotation)
             {
@@ -862,17 +1181,21 @@ namespace Oxide.Plugins
 
         private abstract class EntityControllerBase
         {
-            public EntityManagerBase Manager { get; private set; }
+            public EntityManager Manager { get; private set; }
+            public ProfileController ProfileController;
             public EntityData EntityData { get; private set; }
             public List<EntityAdapterBase> Adapters { get; private set; } = new List<EntityAdapterBase>();
 
-            public EntityControllerBase(EntityManagerBase manager, EntityData entityData)
+            public EntityControllerBase(EntityManager manager, ProfileController profileController, EntityData entityData)
             {
                 Manager = manager;
+                ProfileController = profileController;
                 EntityData = entityData;
             }
 
             public abstract EntityAdapterBase CreateAdapter(BaseMonument monument);
+
+            public virtual void PreUnload() {}
 
             public EntityAdapterBase SpawnAtMonument(BaseMonument monument)
             {
@@ -898,7 +1221,6 @@ namespace Oxide.Plugins
             {
                 foreach (var adapter in Adapters.ToArray())
                 {
-                    // Null check the plugin instance in case this is running after plugin unload.
                     _pluginInstance?.TrackStart();
                     adapter.Kill();
                     _pluginInstance?.TrackEnd();
@@ -909,122 +1231,25 @@ namespace Oxide.Plugins
             public void Destroy()
             {
                 if (Adapters.Count > 0)
-                    _pluginInstance._coroutineManager.FireAndForgetCoroutine(DestroyRoutine());
+                    CoroutineManager.StartGlobalCoroutine(DestroyRoutine());
 
-                Manager.OnControllerKilled(this);
+                Manager.OnControllerDestroyed(this);
             }
 
             public virtual void OnAdapterSpawned(EntityAdapterBase adapter) {}
 
-            public virtual void OnAdapterKilled(EntityAdapterBase adapter)
+            public virtual void OnAdapterDestroyed(EntityAdapterBase adapter)
             {
                 Adapters.Remove(adapter);
 
                 if (Adapters.Count == 0)
-                    Manager.OnControllerKilled(this);
-            }
-        }
-
-        private abstract class EntityManagerBase
-        {
-            protected Dictionary<EntityData, EntityControllerBase> _controllersByEntityData = new Dictionary<EntityData, EntityControllerBase>();
-
-            protected string[] _dynamicHookNames;
-
-            public abstract bool AppliesToEntity(BaseEntity entity);
-            public abstract EntityControllerBase CreateController(EntityData entityData);
-
-            public virtual void Init()
-            {
-                UnsubscribeHooks();
-            }
-
-            public virtual void PreUnload() {}
-
-            public IEnumerator UnloadRoutine()
-            {
-                foreach (var controller in _controllersByEntityData.Values.ToArray())
-                    yield return controller.DestroyRoutine();
-            }
-
-            public IEnumerator SpawnAtMonumentsRoutine(EntityData entityData, IEnumerable<BaseMonument> monumentList)
-            {
-                _pluginInstance.TrackStart();
-                var controller = GetController(entityData);
-                if (controller != null)
-                {
-                    // If the controller already exists, the entity was added while the plugin was still spawning entities.
-                    _pluginInstance.TrackEnd();
-                    yield break;
-                }
-
-                controller = EnsureController(entityData);
-                _pluginInstance.TrackEnd();
-                yield return controller.SpawnAtMonumentsRoutine(monumentList);
-            }
-
-            public void SpawnAtMonument(EntityData entityData, BaseMonument monument)
-            {
-                EnsureController(entityData).SpawnAtMonument(monument);
-            }
-
-            public virtual void OnControllerCreated(EntityControllerBase controller)
-            {
-                _controllersByEntityData[controller.EntityData] = controller;
-
-                if (_controllersByEntityData.Count == 1)
-                    SubscribeHooks();
-            }
-
-            public virtual void OnControllerKilled(EntityControllerBase controller)
-            {
-                _controllersByEntityData.Remove(controller.EntityData);
-
-                if (_controllersByEntityData.Count == 0)
-                    UnsubscribeHooks();
-            }
-
-            private EntityControllerBase EnsureController(EntityData entityData)
-            {
-                var controller = GetController(entityData);
-                if (controller == null)
-                {
-                    controller = CreateController(entityData);
-                    OnControllerCreated(controller);
-                }
-                return controller;
-            }
-
-            private EntityControllerBase GetController(EntityData entityData)
-            {
-                EntityControllerBase controller;
-                return _controllersByEntityData.TryGetValue(entityData, out controller)
-                    ? controller
-                    : null;
-            }
-
-            private void SubscribeHooks()
-            {
-                if (_dynamicHookNames == null)
-                    return;
-
-                foreach (var hookName in _dynamicHookNames)
-                    _pluginInstance?.Subscribe(hookName);
-            }
-
-            private void UnsubscribeHooks()
-            {
-                if (_dynamicHookNames == null)
-                    return;
-
-                foreach (var hookName in _dynamicHookNames)
-                    _pluginInstance?.Unsubscribe(hookName);
+                    Manager.OnControllerDestroyed(this);
             }
         }
 
         #endregion
 
-        #region Entity Adapter/Controller/Manager - Single
+        #region Entity Adapter/Controller - Single
 
         private class SingleEntityAdapter : EntityAdapterBase
         {
@@ -1050,20 +1275,20 @@ namespace Oxide.Plugins
 
             public override void Kill()
             {
-                if (_entity == null || _entity.IsDestroyed)
+                if (IsDestroyed)
                     return;
 
                 _entity.Kill();
             }
 
-            public override void OnEntityKilled(BaseEntity entity)
+            public override void OnEntityDestroyed(BaseEntity entity)
             {
                 _pluginInstance?.TrackStart();
 
                 if (entity.net != null)
                     _registeredEntities.Remove(entity);
 
-                Controller.OnAdapterKilled(this);
+                Controller.OnAdapterDestroyed(this);
 
                 _pluginInstance?.TrackEnd();
             }
@@ -1114,7 +1339,12 @@ namespace Oxide.Plugins
                 if (computerStation != null && computerStation.isStatic)
                 {
                     computerStation.CancelInvoke(computerStation.GatherStaticCameras);
-                    computerStation.Invoke(() => GatherStaticCameras(computerStation), 1);
+                    computerStation.Invoke(() =>
+                    {
+                        _pluginInstance.TrackStart();
+                        GatherStaticCameras(computerStation);
+                        _pluginInstance.TrackEnd();
+                    }, 1);
                 }
 
                 if (EntityData.Scale != 1)
@@ -1164,19 +1394,20 @@ namespace Oxide.Plugins
 
         private class SingleEntityController : EntityControllerBase
         {
-            public SingleEntityController(EntityManagerBase manager, EntityData data) : base(manager, data) {}
+            public SingleEntityController(EntityManager manager, ProfileController profileController, EntityData data)
+                : base(manager, profileController, data) {}
 
             public override EntityAdapterBase CreateAdapter(BaseMonument monument) =>
                 new SingleEntityAdapter(this, EntityData, monument);
 
             public void UpdateSkin()
             {
-                _pluginInstance._coroutineManager.StartCoroutine(UpdateSkinRoutine());
+                ProfileController.CoroutineManager.StartCoroutine(UpdateSkinRoutine());
             }
 
             public void UpdateScale()
             {
-                _pluginInstance._coroutineManager.StartCoroutine(UpdateScaleRoutine());
+                ProfileController.CoroutineManager.StartCoroutine(UpdateScaleRoutine());
             }
 
             public IEnumerator UpdateSkinRoutine()
@@ -1206,17 +1437,9 @@ namespace Oxide.Plugins
             }
         }
 
-        private class SingleEntityManager : EntityManagerBase
-        {
-            public override bool AppliesToEntity(BaseEntity entity) => true;
-
-            public override EntityControllerBase CreateController(EntityData entityData) =>
-                new SingleEntityController(this, entityData);
-        }
-
         #endregion
 
-        #region Entity Adapter/Controller/Manager - Signs
+        #region Entity Adapter/Controller - Signs
 
         private class SignEntityAdapter : SingleEntityAdapter
         {
@@ -1262,7 +1485,8 @@ namespace Oxide.Plugins
 
         private class SignEntityController : SingleEntityController
         {
-            public SignEntityController(EntityManagerBase manager, EntityData data) : base(manager, data) {}
+            public SignEntityController(EntityManager manager, ProfileController profileController, EntityData data)
+                : base(manager, profileController, data) {}
 
             // Sign artist will only be called for the primary adapter.
             // Texture ids are copied to the others.
@@ -1288,9 +1512,9 @@ namespace Oxide.Plugins
                 }
             }
 
-            public override void OnAdapterKilled(EntityAdapterBase adapter)
+            public override void OnAdapterDestroyed(EntityAdapterBase adapter)
             {
-                base.OnAdapterKilled(adapter);
+                base.OnAdapterDestroyed(adapter);
 
                 if (adapter == _primaryAdapter)
                     _primaryAdapter = Adapters.FirstOrDefault() as SignEntityAdapter;
@@ -1303,27 +1527,9 @@ namespace Oxide.Plugins
             }
         }
 
-        private class SignEntityManager : EntityManagerBase
-        {
-            public SignEntityManager()
-            {
-                _dynamicHookNames = new string[]
-                {
-                    nameof(CanUpdateSign),
-                    nameof(OnSignUpdated),
-                    nameof(OnImagePost),
-                };
-            }
-
-            public override bool AppliesToEntity(BaseEntity entity) => entity is ISignage;
-
-            public override EntityControllerBase CreateController(EntityData entityData) =>
-                new SignEntityController(this, entityData);
-        }
-
         #endregion
 
-        #region Entity Adapter/Controller/Manager - CCTV
+        #region Entity Adapter/Controller - CCTV
 
         private class CCTVEntityAdapter : SingleEntityAdapter
         {
@@ -1359,9 +1565,9 @@ namespace Oxide.Plugins
                 }
             }
 
-            public override void OnEntityKilled(BaseEntity entity)
+            public override void OnEntityDestroyed(BaseEntity entity)
             {
-                base.OnEntityKilled(entity);
+                base.OnEntityDestroyed(entity);
 
                 _pluginInstance?.TrackStart();
 
@@ -1478,14 +1684,18 @@ namespace Oxide.Plugins
         {
             private int _nextId = 1;
 
-            public CCTVEntityController(EntityManagerBase manager, EntityData data) : base(manager, data) {}
+            public CCTVEntityController(EntityManager manager, ProfileController profileController, EntityData data)
+                : base(manager, profileController, data) {}
 
             public override EntityAdapterBase CreateAdapter(BaseMonument monument) =>
                 new CCTVEntityAdapter(this, EntityData, monument, _nextId++);
 
+            // Ensure the RC identifiers are freed up as soon as possible to avoid conflicts when reloading.
+            public override void PreUnload() => ResetIdentifier();
+
             public void UpdateIdentifier()
             {
-                _pluginInstance._coroutineManager.StartCoroutine(UpdateIdentifierRoutine());
+                ProfileController.CoroutineManager.StartCoroutine(UpdateIdentifierRoutine());
             }
 
             public void ResetIdentifier()
@@ -1496,7 +1706,7 @@ namespace Oxide.Plugins
 
             public void UpdateDirection()
             {
-                _pluginInstance._coroutineManager.StartCoroutine(UpdateDirectionRoutine());
+                ProfileController.CoroutineManager.StartCoroutine(UpdateDirectionRoutine());
             }
 
             private IEnumerator UpdateIdentifierRoutine()
@@ -1526,50 +1736,128 @@ namespace Oxide.Plugins
             }
         }
 
-        private class CCTVEntityManager : EntityManagerBase
+        #endregion
+
+        #region Entity Manager
+
+        private abstract class EntityControllerFactoryBase
         {
-            public override bool AppliesToEntity(BaseEntity entity) => entity is CCTV_RC;
+            protected string[] _dynamicHookNames;
+            private int _controllerCount;
 
-            public override EntityControllerBase CreateController(EntityData entityData) =>
-                new CCTVEntityController(this, entityData);
+            public abstract bool AppliesToEntity(BaseEntity entity);
+            public abstract EntityControllerBase CreateController(EntityManager manager, ProfileController controller, EntityData entityData);
 
-            public override void PreUnload()
+            public void OnControllerCreated()
             {
-                // Make sure the ids are cleared immediately, so if reloading, newly spawned entities won't have id conflicts.
-                foreach (var controller in _controllersByEntityData.Values)
-                    (controller as CCTVEntityController).ResetIdentifier();
+                _controllerCount++;
+
+                if (_controllerCount == 1)
+                    SubscribeHooks();
+            }
+
+            public void OnControllerDestroyed()
+            {
+                _controllerCount--;
+
+                if (_controllerCount == 0)
+                    UnsubscribeHooks();
+            }
+
+            public void SubscribeHooks()
+            {
+                if (_dynamicHookNames == null)
+                    return;
+
+                foreach (var hookName in _dynamicHookNames)
+                    _pluginInstance?.Subscribe(hookName);
+            }
+
+            public void UnsubscribeHooks()
+            {
+                if (_dynamicHookNames == null)
+                    return;
+
+                foreach (var hookName in _dynamicHookNames)
+                    _pluginInstance?.Unsubscribe(hookName);
             }
         }
 
-        #endregion
-
-        #region Central Entity Manager
-
-        private class CentralEntityManager
+        private class SingleEntityControllerFactory : EntityControllerFactoryBase
         {
-            private List<EntityManagerBase> _managers = new List<EntityManagerBase>
+            public override bool AppliesToEntity(BaseEntity entity) => true;
+
+            public override EntityControllerBase CreateController(EntityManager manager, ProfileController controller, EntityData entityData) =>
+                new SingleEntityController(manager, controller, entityData);
+        }
+
+        private class SignEntityControllerFactory : SingleEntityControllerFactory
+        {
+            public SignEntityControllerFactory()
             {
-                // The first manager that matches will be used.
-                new CCTVEntityManager(),
-                new SignEntityManager(),
-                new SingleEntityManager(),
+                _dynamicHookNames = new string[]
+                {
+                    nameof(CanUpdateSign),
+                    nameof(OnSignUpdated),
+                    nameof(OnImagePost),
+                };
+            }
+
+            public override bool AppliesToEntity(BaseEntity entity) => entity is ISignage;
+
+            public override EntityControllerBase CreateController(EntityManager manager, ProfileController controller, EntityData entityData) =>
+                new SignEntityController(manager, controller, entityData);
+        }
+
+        private class CCTVEntityControllerFactory : SingleEntityControllerFactory
+        {
+            public override bool AppliesToEntity(BaseEntity entity) => entity is CCTV_RC;
+
+            public override EntityControllerBase CreateController(EntityManager manager, ProfileController controller, EntityData entityData) =>
+                new CCTVEntityController(manager, controller, entityData);
+        }
+
+        private class EntityManager
+        {
+            private List<EntityControllerFactoryBase> _entityFactories = new List<EntityControllerFactoryBase>
+            {
+                // The first that matches will be used.
+                new CCTVEntityControllerFactory(),
+                new SignEntityControllerFactory(),
+                new SingleEntityControllerFactory(),
             };
+
+            private Dictionary<EntityData, EntityControllerBase> _controllersByEntityData = new Dictionary<EntityData, EntityControllerBase>();
 
             public void Init()
             {
-                foreach (var manager in _managers)
-                    manager.Init();
+                foreach (var entityInfo in _entityFactories)
+                    entityInfo.UnsubscribeHooks();
             }
 
-            public IEnumerator SpawnEntityAtMonumentsRoutine(EntityData entityData, IEnumerable<BaseMonument> monumentList)
+            public void OnControllerDestroyed(EntityControllerBase controller)
+            {
+                _controllersByEntityData.Remove(controller.EntityData);
+                GetControllerFactory(controller.EntityData).OnControllerDestroyed();
+            }
+
+            public IEnumerator SpawnEntityAtMonumentsRoutine(ProfileController profileController, EntityData entityData, IEnumerable<BaseMonument> monumentList)
             {
                 _pluginInstance.TrackStart();
-                var manager = DetermineManager(entityData);
+                var controller = GetController(entityData);
+                if (controller != null)
+                {
+                    // If the controller already exists, the entity was added while the plugin was still spawning entities.
+                    _pluginInstance.TrackEnd();
+                    yield break;
+                }
+
+                controller = EnsureController(entityData, profileController);
                 _pluginInstance.TrackEnd();
-                yield return manager.SpawnAtMonumentsRoutine(entityData, monumentList);
+                yield return controller.SpawnAtMonumentsRoutine(monumentList);
             }
 
-            public IEnumerator SpawnEntitiesAtMonumentRoutine(IEnumerable<EntityData> entityDataList, BaseMonument monument)
+            public IEnumerator SpawnEntitiesAtMonumentRoutine(ProfileController profileController, IEnumerable<EntityData> entityDataList, BaseMonument monument)
             {
                 foreach (var entityData in entityDataList)
                 {
@@ -1578,22 +1866,21 @@ namespace Oxide.Plugins
                         yield break;
 
                     _pluginInstance.TrackStart();
-                    DetermineManager(entityData).SpawnAtMonument(entityData, monument);
+                    EnsureController(entityData, profileController).SpawnAtMonument(monument);
                     _pluginInstance.TrackEnd();
                     yield return CoroutineEx.waitForEndOfFrame;
                 }
             }
 
-            public IEnumerator UnloadRoutine()
+            public EntityControllerBase GetController(EntityData entityData)
             {
-                foreach (var manager in _managers)
-                    manager.PreUnload();
-
-                foreach (var manager in _managers)
-                    yield return manager.UnloadRoutine();
+                EntityControllerBase controller;
+                return _controllersByEntityData.TryGetValue(entityData, out controller)
+                    ? controller
+                    : null;
             }
 
-            private EntityManagerBase DetermineManager(EntityData entityData)
+            private EntityControllerFactoryBase GetControllerFactory(EntityData entityData)
             {
                 var prefab = GameManager.server.FindPrefab(entityData.PrefabName);
                 if (prefab == null)
@@ -1603,13 +1890,531 @@ namespace Oxide.Plugins
                 if (baseEntity == null)
                     return null;
 
-                foreach (var manager in _managers)
+                foreach (var controllerFactory in _entityFactories)
                 {
-                    if (manager.AppliesToEntity(baseEntity))
-                        return manager;
+                    if (controllerFactory.AppliesToEntity(baseEntity))
+                        return controllerFactory;
                 }
 
                 return null;
+            }
+
+            private EntityControllerBase EnsureController(EntityData entityData, ProfileController profileController)
+            {
+                var controller = GetController(entityData);
+                if (controller == null)
+                {
+                    var controllerFactory = GetControllerFactory(entityData);
+                    controller = controllerFactory.CreateController(this, profileController, entityData);
+                    controllerFactory.OnControllerCreated();
+                    _controllersByEntityData[entityData] = controller;
+                }
+                return controller;
+            }
+        }
+
+        #endregion
+
+        #region Profile Data
+
+        private class Profile
+        {
+            public static string[] GetProfileNames()
+            {
+                var filenameList = Interface.Oxide.DataFileSystem.GetFiles(_pluginInstance.Name);
+                for (var i = 0; i < filenameList.Length; i++)
+                {
+                    var filename = filenameList[i];
+                    var start = filename.LastIndexOf(System.IO.Path.DirectorySeparatorChar) + 1;
+                    var end = filename.LastIndexOf(".");
+                    filenameList[i] = filename.Substring(start, end - start);
+                }
+
+                return filenameList;
+            }
+
+            private static string GetActualFileName(string profileName)
+            {
+                foreach (var name in GetProfileNames())
+                {
+                    if (name.ToLower() == profileName.ToLower())
+                        return name;
+                }
+                return profileName;
+            }
+
+            private static string GetProfilePath(string profileName) => $"{_pluginInstance.Name}/{profileName}";
+
+            public static bool Exists(string profileName) =>
+                Interface.Oxide.DataFileSystem.ExistsDatafile(GetProfilePath(profileName));
+
+            public static Profile Load(string profileName)
+            {
+                var profile = Interface.Oxide.DataFileSystem.ReadObject<Profile>(GetProfilePath(profileName)) ?? new Profile();
+                profile.Name = GetActualFileName(profileName);
+                return profile;
+            }
+
+            public static Profile LoadIfExists(string profileName) =>
+                Exists(profileName) ? Load(profileName) : null;
+
+            public static Profile LoadDefaultProfile() => Load(DefaultProfileName);
+
+            public static Profile Create(string profileName)
+            {
+                var profile = new Profile { Name = profileName };
+                profile.Save();
+                return profile;
+            }
+
+            [JsonIgnore]
+            public string Name;
+
+            [JsonProperty("Monuments")]
+            public Dictionary<string, List<EntityData>> MonumentMap = new Dictionary<string, List<EntityData>>();
+
+            public void Save() =>
+                Interface.Oxide.DataFileSystem.WriteObject(GetProfilePath(Name), this);
+
+            public void CopyTo(string newName)
+            {
+                Name = newName;
+                Save();
+            }
+
+            public bool IsEmpty()
+            {
+                if (MonumentMap == null || MonumentMap.IsEmpty())
+                    return true;
+
+                foreach (var entityDataList in MonumentMap.Values)
+                {
+                    if (!entityDataList.IsEmpty())
+                        return false;
+                }
+
+                return true;
+            }
+
+            public Dictionary<string, Dictionary<string, int>> GetEntityAggregates()
+            {
+                var aggregateData = new Dictionary<string, Dictionary<string, int>>();
+
+                foreach (var entry in MonumentMap)
+                {
+                    var entityDataList = entry.Value;
+                    if (entityDataList.Count == 0)
+                        continue;
+
+                    var monumentAliasOrShortName = entry.Key;
+
+                    Dictionary<string, int> monumentData;
+                    if (!aggregateData.TryGetValue(monumentAliasOrShortName, out monumentData))
+                    {
+                        monumentData = new Dictionary<string, int>();
+                        aggregateData[monumentAliasOrShortName] = monumentData;
+                    }
+
+                    foreach (var entityData in entityDataList)
+                    {
+                        int count;
+                        if (!monumentData.TryGetValue(entityData.PrefabName, out count))
+                            count = 0;
+
+                        monumentData[entityData.PrefabName] = count + 1;
+                    }
+                }
+
+                return aggregateData;
+            }
+
+            public void AddEntityData(string monumentAliasOrShortName, EntityData entityData)
+            {
+                List<EntityData> entityDataList;
+                if (!MonumentMap.TryGetValue(monumentAliasOrShortName, out entityDataList))
+                {
+                    entityDataList = new List<EntityData>();
+                    MonumentMap[monumentAliasOrShortName] = entityDataList;
+                }
+
+                entityDataList.Add(entityData);
+                Save();
+            }
+
+            public bool RemoveEntityData(EntityData entityData, out string monumentAliasOrShortName)
+            {
+                foreach (var entry in MonumentMap)
+                {
+                    if (entry.Value.Remove(entityData))
+                    {
+                        monumentAliasOrShortName = entry.Key;
+                        Save();
+                        return true;
+                    }
+                }
+
+                monumentAliasOrShortName = null;
+                return false;
+            }
+
+            public bool RemoveEntityData(EntityData entityData)
+            {
+                string monumentShortName;
+                return RemoveEntityData(entityData, out monumentShortName);
+            }
+        }
+
+        #endregion
+
+        #region Profile Controller
+
+        private enum ProfileState { Loading, Loaded, Unloading, Unloaded }
+
+        private class ProfileController
+        {
+            public Profile Profile { get; private set; }
+            public ProfileState ProfileState { get; private set; } = ProfileState.Unloaded;
+            public CoroutineManager CoroutineManager { get; private set; }
+            public WaitUntil WaitUntilLoaded;
+            public WaitUntil WaitUntilUnloaded;
+
+            private EntityManager _entityManager;
+
+            public bool IsEnabled =>
+                _pluginData.IsProfileEnabled(Profile.Name);
+
+            public ProfileController(EntityManager entityManager, Profile profile)
+            {
+                _entityManager = entityManager;
+                Profile = profile;
+                WaitUntilLoaded = new WaitUntil(() => ProfileState == ProfileState.Loaded);
+                WaitUntilUnloaded = new WaitUntil(() => ProfileState == ProfileState.Unloaded);
+
+                if (profile.IsEmpty() && IsEnabled)
+                    ProfileState = ProfileState.Loaded;
+            }
+
+            public void Load(ReferenceTypeWrapper<int> entityCounter = null)
+            {
+                if (ProfileState == ProfileState.Loading || ProfileState == ProfileState.Loaded)
+                    return;
+
+                ProfileState = ProfileState.Loading;
+                EnsureCoroutineManager().StartCoroutine(LoadRoutine(entityCounter));
+            }
+
+            public void PreUnload()
+            {
+                if (CoroutineManager != null)
+                {
+                    CoroutineManager.Destroy();
+                    CoroutineManager = null;
+                }
+
+                foreach (var entityDataList in Profile.MonumentMap.Values)
+                {
+                    foreach (var entityData in entityDataList)
+                    {
+                        var controller = _entityManager.GetController(entityData);
+                        if (controller == null)
+                            continue;
+
+                        controller.PreUnload();
+                    }
+                }
+            }
+
+            public void Unload()
+            {
+                if (ProfileState == ProfileState.Unloading || ProfileState == ProfileState.Unloaded)
+                    return;
+
+                ProfileState = ProfileState.Unloading;
+                CoroutineManager.StartGlobalCoroutine(UnloadRoutine());
+            }
+
+            public void Reload()
+            {
+                EnsureCoroutineManager();
+                CoroutineManager.StopAll();
+                CoroutineManager.StartCoroutine(ReloadRoutine());
+            }
+
+            public IEnumerator PartialLoadForLateMonument(List<EntityData> entityDataList, BaseMonument monument)
+            {
+                if (ProfileState == ProfileState.Loading)
+                    yield break;
+
+                ProfileState = ProfileState.Loading;
+                EnsureCoroutineManager().StartCoroutine(PartialLoadForLateMonumentRoutine(entityDataList, monument));
+                yield return WaitUntilLoaded;
+            }
+
+            public void SpawnNewEntity(EntityData entityData, IEnumerable<BaseMonument> monument)
+            {
+                if (ProfileState == ProfileState.Unloading || ProfileState == ProfileState.Unloaded)
+                    return;
+
+                ProfileState = ProfileState.Loading;
+                EnsureCoroutineManager().StartCoroutine(PartialLoadForLateEntityRoutine(entityData, monument));
+            }
+
+            public void Rename(string newName)
+            {
+                _pluginData.RenameProfileReferences(Profile.Name, newName);
+                Profile.CopyTo(newName);
+            }
+
+            public void Enable()
+            {
+                if (IsEnabled)
+                    return;
+
+                Load();
+            }
+
+            public void Disable()
+            {
+                if (!IsEnabled)
+                    return;
+
+                PreUnload();
+                Unload();
+            }
+
+            private CoroutineManager EnsureCoroutineManager()
+            {
+                if (CoroutineManager == null)
+                {
+                    CoroutineManager = new CoroutineManager();
+                    CoroutineManager.OnServerInitialized();
+                }
+                return CoroutineManager;
+            }
+
+            private IEnumerator LoadRoutine(ReferenceTypeWrapper<int> entityCounter)
+            {
+                foreach (var entry in Profile.MonumentMap.ToArray())
+                {
+                    if (entry.Value.Count == 0)
+                        continue;
+
+                    var matchingMonuments = _pluginInstance.GetMonumentsByAliasOrShortName(entry.Key);
+                    if (matchingMonuments == null)
+                        continue;
+
+                    if (entityCounter != null)
+                        entityCounter.Value += matchingMonuments.Count * entry.Value.Count;
+
+                    foreach (var entityData in entry.Value.ToArray())
+                        yield return _entityManager.SpawnEntityAtMonumentsRoutine(this, entityData, matchingMonuments);
+                }
+
+                ProfileState = ProfileState.Loaded;
+            }
+
+            private IEnumerator UnloadRoutine()
+            {
+                foreach (var entityDataList in Profile.MonumentMap.Values.ToArray())
+                {
+                    foreach (var entityData in entityDataList.ToArray())
+                    {
+                        _pluginInstance?.TrackStart();
+                        var controller = _entityManager.GetController(entityData);
+                        _pluginInstance?.TrackEnd();
+
+                        if (controller == null)
+                            continue;
+
+                        yield return controller.DestroyRoutine();
+                    }
+                }
+
+                ProfileState = ProfileState.Unloaded;
+            }
+
+            private IEnumerator ReloadRoutine()
+            {
+                Unload();
+                yield return WaitUntilUnloaded;
+
+                Profile = Profile.Load(Profile.Name);
+
+                Load();
+                yield return WaitUntilLoaded;
+            }
+
+            private IEnumerator PartialLoadForLateMonumentRoutine(List<EntityData> entityDataList, BaseMonument monument)
+            {
+                yield return _entityManager.SpawnEntitiesAtMonumentRoutine(this, entityDataList, monument);
+                ProfileState = ProfileState.Loaded;
+            }
+
+            private IEnumerator PartialLoadForLateEntityRoutine(EntityData entityData, IEnumerable<BaseMonument> monument)
+            {
+                yield return _entityManager.SpawnEntityAtMonumentsRoutine(this, entityData, monument);
+                ProfileState = ProfileState.Loaded;
+            }
+        }
+
+        #endregion
+
+        #region Profile Manager
+
+        // This works around coroutines not allowing ref/out parameters.
+        private class ReferenceTypeWrapper<T>
+        {
+            public T Value;
+
+            public ReferenceTypeWrapper(T value = default(T))
+            {
+                Value = value;
+            }
+        }
+
+        private struct ProfileInfo
+        {
+            public static ProfileInfo[] GetList()
+            {
+                var profileNameList = Profile.GetProfileNames();
+                var profileInfoList = new ProfileInfo[profileNameList.Length];
+
+                for (var i = 0; i < profileNameList.Length; i++)
+                {
+                    var profileName = profileNameList[i];
+                    profileInfoList[i] = new ProfileInfo
+                    {
+                        Name = profileName,
+                        Enabled = _pluginData.EnabledProfiles.Contains(profileName),
+                    };
+                }
+
+                return profileInfoList;
+            }
+
+            public string Name;
+            public bool Enabled;
+        }
+
+        private class ProfileManager
+        {
+            private EntityManager _entityManager;
+            private List<ProfileController> _profileControllers = new List<ProfileController>();
+
+            public ProfileManager(EntityManager entityManager)
+            {
+                _entityManager = entityManager;
+            }
+
+            public IEnumerator LoadAllProfilesRoutine()
+            {
+                foreach (var profileName in _pluginData.EnabledProfiles.ToArray())
+                {
+                    var controller = GetProfileController(profileName);
+                    if (controller == null)
+                        continue;
+
+                    var entityCounter = new ReferenceTypeWrapper<int>();
+
+                    controller.Load(entityCounter);
+                    yield return controller.WaitUntilLoaded;
+
+                    if (entityCounter.Value > 0)
+                        _pluginInstance.Puts($"Loaded profile {controller.Profile.Name} with {entityCounter.Value} entities.");
+                }
+            }
+
+            public void UnloadAllProfiles()
+            {
+                foreach (var controller in _profileControllers)
+                    controller.PreUnload();
+
+                CoroutineManager.StartGlobalCoroutine(UnloadAllProfilesRoutine());
+            }
+
+            public IEnumerator PartialLoadForLateMonumentRoutine(BaseMonument monument)
+            {
+                foreach (var controller in _profileControllers)
+                {
+                    if (!controller.IsEnabled)
+                        continue;
+
+                    List<EntityData> entityDataList;
+                    if (!controller.Profile.MonumentMap.TryGetValue(monument.AliasOrShortName, out entityDataList))
+                        continue;
+
+                    yield return controller.PartialLoadForLateMonument(entityDataList, monument);
+                }
+            }
+
+            public ProfileController GetProfileController(string profileName)
+            {
+                foreach (var cachedController in _profileControllers)
+                {
+                    if (cachedController.Profile.Name.ToLower() == profileName.ToLower())
+                        return cachedController;
+                }
+
+                var profile = Profile.LoadIfExists(profileName);
+                if (profile != null)
+                {
+                    var controller = new ProfileController(_entityManager, profile);
+                    _profileControllers.Add(controller);
+                    return controller;
+                }
+
+                return null;
+            }
+
+            public ProfileController GetPlayerProfileController(string userId)
+            {
+                string profileName;
+                return _pluginData.SelectedProfiles.TryGetValue(userId, out profileName)
+                    ? GetProfileController(profileName)
+                    : null;
+            }
+
+            public ProfileController GetPlayerProfileControllerOrDefault(string userId)
+            {
+                var controller = GetPlayerProfileController(userId);
+                if (controller != null)
+                    return controller;
+
+                controller = GetProfileController(DefaultProfileName);
+                return controller != null && controller.IsEnabled
+                    ? controller
+                    : null;
+            }
+
+            public bool ProfileExists(string profileName)
+            {
+                foreach (var cachedController in _profileControllers)
+                {
+                    if (cachedController.Profile.Name.ToLower() == profileName)
+                        return true;
+                }
+
+                return Profile.Exists(profileName);
+            }
+
+            public ProfileController CreateProfile(string profileName)
+            {
+                var profile = Profile.Create(profileName);
+                _pluginData.SetProfileEnabled(profileName);
+                _pluginData.Save();
+
+                var controller = new ProfileController(_entityManager, profile);
+                _profileControllers.Add(controller);
+                return controller;
+            }
+
+            private IEnumerator UnloadAllProfilesRoutine()
+            {
+                foreach (var controller in _profileControllers)
+                {
+                    controller.Unload();
+                    yield return controller.WaitUntilUnloaded;
+                }
             }
         }
 
@@ -1676,6 +2481,30 @@ namespace Oxide.Plugins
             }
         }
 
+        private class DataMigrationV2 : IDataMigration
+        {
+            public bool Migrate(StoredData data)
+            {
+                if (data.DataFileVersion != 1)
+                    return false;
+
+                data.DataFileVersion++;
+
+                var profile = new Profile
+                {
+                    Name = DefaultProfileName,
+                    MonumentMap = data.MonumentMap,
+                };
+
+                profile.Save();
+
+                data.MonumentMap = null;
+                data.EnabledProfiles.Add(DefaultProfileName);
+
+                return true;
+            }
+        }
+
         private class StoredData
         {
             public static StoredData Load()
@@ -1686,6 +2515,7 @@ namespace Oxide.Plugins
                 var migrationList = new List<IDataMigration>
                 {
                     new DataMigrationV1(),
+                    new DataMigrationV2(),
                 };
 
                 foreach (var migration in migrationList)
@@ -1706,37 +2536,66 @@ namespace Oxide.Plugins
             [JsonProperty("DataFileVersion", DefaultValueHandling = DefaultValueHandling.Ignore)]
             public float DataFileVersion;
 
-            [JsonProperty("Monuments")]
-            public Dictionary<string, List<EntityData>> MonumentMap = new Dictionary<string, List<EntityData>>();
+            [JsonProperty("EnabledProfiles")]
+            public HashSet<string> EnabledProfiles = new HashSet<string>();
+
+            [JsonProperty("SelectedProfiles")]
+            public Dictionary<string, string> SelectedProfiles = new Dictionary<string, string>();
+
+            [JsonProperty("Monuments", DefaultValueHandling = DefaultValueHandling.Ignore)]
+            public Dictionary<string, List<EntityData>> MonumentMap;
 
             public void Save() =>
                 Interface.Oxide.DataFileSystem.WriteObject(_pluginInstance.Name, this);
 
-            public void AddEntityData(EntityData entityData, string monumentShortName)
+            public bool IsProfileEnabled(string profileName) => EnabledProfiles.Contains(profileName);
+
+            public void SetProfileEnabled(string profileName)
             {
-                List<EntityData> entityDataList;
-                if (!MonumentMap.TryGetValue(monumentShortName, out entityDataList))
+                EnabledProfiles.Add(profileName);
+            }
+
+            public void SetProfileDisabled(string profileName)
+            {
+                if (!EnabledProfiles.Remove(profileName))
+                    return;
+
+                foreach (var entry in SelectedProfiles.ToArray())
                 {
-                    entityDataList = new List<EntityData>();
-                    MonumentMap[monumentShortName] = entityDataList;
+                    if (entry.Value == profileName)
+                        SelectedProfiles.Remove(entry.Key);
                 }
 
-                entityDataList.Add(entityData);
                 Save();
             }
 
-            public bool RemoveEntityData(EntityData entityData)
+            public void RenameProfileReferences(string oldName, string newName)
             {
-                foreach (var entityDataList in MonumentMap.Values)
+                foreach (var entry in SelectedProfiles.ToArray())
                 {
-                    if (entityDataList.Remove(entityData))
-                    {
-                        Save();
-                        return true;
-                    }
+                    if (entry.Value == oldName)
+                        SelectedProfiles[entry.Key] = newName;
                 }
 
-                return false;
+                if (EnabledProfiles.Remove(oldName))
+                    EnabledProfiles.Add(newName);
+
+                Save();
+            }
+
+            public string GetSelectedProfileName(string userId)
+            {
+                string profileName;
+                return SelectedProfiles.TryGetValue(userId, out profileName)
+                    ? profileName
+                    : null;
+            }
+
+            public void SetProfileSelected(string userId, string profileName)
+            {
+                SelectedProfiles[userId] = profileName;
+                SetProfileEnabled(profileName);
+                Save();
             }
         }
 
@@ -1936,20 +2795,64 @@ namespace Oxide.Plugins
             public const string ErrorEntityNotEligible = "Error.EntityNotEligible";
 
             public const string SpawnErrorSyntax = "Spawn.Error.Syntax";
+            public const string SpawnErrorNoProfileSelected = "Spawn.Error.NoProfileSelected";
             public const string SpawnErrorEntityNotFound = "Spawn.Error.EntityNotFound";
             public const string SpawnErrorMultipleMatches = "Spawn.Error.MultipleMatches";
             public const string SpawnErrorNoTarget = "Spawn.Error.NoTarget";
-            public const string SpawnSuccess = "Spawn.Success";
-            public const string KillSuccess = "Kill.Success";
+            public const string SpawnSuccess = "Spawn.Success2";
+            public const string KillSuccess = "Kill.Success2";
 
             public const string SkinGet = "Skin.Get";
             public const string SkinSetSyntax = "Skin.Set.Syntax";
-            public const string SkinSetSuccess = "Skin.Set.Success";
+            public const string SkinSetSuccess = "Skin.Set.Success2";
             public const string SkinErrorRedirect = "Skin.Error.Redirect";
 
             public const string CCTVSetIdSyntax = "CCTV.SetId.Error.Syntax";
-            public const string CCTVSetIdSuccess = "CCTV.SetId.Success";
-            public const string CCTVSetDirectionSuccess = "CCTV.SetDirection.Success";
+            public const string CCTVSetIdSuccess = "CCTV.SetId.Success2";
+            public const string CCTVSetDirectionSuccess = "CCTV.SetDirection.Success2";
+
+            public const string ProfileListEmpty = "Profile.List.Empty";
+            public const string ProfileListHeader = "Profile.List.Header";
+            public const string ProfileListItemEnabled = "Profile.List.Item.Enabled";
+            public const string ProfileListItemDisabled = "Profile.List.Item.Disabled";
+            public const string ProfileListItemSelected = "Profile.List.Item.Selected";
+
+            public const string ProfileDescribeSyntax = "Profile.Describe.Syntax";
+            public const string ProfileNotFound = "Profile.Error.NotFound";
+            public const string ProfileEmpty = "Profile.Empty";
+            public const string ProfileDescribeHeader = "Profile.Describe.Header";
+            public const string ProfileDescribeItem = "Profile.Describe.Item";
+            public const string ProfileSelectSyntax = "Profile.Select.Syntax";
+            public const string ProfileSelectSuccess = "Profile.Select.Success";
+
+            public const string ProfileEnableSyntax = "Profile.Enable.Syntax";
+            public const string ProfileAlreadyEnabled = "Profile.AlreadyEnabled";
+            public const string ProfileEnableSuccess = "Profile.Enable.Success";
+            public const string ProfileDisableSyntax = "Profile.Disable.Syntax";
+            public const string ProfileAlreadyDisabled = "Profile.AlreadyDisabled";
+            public const string ProfileDisableSuccess = "Profile.Disable.Success";
+            public const string ProfileReloadSyntax = "Profile.Reload.Syntax";
+            public const string ProfileReloadSuccess = "Profile.Reload.Success";
+
+            public const string ProfileCreateSyntax = "Profile.Create.Syntax";
+            public const string ProfileAlreadyExists = "Profile.Error.AlreadyExists";
+            public const string ProfileCreateSuccess = "Profile.Create.Success";
+            public const string ProfileRenameSyntax = "Profile.Rename.Syntax";
+            public const string ProfileRenameSuccess = "Profile.Rename.Success";
+            public const string ProfileMoveToSyntax = "Profile.MoveTo.Syntax";
+            public const string ProfileMoveToAlreadyPresent = "Profile.MoveTo.AlreadyPresent";
+            public const string ProfileMoveToSuccess = "Profile.MoveTo.Success";
+
+            public const string ProfileHelpHeader = "Profile.Help.Header";
+            public const string ProfileHelpList = "Profile.Help.List";
+            public const string ProfileHelpDescribe = "Profile.Help.Describe";
+            public const string ProfileHelpEnable = "Profile.Help.Enable";
+            public const string ProfileHelpDisable = "Profile.Help.Disable";
+            public const string ProfileHelpReload = "Profile.Help.Reload";
+            public const string ProfileHelpSelect = "Profile.Help.Select";
+            public const string ProfileHelpCreate = "Profile.Help.Create";
+            public const string ProfileHelpRename = "Profile.Help.Rename";
+            public const string ProfileHelpMoveTo = "Profile.Help.MoveTo";
         }
 
         protected override void LoadDefaultMessages()
@@ -1959,25 +2862,69 @@ namespace Oxide.Plugins
                 [Lang.ErrorNoPermission] = "You don't have permission to do that.",
                 [Lang.ErrorMonumentFinderNotLoaded] = "Error: Monument Finder is not loaded.",
                 [Lang.ErrorNoMonuments] = "Error: No monuments found.",
-                [Lang.ErrorNotAtMonument] = "Error: Not at a monument. Nearest is <color=orange>{0}</color> with distance <color=orange>{1}</color>",
+                [Lang.ErrorNotAtMonument] = "Error: Not at a monument. Nearest is <color=#fd4>{0}</color> with distance <color=#fd4>{1}</color>",
                 [Lang.ErrorNoSuitableEntityFound] = "Error: No suitable entity found.",
                 [Lang.ErrorEntityNotEligible] = "Error: That entity is not managed by Monument Addons.",
 
-                [Lang.SpawnErrorSyntax] = "Syntax: <color=orange>maspawn <entity></color>",
-                [Lang.SpawnErrorEntityNotFound] = "Error: Entity <color=orange>{0}</color> not found.",
+                [Lang.SpawnErrorSyntax] = "Syntax: <color=#fd4>maspawn <entity></color>",
+                [Lang.SpawnErrorNoProfileSelected] = "Error: No profile selected. Run <color=#fd4>maprofile help</color> for help.",
+                [Lang.SpawnErrorEntityNotFound] = "Error: Entity <color=#fd4>{0}</color> not found.",
                 [Lang.SpawnErrorMultipleMatches] = "Multiple matches:\n",
                 [Lang.SpawnErrorNoTarget] = "Error: No valid spawn position found.",
-                [Lang.SpawnSuccess] = "Spawned entity at <color=orange>{0}</color> matching monument(s) and saved to data file for monument <color=orange>{1}</color>.",
-                [Lang.KillSuccess] = "Killed entity at <color=orange>{0}</color> matching monument(s) and removed from data file.",
+                [Lang.SpawnSuccess] = "Spawned entity at <color=#fd4>{0}</color> matching monument(s) and saved to <color=#fd4>{1}</color> profile for monument <color=#fd4>{2}</color>.",
+                [Lang.KillSuccess] = "Killed entity at <color=#fd4>{0}</color> matching monument(s) and removed from profile <color=#fd4>{1}</color>.",
 
-                [Lang.SkinGet] = "Skin ID: <color=orange>{0}</color>. Run <color=orange>{1} <skin id></color> to change it.",
-                [Lang.SkinSetSyntax] = "Syntax: <color=orange>{0} <skin id></color>",
-                [Lang.SkinSetSuccess] = "Updated skin ID to <color=orange>{0}</color> at <color=orange>{1}</color> matching monument(s) and saved to data file.",
-                [Lang.SkinErrorRedirect] = "Error: Skin <color=orange>{0}</color> is a redirect skin and cannot be set directly. Instead, spawn the entity as <color=orange>{1}</color>.",
+                [Lang.SkinGet] = "Skin ID: <color=#fd4>{0}</color>. Run <color=#fd4>{1} <skin id></color> to change it.",
+                [Lang.SkinSetSyntax] = "Syntax: <color=#fd4>{0} <skin id></color>",
+                [Lang.SkinSetSuccess] = "Updated skin ID to <color=#fd4>{0}</color> at <color=#fd4>{1}</color> matching monument(s) and saved to profile <color=#fd4>{2}</color>.",
+                [Lang.SkinErrorRedirect] = "Error: Skin <color=#fd4>{0}</color> is a redirect skin and cannot be set directly. Instead, spawn the entity as <color=#fd4>{1}</color>.",
 
-                [Lang.CCTVSetIdSyntax] = "Syntax: <color=orange>{0} <id></color>",
-                [Lang.CCTVSetIdSuccess] = "Updated CCTV id to <color=orange>{0}</color> at <color=orange>{1}</color> matching monument(s) and saved to data file. Nearby static computer stations will automatically register this CCTV.",
-                [Lang.CCTVSetDirectionSuccess] = "Updated CCTV direction at <color=orange>{0}</color> matching monument(s) and saved to data file.",
+                [Lang.CCTVSetIdSyntax] = "Syntax: <color=#fd4>{0} <id></color>",
+                [Lang.CCTVSetIdSuccess] = "Updated CCTV id to <color=#fd4>{0}</color> at <color=#fd4>{1}</color> matching monument(s) and saved to profile <color=#fd4>{2}</color>.",
+                [Lang.CCTVSetDirectionSuccess] = "Updated CCTV direction at <color=#fd4>{0}</color> matching monument(s) and saved to profile <color=#fd4>{1}</color>.",
+
+                [Lang.ProfileListEmpty] = "You have no profiles. Create one with <color=#fd4>maprofile create <name></maprofile>",
+                [Lang.ProfileListHeader] = "<size=18>Monument Addons Profiles</size>",
+                [Lang.ProfileListItemEnabled] = "<color=#fd4>{0}</color> - <color=#6e6>ENABLED</color>",
+                [Lang.ProfileListItemDisabled] = "<color=#fd4>{0}</color> - <color=#f44>DISABLED</color>",
+                [Lang.ProfileListItemSelected] = "<color=#fd4>{0}</color> - <color=#6cf>SELECTED</color>",
+
+                [Lang.ProfileDescribeSyntax] = "Syntax: <color=#fd4>maprofile describe <name></color>",
+                [Lang.ProfileNotFound] = "Error: Profile <color=#fd4>{0}</color> not found.",
+                [Lang.ProfileEmpty] = "Profile <color=#fd4>{0}</color> is empty.",
+                [Lang.ProfileDescribeHeader] = "Describing profile <color=#fd4>{0}</color>.",
+                [Lang.ProfileDescribeItem] = "<color=#fd4>{0}</color> x{1} @ {2}",
+                [Lang.ProfileSelectSyntax] = "Syntax: <color=#fd4>maprofile select <name></color>",
+                [Lang.ProfileSelectSuccess] = "Successfully <color=#6cf>SELECTED</color> and <color=#6e6>ENABLED</color> profile <color=#fd4>{0}</color>.",
+
+                [Lang.ProfileEnableSyntax] = "Syntax: <color=#fd4>maprofile enable <name></color>",
+                [Lang.ProfileAlreadyEnabled] = "Profile <color=#fd4>{0}</color> is already <color=#6e6>ENABLED</color>.",
+                [Lang.ProfileEnableSuccess] = "Profile <color=#fd4>{0}</color> is now: <color=#6e6>ENABLED</color>.",
+                [Lang.ProfileDisableSyntax] = "Syntax: <color=#fd4>maprofile disable <name></color>",
+                [Lang.ProfileAlreadyDisabled] = "Profile <color=#fd4>{0}</color> is already <color=#f44>DISABLED</color>.",
+                [Lang.ProfileDisableSuccess] = "Profile <color=#fd4>{0}</color> is now: <color=#f44>DISABLED</color>.",
+                [Lang.ProfileReloadSyntax] = "Syntax: <color=#fd4>maprofile reload <name></color>",
+                [Lang.ProfileReloadSuccess] = "Reloaded profile <color=#fd4>{0}</color>.",
+
+                [Lang.ProfileCreateSyntax] = "Syntax: <color=#fd4>maprofile create <name></color>",
+                [Lang.ProfileAlreadyExists] = "Error: Profile <color=#fd4>{0}</color> already exists.",
+                [Lang.ProfileCreateSuccess] = "Successfully created and <color=#6cf>SELECTED</color> profile <color=#fd4>{0}</color>.",
+                [Lang.ProfileRenameSyntax] = "Syntax: <color=#fd4>maprofile rename <old name> <new name></color>",
+                [Lang.ProfileRenameSuccess] = "Successfully renamed profile <color=#fd4>{0}</color> to <color=#fd4>{1}</color>. You must manually delete the old <color=#fd4>{0}</color> data file.",
+                [Lang.ProfileMoveToSyntax] = "Syntax: <color=#fd4>maprofile moveto <name></color>",
+                [Lang.ProfileMoveToAlreadyPresent] = "Error: <color=#fd4>{0}</color> is already part of profile <color=#fd4>{1}</color>.",
+                [Lang.ProfileMoveToSuccess] = "Successfully moved <color=#fd4>{0}</color> from profile <color=#fd4>{1}</color> to <color=#fd4>{2}</color>.",
+
+                [Lang.ProfileHelpHeader] = "<size=18>Monument Addons Profile Commands</size>",
+                [Lang.ProfileHelpList] = "<color=#fd4>maprofile list</color> - List all profiles",
+                [Lang.ProfileHelpDescribe] = "<color=#fd4>maprofile describe <name></color> - Describe profile contents",
+                [Lang.ProfileHelpEnable] = "<color=#fd4>maprofile enable <name></color> - Enable a profile",
+                [Lang.ProfileHelpDisable] = "<color=#fd4>maprofile disable <name></color> - Disable a profile",
+                [Lang.ProfileHelpReload] = "<color=#fd4>maprofile reload <name></color> - Reload a profile from disk",
+                [Lang.ProfileHelpSelect] = "<color=#fd4>maprofile select <name></color> - Select a profile",
+                [Lang.ProfileHelpCreate] = "<color=#fd4>maprofile create <name></color> - Create a new profile",
+                [Lang.ProfileHelpRename] = "<color=#fd4>maprofile rename <name> <new name></color> - Rename a profile",
+                [Lang.ProfileHelpMoveTo] = "<color=#fd4>maprofile disable <name></color> - Move an entity to a profile",
             }, this, "en");
         }
 
