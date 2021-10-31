@@ -77,6 +77,10 @@ Here is the process for sharing a profile.
 3. Recipient downloads the file and places it in the same location on their server.
 4. Recipient runs the command: `maprofile enable <name>`.
 
+#### Example profiles
+
+- [TrainStationCCTV.json](https://raw.githubusercontent.com/WheteThunger/MonumentAddons/master/Profiles/TrainStationCCTV.json) -- Adds 6 CCTVs and one computer station to each underground Train Station.
+
 ## How underwater labs work
 
 Since underwater labs are procedurally generated, this plugin does not spawn entities relative to the monuments themselves. Instead, entities are spawned relative to specific modules. For example, if you spawn an entity in a moonpool module, the entity will also be spawned at all moonpool modules in the same lab and other labs.

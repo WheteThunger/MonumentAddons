@@ -1,0 +1,94 @@
+{
+  "Monuments": {
+    "TrainStation": [
+      {
+        "PrefabName": "assets/prefabs/deployable/computerstation/computerstation.static.prefab",
+        "Position": {
+          "x": -20.1,
+          "y": 0.0,
+          "z": -11.0
+        },
+        "RotationAngle": 270.0
+      },
+      {
+        "PrefabName": "assets/prefabs/deployable/cctvcamera/cctv.static.prefab",
+        "Position": {
+          "x": 0.0,
+          "y": 6.8,
+          "z": 58.24
+        },
+        "RotationAngle": 360.0,
+        "CCTV": {
+          "RCIdentifier": "STATIONFRONT",
+          "Pitch": 25.0
+        }
+      },
+      {
+        "PrefabName": "assets/prefabs/deployable/cctvcamera/cctv.static.prefab",
+        "Position": {
+          "x": 0.0,
+          "y": 6.8,
+          "z": 49.76
+        },
+        "RotationAngle": 180.0,
+        "CCTV": {
+          "RCIdentifier": "STATIONMIDDLE",
+          "Pitch": 25.0
+        }
+      },
+      {
+        "PrefabName": "assets/prefabs/deployable/cctvcamera/cctv.static.prefab",
+        "Position": {
+          "x": 0.0,
+          "y": 6.8,
+          "z": 13.76
+        },
+        "RotationAngle": 180.0,
+        "CCTV": {
+          "RCIdentifier": "STATIONREAR",
+          "Pitch": 25.0
+        }
+      },
+      {
+        "PrefabName": "assets/prefabs/deployable/cctvcamera/cctv.static.prefab",
+        "Position": {
+          "x": 6.75,
+          "y": 7.5,
+          "z": -30.0
+        },
+        "RotationAngle": 270.0,
+        "CCTV": {
+          "RCIdentifier": "STATIONSUPPLIES",
+          "Pitch": 20.0,
+          "Yaw": -35.0
+        }
+      },
+      {
+        "PrefabName": "assets/prefabs/deployable/cctvcamera/cctv.static.prefab",
+        "Position": {
+          "x": 45.0,
+          "y": 5.75,
+          "z": 35.9
+        },
+        "RotationAngle": 180.0,
+        "CCTV": {
+          "RCIdentifier": "MAINTENANCE",
+          "Pitch": 15.0
+        }
+      },
+      {
+        "PrefabName": "assets/prefabs/deployable/cctvcamera/cctv.static.prefab",
+        "Position": {
+          "x": -45.0,
+          "y": 5.75,
+          "z": -35.9
+        },
+        "RotationAngle": 0.20,
+        "CCTV": {
+          "RCIdentifier": "MAINTENANCEALT",
+          "Pitch": 15.0
+        }
+      }
+    ]
+  }
+}
