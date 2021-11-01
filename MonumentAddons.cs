@@ -16,7 +16,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("Monument Addons", "WhiteThunder", "0.7.0")]
+    [Info("Monument Addons", "WhiteThunder", "0.7.1")]
     [Description("Allows privileged players to add permanent entities to monuments.")]
     internal class MonumentAddons : CovalencePlugin
     {
@@ -1167,7 +1167,7 @@ namespace Oxide.Plugins
 
                     var mountable = entity as BaseMountable;
                     if (mountable != null)
-                        mountable.isMobile = true;
+                        mountable.needsVehicleTick = true;
                 }
 
                 DestroyProblemComponents(entity);
