@@ -16,7 +16,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("Monument Addons", "WhiteThunder", "0.7.1")]
+    [Info("Monument Addons", "WhiteThunder", "0.7.2")]
     [Description("Allows privileged players to add permanent entities to monuments.")]
     internal class MonumentAddons : CovalencePlugin
     {
@@ -1952,6 +1952,11 @@ namespace Oxide.Plugins
             {
                 var profile = Interface.Oxide.DataFileSystem.ReadObject<Profile>(GetProfilePath(profileName)) ?? new Profile();
                 profile.Name = GetActualFileName(profileName);
+
+                // Fix issue caused by v0.7.0 for first time users.
+                if (profile.MonumentMap == null)
+                    profile.MonumentMap = new Dictionary<string, List<EntityData>>();
+
                 return profile;
             }
 
@@ -2447,33 +2452,36 @@ namespace Oxide.Plugins
 
                 var dataMigrated = false;
 
-                foreach (var monumentEntry in data.MonumentMap.ToArray())
+                if (data.MonumentMap != null)
                 {
-                    var alias = monumentEntry.Key;
-                    var entityList = monumentEntry.Value;
-
-                    string newAlias;
-                    if (MigrateMonumentNames.TryGetValue(alias, out newAlias))
+                    foreach (var monumentEntry in data.MonumentMap.ToArray())
                     {
-                        data.MonumentMap[newAlias] = entityList;
-                        data.MonumentMap.Remove(alias);
-                        alias = newAlias;
-                    }
+                        var alias = monumentEntry.Key;
+                        var entityList = monumentEntry.Value;
 
-                    foreach (var entityData in entityList)
-                    {
-                        if (alias == "LootTunnel" || alias == "BarricadeTunnel")
+                        string newAlias;
+                        if (MigrateMonumentNames.TryGetValue(alias, out newAlias))
                         {
-                            // Migrate from the original rotations to the rotations used by MonumentFinder.
-                            entityData.RotationAngle = (entityData.RotationAngle + 180) % 360;
-                            entityData.Position = Quaternion.Euler(0, 180, 0) * entityData.Position;
-                            dataMigrated = true;
+                            data.MonumentMap[newAlias] = entityList;
+                            data.MonumentMap.Remove(alias);
+                            alias = newAlias;
                         }
 
-                        // Migrate from the backwards rotations to the correct ones.
-                        var newAngle = (720 - entityData.RotationAngle) % 360;
-                        entityData.RotationAngle = newAngle;
-                        dataMigrated = true;
+                        foreach (var entityData in entityList)
+                        {
+                            if (alias == "LootTunnel" || alias == "BarricadeTunnel")
+                            {
+                                // Migrate from the original rotations to the rotations used by MonumentFinder.
+                                entityData.RotationAngle = (entityData.RotationAngle + 180) % 360;
+                                entityData.Position = Quaternion.Euler(0, 180, 0) * entityData.Position;
+                                dataMigrated = true;
+                            }
+
+                            // Migrate from the backwards rotations to the correct ones.
+                            var newAngle = (720 - entityData.RotationAngle) % 360;
+                            entityData.RotationAngle = newAngle;
+                            dataMigrated = true;
+                        }
                     }
                 }
 
@@ -2493,8 +2501,10 @@ namespace Oxide.Plugins
                 var profile = new Profile
                 {
                     Name = DefaultProfileName,
-                    MonumentMap = data.MonumentMap,
                 };
+
+                if (data.MonumentMap != null)
+                    profile.MonumentMap = data.MonumentMap;
 
                 profile.Save();
 
