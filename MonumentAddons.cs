@@ -16,7 +16,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("Monument Addons", "WhiteThunder", "0.7.2")]
+    [Info("Monument Addons", "WhiteThunder", "0.7.3")]
     [Description("Allows privileged players to add permanent entities to monuments.")]
     internal class MonumentAddons : CovalencePlugin
     {
@@ -959,6 +959,8 @@ namespace Oxide.Plugins
 
         private IEnumerator SpawnAllProfilesRoutine()
         {
+            // Delay slightly to allow Monument Finder to finish loading.
+            yield return CoroutineEx.waitForEndOfFrame;
             yield return _profileManager.LoadAllProfilesRoutine();
 
             // We don't want to be subscribed to OnEntitySpawned(CargoShip) until the coroutine is done.
