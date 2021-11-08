@@ -1334,7 +1334,7 @@ namespace Oxide.Plugins
 
             protected virtual void OnEntitySpawned()
             {
-                if (_entity is NPCVendingMachine)
+                if (_entity is NPCVendingMachine && EntityData.Skin != 0)
                     UpdateSkin();
 
                 var computerStation = _entity as ComputerStation;
