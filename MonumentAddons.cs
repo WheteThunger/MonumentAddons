@@ -1362,6 +1362,12 @@ namespace Oxide.Plugins
                     combatEntity.pickup.enabled = false;
                 }
 
+                var stabilityEntity = _entity as StabilityEntity;
+                if (stabilityEntity != null)
+                {
+                    stabilityEntity.grounded = true;
+                }
+
                 var ioEntity = _entity as IOEntity;
                 if (ioEntity != null)
                 {
