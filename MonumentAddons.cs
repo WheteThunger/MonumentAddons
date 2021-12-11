@@ -1187,7 +1187,7 @@ namespace Oxide.Plugins
                 if (entity == null)
                     return null;
 
-                // In case the plugin doesn't clean it up on server shutdown, make sure it doesn't come back so it's not duplicated. x
+                // In case the plugin doesn't clean it up on server shutdown, make sure it doesn't come back so it's not duplicated.
                 entity.EnableSaving(false);
 
                 var cargoShipMonument = Monument as CargoShipMonument;
@@ -1381,6 +1381,10 @@ namespace Oxide.Plugins
 
             protected virtual void OnEntitySpawned()
             {
+                // Disable saving after spawn to make sure children that are spawned late also have saving disabled.
+                // For example, the Lift class spawns a sub entity.
+                EnableSavingResursive(_entity, false);
+
                 if (_entity is NPCVendingMachine && EntityData.Skin != 0)
                     UpdateSkin();
 
@@ -1398,6 +1402,14 @@ namespace Oxide.Plugins
 
                 if (EntityData.Scale != 1)
                     UpdateScale();
+            }
+
+            private void EnableSavingResursive(BaseEntity entity, bool enableSaving)
+            {
+                entity.EnableSaving(enableSaving);
+
+                foreach (var child in entity.children)
+                    EnableSavingResursive(child, enableSaving);
             }
 
             private List<CCTV_RC> GetNearbyStaticCameras()
