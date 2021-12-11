@@ -93,14 +93,14 @@ Note that some modules have multiple possible vanilla configurations, so multipl
 
 Use the following steps to set persistent images for signs or photo frames. Requires the [Sign Artist](https://umod.org/plugins/sign-artist) plugin to be installed with the appropriate permissions granted.
 
-1. Spawn a sign with `maspawn sign.large`. You can also use other sign entities or photo frames, but neon signs are currently **not** supported.
+1. Spawn a sign with `maspawn sign.large`. You can also use other sign entities, photo frames, neon signs, or carvable pumpkins.
 2. Use a Sign Artist command such as `sil`, `silt` or `sili` to apply an image to the sign.
 
-That's all you need to do. This plugin detects when you use a Sign Artist command and automatically saves the corresponding image URL or item short name in the profile's data file for that particular sign or photo frame. When the plugin reloads, Sign Artist is called to reapply that image. Any change to a sign will also automatically propagate to all copies of that sign at other monuments.
+That's all you need to do. This plugin detects when you use a Sign Artist command and automatically saves the corresponding image URL or item short name in the profile's data file for that particular sign. When the plugin reloads, Sign Artist is called to reapply that image. Any change to a sign will also automatically propagate to all copies of that sign at other monuments.
 
 Notes:
 - Only players with the `monumentaddons.admin` permission can edit signs that are managed by this plugin, so you don't have to worry about random players vandalizing the signs.
-- Due to a client bug with parenting, having multiple signs or photo frames on cargo ship will cause them to all display the same image.
+- Due to a client bug with parenting, having multiple signs on cargo ship will cause them to all display the same image.
 
 **Please donate if you use this feature for sponsorship revenue.**
 

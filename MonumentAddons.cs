@@ -156,7 +156,7 @@ namespace Oxide.Plugins
         }
 
         // This hook is exposed by plugin: Sign Arist (SignArtist).
-        private void OnImagePost(BasePlayer player, string url, bool raw, ISignage signage)
+        private void OnImagePost(BasePlayer player, string url, bool raw, ISignage signage, uint textureIndex = 0)
         {
             if (!EntityAdapterBase.IsMonumentEntity(signage as BaseEntity))
                 return;
@@ -169,9 +169,19 @@ namespace Oxide.Plugins
             if (controller == null)
                 return;
 
-            controller.EntityData.SignArtistImages = new SignArtistImage[]
+            if (controller.EntityData.SignArtistImages == null)
             {
-                new SignArtistImage { Url = url, Raw = raw },
+                controller.EntityData.SignArtistImages = new SignArtistImage[signage.TextureCount];
+            }
+            else if (controller.EntityData.SignArtistImages.Length < signage.TextureCount)
+            {
+                Array.Resize(ref controller.EntityData.SignArtistImages, signage.TextureCount);
+            }
+
+            controller.EntityData.SignArtistImages[textureIndex] = new SignArtistImage
+            {
+                Url = url,
+                Raw = raw,
             };
             controller.ProfileController.Profile.Save();
         }
@@ -243,13 +253,31 @@ namespace Oxide.Plugins
 
         private void SkinSign(ISignage signage, SignArtistImage[] signArtistImages)
         {
-            if (signArtistImages.Length == 0)
+            if (SignArtist == null)
                 return;
 
-            if (signage is Signage)
-                SignArtist?.Call("API_SkinSign", (BasePlayer)null, signage as Signage, signArtistImages[0].Url, signArtistImages[0].Raw);
-            else if (signage is PhotoFrame)
-                SignArtist?.Call("API_SkinPhotoFrame", (BasePlayer)null, signage as PhotoFrame, signArtistImages[0].Url, signArtistImages[0].Raw);
+            var apiName = signage is Signage
+                ? "API_SkinSign"
+                : signage is PhotoFrame
+                ? "API_SkinPhotoFrame"
+                : signage is CarvablePumpkin
+                ? "API_SkinPumpkin"
+                : null;
+
+            if (apiName == null)
+            {
+                LogError($"Unrecognized sign type: {signage.GetType()}");
+                return;
+            }
+
+            for (uint textureIndex = 0; textureIndex < signArtistImages.Length; textureIndex++)
+            {
+                var imageInfo = signArtistImages[textureIndex];
+                if (imageInfo == null)
+                    continue;
+
+                SignArtist.Call(apiName, null, signage as ISignage, imageInfo.Url, imageInfo.Raw, textureIndex);
+            }
         }
 
         #endregion
@@ -1471,6 +1499,14 @@ namespace Oxide.Plugins
                 base.OnEntitySpawn();
 
                 (_entity as Signage)?.EnsureInitialized();
+
+                var carvablePumpkin = _entity as CarvablePumpkin;
+                if (carvablePumpkin != null)
+                {
+                    carvablePumpkin.EnsureInitialized();
+                    carvablePumpkin.SetFlag(BaseEntity.Flags.On, true);
+                }
+
                 _entity.SetFlag(BaseEntity.Flags.Locked, true);
             }
 
