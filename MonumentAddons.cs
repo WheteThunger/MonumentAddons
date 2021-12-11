@@ -1337,6 +1337,15 @@ namespace Oxide.Plugins
                 _entity.SendNetworkUpdate();
             }
 
+            private bool ShouldBeImmortal()
+            {
+                var samSite = _entity as SamSite;
+                if (samSite != null && samSite.staticRespawn)
+                    return false;
+
+                return true;
+            }
+
             protected virtual void OnEntitySpawn()
             {
                 if (EntityData.Skin != 0)
@@ -1345,7 +1354,11 @@ namespace Oxide.Plugins
                 var combatEntity = _entity as BaseCombatEntity;
                 if (combatEntity != null)
                 {
-                    combatEntity.baseProtection = _pluginInstance._immortalProtection;
+                    if (ShouldBeImmortal())
+                    {
+                        combatEntity.baseProtection = _pluginInstance._immortalProtection;
+                    }
+
                     combatEntity.pickup.enabled = false;
                 }
 
