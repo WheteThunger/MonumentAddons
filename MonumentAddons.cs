@@ -582,7 +582,15 @@ namespace Oxide.Plugins
                         return;
 
                     _pluginData.SetProfileSelected(player.Id, controller.Profile.Name);
-                    controller.Enable();
+                    if (controller.IsEnabled)
+                    {
+                        // Only save if the profile is not enabled, since enabling it will already save the main data file.
+                        _pluginData.Save();
+                    }
+                    else
+                    {
+                        controller.Enable();
+                    }
                     ReplyToPlayer(player, Lang.ProfileSelectSuccess, controller.Profile.Name);
                     break;
                 }
@@ -606,8 +614,11 @@ namespace Oxide.Plugins
                         return;
 
                     var controller = _profileManager.CreateProfile(newName);
+
                     if (!player.IsServer)
                         _pluginData.SetProfileSelected(player.Id, newName);
+
+                    _pluginData.SetProfileEnabled(newName);
 
                     ReplyToPlayer(player, Lang.ProfileCreateSuccess, controller.Profile.Name);
                     break;
@@ -683,8 +694,6 @@ namespace Oxide.Plugins
                     }
 
                     controller.Enable();
-                    _pluginData.SetProfileEnabled(profileName);
-                    _pluginData.Save();
                     ReplyToPlayer(player, Lang.ProfileEnableSuccess, profileName);
                     break;
                 }
@@ -2286,6 +2295,7 @@ namespace Oxide.Plugins
                 if (IsEnabled)
                     return;
 
+                _pluginData.SetProfileEnabled(Profile.Name);
                 Load();
             }
 
@@ -2524,9 +2534,6 @@ namespace Oxide.Plugins
             public ProfileController CreateProfile(string profileName)
             {
                 var profile = Profile.Create(profileName);
-                _pluginData.SetProfileEnabled(profileName);
-                _pluginData.Save();
-
                 var controller = new ProfileController(_entityManager, profile);
                 _profileControllers.Add(controller);
                 return controller;
@@ -2682,6 +2689,7 @@ namespace Oxide.Plugins
             public void SetProfileEnabled(string profileName)
             {
                 EnabledProfiles.Add(profileName);
+                Save();
             }
 
             public void SetProfileDisabled(string profileName)
@@ -2723,8 +2731,6 @@ namespace Oxide.Plugins
             public void SetProfileSelected(string userId, string profileName)
             {
                 SelectedProfiles[userId] = profileName;
-                SetProfileEnabled(profileName);
-                Save();
             }
         }
 
