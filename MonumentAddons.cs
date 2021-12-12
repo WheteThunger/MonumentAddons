@@ -2428,7 +2428,11 @@ namespace Oxide.Plugins
                 {
                     var controller = GetProfileController(profileName);
                     if (controller == null)
+                    {
+                        _pluginData.SetProfileDisabled(profileName);
+                        _pluginInstance.LogWarning($"Disabled profile {profileName} because its data file was not found.");
                         continue;
+                    }
 
                     var entityCounter = new ReferenceTypeWrapper<int>();
 
