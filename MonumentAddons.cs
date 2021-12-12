@@ -2469,9 +2469,11 @@ namespace Oxide.Plugins
 
             public ProfileController GetProfileController(string profileName)
             {
+                var profileNameLower = profileName.ToLower();
+
                 foreach (var cachedController in _profileControllers)
                 {
-                    if (cachedController.Profile.Name.ToLower() == profileName.ToLower())
+                    if (cachedController.Profile.Name.ToLower() == profileNameLower)
                         return cachedController;
                 }
 
@@ -2508,9 +2510,11 @@ namespace Oxide.Plugins
 
             public bool ProfileExists(string profileName)
             {
+                var profileNameLower = profileName.ToLower();
+
                 foreach (var cachedController in _profileControllers)
                 {
-                    if (cachedController.Profile.Name.ToLower() == profileName)
+                    if (cachedController.Profile.Name.ToLower() == profileNameLower)
                         return true;
                 }
 
