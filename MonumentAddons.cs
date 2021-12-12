@@ -48,6 +48,7 @@ namespace Oxide.Plugins
         private readonly CoroutineManager _coroutineManager = new CoroutineManager();
         private ProfileManager _profileManager;
 
+        private ItemDefinition _waterDefinition;
         private ProtectionProperties _immortalProtection;
 
         private Coroutine _startupCoroutine;
@@ -77,6 +78,8 @@ namespace Oxide.Plugins
         private void OnServerInitialized()
         {
             _coroutineManager.OnServerInitialized();
+
+            _waterDefinition = ItemManager.FindItemDefinition("water");
 
             _immortalProtection = ScriptableObject.CreateInstance<ProtectionProperties>();
             _immortalProtection.name = "MonumentAddonsProtection";
@@ -1398,6 +1401,15 @@ namespace Oxide.Plugins
                         GatherStaticCameras(computerStation);
                         _pluginInstance.TrackEnd();
                     }, 1);
+                }
+
+                var paddlingPool = _entity as PaddlingPool;
+                if (paddlingPool != null)
+                {
+                    paddlingPool.inventory.AddItem(_pluginInstance._waterDefinition, paddlingPool.inventory.maxStackSize);
+
+                    // Disallow adding or removing water.
+                    paddlingPool.SetFlag(BaseEntity.Flags.Busy, true);
                 }
 
                 if (EntityData.Scale != 1)
