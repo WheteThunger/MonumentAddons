@@ -1,3 +1,7 @@
+## Video Tutorial
+
+[![Video Tutorial](https://img.youtube.com/vi/fkGpFBNs8_A/mqdefault.jpg)](https://www.youtube.com/watch?v=fkGpFBNs8_A)
+
 ## Features
 
 Easily spawn permanent entities at monuments, which auto respawn after restarts and wipes.
