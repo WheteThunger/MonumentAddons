@@ -2,61 +2,86 @@
   "Monuments": {
     "TrainStation": [
       {
+        "Id": 1635724800000,
         "PrefabName": "assets/prefabs/deployable/computerstation/computerstation.static.prefab",
         "Position": {
           "x": -20.1,
           "y": 0.0,
           "z": -11.0
         },
-        "RotationAngle": 270.0
+        "RotationAngles": {
+          "x": 0.0,
+          "y": 270.0,
+          "z": 0.0
+        }
       },
       {
+        "Id": 1635724801000,
         "PrefabName": "assets/prefabs/deployable/cctvcamera/cctv.static.prefab",
         "Position": {
           "x": 0.0,
           "y": 6.8,
           "z": 58.24
         },
-        "RotationAngle": 360.0,
+        "RotationAngles": {
+          "x": 0.0,
+          "y": 360.0,
+          "z": 0.0
+        },
         "CCTV": {
           "RCIdentifier": "STATIONFRONT",
           "Pitch": 25.0
         }
       },
       {
+        "Id": 1635724802000,
         "PrefabName": "assets/prefabs/deployable/cctvcamera/cctv.static.prefab",
         "Position": {
           "x": 0.0,
           "y": 6.8,
           "z": 49.76
         },
-        "RotationAngle": 180.0,
+        "RotationAngles": {
+          "x": 0.0,
+          "y": 180.0,
+          "z": 0.0
+        },
         "CCTV": {
           "RCIdentifier": "STATIONMIDDLE",
           "Pitch": 25.0
         }
       },
       {
+        "Id": 1635724803000,
         "PrefabName": "assets/prefabs/deployable/cctvcamera/cctv.static.prefab",
         "Position": {
           "x": 0.0,
           "y": 6.8,
           "z": 13.76
         },
-        "RotationAngle": 180.0,
+        "RotationAngles": {
+          "x": 0.0,
+          "y": 180.0,
+          "z": 0.0
+        },
         "CCTV": {
           "RCIdentifier": "STATIONREAR",
           "Pitch": 25.0
         }
       },
       {
+        "Id": 1635724804000,
         "PrefabName": "assets/prefabs/deployable/cctvcamera/cctv.static.prefab",
         "Position": {
           "x": 6.75,
           "y": 7.5,
           "z": -30.0
         },
-        "RotationAngle": 270.0,
+        "RotationAngles": {
+          "x": 0.0,
+          "y": 270.0,
+          "z": 0.0
+        },
         "CCTV": {
           "RCIdentifier": "STATIONSUPPLIES",
           "Pitch": 20.0,
@@ -64,26 +89,31 @@
         }
       },
       {
+        "Id": 1635724805000,
         "PrefabName": "assets/prefabs/deployable/cctvcamera/cctv.static.prefab",
         "Position": {
           "x": 45.0,
           "y": 5.75,
           "z": 35.9
         },
-        "RotationAngle": 180.0,
+        "RotationAngles": {
+          "x": 0.0,
+          "y": 180.0,
+          "z": 0.0
+        },
         "CCTV": {
           "RCIdentifier": "MAINTENANCE",
           "Pitch": 15.0
         }
       },
       {
+        "Id": 1635724806000,
         "PrefabName": "assets/prefabs/deployable/cctvcamera/cctv.static.prefab",
         "Position": {
           "x": -45.0,
           "y": 5.75,
           "z": -35.9
         },
-        "RotationAngle": 0.20,
         "CCTV": {
           "RCIdentifier": "MAINTENANCEALT",
           "Pitch": 15.0

@@ -2029,6 +2029,22 @@ namespace Oxide.Plugins
             public static bool Exists(string profileName) =>
                 Interface.Oxide.DataFileSystem.ExistsDatafile(GetProfilePath(profileName));
 
+            private static long GetLowestId(Profile profile)
+            {
+                var lowestId = DateTimeOffset.Now.ToUnixTimeMilliseconds();
+
+                foreach (var entityDataList in profile.MonumentMap.Values)
+                {
+                    foreach (var entityData in entityDataList)
+                    {
+                        if (entityData.Id != 0)
+                            lowestId = Math.Min(entityData.Id, lowestId);
+                    }
+                }
+
+                return lowestId;
+            }
+
             public static Profile Load(string profileName)
             {
                 var profile = Interface.Oxide.DataFileSystem.ReadObject<Profile>(GetProfilePath(profileName)) ?? new Profile();
@@ -2037,6 +2053,18 @@ namespace Oxide.Plugins
                 // Fix issue caused by v0.7.0 for first time users.
                 if (profile.MonumentMap == null)
                     profile.MonumentMap = new Dictionary<string, List<EntityData>>();
+
+                var lowestId = GetLowestId(profile);
+
+                // Backfill ids if missing.
+                foreach (var entityDataList in profile.MonumentMap.Values)
+                {
+                    foreach (var entityData in entityDataList)
+                    {
+                        if (entityData.Id == 0)
+                            entityData.Id = lowestId--;
+                    }
+                }
 
                 return profile;
             }
@@ -2122,6 +2150,8 @@ namespace Oxide.Plugins
                     entityDataList = new List<EntityData>();
                     MonumentMap[monumentAliasOrShortName] = entityDataList;
                 }
+
+                entityData.Id = DateTimeOffset.Now.ToUnixTimeMilliseconds();
 
                 entityDataList.Add(entityData);
                 Save();
@@ -2713,6 +2743,9 @@ namespace Oxide.Plugins
 
         private class EntityData
         {
+            [JsonProperty("Id", DefaultValueHandling = DefaultValueHandling.Ignore)]
+            public long Id;
+
             [JsonProperty("PrefabName")]
             public string PrefabName;
 
