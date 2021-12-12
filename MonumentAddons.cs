@@ -1295,7 +1295,7 @@ namespace Oxide.Plugins
             public override void Spawn()
             {
                 var position = Monument.TransformPoint(EntityData.Position);
-                var rotation = Quaternion.Euler(0, Monument.Rotation.eulerAngles.y + EntityData.RotationAngle, 0);
+                var rotation = Quaternion.Euler(EntityData.RotationAngles.WithY(Monument.Rotation.eulerAngles.y + EntityData.RotationAngles.y));
 
                 if (EntityData.OnTerrain)
                     position.y = TerrainMeta.HeightMap.GetHeight(position);
@@ -2553,13 +2553,13 @@ namespace Oxide.Plugins
                             if (alias == "LootTunnel" || alias == "BarricadeTunnel")
                             {
                                 // Migrate from the original rotations to the rotations used by MonumentFinder.
-                                entityData.RotationAngle = (entityData.RotationAngle + 180) % 360;
+                                entityData.RotationAngle = (entityData.RotationAngles.y + 180) % 360;
                                 entityData.Position = Quaternion.Euler(0, 180, 0) * entityData.Position;
                                 dataMigrated = true;
                             }
 
                             // Migrate from the backwards rotations to the correct ones.
-                            var newAngle = (720 - entityData.RotationAngle) % 360;
+                            var newAngle = (720 - entityData.RotationAngles.y) % 360;
                             entityData.RotationAngle = newAngle;
                             dataMigrated = true;
                         }
@@ -2719,8 +2719,12 @@ namespace Oxide.Plugins
             [JsonProperty("Position")]
             public Vector3 Position;
 
+            // Deprecated. Kept for backwards compatibility.
             [JsonProperty("RotationAngle", DefaultValueHandling = DefaultValueHandling.Ignore)]
-            public float RotationAngle;
+            public float RotationAngle { set { RotationAngles = new Vector3(0, value, 0); } }
+
+            [JsonProperty("RotationAngles", DefaultValueHandling = DefaultValueHandling.Ignore)]
+            public Vector3 RotationAngles;
 
             [JsonProperty("OnTerrain", DefaultValueHandling = DefaultValueHandling.Ignore)]
             public bool OnTerrain = false;
