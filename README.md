@@ -80,6 +80,7 @@ Here is the process for sharing a profile.
 #### Example profiles
 
 - [TrainStationCCTV.json](https://raw.githubusercontent.com/WheteThunger/MonumentAddons/master/Profiles/TrainStationCCTV.json) -- Adds 6 CCTVs and one computer station to each underground Train Station.
+- [MonumentLifts.json](https://raw.githubusercontent.com/WheteThunger/MonumentAddons/master/Profiles/MonumentLifts.json) -- Adds car lifts to gas station and supermarket.
 
 ## How underwater labs work
 

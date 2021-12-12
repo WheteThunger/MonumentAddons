@@ -1,0 +1,26 @@
+{
+  "Monuments": {
+    "gas_station_1": [
+      {
+        "PrefabName": "assets/bundled/prefabs/static/modularcarlift.static.prefab",
+        "Position": {
+          "x": 4.2,
+          "y": 0.0,
+          "z": -0.5
+        },
+        "OnTerrain": true
+      }
+    ],
+    "supermarket_1": [
+      {
+        "PrefabName": "assets/bundled/prefabs/static/modularcarlift.static.prefab",
+        "Position": {
+          "x": 0.2,
+          "y": 0.0,
+          "z": 17.5
+        },
+        "OnTerrain": true
+      }
+    ]
+  }
+}
