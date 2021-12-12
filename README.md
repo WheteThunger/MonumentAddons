@@ -6,7 +6,8 @@ Easily spawn permanent entities at monuments, which auto respawn after restarts 
 - Uses familiar command syntax, inspired by `spawn <entity>`
 - Works on any map seed and accounts for terrain height
 - Entities are indestructible, have no stability, free electricity, and cannot be picked up
-- Supports vanilla monuments, custom monuments, train tunnels, underwater labs, and cargo ship,
+- Supports vanilla monuments, custom monuments, train tunnels, underwater labs, and cargo ship
+- Allows skinning spawned entities
 - [Sign Artist](https://umod.org/plugins/sign-artist) integration allows persisting sign images
 - [Entity Scale Manager](https://umod.org/plugins/entity-scale-manager) integration allows persisting entity scale
 
