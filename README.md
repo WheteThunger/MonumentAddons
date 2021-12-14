@@ -72,20 +72,7 @@ Profiles allow you to organize entities into groups. Each profile can be indepen
 - `maprofile create <name>` -- Creats a new profile, enables it and selects it.
 - `maprofile rename <name> <new name>` -- Renames the specified profile. The plugin cannot delete the data file for the old name, so you will have to delete it yourself at `oxide/data/MonumentAddons/{name}.json`.
 - `maprofile moveto <name>` -- Moves the entity you are looking at to the specified profile.
-
-#### How to share a profile
-
-Here is the process for sharing a profile.
-
-1. Profile author locates the `oxide/data/MonumentAddons/{name}.json` file using the name of the profile.
-2. Profile author sends the file to the recipient.
-3. Recipient downloads the file and places it in the same location on their server.
-4. Recipient runs the command: `maprofile enable <name>`.
-
-#### Example profiles
-
-- [TrainStationCCTV.json](https://raw.githubusercontent.com/WheteThunger/MonumentAddons/master/Profiles/TrainStationCCTV.json) -- Adds 6 CCTVs and one computer station to each underground Train Station.
-- [MonumentLifts.json](https://raw.githubusercontent.com/WheteThunger/MonumentAddons/master/Profiles/MonumentLifts.json) -- Adds car lifts to gas station and supermarket.
+- `maprofile install <url>` -- Installs a profile from a URL.
 
 ## How underwater labs work
 
@@ -93,9 +80,54 @@ Since underwater labs are procedurally generated, this plugin does not spawn ent
 
 Note that some modules have multiple possible vanilla configurations, so multiple instances of the same module might have slightly different placement of vanilla objects. This plugin does not currently differentiate between these module-specific configurations, so after spawning something into a lab module, be sure to inspect other instances of that module to make sure the entity placement makes sense for all of them.
 
+## Example profiles
+
+Several example profiles are included below. Run the corresponding command snippet to install the profile.
+
+Want to showcase a profile you created? Fork the repository on [GitHub](https://github.com/WheteThunger/MonumentAddons), commit the changes, and submit a pull request!
+
+#### TrainStationCCTV
+
+Adds 6 CCTVs and one computer station to each underground Train Station.
+
+```
+maprofile install https://github.com/WheteThunger/MonumentAddons/blob/master/Profiles/TrainStationCCTV.json?raw=true
+```
+
+#### MonumentLifts
+
+Adds car lifts to gas station and supermarket.
+
+```
+maprofile install https://github.com/WheteThunger/MonumentAddons/blob/master/Profiles/MonumentLifts.json?raw=true
+```
+
+## Instructions for sharing profiles
+
+### How to share a profile via a website
+
+Sharing a profile via a website allows recipients to install the profile with a single command. Here's how it works:
+
+1. Profile author locates the `oxide/data/MonumentAddons/PROFILE_NAME.json` file, where `PROFILE_NAME` is replaced with the profile's actual name.
+2. Profile author uploads the file to a website of their choice and obtains a *raw* download link. For example, if hosting on pastebin or GitHub, click the "raw" button before copying the URL.
+3. Recipient runs a command like `maprofile install <url>` using the URL provided by the profile author.
+
+Sharing a profile via a website will eventually have additional perks, including the ability to download updates to the profile automatically, while preserving customizations you have made.
+
+### How to share a profile via direct file transfer
+
+If you don't have a website to host a profile, you can simply send the profile data file to someone else over Discord or wherever. Here's how it works:
+
+1. Profile author locates the `oxide/data/MonumentAddons/PROFILE_NAME.json` file, where `PROFILE_NAME` is replaced with the profile's actual name.
+2. Profile author sends the file to the recipient.
+3. Recipient downloads the file and places it in the same location on their server.
+4. Recipient runs the command: `maprofile enable <name>`. Alternatively, if the recipient already had a version of the profile installed and enabled, they would run `maprofile reload <name>`.
+
 ## Instructions for plugin integrations
 
-### Sign Arist integration
+### Sign Artist integration
+
+**Please donate if you use this feature for sponsorship revenue.**
 
 Use the following steps to set persistent images for signs or photo frames. Requires the [Sign Artist](https://umod.org/plugins/sign-artist) plugin to be installed with the appropriate permissions granted.
 
@@ -107,8 +139,6 @@ That's all you need to do. This plugin detects when you use a Sign Artist comman
 Notes:
 - Only players with the `monumentaddons.admin` permission can edit signs that are managed by this plugin, so you don't have to worry about random players vandalizing the signs.
 - Due to a client bug with parenting, having multiple signs on cargo ship will cause them to all display the same image.
-
-**Please donate if you use this feature for sponsorship revenue.**
 
 ### Entity Scale Manager integration
 
@@ -233,6 +263,11 @@ Simply remove the plugin. Spawned entities are automatically removed when the pl
   "Profile.List.Item.Enabled": "<color=#fd4>{0}</color> - <color=#6e6>ENABLED</color>",
   "Profile.List.Item.Disabled": "<color=#fd4>{0}</color> - <color=#f44>DISABLED</color>",
   "Profile.List.Item.Selected": "<color=#fd4>{0}</color> - <color=#6cf>SELECTED</color>",
+  "Profile.Install.Syntax": "Syntax: <color=#fd4>maprofile install <url></color>",
+  "Profile.Url.Invalid": "Invalid URL: {0}",
+  "Profile.Error.AlreadyExists.NotEmpty": "Error: Profile <color=#fd4>{0}</color> already exists and is not empty.",
+  "Profile.Install.Success": "Successfully installed and <color=#6e6>ENABLED</color> profile <color=#fd4>{0}</color>",
+  "Profile.Install.Error": "Error installing profile from url {0}. See the error logs for more details.",
   "Profile.Describe.Syntax": "Syntax: <color=#fd4>maprofile describe <name></color>",
   "Profile.Error.NotFound": "Error: Profile <color=#fd4>{0}</color> not found.",
   "Profile.Empty": "Profile <color=#fd4>{0}</color> is empty.",
@@ -265,6 +300,7 @@ Simply remove the plugin. Spawned entities are automatically removed when the pl
   "Profile.Help.Select": "<color=#fd4>maprofile select <name></color> - Select a profile",
   "Profile.Help.Create": "<color=#fd4>maprofile create <name></color> - Create a new profile",
   "Profile.Help.Rename": "<color=#fd4>maprofile rename <name> <new name></color> - Rename a profile",
-  "Profile.Help.MoveTo": "<color=#fd4>maprofile disable <name></color> - Move an entity to a profile"
+  "Profile.Help.MoveTo": "<color=#fd4>maprofile disable <name></color> - Move an entity to a profile",
+  "Profile.Help.Install": "<color=#fd4>maprofile install <url></color> - Install a profile from a URL"
 }
 ```

@@ -3,6 +3,7 @@ using Newtonsoft.Json.Linq;
 using Newtonsoft.Json.Serialization;
 using Oxide.Core;
 using Oxide.Core.Configuration;
+using Oxide.Core.Libraries;
 using Oxide.Core.Libraries.Covalence;
 using Oxide.Core.Plugins;
 using System;
@@ -43,6 +44,11 @@ namespace Oxide.Plugins
             + Rust.Layers.Mask.Deployed
             + Rust.Layers.Mask.Terrain
             + Rust.Layers.Mask.World;
+
+        private readonly Dictionary<string, string> DownloadRequestHeaders = new Dictionary<string, string>
+        {
+            { "Content-Type", "application/json" }
+        };
 
         private readonly EntityManager _entityManager = new EntityManager();
         private readonly CoroutineManager _coroutineManager = new CoroutineManager();
@@ -757,6 +763,77 @@ namespace Oxide.Plugins
                     break;
                 }
 
+                case "install":
+                {
+                    if (args.Length < 2)
+                    {
+                        ReplyToPlayer(player, Lang.ProfileInstallSyntax);
+                        return;
+                    }
+
+                    var url = args[1];
+                    Uri parsedUri;
+
+                    if (!Uri.TryCreate(url, UriKind.Absolute, out parsedUri))
+                    {
+                        ReplyToPlayer(player, Lang.ProfileUrlInvalid, url);
+                        return;
+                    }
+
+                    DownloadProfile(url, profile =>
+                    {
+                        if (profile == null)
+                        {
+                            ReplyToPlayer(player, Lang.ProfileInstallError, url);
+                            return;
+                        }
+
+                        profile.Name = DynamicConfigFile.SanitizeName(profile.Name);
+
+                        if (string.IsNullOrWhiteSpace(profile.Name))
+                        {
+                            var urlDerivedProfileName = DynamicConfigFile.SanitizeName(parsedUri.Segments.LastOrDefault().Replace(".json", ""));
+
+                            if (string.IsNullOrEmpty(urlDerivedProfileName))
+                            {
+                                LogError($"Unable to determine profile name from url: {url}. Please ask the URL owner to supply a \"Name\" in the file.");
+                                ReplyToPlayer(player, Lang.ProfileInstallError, url);
+                                return;
+                            }
+
+                            profile.Name = urlDerivedProfileName;
+                        }
+
+                        var profileController = _profileManager.GetProfileController(profile.Name);
+                        if (profileController != null && !profileController.Profile.IsEmpty())
+                        {
+                            ReplyToPlayer(player, Lang.ProfileAlreadyExistsNotEmpty, profile.Name);
+                            return;
+                        }
+
+                        profile.Save();
+
+                        if (profileController == null)
+                            profileController = _profileManager.GetProfileController(profile.Name);
+
+                        if (profileController == null)
+                        {
+                            LogError($"Profile {profile.Name} could not be found on disk after download from url: {url}");
+                            ReplyToPlayer(player, Lang.ProfileInstallError, url);
+                            return;
+                        }
+
+                        if (profileController.IsEnabled)
+                            profileController.Reload();
+                        else
+                            profileController.Enable();
+
+                        ReplyToPlayer(player, Lang.ProfileInstallSuccess, profile.Name);
+                    });
+
+                    break;
+                }
+
                 default:
                 {
                     SubCommandHelp(player);
@@ -778,6 +855,7 @@ namespace Oxide.Plugins
             sb.AppendLine(GetMessage(player, Lang.ProfileHelpCreate));
             sb.AppendLine(GetMessage(player, Lang.ProfileHelpRename));
             sb.AppendLine(GetMessage(player, Lang.ProfileHelpMoveTo));
+            sb.AppendLine(GetMessage(player, Lang.ProfileHelpInstall));
             ReplyToPlayer(player, sb.ToString());
         }
 
@@ -1015,6 +1093,49 @@ namespace Oxide.Plugins
                 return;
 
             _startupCoroutine = _coroutineManager.StartCoroutine(SpawnAllProfilesRoutine());
+        }
+
+        private void DownloadProfile(string url, Action<Profile> callback)
+        {
+            webrequest.Enqueue(
+                url: url,
+                body: null,
+                callback: (statusCode, responseBody) =>
+                {
+                    if (_pluginInstance == null)
+                    {
+                        // Ignore the response because the plugin was unloaded.
+                        return;
+                    }
+
+                    if (statusCode < 200 || statusCode >= 300)
+                    {
+                        LogError($"Error downloading profile. Status code: {statusCode}");
+                        callback.Invoke(null);
+                        return;
+                    }
+
+                    Profile profile;
+                    try
+                    {
+                        profile = JsonConvert.DeserializeObject<Profile>(responseBody);
+                    }
+                    catch (Exception ex)
+                    {
+                        LogError($"Error deserializing profile from url {url}\n{ex.Message}");
+                        callback.Invoke(null);
+                        return;
+                    }
+
+                    profile.Url = url;
+
+                    callback.Invoke(profile);
+                },
+                owner: this,
+                method: RequestMethod.GET,
+                headers: DownloadRequestHeaders,
+                timeout: 5000
+            );
         }
 
         #endregion
@@ -2090,8 +2211,11 @@ namespace Oxide.Plugins
                 return profile;
             }
 
-            [JsonIgnore]
+            [JsonProperty("Name")]
             public string Name;
+
+            [JsonProperty("Url", DefaultValueHandling = DefaultValueHandling.Ignore)]
+            public string Url;
 
             [JsonProperty("Monuments")]
             public Dictionary<string, List<EntityData>> MonumentMap = new Dictionary<string, List<EntityData>>();
@@ -2959,6 +3083,12 @@ namespace Oxide.Plugins
             public const string ProfileListItemDisabled = "Profile.List.Item.Disabled";
             public const string ProfileListItemSelected = "Profile.List.Item.Selected";
 
+            public const string ProfileInstallSyntax = "Profile.Install.Syntax";
+            public const string ProfileUrlInvalid = "Profile.Url.Invalid";
+            public const string ProfileAlreadyExistsNotEmpty = "Profile.Error.AlreadyExists.NotEmpty";
+            public const string ProfileInstallSuccess = "Profile.Install.Success";
+            public const string ProfileInstallError = "Profile.Install.Error";
+
             public const string ProfileDescribeSyntax = "Profile.Describe.Syntax";
             public const string ProfileNotFound = "Profile.Error.NotFound";
             public const string ProfileEmpty = "Profile.Empty";
@@ -2995,6 +3125,7 @@ namespace Oxide.Plugins
             public const string ProfileHelpCreate = "Profile.Help.Create";
             public const string ProfileHelpRename = "Profile.Help.Rename";
             public const string ProfileHelpMoveTo = "Profile.Help.MoveTo";
+            public const string ProfileHelpInstall = "Profile.Help.Install";
         }
 
         protected override void LoadDefaultMessages()
@@ -3030,6 +3161,12 @@ namespace Oxide.Plugins
                 [Lang.ProfileListItemEnabled] = "<color=#fd4>{0}</color> - <color=#6e6>ENABLED</color>",
                 [Lang.ProfileListItemDisabled] = "<color=#fd4>{0}</color> - <color=#f44>DISABLED</color>",
                 [Lang.ProfileListItemSelected] = "<color=#fd4>{0}</color> - <color=#6cf>SELECTED</color>",
+
+                [Lang.ProfileInstallSyntax] = "Syntax: <color=#fd4>maprofile install <url></color>",
+                [Lang.ProfileUrlInvalid] = "Invalid URL: {0}",
+                [Lang.ProfileAlreadyExistsNotEmpty] = "Error: Profile <color=#fd4>{0}</color> already exists and is not empty.",
+                [Lang.ProfileInstallSuccess] = "Successfully installed and <color=#6e6>ENABLED</color> profile <color=#fd4>{0}</color>",
+                [Lang.ProfileInstallError] = "Error installing profile from url {0}. See the error logs for more details.",
 
                 [Lang.ProfileDescribeSyntax] = "Syntax: <color=#fd4>maprofile describe <name></color>",
                 [Lang.ProfileNotFound] = "Error: Profile <color=#fd4>{0}</color> not found.",
@@ -3067,6 +3204,7 @@ namespace Oxide.Plugins
                 [Lang.ProfileHelpCreate] = "<color=#fd4>maprofile create <name></color> - Create a new profile",
                 [Lang.ProfileHelpRename] = "<color=#fd4>maprofile rename <name> <new name></color> - Rename a profile",
                 [Lang.ProfileHelpMoveTo] = "<color=#fd4>maprofile disable <name></color> - Move an entity to a profile",
+                [Lang.ProfileHelpInstall] = "<color=#fd4>maprofile install <url></color> - Install a profile from a URL"
             }, this, "en");
         }
 
