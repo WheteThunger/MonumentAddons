@@ -527,6 +527,7 @@ namespace Oxide.Plugins
                     var playerProfileName = player.IsServer ? null : _pluginData.GetSelectedProfileName(player.Id);
 
                     profileList = profileList
+                        .Where(profile => !profile.Name.EndsWith(Profile.OriginalSuffix))
                         .OrderByDescending(profile => profile.Name == playerProfileName)
                         .ThenByDescending(profile => profile.Enabled)
                         .ThenBy(profile => profile.Name)
@@ -796,12 +797,19 @@ namespace Oxide.Plugins
 
                             if (string.IsNullOrEmpty(urlDerivedProfileName))
                             {
-                                LogError($"Unable to determine profile name from url: {url}. Please ask the URL owner to supply a \"Name\" in the file.");
+                                LogError($"Unable to determine profile name from url: \"{url}\". Please ask the URL owner to supply a \"Name\" in the file.");
                                 ReplyToPlayer(player, Lang.ProfileInstallError, url);
                                 return;
                             }
 
                             profile.Name = urlDerivedProfileName;
+                        }
+
+                        if (profile.Name.EndsWith(Profile.OriginalSuffix))
+                        {
+                            LogError($"Profile \"{profile.Name}\" should not end with \"{Profile.OriginalSuffix}\".");
+                            ReplyToPlayer(player, Lang.ProfileInstallError, url);
+                            return;
                         }
 
                         var profileController = _profileManager.GetProfileController(profile.Name);
@@ -812,13 +820,14 @@ namespace Oxide.Plugins
                         }
 
                         profile.Save();
+                        profile.SaveAsOriginal();
 
                         if (profileController == null)
                             profileController = _profileManager.GetProfileController(profile.Name);
 
                         if (profileController == null)
                         {
-                            LogError($"Profile {profile.Name} could not be found on disk after download from url: {url}");
+                            LogError($"Profile \"{profile.Name}\" could not be found on disk after download from url: \"{url}\"");
                             ReplyToPlayer(player, Lang.ProfileInstallError, url);
                             return;
                         }
@@ -2130,6 +2139,8 @@ namespace Oxide.Plugins
 
         private class Profile
         {
+            public const string OriginalSuffix = "_original";
+
             public static string[] GetProfileNames()
             {
                 var filenameList = Interface.Oxide.DataFileSystem.GetFiles(_pluginInstance.Name);
@@ -2157,7 +2168,8 @@ namespace Oxide.Plugins
             private static string GetProfilePath(string profileName) => $"{_pluginInstance.Name}/{profileName}";
 
             public static bool Exists(string profileName) =>
-                Interface.Oxide.DataFileSystem.ExistsDatafile(GetProfilePath(profileName));
+                !profileName.EndsWith(OriginalSuffix)
+                && Interface.Oxide.DataFileSystem.ExistsDatafile(GetProfilePath(profileName));
 
             private static long GetLowestId(Profile profile)
             {
@@ -2177,6 +2189,9 @@ namespace Oxide.Plugins
 
             public static Profile Load(string profileName)
             {
+                if (profileName.EndsWith(OriginalSuffix))
+                    return null;
+
                 var profile = Interface.Oxide.DataFileSystem.ReadObject<Profile>(GetProfilePath(profileName)) ?? new Profile();
                 profile.Name = GetActualFileName(profileName);
 
@@ -2222,6 +2237,9 @@ namespace Oxide.Plugins
 
             public void Save() =>
                 Interface.Oxide.DataFileSystem.WriteObject(GetProfilePath(Name), this);
+
+            public void SaveAsOriginal() =>
+                Interface.Oxide.DataFileSystem.WriteObject(GetProfilePath(Name) + OriginalSuffix, this);
 
             public void CopyTo(string newName)
             {
