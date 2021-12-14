@@ -83,8 +83,6 @@ namespace Oxide.Plugins
 
         private void OnServerInitialized()
         {
-            _coroutineManager.OnServerInitialized();
-
             _waterDefinition = ItemManager.FindItemDefinition("water");
 
             _immortalProtection = ScriptableObject.CreateInstance<ProtectionProperties>();
@@ -1182,18 +1180,19 @@ namespace Oxide.Plugins
             // This allows easily stopping all those coroutines by simply destroying the game object.
             private MonoBehaviour _coroutineComponent;
 
-            public void OnServerInitialized()
-            {
-                _coroutineComponent = new GameObject().AddComponent<EmptyMonoBehavior>();
-            }
-
             public Coroutine StartCoroutine(IEnumerator enumerator)
             {
+                if (_coroutineComponent == null)
+                    _coroutineComponent = new GameObject().AddComponent<EmptyMonoBehavior>();
+
                 return _coroutineComponent.StartCoroutine(enumerator);
             }
 
             public void StopAll()
             {
+                if (_coroutineComponent == null)
+                    return;
+
                 _coroutineComponent.StopAllCoroutines();
             }
 
@@ -1634,12 +1633,12 @@ namespace Oxide.Plugins
 
             public void UpdateSkin()
             {
-                ProfileController.CoroutineManager.StartCoroutine(UpdateSkinRoutine());
+                ProfileController.StartCoroutine(UpdateSkinRoutine());
             }
 
             public void UpdateScale()
             {
-                ProfileController.CoroutineManager.StartCoroutine(UpdateScaleRoutine());
+                ProfileController.StartCoroutine(UpdateScaleRoutine());
             }
 
             public IEnumerator UpdateSkinRoutine()
@@ -1935,7 +1934,7 @@ namespace Oxide.Plugins
 
             public void UpdateIdentifier()
             {
-                ProfileController.CoroutineManager.StartCoroutine(UpdateIdentifierRoutine());
+                ProfileController.StartCoroutine(UpdateIdentifierRoutine());
             }
 
             public void ResetIdentifier()
@@ -1946,7 +1945,7 @@ namespace Oxide.Plugins
 
             public void UpdateDirection()
             {
-                ProfileController.CoroutineManager.StartCoroutine(UpdateDirectionRoutine());
+                ProfileController.StartCoroutine(UpdateDirectionRoutine());
             }
 
             private IEnumerator UpdateIdentifierRoutine()
@@ -2361,10 +2360,10 @@ namespace Oxide.Plugins
         {
             public Profile Profile { get; private set; }
             public ProfileState ProfileState { get; private set; } = ProfileState.Unloaded;
-            public CoroutineManager CoroutineManager { get; private set; }
             public WaitUntil WaitUntilLoaded;
             public WaitUntil WaitUntilUnloaded;
 
+            private CoroutineManager _coroutineManager = new CoroutineManager();
             private EntityManager _entityManager;
 
             public bool IsEnabled =>
@@ -2381,22 +2380,21 @@ namespace Oxide.Plugins
                     ProfileState = ProfileState.Loaded;
             }
 
+            public void StartCoroutine(IEnumerator enumerator) =>
+                _coroutineManager.StartCoroutine(enumerator);
+
             public void Load(ReferenceTypeWrapper<int> entityCounter = null)
             {
                 if (ProfileState == ProfileState.Loading || ProfileState == ProfileState.Loaded)
                     return;
 
                 ProfileState = ProfileState.Loading;
-                EnsureCoroutineManager().StartCoroutine(LoadRoutine(entityCounter));
+                StartCoroutine(LoadRoutine(entityCounter));
             }
 
             public void PreUnload()
             {
-                if (CoroutineManager != null)
-                {
-                    CoroutineManager.Destroy();
-                    CoroutineManager = null;
-                }
+                _coroutineManager.Destroy();
 
                 foreach (var entityDataList in Profile.MonumentMap.Values)
                 {
@@ -2422,9 +2420,8 @@ namespace Oxide.Plugins
 
             public void Reload()
             {
-                EnsureCoroutineManager();
-                CoroutineManager.StopAll();
-                CoroutineManager.StartCoroutine(ReloadRoutine());
+                _coroutineManager.StopAll();
+                StartCoroutine(ReloadRoutine());
             }
 
             public IEnumerator PartialLoadForLateMonument(List<EntityData> entityDataList, BaseMonument monument)
@@ -2433,7 +2430,7 @@ namespace Oxide.Plugins
                     yield break;
 
                 ProfileState = ProfileState.Loading;
-                EnsureCoroutineManager().StartCoroutine(PartialLoadForLateMonumentRoutine(entityDataList, monument));
+                StartCoroutine(PartialLoadForLateMonumentRoutine(entityDataList, monument));
                 yield return WaitUntilLoaded;
             }
 
@@ -2443,7 +2440,7 @@ namespace Oxide.Plugins
                     return;
 
                 ProfileState = ProfileState.Loading;
-                EnsureCoroutineManager().StartCoroutine(PartialLoadForLateEntityRoutine(entityData, monument));
+                StartCoroutine(PartialLoadForLateEntityRoutine(entityData, monument));
             }
 
             public void Rename(string newName)
@@ -2479,19 +2476,8 @@ namespace Oxide.Plugins
                     return;
                 }
 
-                EnsureCoroutineManager();
-                CoroutineManager.StopAll();
-                CoroutineManager.StartCoroutine(ClearRoutine());
-            }
-
-            private CoroutineManager EnsureCoroutineManager()
-            {
-                if (CoroutineManager == null)
-                {
-                    CoroutineManager = new CoroutineManager();
-                    CoroutineManager.OnServerInitialized();
-                }
-                return CoroutineManager;
+                _coroutineManager.StopAll();
+                StartCoroutine(ClearRoutine());
             }
 
             private IEnumerator LoadRoutine(ReferenceTypeWrapper<int> entityCounter)
