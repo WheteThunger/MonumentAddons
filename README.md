@@ -71,6 +71,7 @@ Profiles allow you to organize entities into groups. Each profile can be indepen
 - `maprofile select <name>` -- Selects and enables the specified profile. Running `maspawn <entity>` will save entities to the currently selected profile. Each player can have a separate profile selected, allowing multiple players to work on different profiles at the same time.
 - `maprofile create <name>` -- Creats a new profile, enables it and selects it.
 - `maprofile rename <name> <new name>` -- Renames the specified profile. The plugin cannot delete the data file for the old name, so you will have to delete it yourself at `oxide/data/MonumentAddons/{name}.json`.
+- `maprofile clear <name>` -- Removes all entities from the specified profile.
 - `maprofile moveto <name>` -- Moves the entity you are looking at to the specified profile.
 - `maprofile install <url>` -- Installs a profile from a URL.
 

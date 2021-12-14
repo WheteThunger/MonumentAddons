@@ -725,6 +725,25 @@ namespace Oxide.Plugins
                     break;
                 }
 
+                case "clear":
+                {
+                    if (args.Length <= 1)
+                    {
+                        ReplyToPlayer(player, Lang.ProfileClearSyntax);
+                        return;
+                    }
+
+                    ProfileController controller;
+                    if (!VerifyProfile(player, args, out controller, Lang.ProfileClearSyntax))
+                        return;
+
+                    if (!controller.Profile.IsEmpty())
+                        controller.Clear();
+
+                    ReplyToPlayer(player, Lang.ProfileClearSuccess, controller.Profile.Name);
+                    break;
+                }
+
                 case "moveto":
                 {
                     BaseEntity entity;
@@ -863,6 +882,7 @@ namespace Oxide.Plugins
             sb.AppendLine(GetMessage(player, Lang.ProfileHelpSelect));
             sb.AppendLine(GetMessage(player, Lang.ProfileHelpCreate));
             sb.AppendLine(GetMessage(player, Lang.ProfileHelpRename));
+            sb.AppendLine(GetMessage(player, Lang.ProfileHelpClear));
             sb.AppendLine(GetMessage(player, Lang.ProfileHelpMoveTo));
             sb.AppendLine(GetMessage(player, Lang.ProfileHelpInstall));
             ReplyToPlayer(player, sb.ToString());
@@ -2450,6 +2470,20 @@ namespace Oxide.Plugins
                 Unload();
             }
 
+            public void Clear()
+            {
+                if (!IsEnabled)
+                {
+                    Profile.MonumentMap.Clear();
+                    Profile.Save();
+                    return;
+                }
+
+                EnsureCoroutineManager();
+                CoroutineManager.StopAll();
+                CoroutineManager.StartCoroutine(ClearRoutine());
+            }
+
             private CoroutineManager EnsureCoroutineManager()
             {
                 if (CoroutineManager == null)
@@ -2510,6 +2544,16 @@ namespace Oxide.Plugins
 
                 Load();
                 yield return WaitUntilLoaded;
+            }
+
+            private IEnumerator ClearRoutine()
+            {
+                Unload();
+                yield return WaitUntilUnloaded;
+
+                Profile.MonumentMap.Clear();
+                Profile.Save();
+                ProfileState = ProfileState.Loaded;
             }
 
             private IEnumerator PartialLoadForLateMonumentRoutine(List<EntityData> entityDataList, BaseMonument monument)
@@ -3129,6 +3173,8 @@ namespace Oxide.Plugins
             public const string ProfileCreateSuccess = "Profile.Create.Success";
             public const string ProfileRenameSyntax = "Profile.Rename.Syntax";
             public const string ProfileRenameSuccess = "Profile.Rename.Success";
+            public const string ProfileClearSyntax = "Profile.Clear.Syntax";
+            public const string ProfileClearSuccess = "Profile.Clear.Success";
             public const string ProfileMoveToSyntax = "Profile.MoveTo.Syntax";
             public const string ProfileMoveToAlreadyPresent = "Profile.MoveTo.AlreadyPresent";
             public const string ProfileMoveToSuccess = "Profile.MoveTo.Success";
@@ -3142,6 +3188,7 @@ namespace Oxide.Plugins
             public const string ProfileHelpSelect = "Profile.Help.Select";
             public const string ProfileHelpCreate = "Profile.Help.Create";
             public const string ProfileHelpRename = "Profile.Help.Rename";
+            public const string ProfileHelpClear = "Profile.Help.Clear";
             public const string ProfileHelpMoveTo = "Profile.Help.MoveTo2";
             public const string ProfileHelpInstall = "Profile.Help.Install";
         }
@@ -3208,6 +3255,8 @@ namespace Oxide.Plugins
                 [Lang.ProfileCreateSuccess] = "Successfully created and <color=#6cf>SELECTED</color> profile <color=#fd4>{0}</color>.",
                 [Lang.ProfileRenameSyntax] = "Syntax: <color=#fd4>maprofile rename <old name> <new name></color>",
                 [Lang.ProfileRenameSuccess] = "Successfully renamed profile <color=#fd4>{0}</color> to <color=#fd4>{1}</color>. You must manually delete the old <color=#fd4>{0}</color> data file.",
+                [Lang.ProfileClearSyntax] = "Syntax: <color=#fd4>maprofile clear <name></color>",
+                [Lang.ProfileClearSuccess] = "Successfully cleared profile <color=#fd4>{0}</color>.",
                 [Lang.ProfileMoveToSyntax] = "Syntax: <color=#fd4>maprofile moveto <name></color>",
                 [Lang.ProfileMoveToAlreadyPresent] = "Error: <color=#fd4>{0}</color> is already part of profile <color=#fd4>{1}</color>.",
                 [Lang.ProfileMoveToSuccess] = "Successfully moved <color=#fd4>{0}</color> from profile <color=#fd4>{1}</color> to <color=#fd4>{2}</color>.",
@@ -3221,6 +3270,7 @@ namespace Oxide.Plugins
                 [Lang.ProfileHelpSelect] = "<color=#fd4>maprofile select <name></color> - Select a profile",
                 [Lang.ProfileHelpCreate] = "<color=#fd4>maprofile create <name></color> - Create a new profile",
                 [Lang.ProfileHelpRename] = "<color=#fd4>maprofile rename <name> <new name></color> - Rename a profile",
+                [Lang.ProfileHelpClear] = "<color=#fd4>maprofile clear <name></color> - Clears a profile",
                 [Lang.ProfileHelpMoveTo] = "<color=#fd4>maprofile moveto <name></color> - Move an entity to a profile",
                 [Lang.ProfileHelpInstall] = "<color=#fd4>maprofile install <url></color> - Install a profile from a URL"
             }, this, "en");
