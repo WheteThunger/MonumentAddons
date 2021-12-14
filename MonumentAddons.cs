@@ -3124,7 +3124,7 @@ namespace Oxide.Plugins
             public const string ProfileHelpSelect = "Profile.Help.Select";
             public const string ProfileHelpCreate = "Profile.Help.Create";
             public const string ProfileHelpRename = "Profile.Help.Rename";
-            public const string ProfileHelpMoveTo = "Profile.Help.MoveTo";
+            public const string ProfileHelpMoveTo = "Profile.Help.MoveTo2";
             public const string ProfileHelpInstall = "Profile.Help.Install";
         }
 
@@ -3203,7 +3203,7 @@ namespace Oxide.Plugins
                 [Lang.ProfileHelpSelect] = "<color=#fd4>maprofile select <name></color> - Select a profile",
                 [Lang.ProfileHelpCreate] = "<color=#fd4>maprofile create <name></color> - Create a new profile",
                 [Lang.ProfileHelpRename] = "<color=#fd4>maprofile rename <name> <new name></color> - Rename a profile",
-                [Lang.ProfileHelpMoveTo] = "<color=#fd4>maprofile disable <name></color> - Move an entity to a profile",
+                [Lang.ProfileHelpMoveTo] = "<color=#fd4>maprofile moveto <name></color> - Move an entity to a profile",
                 [Lang.ProfileHelpInstall] = "<color=#fd4>maprofile install <url></color> - Install a profile from a URL"
             }, this, "en");
         }

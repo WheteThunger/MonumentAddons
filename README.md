@@ -300,7 +300,7 @@ Simply remove the plugin. Spawned entities are automatically removed when the pl
   "Profile.Help.Select": "<color=#fd4>maprofile select <name></color> - Select a profile",
   "Profile.Help.Create": "<color=#fd4>maprofile create <name></color> - Create a new profile",
   "Profile.Help.Rename": "<color=#fd4>maprofile rename <name> <new name></color> - Rename a profile",
-  "Profile.Help.MoveTo": "<color=#fd4>maprofile disable <name></color> - Move an entity to a profile",
+  "Profile.Help.MoveTo2": "<color=#fd4>maprofile moveto <name></color> - Move an entity to a profile",
   "Profile.Help.Install": "<color=#fd4>maprofile install <url></color> - Install a profile from a URL"
 }
 ```
