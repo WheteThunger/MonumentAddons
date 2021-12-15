@@ -2190,22 +2190,6 @@ namespace Oxide.Plugins
                 !profileName.EndsWith(OriginalSuffix)
                 && Interface.Oxide.DataFileSystem.ExistsDatafile(GetProfilePath(profileName));
 
-            private static long GetLowestId(Profile profile)
-            {
-                var lowestId = DateTimeOffset.Now.ToUnixTimeMilliseconds();
-
-                foreach (var entityDataList in profile.MonumentMap.Values)
-                {
-                    foreach (var entityData in entityDataList)
-                    {
-                        if (entityData.Id != 0)
-                            lowestId = Math.Min(entityData.Id, lowestId);
-                    }
-                }
-
-                return lowestId;
-            }
-
             public static Profile Load(string profileName)
             {
                 if (profileName.EndsWith(OriginalSuffix))
@@ -2218,15 +2202,13 @@ namespace Oxide.Plugins
                 if (profile.MonumentMap == null)
                     profile.MonumentMap = new Dictionary<string, List<EntityData>>();
 
-                var lowestId = GetLowestId(profile);
-
                 // Backfill ids if missing.
                 foreach (var entityDataList in profile.MonumentMap.Values)
                 {
                     foreach (var entityData in entityDataList)
                     {
-                        if (entityData.Id == 0)
-                            entityData.Id = lowestId--;
+                        if (entityData.Id == default(Guid))
+                            entityData.Id = Guid.NewGuid();
                     }
                 }
 
@@ -2321,7 +2303,7 @@ namespace Oxide.Plugins
                     MonumentMap[monumentAliasOrShortName] = entityDataList;
                 }
 
-                entityData.Id = DateTimeOffset.Now.ToUnixTimeMilliseconds();
+                entityData.Id = Guid.NewGuid();
 
                 entityDataList.Add(entityData);
                 Save();
@@ -2930,7 +2912,7 @@ namespace Oxide.Plugins
         private class EntityData
         {
             [JsonProperty("Id", DefaultValueHandling = DefaultValueHandling.Ignore)]
-            public long Id;
+            public Guid Id;
 
             [JsonProperty("PrefabName")]
             public string PrefabName;

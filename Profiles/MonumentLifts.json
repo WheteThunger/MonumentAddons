@@ -3,7 +3,7 @@
   "Monuments": {
     "gas_station_1": [
       {
-        "Id": 1638316800000,
+        "Id": "fad154c5-5546-4d02-bb7a-baf57f32b964",
         "PrefabName": "assets/bundled/prefabs/static/modularcarlift.static.prefab",
         "Position": {
           "x": 4.2,
@@ -15,7 +15,7 @@
     ],
     "supermarket_1": [
       {
-        "Id": 1638316801000,
+        "Id": "bb02b4da-03bd-4cae-9139-ac3b2fdaa8c6",
         "PrefabName": "assets/bundled/prefabs/static/modularcarlift.static.prefab",
         "Position": {
           "x": 0.2,

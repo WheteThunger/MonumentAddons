@@ -3,7 +3,7 @@
   "Monuments": {
     "TrainStation": [
       {
-        "Id": 1635724800000,
+        "Id": "ce613299-996f-48d0-9c67-410497ecff07",
         "PrefabName": "assets/prefabs/deployable/computerstation/computerstation.static.prefab",
         "Position": {
           "x": -20.1,
@@ -17,17 +17,12 @@
         }
       },
       {
-        "Id": 1635724801000,
+        "Id": "75832c03-fb4f-4506-a296-05e3ea2bf50a",
         "PrefabName": "assets/prefabs/deployable/cctvcamera/cctv.static.prefab",
         "Position": {
           "x": 0.0,
           "y": 6.8,
           "z": 58.24
-        },
-        "RotationAngles": {
-          "x": 0.0,
-          "y": 360.0,
-          "z": 0.0
         },
         "CCTV": {
           "RCIdentifier": "STATIONFRONT",
@@ -35,7 +30,7 @@
         }
       },
       {
-        "Id": 1635724802000,
+        "Id": "49327831-1d6e-43e2-bd89-4ee6281a2547",
         "PrefabName": "assets/prefabs/deployable/cctvcamera/cctv.static.prefab",
         "Position": {
           "x": 0.0,
@@ -53,7 +48,7 @@
         }
       },
       {
-        "Id": 1635724803000,
+        "Id": "280de957-22c6-4e04-82cc-9ee600eaa144",
         "PrefabName": "assets/prefabs/deployable/cctvcamera/cctv.static.prefab",
         "Position": {
           "x": 0.0,
@@ -71,7 +66,7 @@
         }
       },
       {
-        "Id": 1635724804000,
+        "Id": "648f1b45-5a96-4769-b3ac-3819e1e09433",
         "PrefabName": "assets/prefabs/deployable/cctvcamera/cctv.static.prefab",
         "Position": {
           "x": 6.75,
@@ -90,7 +85,7 @@
         }
       },
       {
-        "Id": 1635724805000,
+        "Id": "d01f6223-933c-49f8-a164-6870a32f5c90",
         "PrefabName": "assets/prefabs/deployable/cctvcamera/cctv.static.prefab",
         "Position": {
           "x": 45.0,
@@ -108,7 +103,7 @@
         }
       },
       {
-        "Id": 1635724806000,
+        "Id": "881978da-2959-456e-9a4c-2819132feaa1",
         "PrefabName": "assets/prefabs/deployable/cctvcamera/cctv.static.prefab",
         "Position": {
           "x": -45.0,
