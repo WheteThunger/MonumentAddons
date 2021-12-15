@@ -2242,8 +2242,26 @@ namespace Oxide.Plugins
             public void SaveAsOriginal() =>
                 Interface.Oxide.DataFileSystem.WriteObject(GetProfilePath(Name) + OriginalSuffix, this);
 
+            public Profile LoadOriginalIfExists()
+            {
+                var originalPath = GetProfilePath(Name) + OriginalSuffix;
+                if (!Interface.Oxide.DataFileSystem.ExistsDatafile(originalPath))
+                    return null;
+
+                var original = Interface.Oxide.DataFileSystem.ReadObject<Profile>(originalPath) ?? new Profile();
+                original.Name = Name;
+                return original;
+            }
+
             public void CopyTo(string newName)
             {
+                var original = LoadOriginalIfExists();
+                if (original != null)
+                {
+                    original.Name = newName;
+                    original.SaveAsOriginal();
+                }
+
                 Name = newName;
                 Save();
             }
