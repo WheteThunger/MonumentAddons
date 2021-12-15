@@ -365,6 +365,7 @@ namespace Oxide.Plugins
 
             var entityData = new EntityData
             {
+                Id = Guid.NewGuid(),
                 PrefabName = prefabName,
                 Position = localPosition,
                 RotationAngle = (localRotationAngle + 360) % 360,
@@ -2320,8 +2321,6 @@ namespace Oxide.Plugins
                     entityDataList = new List<EntityData>();
                     MonumentMap[monumentAliasOrShortName] = entityDataList;
                 }
-
-                entityData.Id = Guid.NewGuid();
 
                 entityDataList.Add(entityData);
                 Save();
