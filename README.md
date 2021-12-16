@@ -21,7 +21,7 @@ Easily spawn permanent entities at monuments, which auto respawn after restarts 
 
 ## Recommended compatible plugins
 
-- [Custom Vending Setup](https://umod.org/plugins/custom-vending-setup) -- Allows customizing sale orders and names of vending machines at monuments. Works out-of-the-box with NPC vending machines spawned by this plugin.
+- [Custom Vending Setup](https://umod.org/plugins/custom-vending-setup) -- Allows customizing monument vending machines. Works with vending machines spawned by this plugin that use the `npcvendingmachine` or `shopkeeper_vm_invis` prefabs.
 
 ## Getting started
 
