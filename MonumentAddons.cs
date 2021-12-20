@@ -363,12 +363,19 @@ namespace Oxide.Plugins
                 ? basePlayer.viewAngles.y - 180
                 : basePlayer.viewAngles.y - closestMonument.Rotation.eulerAngles.y + 180;
 
+            var rotationAngles = new Vector3(0, (localRotationAngle + 360) % 360, 0);
+            if (GetShortName(prefabName) == "big_wheel")
+            {
+                rotationAngles.y -= 90;
+                rotationAngles.z = 270;
+            }
+
             var entityData = new EntityData
             {
                 Id = Guid.NewGuid(),
                 PrefabName = prefabName,
                 Position = localPosition,
-                RotationAngle = (localRotationAngle + 360) % 360,
+                RotationAngles = rotationAngles,
                 OnTerrain = Math.Abs(position.y - TerrainMeta.HeightMap.GetHeight(position)) <= TerrainProximityTolerance
             };
 
@@ -1536,9 +1543,6 @@ namespace Oxide.Plugins
                     ioEntity.SetFlag(BaseEntity.Flags.On, true);
                     ioEntity.SetFlag(IOEntity.Flag_HasPower, true);
                 }
-
-                if (_entity is BigWheelGame)
-                    _entity.transform.eulerAngles = _entity.transform.eulerAngles.WithX(90);
             }
 
             protected virtual void OnEntitySpawned()
