@@ -2161,6 +2161,46 @@ namespace Oxide.Plugins
 
         #region Profile Data
 
+        private static class ProfileDataMigration
+        {
+            public static bool MigrateToLatest(Profile data)
+            {
+                return MigrateV0ToV1(data);
+            }
+
+            public static bool MigrateV0ToV1(Profile data)
+            {
+                if (data.DataFileVersion != 0)
+                    return false;
+
+                data.DataFileVersion++;
+
+                var contentChanged = false;
+
+                if (data.MonumentMap != null)
+                {
+                    foreach (var entityDataList in data.MonumentMap.Values)
+                    {
+                        if (entityDataList == null)
+                            continue;
+
+                        foreach (var entityData in entityDataList)
+                        {
+                            if (GetShortName(entityData.PrefabName) == "big_wheel"
+                                && entityData.RotationAngles.x != 90)
+                            {
+                                // The plugin used to coerce the x component to 90.
+                                entityData.RotationAngles.x = 90;
+                                contentChanged = true;
+                            }
+                        }
+                    }
+                }
+
+                return contentChanged;
+            }
+        }
+
         private class Profile
         {
             public const string OriginalSuffix = "_original";
@@ -2217,6 +2257,14 @@ namespace Oxide.Plugins
                     }
                 }
 
+                var originalDataFileVersion = profile.DataFileVersion;
+
+                if (ProfileDataMigration.MigrateToLatest(profile))
+                    _pluginInstance.LogWarning($"Profile {profile.Name} has been automatically migrated.");
+
+                if (profile.DataFileVersion != originalDataFileVersion)
+                    profile.Save();
+
                 return profile;
             }
 
@@ -2231,6 +2279,9 @@ namespace Oxide.Plugins
                 profile.Save();
                 return profile;
             }
+
+            [JsonProperty("DataFileVersion", DefaultValueHandling = DefaultValueHandling.Ignore)]
+            public float DataFileVersion;
 
             [JsonProperty("Name")]
             public string Name;
@@ -2728,12 +2779,7 @@ namespace Oxide.Plugins
 
         #region Data
 
-        private interface IDataMigration
-        {
-            bool Migrate(StoredData data);
-        }
-
-        private class DataMigrationV1 : IDataMigration
+        private static class StoredDataMigration
         {
             private static readonly Dictionary<string, string> MigrateMonumentNames = new Dictionary<string, string>
             {
@@ -2744,14 +2790,21 @@ namespace Oxide.Plugins
                 ["4_WAY_INTERSECTION"] = "LargeIntersection",
             };
 
-            public bool Migrate(StoredData data)
+            public static bool MigrateToLatest(StoredData data)
+            {
+                // Using single | to avoid short-circuiting.
+                return MigrateV0ToV1(data)
+                    | MigrateV1ToV2(data);
+            }
+
+            public static bool MigrateV0ToV1(StoredData data)
             {
                 if (data.DataFileVersion != 0)
                     return false;
 
                 data.DataFileVersion++;
 
-                var dataMigrated = false;
+                var contentChanged = false;
 
                 if (data.MonumentMap != null)
                 {
@@ -2775,24 +2828,21 @@ namespace Oxide.Plugins
                                 // Migrate from the original rotations to the rotations used by MonumentFinder.
                                 entityData.RotationAngle = (entityData.RotationAngles.y + 180) % 360;
                                 entityData.Position = Quaternion.Euler(0, 180, 0) * entityData.Position;
-                                dataMigrated = true;
+                                contentChanged = true;
                             }
 
                             // Migrate from the backwards rotations to the correct ones.
                             var newAngle = (720 - entityData.RotationAngles.y) % 360;
                             entityData.RotationAngle = newAngle;
-                            dataMigrated = true;
+                            contentChanged = true;
                         }
                     }
                 }
 
-                return dataMigrated;
+                return contentChanged;
             }
-        }
 
-        private class DataMigrationV2 : IDataMigration
-        {
-            public bool Migrate(StoredData data)
+            public static bool MigrateV1ToV2(StoredData data)
             {
                 if (data.DataFileVersion != 1)
                     return false;
@@ -2822,24 +2872,13 @@ namespace Oxide.Plugins
             {
                 var data = Interface.Oxide.DataFileSystem.ReadObject<StoredData>(_pluginInstance.Name) ?? new StoredData();
 
-                var dataMigrated = false;
-                var migrationList = new List<IDataMigration>
-                {
-                    new DataMigrationV1(),
-                    new DataMigrationV2(),
-                };
+                var originalDataFileVersion = data.DataFileVersion;
 
-                foreach (var migration in migrationList)
-                {
-                    if (migration.Migrate(data))
-                        dataMigrated = true;
-                }
-
-                if (dataMigrated)
-                {
+                if (StoredDataMigration.MigrateToLatest(data))
                     _pluginInstance.LogWarning("Data file has been automatically migrated.");
+
+                if (data.DataFileVersion != originalDataFileVersion)
                     data.Save();
-                }
 
                 return data;
             }
