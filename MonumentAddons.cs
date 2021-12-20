@@ -534,7 +534,7 @@ namespace Oxide.Plugins
 
                     profileList = profileList
                         .Where(profile => !profile.Name.EndsWith(Profile.OriginalSuffix))
-                        .OrderByDescending(profile => profile.Name == playerProfileName)
+                        .OrderByDescending(profile => profile.Enabled && profile.Name == playerProfileName)
                         .ThenByDescending(profile => profile.Enabled)
                         .ThenBy(profile => profile.Name)
                         .ToArray();
@@ -543,7 +543,7 @@ namespace Oxide.Plugins
                     sb.AppendLine(GetMessage(player, Lang.ProfileListHeader));
                     foreach (var profile in profileList)
                     {
-                        var messageName = profile.Name == playerProfileName
+                        var messageName = profile.Enabled && profile.Name == playerProfileName
                             ? Lang.ProfileListItemSelected
                             : profile.Enabled
                             ? Lang.ProfileListItemEnabled
