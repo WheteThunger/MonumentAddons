@@ -1323,6 +1323,56 @@ namespace Oxide.Plugins
 
         #endregion
 
+        #region Entity Utilities
+
+        private static class EntityUtils
+        {
+            public static T GetNearbyEntity<T>(BaseEntity originEntity, float maxDistance, int layerMask, string filterShortPrefabName = null) where T : BaseEntity
+            {
+                var entityList = new List<T>();
+                Vis.Entities(originEntity.transform.position, maxDistance, entityList, layerMask, QueryTriggerInteraction.Ignore);
+                foreach (var entity in entityList)
+                {
+                    if (filterShortPrefabName == null || entity.ShortPrefabName == filterShortPrefabName)
+                        return entity;
+                }
+                return null;
+            }
+
+            public static void ConnectNearbyVehicleSpawner(VehicleVendor vehicleVendor)
+            {
+                if (vehicleVendor.GetVehicleSpawner() != null)
+                    return;
+
+                var vehicleSpawner = vehicleVendor.ShortPrefabName == "bandit_conversationalist"
+                    ? GetNearbyEntity<VehicleSpawner>(vehicleVendor, 40, Rust.Layers.Mask.Deployed, "airwolfspawner")
+                    : vehicleVendor.ShortPrefabName == "boat_shopkeeper"
+                    ? GetNearbyEntity<VehicleSpawner>(vehicleVendor, 20, Rust.Layers.Mask.Deployed, "boatspawner")
+                    : null;
+
+                if (vehicleSpawner == null)
+                    return;
+
+                vehicleVendor.spawnerRef.Set(vehicleSpawner);
+            }
+
+            public static void ConnectNearbyVehicleVendor(VehicleSpawner vehicleSpawner)
+            {
+                var vehicleVendor = vehicleSpawner.ShortPrefabName == "airwolfspawner"
+                    ? GetNearbyEntity<VehicleVendor>(vehicleSpawner, 40, Rust.Layers.Mask.Player_Server, "bandit_conversationalist")
+                    : vehicleSpawner.ShortPrefabName == "boatspawner"
+                    ? GetNearbyEntity<VehicleVendor>(vehicleSpawner, 20, Rust.Layers.Mask.Player_Server, "boat_shopkeeper")
+                    : null;
+
+                if (vehicleVendor == null)
+                    return;
+
+                vehicleVendor.spawnerRef.Set(vehicleSpawner);
+            }
+        }
+
+        #endregion
+
         #region Entity Adapter/Controller - Base
 
         private abstract class EntityAdapterBase
@@ -1573,6 +1623,29 @@ namespace Oxide.Plugins
 
                     // Disallow adding or removing water.
                     paddlingPool.SetFlag(BaseEntity.Flags.Busy, true);
+                }
+
+                var vehicleSpawner = _entity as VehicleSpawner;
+                if (vehicleSpawner != null)
+                {
+                    vehicleSpawner.Invoke(() =>
+                    {
+                        _pluginInstance.TrackStart();
+                        EntityUtils.ConnectNearbyVehicleVendor(vehicleSpawner);
+                        _pluginInstance.TrackEnd();
+                    }, 1);
+                }
+
+                var vehicleVendor = _entity as VehicleVendor;
+                if (vehicleVendor != null)
+                {
+                    // Use a slightly longer delay than the vendor check check since this can short-circuit as an optimization.
+                    vehicleVendor.Invoke(() =>
+                    {
+                        _pluginInstance.TrackStart();
+                        EntityUtils.ConnectNearbyVehicleSpawner(vehicleVendor);
+                        _pluginInstance.TrackEnd();
+                    }, 2);
                 }
 
                 if (EntityData.Scale != 1)
