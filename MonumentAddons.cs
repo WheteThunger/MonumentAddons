@@ -2937,9 +2937,13 @@ namespace Oxide.Plugins
             public string GetSelectedProfileName(string userId)
             {
                 string profileName;
-                return SelectedProfiles.TryGetValue(userId, out profileName)
-                    ? profileName
-                    : null;
+                if (SelectedProfiles.TryGetValue(userId, out profileName))
+                    return profileName;
+
+                if (EnabledProfiles.Contains(DefaultProfileName))
+                    return DefaultProfileName;
+
+                return null;
             }
 
             public void SetProfileSelected(string userId, string profileName)
