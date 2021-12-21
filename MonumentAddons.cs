@@ -39,11 +39,8 @@ namespace Oxide.Plugins
 
         private const string DefaultProfileName = "Default";
 
-        private static readonly int HitLayers = Rust.Layers.Mask.Construction
-            + Rust.Layers.Mask.Default
-            + Rust.Layers.Mask.Deployed
-            + Rust.Layers.Mask.Terrain
-            + Rust.Layers.Mask.World;
+        private static readonly int HitLayers = Rust.Layers.Solid
+            | Rust.Layers.Mask.Water;
 
         private readonly Dictionary<string, string> DownloadRequestHeaders = new Dictionary<string, string>
         {
@@ -993,12 +990,8 @@ namespace Oxide.Plugins
 
         private static bool TryGetHitPosition(BasePlayer player, out Vector3 position, float maxDistance = MaxRaycastDistance)
         {
-            var layers = HitLayers;
-            if (player.GetParentEntity() is CargoShip)
-                layers += Rust.Layers.Mask.Vehicle_Large;
-
             RaycastHit hit;
-            if (Physics.Raycast(player.eyes.HeadRay(), out hit, maxDistance, layers, QueryTriggerInteraction.Ignore))
+            if (Physics.Raycast(player.eyes.HeadRay(), out hit, maxDistance, HitLayers, QueryTriggerInteraction.Ignore))
             {
                 position = hit.point;
                 return true;
