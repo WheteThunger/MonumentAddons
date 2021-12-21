@@ -2356,11 +2356,11 @@ namespace Oxide.Plugins
                 return profile;
             }
 
-            [JsonProperty("DataFileVersion", DefaultValueHandling = DefaultValueHandling.Ignore)]
-            public float DataFileVersion;
-
             [JsonProperty("Name")]
             public string Name;
+
+            [JsonProperty("DataFileVersion", DefaultValueHandling = DefaultValueHandling.Ignore)]
+            public float DataFileVersion;
 
             [JsonProperty("Url", DefaultValueHandling = DefaultValueHandling.Ignore)]
             public string Url;
