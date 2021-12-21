@@ -1,0 +1,68 @@
+{
+  "Name": "OutpostAirwolf",
+  "DataFileVersion": 1.0,
+  "Monuments": {
+    "compound": [
+      {
+        "Id": "4fa1a3ec-cdc5-40c0-9edc-a0403f979b4f",
+        "PrefabName": "assets/prefabs/npc/bandit/shopkeepers/bandit_conversationalist.prefab",
+        "Position": {
+          "x": 1.0,
+          "y": 10.3700867,
+          "z": -3.0
+        },
+        "RotationAngles": {
+          "x": 0.0,
+          "y": 290.0,
+          "z": 0.0
+        }
+      },
+      {
+        "Id": "023241ec-c3a7-4a08-8fe5-5c38ab6f0935",
+        "PrefabName": "assets/prefabs/npc/bandit/airwolfspawner.prefab",
+        "Position": {
+          "x": 13.0,
+          "y": 10.8886471,
+          "z": 2.7
+        },
+        "RotationAngles": {
+          "x": 0.0,
+          "y": 270.0,
+          "z": 0.0
+        }
+      },
+      {
+        "Id": "5048da02-df3f-4a35-b16b-ecca21b90bff",
+        "PrefabName": "assets/prefabs/building/ladder.wall.wood/ladder.wooden.wall.prefab",
+        "Position": {
+          "x": -4.0,
+          "y": 3.35,
+          "z": 0.2
+        },
+        "RotationAngles": {
+          "x": 0.0,
+          "y": 270.0,
+          "z": 0.0
+        }
+      },
+      {
+        "Id": "4b46f6be-af4c-4866-8cd7-df29726863ed",
+        "PrefabName": "assets/prefabs/building/ladder.wall.wood/ladder.wooden.wall.prefab",
+        "Position": {
+          "x": -2.61,
+          "y": 6.4,
+          "z": -1.59
+        }
+      },
+      {
+        "Id": "9fd01907-aade-472a-b1f3-121cb2f06b5b",
+        "PrefabName": "assets/prefabs/building/ladder.wall.wood/ladder.wooden.wall.prefab",
+        "Position": {
+          "x": -2.61,
+          "y": 9.4,
+          "z": -1.59
+        }
+      }
+    ]
+  }
+}

@@ -87,6 +87,14 @@ Several example profiles are included below. Run the corresponding command snipp
 
 Want to showcase a profile you created? Fork the repository on [GitHub](https://github.com/WheteThunger/MonumentAddons), commit the changes, and submit a pull request!
 
+#### Outpost Air Wolf
+
+Adds an Air Wolf vendor to Outpost, with some ladders to allow access.
+
+```
+maprofile install https://github.com/WheteThunger/MonumentAddons/blob/master/Profiles/OutpostAirwolf.json?raw=true
+```
+
 #### TrainStationCCTV
 
 Adds 6 CCTVs and one computer station to each underground Train Station.
