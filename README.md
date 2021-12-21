@@ -152,6 +152,23 @@ That's all you need to do. This plugin detects when an entity is resized and aut
 
 ## Instructions for specific entities
 
+### Heli & boat vendors
+
+Use the following steps to set up a heli vendor at a custom location.
+
+1. Aim where you want to spawn the vendor and run `maspawn bandit_conversationalist`.
+2. Aim where you want purchased helicopters to spawn and run `maspawn airwolfspawner`.
+
+Use the following steps to set up a boat vendor at a custom location.
+
+1. Aim where you want to spawn the vendor and run `maspawn boat_shopkeeper`.
+2. Aim where you want purchased boats to spawn and run `maspawn boatspawner`.
+
+Notes:
+- The heli vendor and spawner must be within 40m of each other to work.
+- The boat vendor and spawner must be within 20m of each other to work.
+- The boat vendor will not have a vending machine. This can be improved upon request.
+
 ### CCTV cameras & computer stations
 
 Use the following steps to set up CCTV cameras and computer stations.
