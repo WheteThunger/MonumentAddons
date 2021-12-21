@@ -363,11 +363,21 @@ namespace Oxide.Plugins
                 ? basePlayer.viewAngles.y - 180
                 : basePlayer.viewAngles.y - closestMonument.Rotation.eulerAngles.y + 180;
 
-            var rotationAngles = new Vector3(0, (localRotationAngle + 360) % 360, 0);
-            if (GetShortName(prefabName) == "big_wheel")
+            var localRotationAngles = new Vector3(0, (localRotationAngle + 360) % 360, 0);
+            var shortPrefabName = GetShortName(prefabName);
+
+            if (shortPrefabName == "big_wheel")
             {
-                rotationAngles.y -= 90;
-                rotationAngles.z = 270;
+                localRotationAngles.y -= 90;
+                localRotationAngles.z = 270;
+            }
+            else if (shortPrefabName == "boatspawner")
+            {
+                if (position.y == TerrainMeta.WaterMap.GetHeight(position))
+                {
+                    // Set the boatspawner to -1.5 like the vanilla ones.
+                    localPosition.y -= 1.5f;
+                }
             }
 
             var entityData = new EntityData
@@ -375,7 +385,7 @@ namespace Oxide.Plugins
                 Id = Guid.NewGuid(),
                 PrefabName = prefabName,
                 Position = localPosition,
-                RotationAngles = rotationAngles,
+                RotationAngles = localRotationAngles,
                 OnTerrain = Math.Abs(position.y - TerrainMeta.HeightMap.GetHeight(position)) <= TerrainProximityTolerance
             };
 
