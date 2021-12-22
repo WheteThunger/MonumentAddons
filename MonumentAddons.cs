@@ -653,7 +653,7 @@ namespace Oxide.Plugins
                     if (!VerifyProfileNameAvailable(player, newName))
                         return;
 
-                    var controller = _profileManager.CreateProfile(newName);
+                    var controller = _profileManager.CreateProfile(newName, basePlayer?.displayName);
 
                     if (!player.IsServer)
                         _pluginData.SetProfileSelected(player.Id, newName);
@@ -2664,9 +2664,13 @@ namespace Oxide.Plugins
 
             public static Profile LoadDefaultProfile() => Load(DefaultProfileName);
 
-            public static Profile Create(string profileName)
+            public static Profile Create(string profileName, string authorName)
             {
-                var profile = new Profile { Name = profileName };
+                var profile = new Profile
+                {
+                    Name = profileName,
+                    Author = authorName,
+                };
                 ProfileDataMigration.MigrateToLatest(profile);
                 profile.Save();
                 return profile;
@@ -2674,6 +2678,9 @@ namespace Oxide.Plugins
 
             [JsonProperty("Name")]
             public string Name;
+
+            [JsonProperty("Author", DefaultValueHandling = DefaultValueHandling.Ignore)]
+            public string Author;
 
             [JsonProperty("SchemaVersion", DefaultValueHandling = DefaultValueHandling.Ignore)]
             public float SchemaVersion;
@@ -3115,8 +3122,10 @@ namespace Oxide.Plugins
                     controller.Load(entityCounter);
                     yield return controller.WaitUntilLoaded;
 
-                    if (entityCounter.Value > 0)
-                        _pluginInstance.Puts($"Loaded profile {controller.Profile.Name} with {entityCounter.Value} entities.");
+                    var profile = controller.Profile;
+                    var byAuthor = profile.Author != null ? $" by {profile.Author}" : string.Empty;
+
+                    _pluginInstance.Puts($"Loaded profile {profile.Name}{byAuthor} ({entityCounter.Value} entities spawned).");
                 }
             }
 
@@ -3197,9 +3206,9 @@ namespace Oxide.Plugins
                 return Profile.Exists(profileName);
             }
 
-            public ProfileController CreateProfile(string profileName)
+            public ProfileController CreateProfile(string profileName, string authorName)
             {
-                var profile = Profile.Create(profileName);
+                var profile = Profile.Create(profileName, authorName);
                 var controller = new ProfileController(profile, startLoaded: true);
                 _profileControllers.Add(controller);
                 return controller;

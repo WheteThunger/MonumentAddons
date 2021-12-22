@@ -1,5 +1,6 @@
 {
   "Name": "TrainStationCCTV",
+  "Author": "WhiteThunder",
   "SchemaVersion": 1.0,
   "Monuments": {
     "TrainStation": [

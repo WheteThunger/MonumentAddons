@@ -1,5 +1,6 @@
 {
   "Name": "MonumentLifts",
+  "Author": "WhiteThunder/Mevent",
   "SchemaVersion": 1.0,
   "Monuments": {
     "gas_station_1": [
