@@ -2667,6 +2667,7 @@ namespace Oxide.Plugins
             public static Profile Create(string profileName)
             {
                 var profile = new Profile { Name = profileName };
+                ProfileDataMigration.MigrateToLatest(profile);
                 profile.Save();
                 return profile;
             }
