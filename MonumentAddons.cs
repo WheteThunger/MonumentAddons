@@ -1211,6 +1211,9 @@ namespace Oxide.Plugins
 
             public void Destroy()
             {
+                if (_coroutineComponent == null)
+                    return;
+
                 UnityEngine.Object.Destroy(_coroutineComponent?.gameObject);
             }
         }
