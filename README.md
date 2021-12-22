@@ -56,10 +56,8 @@ The following commands only work on entities spawned by this plugin. The effect 
 - `makill` -- Kills the entity that you are aiming at.
 - `maskin <skin id>` -- Updates the skin of the entity you are aiming at.
 - `masetid <id>` -- Updates the RC identifier of the CCTV camera you are aiming at.
-  - You must be aiming at the base of the camera.
   - Note: Each CCTV's RC identifier will have a numeric suffix like `1`, `2`, `3` and so on. This is done because each CCTV must have a unique identifier.
 - `masetdir` -- Updates the direction of the CCTV you are aiming at, so that it points toward you.
-  - You must be aiming at the base of the camera.
 
 ### Profiles
 
@@ -211,8 +209,8 @@ Notes:
 Use the following steps to set up CCTV cameras and computer stations.
 
 1. Spawn a CCTV camera with `maspawn cctv.static`.
-2. Update the camera's RC identifier with `masetid <id>` while looking at the base of the camera.
-3. Update the direction the camera is facing with `masetdir` while looking at the base of the camera. This will cause the camera to face you, just like with deployable CCTV cameras.
+2. Update the camera's RC identifier with `masetid <id>` while looking at the camera.
+3. Update the direction the camera is facing with `masetdir` while looking at the camera. This will cause the camera to face you, just like with deployable CCTV cameras.
 4. Spawn a static computer station with `maspawn computerstation.static`.
 
 That's all you need to do. The rest is automatic. Read below if you are interested in how it works.

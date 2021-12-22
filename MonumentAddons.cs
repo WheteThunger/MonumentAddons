@@ -403,9 +403,8 @@ namespace Oxide.Plugins
             if (player.IsServer || !VerifyHasPermission(player))
                 return;
 
-            BaseEntity entity;
             EntityControllerBase controller;
-            if (!VerifyLookEntity(player, out entity, out controller))
+            if (!VerifyLookEntity(player, out controller))
                 return;
 
             int numAdapters;
@@ -429,9 +428,8 @@ namespace Oxide.Plugins
                 return;
             }
 
-            CCTV_RC cctv;
             CCTVEntityController controller;
-            if (!VerifyLookEntity(player, out cctv, out controller))
+            if (!VerifyLookEntity(player, out controller))
                 return;
 
             if (controller.EntityData.CCTV == null)
@@ -454,10 +452,12 @@ namespace Oxide.Plugins
             if (player.IsServer || !VerifyHasPermission(player))
                 return;
 
-            CCTV_RC cctv;
+            CCTVEntityAdapter adapter;
             CCTVEntityController controller;
-            if (!VerifyLookEntity(player, out cctv, out controller))
+            if (!VerifyLookEntity(player, out adapter, out controller))
                 return;
+
+            var cctv = adapter.Entity as CCTV_RC;
 
             var basePlayer = player.Object as BasePlayer;
             var direction = Vector3Ex.Direction(basePlayer.eyes.position, cctv.transform.position);
@@ -484,14 +484,14 @@ namespace Oxide.Plugins
             if (player.IsServer || !VerifyHasPermission(player))
                 return;
 
-            BaseEntity entity;
+            SingleEntityAdapter adapter;
             SingleEntityController controller;
-            if (!VerifyLookEntity(player, out entity, out controller))
+            if (!VerifyLookEntity(player, out adapter, out controller))
                 return;
 
             if (args.Length == 0)
             {
-                ReplyToPlayer(player, Lang.SkinGet, entity.skinID, cmd);
+                ReplyToPlayer(player, Lang.SkinGet, adapter.Entity.skinID, cmd);
                 return;
             }
 
@@ -799,9 +799,8 @@ namespace Oxide.Plugins
 
                 case "moveto":
                 {
-                    BaseEntity entity;
                     EntityControllerBase entityController;
-                    if (!VerifyLookEntity(player, out entity, out entityController))
+                    if (!VerifyLookEntity(player, out entityController))
                         return;
 
                     ProfileController newProfileController;
@@ -1004,40 +1003,45 @@ namespace Oxide.Plugins
             return false;
         }
 
-        private bool VerifyLookEntity<T>(IPlayer player, out T entity) where T : BaseEntity
-        {
-            var basePlayer = player.Object as BasePlayer;
-            entity = GetLookEntity(basePlayer) as T;
-            if (entity != null)
-                return true;
-
-            ReplyToPlayer(player, Lang.ErrorNoSuitableEntityFound);
-            return false;
-        }
-
-        private bool VerifyLookEntity<TEntity, TController>(IPlayer player, out TEntity entity, out TController controller)
-            where TEntity : BaseEntity where TController : EntityControllerBase
+        private bool VerifyLookEntity<TAdapter, TController>(IPlayer player, out TAdapter adapter, out TController controller)
+            where TAdapter : EntityAdapterBase
+            where TController : EntityControllerBase
         {
             controller = null;
 
-            if (!VerifyLookEntity(player, out entity))
-                return false;
+            var basePlayer = player.Object as BasePlayer;
 
-            var component = MonumentEntityComponent.GetForEntity(entity);
-            if (component == null)
+            RaycastHit hit;
+            var hitEntity = GetLookEntity(basePlayer, out hit);
+
+            MonumentEntityComponent hitEntityComponent = null;
+            if (hitEntity != null && EntityHasAdapterOfType(hitEntity, out hitEntityComponent, out adapter, out controller))
             {
+                // Found a suitable entity via direct hit.
+                return true;
+            }
+
+            float distanceSquared;
+            if (TryGetClosestAdapterOfType(_profileManager, hit.point, out adapter, out controller, out distanceSquared)
+                && distanceSquared <= 4)
+            {
+                // Found a suitable nearby entity.
+                return true;
+            }
+
+            if (hitEntity != null && hitEntityComponent == null)
                 ReplyToPlayer(player, Lang.ErrorEntityNotEligible);
-                return false;
-            }
-
-            controller = component.Adapter.Controller as TController;
-            if (controller == null)
-            {
+            else
                 ReplyToPlayer(player, Lang.ErrorNoSuitableEntityFound);
-                return false;
-            }
 
-            return true;
+            return false;
+        }
+
+        private bool VerifyLookEntity<TController>(IPlayer player, out TController controller)
+            where TController : EntityControllerBase
+        {
+            EntityAdapterBase adapter;
+            return VerifyLookEntity(player, out adapter, out controller);
         }
 
         private bool VerifyProfileNameAvailable(IPlayer player, string profileName)
@@ -1091,12 +1095,63 @@ namespace Oxide.Plugins
             return false;
         }
 
-        private static BaseEntity GetLookEntity(BasePlayer basePlayer, float maxDistance = MaxRaycastDistance)
+        private static BaseEntity GetLookEntity(BasePlayer basePlayer, out RaycastHit hit, float maxDistance = MaxRaycastDistance)
         {
-            RaycastHit hit;
             return Physics.Raycast(basePlayer.eyes.HeadRay(), out hit, maxDistance, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore)
                 ? hit.GetEntity()
                 : null;
+        }
+
+        private static bool EntityHasAdapterOfType<TAdapter, TController>(BaseEntity entity, out MonumentEntityComponent component, out TAdapter adapter, out TController controller)
+            where TAdapter : EntityAdapterBase
+            where TController : EntityControllerBase
+        {
+            adapter = null;
+            controller = null;
+
+            component = MonumentEntityComponent.GetForEntity(entity);
+            if (component == null)
+                return false;
+
+            adapter = component.Adapter as TAdapter;
+            if (adapter == null)
+                return false;
+
+            controller = adapter.Controller as TController;
+            if (controller == null)
+                return false;
+
+            return true;
+        }
+
+        private static bool TryGetClosestAdapterOfType<TAdapter, TController>(ProfileManager profileManager, Vector3 position, out TAdapter adapter, out TController controller, out float closestDistanceSquared)
+            where TAdapter : EntityAdapterBase
+            where TController : EntityControllerBase
+        {
+            adapter = null;
+            controller = null;
+            closestDistanceSquared = float.MaxValue;
+
+            foreach (var possibleAdapter in profileManager.GetEnabledAdapters())
+            {
+                var adapterOfType = possibleAdapter as TAdapter;
+                if (adapterOfType == null)
+                    continue;
+
+                var controllerOfType = adapterOfType.Controller as TController;
+                if (controllerOfType == null)
+                    continue;
+
+                var adapterDistanceSquared = (adapterOfType.Position - position).sqrMagnitude;
+                if (adapter == null || adapterDistanceSquared < closestDistanceSquared)
+                {
+                    adapter = adapterOfType;
+                    controller = controllerOfType;
+                    closestDistanceSquared = adapterDistanceSquared;
+                }
+            }
+
+            return adapter != null;
         }
 
         private static string GetShortName(string prefabName)
