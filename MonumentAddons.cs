@@ -1087,9 +1087,18 @@ namespace Oxide.Plugins
 
         private bool VerifyProfileExists(IPlayer player, string profileName, out ProfileController controller)
         {
-            controller = _profileManager.GetProfileController(profileName);
-            if (controller != null)
-                return true;
+            try
+            {
+                controller = _profileManager.GetProfileController(profileName);
+                if (controller != null)
+                    return true;
+            }
+            catch (JsonReaderException ex)
+            {
+                controller = null;
+                player.Reply(ex.Message);
+                return false;
+            }
 
             ReplyToPlayer(player, Lang.ProfileNotFound, profileName);
             return false;
