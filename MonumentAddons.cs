@@ -520,6 +520,16 @@ namespace Oxide.Plugins
             ReplyToPlayer(player, Lang.SkinSetSuccess, skinId, controller.Adapters.Count, profile.Name);
         }
 
+        private void AddProfileDescription(StringBuilder sb, IPlayer player, ProfileController profileController)
+        {
+            foreach (var monumentEntry in profileController.Profile.GetEntityAggregates())
+            {
+                var aliasOrShortName = monumentEntry.Key;
+                foreach (var countEntry in monumentEntry.Value)
+                    sb.AppendLine(GetMessage(player, Lang.ProfileDescribeItem, GetShortName(countEntry.Key), countEntry.Value, aliasOrShortName));
+            }
+        }
+
         [Command("maprofile")]
         private void CommandProfile(IPlayer player, string cmd, string[] args)
         {
@@ -587,12 +597,8 @@ namespace Oxide.Plugins
 
                     var sb = new StringBuilder();
                     sb.AppendLine(GetMessage(player, Lang.ProfileDescribeHeader, controller.Profile.Name));
-                    foreach (var monumentEntry in controller.Profile.GetEntityAggregates())
-                    {
-                        var aliasOrShortName = monumentEntry.Key;
-                        foreach (var countEntry in monumentEntry.Value)
-                            sb.AppendLine(GetMessage(player, Lang.ProfileDescribeItem, GetShortName(countEntry.Key), countEntry.Value, aliasOrShortName));
-                    }
+                    AddProfileDescription(sb, player, controller);
+
                     player.Reply(sb.ToString());
 
                     if (!player.IsServer)
@@ -901,7 +907,11 @@ namespace Oxide.Plugins
                         else
                             profileController.Enable();
 
-                        ReplyToPlayer(player, Lang.ProfileInstallSuccess, profile.Name);
+                        var sb = new StringBuilder();
+                        sb.AppendLine(GetMessage(player, Lang.ProfileInstallSuccess, profile.Name));
+                        AddProfileDescription(sb, player, profileController);
+                        player.Reply(sb.ToString());
+
                         if (!player.IsServer)
                         {
                             _entityDisplayManager.SetPlayerProfile(basePlayer, profileController);
