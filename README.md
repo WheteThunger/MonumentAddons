@@ -75,6 +75,7 @@ Profiles allow you to organize entities into groups. Each profile can be indepen
 - `maprofile clear <name>` -- Removes all entities from the specified profile.
 - `maprofile moveto <name>` -- Moves the entity you are looking at to the specified profile.
 - `maprofile install <url>` -- Installs a profile from a URL.
+  - You may replace the URL with simply the profile name if installing from https://github.com/WheteThunger/MonumentAddons/tree/master/Profiles. For example, `maprofile install OutpostAirwolf`.
 
 ## Configuration
 
@@ -103,7 +104,7 @@ Want to showcase a profile you created? Fork the repository on [GitHub](https://
 Adds an Air Wolf vendor to Outpost, with some ladders to allow access.
 
 ```
-maprofile install https://github.com/WheteThunger/MonumentAddons/blob/master/Profiles/OutpostAirwolf.json?raw=true
+maprofile install OutpostAirwolf
 ```
 
 #### Barn Air Wolf
@@ -111,7 +112,7 @@ maprofile install https://github.com/WheteThunger/MonumentAddons/blob/master/Pro
 Adds an Air Wolf vendor to Large Barn and Ranch.
 
 ```
-maprofile install https://github.com/WheteThunger/MonumentAddons/blob/master/Profiles/BarnAirwolf.json?raw=true
+maprofile install BarnAirwolf
 ```
 
 #### Fishing Village Air Wolf
@@ -119,7 +120,7 @@ maprofile install https://github.com/WheteThunger/MonumentAddons/blob/master/Pro
 Adds an Air Wolf vendor to the Large Fishing Village and one of the small Fishing Villages.
 
 ```
-maprofile install https://github.com/WheteThunger/MonumentAddons/blob/master/Profiles/FishingVillageAirwolf.json?raw=true
+maprofile install FishingVillageAirwolf
 ```
 
 #### TrainStationCCTV
@@ -127,7 +128,7 @@ maprofile install https://github.com/WheteThunger/MonumentAddons/blob/master/Pro
 Adds 6 CCTVs and one computer station to each underground Train Station.
 
 ```
-maprofile install https://github.com/WheteThunger/MonumentAddons/blob/master/Profiles/TrainStationCCTV.json?raw=true
+maprofile install TrainStationCCTV
 ```
 
 #### MonumentLifts
@@ -135,7 +136,7 @@ maprofile install https://github.com/WheteThunger/MonumentAddons/blob/master/Pro
 Adds car lifts to gas station and supermarket.
 
 ```
-maprofile install https://github.com/WheteThunger/MonumentAddons/blob/master/Profiles/MonumentLifts.json?raw=true
+maprofile install MonumentLifts
 ```
 
 ## Instructions for sharing profiles

@@ -36,8 +36,8 @@ namespace Oxide.Plugins
         private const string PermissionAdmin = "monumentaddons.admin";
 
         private const string CargoShipShortName = "cargoshiptest";
-
         private const string DefaultProfileName = "Default";
+        private const string DefaultUrlPattern = "https://github.com/WheteThunger/MonumentAddons/blob/master/Profiles/{0}.json?raw=true";
 
         private static readonly int HitLayers = Rust.Layers.Solid
             | Rust.Layers.Mask.Water;
@@ -846,8 +846,16 @@ namespace Oxide.Plugins
 
                     if (!Uri.TryCreate(url, UriKind.Absolute, out parsedUri))
                     {
-                        ReplyToPlayer(player, Lang.ProfileUrlInvalid, url);
-                        return;
+                        var fallbackUrl = string.Format(DefaultUrlPattern, url);
+                        if (Uri.TryCreate(fallbackUrl, UriKind.Absolute, out parsedUri))
+                        {
+                            url = fallbackUrl;
+                        }
+                        else
+                        {
+                            ReplyToPlayer(player, Lang.ProfileUrlInvalid, url);
+                            return;
+                        }
                     }
 
                     DownloadProfile(url, profile =>
