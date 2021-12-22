@@ -88,6 +88,8 @@ Profiles allow you to organize entities into groups. Each profile can be indepen
 
 - `DebugDisplayDistance` -- Determines how far away you can see debug information about entities (i.e., when using `mashow`).
 
+## Localization
+
 ## How underwater labs work
 
 Since underwater labs are procedurally generated, this plugin does not spawn entities relative to the monuments themselves. Instead, entities are spawned relative to specific modules. For example, if you spawn an entity in a moonpool module, the entity will also be spawned at all moonpool modules in the same lab and other labs.
@@ -288,86 +290,3 @@ Fun / role play:
 ## Uninstallation
 
 Simply remove the plugin. Spawned entities are automatically removed when the plugin unloads.
-
-## Localization
-
-```json
-{
-  "Error.NoPermission": "You don't have permission to do that.",
-  "Error.MonumentFinderNotLoaded": "Error: Monument Finder is not loaded.",
-  "Error.NoMonuments": "Error: No monuments found.",
-  "Error.NotAtMonument": "Error: Not at a monument. Nearest is <color=#fd4>{0}</color> with distance <color=#fd4>{1}</color>",
-  "Error.NoSuitableEntityFound": "Error: No suitable entity found.",
-  "Error.EntityNotEligible": "Error: That entity is not managed by Monument Addons.",
-  "Spawn.Error.Syntax": "Syntax: <color=#fd4>maspawn <entity></color>",
-  "Spawn.Error.NoProfileSelected": "Error: No profile selected. Run <color=#fd4>maprofile help</color> for help.",
-  "Spawn.Error.EntityNotFound": "Error: Entity <color=#fd4>{0}</color> not found.",
-  "Spawn.Error.MultipleMatches": "Multiple matches:\n",
-  "Spawn.Error.NoTarget": "Error: No valid spawn position found.",
-  "Spawn.Success2": "Spawned entity at <color=#fd4>{0}</color> matching monument(s) and saved to <color=#fd4>{1}</color> profile for monument <color=#fd4>{2}</color>.",
-  "Kill.Success2": "Killed entity at <color=#fd4>{0}</color> matching monument(s) and removed from profile <color=#fd4>{1}</color>.",
-  "Show.Success": "Showing nearby Monument Addons for <color=#fd4>{0}</color>.",
-  "Show.Label.MonumentAddon": "Monument Addon",
-  "Show.Label.Monument": "Monument: {0} (x{1})",
-  "Show.Label.Profile": "Profile: {0}",
-  "Show.Label.Prefab": "Prefab: {0}",
-  "Show.Label.Skin": "Skin: {0}",
-  "Show.Label.Scale": "Scale: {0}",
-  "Show.Label.RCIdentifier": "RC Identifier: {0}",
-  "Skin.Get": "Skin ID: <color=#fd4>{0}</color>. Run <color=#fd4>{1} <skin id></color> to change it.",
-  "Skin.Set.Syntax": "Syntax: <color=#fd4>{0} <skin id></color>",
-  "Skin.Set.Success2": "Updated skin ID to <color=#fd4>{0}</color> at <color=#fd4>{1}</color> matching monument(s) and saved to profile <color=#fd4>{2}</color>.",
-  "Skin.Error.Redirect": "Error: Skin <color=#fd4>{0}</color> is a redirect skin and cannot be set directly. Instead, spawn the entity as <color=#fd4>{1}</color>.",
-  "CCTV.SetId.Error.Syntax": "Syntax: <color=#fd4>{0} <id></color>",
-  "CCTV.SetId.Success2": "Updated CCTV id to <color=#fd4>{0}</color> at <color=#fd4>{1}</color> matching monument(s) and saved to profile <color=#fd4>{2}</color>.",
-  "CCTV.SetDirection.Success2": "Updated CCTV direction at <color=#fd4>{0}</color> matching monument(s) and saved to profile <color=#fd4>{1}</color>.",
-  "Profile.List.Empty": "You have no profiles. Create one with <color=#fd4>maprofile create <name></maprofile>",
-  "Profile.List.Header": "<size=18>Monument Addons Profiles</size>",
-  "Profile.List.Item.Enabled": "<color=#fd4>{0}</color> - <color=#6e6>ENABLED</color>",
-  "Profile.List.Item.Disabled": "<color=#fd4>{0}</color> - <color=#f44>DISABLED</color>",
-  "Profile.List.Item.Selected": "<color=#fd4>{0}</color> - <color=#6cf>SELECTED</color>",
-  "Profile.Install.Syntax": "Syntax: <color=#fd4>maprofile install <url></color>",
-  "Profile.Install.Shorthand.Syntax": "Syntax: <color=#fd4>mainstall <url></color>",
-  "Profile.Url.Invalid": "Invalid URL: {0}",
-  "Profile.Error.AlreadyExists.NotEmpty": "Error: Profile <color=#fd4>{0}</color> already exists and is not empty.",
-  "Profile.Install.Success": "Successfully installed and <color=#6e6>ENABLED</color> profile <color=#fd4>{0}</color>",
-  "Profile.Install.Error": "Error installing profile from url {0}. See the error logs for more details.",
-  "Profile.Describe.Syntax": "Syntax: <color=#fd4>maprofile describe <name></color>",
-  "Profile.Error.NotFound": "Error: Profile <color=#fd4>{0}</color> not found.",
-  "Profile.Empty": "Profile <color=#fd4>{0}</color> is empty.",
-  "Profile.Describe.Header": "Describing profile <color=#fd4>{0}</color>.",
-  "Profile.Describe.Item": "<color=#fd4>{0}</color> x{1} @ {2}",
-  "Profile.Select.Syntax": "Syntax: <color=#fd4>maprofile select <name></color>",
-  "Profile.Select.Success": "Successfully <color=#6cf>SELECTED</color> and <color=#6e6>ENABLED</color> profile <color=#fd4>{0}</color>.",
-  "Profile.Enable.Syntax": "Syntax: <color=#fd4>maprofile enable <name></color>",
-  "Profile.AlreadyEnabled": "Profile <color=#fd4>{0}</color> is already <color=#6e6>ENABLED</color>.",
-  "Profile.Enable.Success": "Profile <color=#fd4>{0}</color> is now: <color=#6e6>ENABLED</color>.",
-  "Profile.Disable.Syntax": "Syntax: <color=#fd4>maprofile disable <name></color>",
-  "Profile.AlreadyDisabled": "Profile <color=#fd4>{0}</color> is already <color=#f44>DISABLED</color>.",
-  "Profile.Disable.Success": "Profile <color=#fd4>{0}</color> is now: <color=#f44>DISABLED</color>.",
-  "Profile.Reload.Syntax": "Syntax: <color=#fd4>maprofile reload <name></color>",
-  "Profile.Reload.Success": "Reloaded profile <color=#fd4>{0}</color>.",
-  "Profile.Create.Syntax": "Syntax: <color=#fd4>maprofile create <name></color>",
-  "Profile.Error.AlreadyExists": "Error: Profile <color=#fd4>{0}</color> already exists.",
-  "Profile.Create.Success": "Successfully created and <color=#6cf>SELECTED</color> profile <color=#fd4>{0}</color>.",
-  "Profile.Rename.Syntax": "Syntax: <color=#fd4>maprofile rename <old name> <new name></color>",
-  "Profile.Rename.Success": "Successfully renamed profile <color=#fd4>{0}</color> to <color=#fd4>{1}</color>. You must manually delete the old <color=#fd4>{0}</color> data file.",
-  "Profile.Clear.Syntax": "Syntax: <color=#fd4>maprofile clear <name></color>",
-  "Profile.Clear.Success": "Successfully cleared profile <color=#fd4>{0}</color>.",
-  "Profile.MoveTo.Syntax": "Syntax: <color=#fd4>maprofile moveto <name></color>",
-  "Profile.MoveTo.AlreadyPresent": "Error: <color=#fd4>{0}</color> is already part of profile <color=#fd4>{1}</color>.",
-  "Profile.MoveTo.Success": "Successfully moved <color=#fd4>{0}</color> from profile <color=#fd4>{1}</color> to <color=#fd4>{2}</color>.",
-  "Profile.Help.Header": "<size=18>Monument Addons Profile Commands</size>",
-  "Profile.Help.List": "<color=#fd4>maprofile list</color> - List all profiles",
-  "Profile.Help.Describe": "<color=#fd4>maprofile describe <name></color> - Describe profile contents",
-  "Profile.Help.Enable": "<color=#fd4>maprofile enable <name></color> - Enable a profile",
-  "Profile.Help.Disable": "<color=#fd4>maprofile disable <name></color> - Disable a profile",
-  "Profile.Help.Reload": "<color=#fd4>maprofile reload <name></color> - Reload a profile from disk",
-  "Profile.Help.Select": "<color=#fd4>maprofile select <name></color> - Select a profile",
-  "Profile.Help.Create": "<color=#fd4>maprofile create <name></color> - Create a new profile",
-  "Profile.Help.Rename": "<color=#fd4>maprofile rename <name> <new name></color> - Rename a profile",
-  "Profile.Help.Clear": "<color=#fd4>maprofile clear <name></color> - Clears a profile",
-  "Profile.Help.MoveTo2": "<color=#fd4>maprofile moveto <name></color> - Move an entity to a profile",
-  "Profile.Help.Install": "<color=#fd4>maprofile install <url></color> - Install a profile from a URL"
-}
-```
