@@ -625,7 +625,8 @@ namespace Oxide.Plugins
                         return;
 
                     _pluginData.SetProfileSelected(player.Id, controller.Profile.Name);
-                    if (controller.IsEnabled)
+                    var wasEnabled = controller.IsEnabled;
+                    if (wasEnabled)
                     {
                         // Only save if the profile is not enabled, since enabling it will already save the main data file.
                         _pluginData.Save();
@@ -635,7 +636,7 @@ namespace Oxide.Plugins
                         controller.Enable();
                     }
 
-                    ReplyToPlayer(player, Lang.ProfileSelectSuccess, controller.Profile.Name);
+                    ReplyToPlayer(player, wasEnabled ? Lang.ProfileSelectSuccess : Lang.ProfileSelectEnableSuccess, controller.Profile.Name);
                     _entityDisplayManager.SetPlayerProfile(basePlayer, controller);
                     _entityDisplayManager.ShowAllRepeatedly(basePlayer);
                     break;
@@ -3789,7 +3790,8 @@ namespace Oxide.Plugins
             public const string ProfileDescribeHeader = "Profile.Describe.Header";
             public const string ProfileDescribeItem = "Profile.Describe.Item";
             public const string ProfileSelectSyntax = "Profile.Select.Syntax";
-            public const string ProfileSelectSuccess = "Profile.Select.Success";
+            public const string ProfileSelectSuccess = "Profile.Select.Success2";
+            public const string ProfileSelectEnableSuccess = "Profile.Select.Enable.Success";
 
             public const string ProfileEnableSyntax = "Profile.Enable.Syntax";
             public const string ProfileAlreadyEnabled = "Profile.AlreadyEnabled";
@@ -3882,7 +3884,8 @@ namespace Oxide.Plugins
                 [Lang.ProfileDescribeHeader] = "Describing profile <color=#fd4>{0}</color>.",
                 [Lang.ProfileDescribeItem] = "<color=#fd4>{0}</color> x{1} @ {2}",
                 [Lang.ProfileSelectSyntax] = "Syntax: <color=#fd4>maprofile select <name></color>",
-                [Lang.ProfileSelectSuccess] = "Successfully <color=#6cf>SELECTED</color> and <color=#6e6>ENABLED</color> profile <color=#fd4>{0}</color>.",
+                [Lang.ProfileSelectSuccess] = "Successfully <color=#6cf>SELECTED</color> profile <color=#fd4>{0}</color>.",
+                [Lang.ProfileSelectEnableSuccess] = "Successfully <color=#6cf>SELECTED</color> and <color=#6e6>ENABLED</color> profile <color=#fd4>{0}</color>.",
 
                 [Lang.ProfileEnableSyntax] = "Syntax: <color=#fd4>maprofile enable <name></color>",
                 [Lang.ProfileAlreadyEnabled] = "Profile <color=#fd4>{0}</color> is already <color=#6e6>ENABLED</color>.",
