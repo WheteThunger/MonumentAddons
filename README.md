@@ -47,6 +47,9 @@ This does several things.
   - Also spawns the entity at other matching monuments (e.g., if at a gas station, will spawn at all gas stations).
     - A monument is considered a match if it has the same short prefab name or the same alias as the monument you are aiming at. The Monument Finder plugin will assign aliases for primarily underground tunnels. For example, `station-sn-0` and `station-we-0` will both use the `TrainStation` alias, allowing all train stations to have the same entities.
   - Saves the entity info to the plugin data file so that reloading the plugin (or restarting the server) will respawn the entity.
+- `mashow <optional_profile_name> <optional_duration_in_seconds>` -- Shows debug information about nearby entities spawned by this plugin, for the specified duration. Defaults to 60 seconds.
+  - Debug information is also automatically displayed for at least 60 seconds when using other commands.
+  - When specifying a profile name, entities belonging to other profiles will have gray text.
 
 The following commands only work on entities spawned by this plugin. The effect of these commands automatically applies to all copies of the entity at matching monuments, and also applies updates the data files.
 
@@ -74,6 +77,16 @@ Profiles allow you to organize entities into groups. Each profile can be indepen
 - `maprofile clear <name>` -- Removes all entities from the specified profile.
 - `maprofile moveto <name>` -- Moves the entity you are looking at to the specified profile.
 - `maprofile install <url>` -- Installs a profile from a URL.
+
+## Configuration
+
+```json
+{
+  "DebugDisplayDistance": 150
+}
+```
+
+- `DebugDisplayDistance` -- Determines how far away you can see debug information about entities (i.e., when using `mashow`).
 
 ## How underwater labs work
 
@@ -277,6 +290,14 @@ Simply remove the plugin. Spawned entities are automatically removed when the pl
   "Spawn.Error.NoTarget": "Error: No valid spawn position found.",
   "Spawn.Success2": "Spawned entity at <color=#fd4>{0}</color> matching monument(s) and saved to <color=#fd4>{1}</color> profile for monument <color=#fd4>{2}</color>.",
   "Kill.Success2": "Killed entity at <color=#fd4>{0}</color> matching monument(s) and removed from profile <color=#fd4>{1}</color>.",
+  "Show.Success": "Showing nearby Monument Addons for <color=#fd4>{0}</color>.",
+  "Show.Label.MonumentAddon": "Monument Addon",
+  "Show.Label.Monument": "Monument: {0} (x{1})",
+  "Show.Label.Profile": "Profile: {0}",
+  "Show.Label.Prefab": "Prefab: {0}",
+  "Show.Label.Skin": "Skin: {0}",
+  "Show.Label.Scale": "Scale: {0}",
+  "Show.Label.RCIdentifier": "RC Identifier: {0}",
   "Skin.Get": "Skin ID: <color=#fd4>{0}</color>. Run <color=#fd4>{1} <skin id></color> to change it.",
   "Skin.Set.Syntax": "Syntax: <color=#fd4>{0} <skin id></color>",
   "Skin.Set.Success2": "Updated skin ID to <color=#fd4>{0}</color> at <color=#fd4>{1}</color> matching monument(s) and saved to profile <color=#fd4>{2}</color>.",
@@ -314,6 +335,8 @@ Simply remove the plugin. Spawned entities are automatically removed when the pl
   "Profile.Create.Success": "Successfully created and <color=#6cf>SELECTED</color> profile <color=#fd4>{0}</color>.",
   "Profile.Rename.Syntax": "Syntax: <color=#fd4>maprofile rename <old name> <new name></color>",
   "Profile.Rename.Success": "Successfully renamed profile <color=#fd4>{0}</color> to <color=#fd4>{1}</color>. You must manually delete the old <color=#fd4>{0}</color> data file.",
+  "Profile.Clear.Syntax": "Syntax: <color=#fd4>maprofile clear <name></color>",
+  "Profile.Clear.Success": "Successfully cleared profile <color=#fd4>{0}</color>.",
   "Profile.MoveTo.Syntax": "Syntax: <color=#fd4>maprofile moveto <name></color>",
   "Profile.MoveTo.AlreadyPresent": "Error: <color=#fd4>{0}</color> is already part of profile <color=#fd4>{1}</color>.",
   "Profile.MoveTo.Success": "Successfully moved <color=#fd4>{0}</color> from profile <color=#fd4>{1}</color> to <color=#fd4>{2}</color>.",
@@ -326,6 +349,7 @@ Simply remove the plugin. Spawned entities are automatically removed when the pl
   "Profile.Help.Select": "<color=#fd4>maprofile select <name></color> - Select a profile",
   "Profile.Help.Create": "<color=#fd4>maprofile create <name></color> - Create a new profile",
   "Profile.Help.Rename": "<color=#fd4>maprofile rename <name> <new name></color> - Rename a profile",
+  "Profile.Help.Clear": "<color=#fd4>maprofile clear <name></color> - Clears a profile",
   "Profile.Help.MoveTo2": "<color=#fd4>maprofile moveto <name></color> - Move an entity to a profile",
   "Profile.Help.Install": "<color=#fd4>maprofile install <url></color> - Install a profile from a URL"
 }

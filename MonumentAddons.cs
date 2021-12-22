@@ -49,6 +49,7 @@ namespace Oxide.Plugins
 
         private readonly ProfileManager _profileManager = new ProfileManager();
         private readonly CoroutineManager _coroutineManager = new CoroutineManager();
+        private readonly EntityDisplayManager _entityDisplayManager = new EntityDisplayManager();
         private readonly EntityListenerManager _entityListenerManager = new EntityListenerManager();
         private readonly EntityControllerFactoryResolver _entityControllerFactoryResolver = new EntityControllerFactoryResolver();
 
@@ -392,6 +393,7 @@ namespace Oxide.Plugins
             controller.Profile.AddEntityData(closestMonument.AliasOrShortName, entityData);
             controller.SpawnNewEntity(entityData, matchingMonuments);
 
+            _entityDisplayManager.ShowAllRepeatedly(basePlayer);
             ReplyToPlayer(player, Lang.SpawnSuccess, matchingMonuments.Count, controller.Profile.Name, closestMonument.AliasOrShortName);
         }
 
@@ -410,6 +412,8 @@ namespace Oxide.Plugins
             if (!controller.TryDestroyAndRemove(out numAdapters))
                 return;
 
+            var basePlayer = player.Object as BasePlayer;
+            _entityDisplayManager.ShowAllRepeatedly(basePlayer);
             ReplyToPlayer(player, Lang.KillSuccess, numAdapters, controller.ProfileController.Profile.Name);
         }
 
@@ -439,6 +443,8 @@ namespace Oxide.Plugins
             var profile = controller.ProfileController.Profile;
             profile.Save();
 
+            var basePlayer = player.Object as BasePlayer;
+            _entityDisplayManager.ShowAllRepeatedly(basePlayer);
             ReplyToPlayer(player, Lang.CCTVSetIdSuccess, args[0], controller.Adapters.Count, profile.Name);
         }
 
@@ -468,6 +474,7 @@ namespace Oxide.Plugins
             var profile = controller.ProfileController.Profile;
             profile.Save();
 
+            _entityDisplayManager.ShowAllRepeatedly(basePlayer);
             ReplyToPlayer(player, Lang.CCTVSetDirectionSuccess, controller.Adapters.Count, profile.Name);
         }
 
@@ -508,6 +515,8 @@ namespace Oxide.Plugins
             var profile = controller.ProfileController.Profile;
             profile.Save();
 
+            var basePlayer = player.Object as BasePlayer;
+            _entityDisplayManager.ShowAllRepeatedly(basePlayer);
             ReplyToPlayer(player, Lang.SkinSetSuccess, skinId, controller.Adapters.Count, profile.Name);
         }
 
@@ -522,9 +531,11 @@ namespace Oxide.Plugins
 
             if (args.Length == 0)
             {
-                SubCommandHelp(player);
+                SubCommandProfileHelp(player);
                 return;
             }
+
+            var basePlayer = player.Object as BasePlayer;
 
             switch (args[0].ToLower())
             {
@@ -583,6 +594,12 @@ namespace Oxide.Plugins
                             sb.AppendLine(GetMessage(player, Lang.ProfileDescribeItem, GetShortName(countEntry.Key), countEntry.Value, aliasOrShortName));
                     }
                     player.Reply(sb.ToString());
+
+                    if (!player.IsServer)
+                    {
+                        _entityDisplayManager.SetPlayerProfile(basePlayer, controller);
+                        _entityDisplayManager.ShowAllRepeatedly(basePlayer);
+                    }
                     break;
                 }
 
@@ -611,7 +628,10 @@ namespace Oxide.Plugins
                     {
                         controller.Enable();
                     }
+
                     ReplyToPlayer(player, Lang.ProfileSelectSuccess, controller.Profile.Name);
+                    _entityDisplayManager.SetPlayerProfile(basePlayer, controller);
+                    _entityDisplayManager.ShowAllRepeatedly(basePlayer);
                     break;
                 }
 
@@ -680,6 +700,10 @@ namespace Oxide.Plugins
 
                     controller.Rename(newName);
                     ReplyToPlayer(player, Lang.ProfileRenameSuccess, actualOldName, controller.Profile.Name);
+                    if (!player.IsServer)
+                    {
+                        _entityDisplayManager.ShowAllRepeatedly(basePlayer);
+                    }
                     break;
                 }
 
@@ -691,6 +715,11 @@ namespace Oxide.Plugins
 
                     controller.Reload();
                     ReplyToPlayer(player, Lang.ProfileReloadSuccess, controller.Profile.Name);
+                    if (!player.IsServer)
+                    {
+                        _entityDisplayManager.SetPlayerProfile(basePlayer, controller);
+                        _entityDisplayManager.ShowAllRepeatedly(basePlayer);
+                    }
                     break;
                 }
 
@@ -715,6 +744,11 @@ namespace Oxide.Plugins
 
                     controller.Enable();
                     ReplyToPlayer(player, Lang.ProfileEnableSuccess, profileName);
+                    if (!player.IsServer)
+                    {
+                        _entityDisplayManager.SetPlayerProfile(basePlayer, controller);
+                        _entityDisplayManager.ShowAllRepeatedly(basePlayer);
+                    }
                     break;
                 }
 
@@ -773,7 +807,7 @@ namespace Oxide.Plugins
 
                     if (newProfileController == entityController.ProfileController)
                     {
-                        ReplyToPlayer(player, Lang.ProfileMoveToAlreadyPresent, GetShortName(entityData.PrefabName), oldProfile.Name);
+                        ReplyToPlayer(player, Lang.ProfileMoveToAlreadyPresent, entityData.ShortPrefabName, oldProfile.Name);
                         return;
                     }
 
@@ -785,7 +819,12 @@ namespace Oxide.Plugins
                     newProfile.AddEntityData(monumentAliasOrShortName, entityData);
                     newProfileController.SpawnNewEntity(entityData, GetMonumentsByAliasOrShortName(monumentAliasOrShortName));
 
-                    ReplyToPlayer(player, Lang.ProfileMoveToSuccess, GetShortName(entityData.PrefabName), oldProfile.Name, newProfile.Name);
+                    ReplyToPlayer(player, Lang.ProfileMoveToSuccess, entityData.ShortPrefabName, oldProfile.Name, newProfile.Name);
+                    if (!player.IsServer)
+                    {
+                        _entityDisplayManager.SetPlayerProfile(basePlayer, newProfileController);
+                        _entityDisplayManager.ShowAllRepeatedly(basePlayer);
+                    }
                     break;
                 }
 
@@ -863,6 +902,11 @@ namespace Oxide.Plugins
                             profileController.Enable();
 
                         ReplyToPlayer(player, Lang.ProfileInstallSuccess, profile.Name);
+                        if (!player.IsServer)
+                        {
+                            _entityDisplayManager.SetPlayerProfile(basePlayer, profileController);
+                            _entityDisplayManager.ShowAllRepeatedly(basePlayer);
+                        }
                     });
 
                     break;
@@ -870,13 +914,13 @@ namespace Oxide.Plugins
 
                 default:
                 {
-                    SubCommandHelp(player);
+                    SubCommandProfileHelp(player);
                     break;
                 }
             }
         }
 
-        private void SubCommandHelp(IPlayer player)
+        private void SubCommandProfileHelp(IPlayer player)
         {
             var sb = new StringBuilder();
             sb.AppendLine(GetMessage(player, Lang.ProfileHelpHeader));
@@ -892,6 +936,49 @@ namespace Oxide.Plugins
             sb.AppendLine(GetMessage(player, Lang.ProfileHelpMoveTo));
             sb.AppendLine(GetMessage(player, Lang.ProfileHelpInstall));
             ReplyToPlayer(player, sb.ToString());
+        }
+
+        [Command("mashow")]
+        private void CommandShow(IPlayer player, string cmd, string[] args)
+        {
+            if (player.IsServer || !VerifyHasPermission(player))
+                return;
+
+            int duration = EntityDisplayManager.DefaultDisplayDuration;
+            string profileName = null;
+
+            foreach (var arg in args)
+            {
+                int argIntValue;
+                if (int.TryParse(arg, out argIntValue))
+                {
+                    duration = argIntValue;
+                    continue;
+                }
+
+                if (profileName == null)
+                {
+                    profileName = arg;
+                }
+            }
+
+            ProfileController profileController = null;
+            if (profileName != null)
+            {
+                profileController = _profileManager.GetProfileController(profileName);
+                if (profileController == null)
+                {
+                    ReplyToPlayer(player, Lang.ProfileNotFound, profileName);
+                    return;
+                }
+            }
+
+            var basePlayer = player.Object as BasePlayer;
+
+            _entityDisplayManager.SetPlayerProfile(basePlayer, profileController);
+            _entityDisplayManager.ShowAllRepeatedly(basePlayer, duration);
+
+            ReplyToPlayer(player, Lang.ShowSuccess, FormatTime(duration));
         }
 
         #endregion
@@ -1085,6 +1172,9 @@ namespace Oxide.Plugins
             return prefab.GetComponent<BaseEntity>();
         }
 
+        private static string FormatTime(double seconds) =>
+            TimeSpan.FromSeconds(seconds).ToString("g");
+
         private BaseMonument GetClosestMonument(BasePlayer player, Vector3 position)
         {
             CargoShipMonument cargoShipMonument;
@@ -1176,6 +1266,25 @@ namespace Oxide.Plugins
                 headers: DownloadRequestHeaders,
                 timeout: 5000
             );
+        }
+
+        #endregion
+
+        #region Ddraw
+
+        private static class Ddraw
+        {
+            public static void Sphere(BasePlayer player, Vector3 origin, float radius, Color color, float duration) =>
+                player.SendConsoleCommand("ddraw.sphere", duration, color, origin, radius);
+
+            public static void Line(BasePlayer player, Vector3 origin, Vector3 target, Color color, float duration) =>
+                player.SendConsoleCommand("ddraw.line", duration, color, origin, target);
+
+            public static void Arrow(BasePlayer player, Vector3 origin, Vector3 target, float headSize, Color color, float duration) =>
+                player.SendConsoleCommand("ddraw.arrow", duration, color, origin, target, headSize);
+
+            public static void Text(BasePlayer player, Vector3 origin, string text, Color color, float duration) =>
+                player.SendConsoleCommand("ddraw.text", duration, color, origin, text);
         }
 
         #endregion
@@ -1394,6 +1503,7 @@ namespace Oxide.Plugins
             public EntityData EntityData { get; private set; }
             public BaseMonument Monument { get; private set; }
             public virtual bool IsDestroyed { get; }
+            public abstract Vector3 Position { get; }
 
             protected static readonly HashSet<BaseEntity> _registeredEntities = new HashSet<BaseEntity>();
 
@@ -1537,9 +1647,11 @@ namespace Oxide.Plugins
 
         private class SingleEntityAdapter : EntityAdapterBase
         {
-            protected BaseEntity _entity;
+            protected Transform _transform { get; private set; }
+            public BaseEntity Entity { get; private set; }
 
-            public override bool IsDestroyed => _entity == null || _entity.IsDestroyed;
+            public override bool IsDestroyed => Entity == null || Entity.IsDestroyed;
+            public override Vector3 Position => _transform.position;
 
             public SingleEntityAdapter(EntityControllerBase controller, EntityData entityData, BaseMonument monument) : base(controller, entityData, monument) {}
 
@@ -1551,9 +1663,11 @@ namespace Oxide.Plugins
                 if (EntityData.OnTerrain)
                     position.y = TerrainMeta.HeightMap.GetHeight(position);
 
-                _entity = CreateEntity(EntityData.PrefabName, position, rotation);
+                Entity = CreateEntity(EntityData.PrefabName, position, rotation);
+                _transform = Entity.transform;
+
                 OnEntitySpawn();
-                _entity.Spawn();
+                Entity.Spawn();
                 OnEntitySpawned();
             }
 
@@ -1562,7 +1676,7 @@ namespace Oxide.Plugins
                 if (IsDestroyed)
                     return;
 
-                _entity.Kill();
+                Entity.Kill();
             }
 
             public override void OnEntityDestroyed(BaseEntity entity)
@@ -1579,21 +1693,21 @@ namespace Oxide.Plugins
 
             public void UpdateScale()
             {
-                _pluginInstance.ScaleEntity(_entity, EntityData.Scale);
+                _pluginInstance.ScaleEntity(Entity, EntityData.Scale);
             }
 
             public void UpdateSkin()
             {
-                if (_entity.skinID == EntityData.Skin)
+                if (Entity.skinID == EntityData.Skin)
                     return;
 
-                _entity.skinID = EntityData.Skin;
-                _entity.SendNetworkUpdate();
+                Entity.skinID = EntityData.Skin;
+                Entity.SendNetworkUpdate();
             }
 
             private bool ShouldBeImmortal()
             {
-                var samSite = _entity as SamSite;
+                var samSite = Entity as SamSite;
                 if (samSite != null && samSite.staticRespawn)
                     return false;
 
@@ -1603,9 +1717,9 @@ namespace Oxide.Plugins
             protected virtual void OnEntitySpawn()
             {
                 if (EntityData.Skin != 0)
-                    _entity.skinID = EntityData.Skin;
+                    Entity.skinID = EntityData.Skin;
 
-                var combatEntity = _entity as BaseCombatEntity;
+                var combatEntity = Entity as BaseCombatEntity;
                 if (combatEntity != null)
                 {
                     if (ShouldBeImmortal())
@@ -1616,13 +1730,13 @@ namespace Oxide.Plugins
                     combatEntity.pickup.enabled = false;
                 }
 
-                var stabilityEntity = _entity as StabilityEntity;
+                var stabilityEntity = Entity as StabilityEntity;
                 if (stabilityEntity != null)
                 {
                     stabilityEntity.grounded = true;
                 }
 
-                var ioEntity = _entity as IOEntity;
+                var ioEntity = Entity as IOEntity;
                 if (ioEntity != null)
                 {
                     ioEntity.SetFlag(BaseEntity.Flags.On, true);
@@ -1634,12 +1748,12 @@ namespace Oxide.Plugins
             {
                 // Disable saving after spawn to make sure children that are spawned late also have saving disabled.
                 // For example, the Lift class spawns a sub entity.
-                EnableSavingResursive(_entity, false);
+                EnableSavingResursive(Entity, false);
 
-                if (_entity is NPCVendingMachine && EntityData.Skin != 0)
+                if (Entity is NPCVendingMachine && EntityData.Skin != 0)
                     UpdateSkin();
 
-                var computerStation = _entity as ComputerStation;
+                var computerStation = Entity as ComputerStation;
                 if (computerStation != null && computerStation.isStatic)
                 {
                     computerStation.CancelInvoke(computerStation.GatherStaticCameras);
@@ -1651,7 +1765,7 @@ namespace Oxide.Plugins
                     }, 1);
                 }
 
-                var paddlingPool = _entity as PaddlingPool;
+                var paddlingPool = Entity as PaddlingPool;
                 if (paddlingPool != null)
                 {
                     paddlingPool.inventory.AddItem(_pluginInstance._waterDefinition, paddlingPool.inventory.maxStackSize);
@@ -1660,7 +1774,7 @@ namespace Oxide.Plugins
                     paddlingPool.SetFlag(BaseEntity.Flags.Busy, true);
                 }
 
-                var vehicleSpawner = _entity as VehicleSpawner;
+                var vehicleSpawner = Entity as VehicleSpawner;
                 if (vehicleSpawner != null)
                 {
                     vehicleSpawner.Invoke(() =>
@@ -1671,7 +1785,7 @@ namespace Oxide.Plugins
                     }, 1);
                 }
 
-                var vehicleVendor = _entity as VehicleVendor;
+                var vehicleVendor = Entity as VehicleVendor;
                 if (vehicleVendor != null)
                 {
                     // Use a slightly longer delay than the vendor check check since this can short-circuit as an optimization.
@@ -1697,7 +1811,7 @@ namespace Oxide.Plugins
 
             private List<CCTV_RC> GetNearbyStaticCameras()
             {
-                var cargoShip = _entity.GetParentEntity() as CargoShip;
+                var cargoShip = Entity.GetParentEntity() as CargoShip;
                 if (cargoShip != null)
                 {
                     var cargoCameraList = new List<CCTV_RC>();
@@ -1711,7 +1825,7 @@ namespace Oxide.Plugins
                 }
 
                 var entityList = new List<BaseEntity>();
-                Vis.Entities(_entity.transform.position, 100, entityList, Rust.Layers.Mask.Deployed, QueryTriggerInteraction.Ignore);
+                Vis.Entities(Entity.transform.position, 100, entityList, Rust.Layers.Mask.Deployed, QueryTriggerInteraction.Ignore);
                 if (entityList.Count == 0)
                     return null;
 
@@ -1789,11 +1903,11 @@ namespace Oxide.Plugins
         {
             public SignEntityAdapter(EntityControllerBase controller, EntityData entityData, BaseMonument monument) : base(controller, entityData, monument) {}
 
-            public uint[] GetTextureIds() => (_entity as ISignage)?.GetTextureCRCs();
+            public uint[] GetTextureIds() => (Entity as ISignage)?.GetTextureCRCs();
 
             public void SetTextureIds(uint[] textureIds)
             {
-                var sign = _entity as ISignage;
+                var sign = Entity as ISignage;
                 if (textureIds == null || textureIds.Equals(sign.GetTextureCRCs()))
                     return;
 
@@ -1805,23 +1919,23 @@ namespace Oxide.Plugins
                 if (EntityData.SignArtistImages == null)
                     return;
 
-                _pluginInstance.SkinSign(_entity as ISignage, EntityData.SignArtistImages);
+                _pluginInstance.SkinSign(Entity as ISignage, EntityData.SignArtistImages);
             }
 
             protected override void OnEntitySpawn()
             {
                 base.OnEntitySpawn();
 
-                (_entity as Signage)?.EnsureInitialized();
+                (Entity as Signage)?.EnsureInitialized();
 
-                var carvablePumpkin = _entity as CarvablePumpkin;
+                var carvablePumpkin = Entity as CarvablePumpkin;
                 if (carvablePumpkin != null)
                 {
                     carvablePumpkin.EnsureInitialized();
                     carvablePumpkin.SetFlag(BaseEntity.Flags.On, true);
                 }
 
-                _entity.SetFlag(BaseEntity.Flags.Locked, true);
+                Entity.SetFlag(BaseEntity.Flags.Locked, true);
             }
 
             protected override void OnEntitySpawned()
@@ -1829,7 +1943,7 @@ namespace Oxide.Plugins
                 base.OnEntitySpawned();
 
                 // This must be done after spawning to allow the animation to work.
-                var neonSign = _entity as NeonSign;
+                var neonSign = Entity as NeonSign;
                 if (neonSign != null)
                     neonSign.UpdateFromInput(neonSign.ConsumptionAmount(), 0);
             }
@@ -1958,9 +2072,9 @@ namespace Oxide.Plugins
 
                 SetIdentifier(newIdentifier);
 
-                if (_entity.IsFullySpawned())
+                if (Entity.IsFullySpawned())
                 {
-                    _entity.SendNetworkUpdate();
+                    Entity.SendNetworkUpdate();
 
                     var computerStationList = GetNearbyStaticComputerStations();
                     if (computerStationList != null)
@@ -1986,7 +2100,7 @@ namespace Oxide.Plugins
                 if (cctvInfo == null)
                     return;
 
-                var cctv = _entity as CCTV_RC;
+                var cctv = Entity as CCTV_RC;
                 cctv.pitchAmount = cctvInfo.Pitch;
                 cctv.yawAmount = cctvInfo.Yaw;
 
@@ -1996,16 +2110,19 @@ namespace Oxide.Plugins
                 cctv.pitch.transform.localRotation = Quaternion.Euler(cctv.pitchAmount, 0f, 0f);
                 cctv.yaw.transform.localRotation = Quaternion.Euler(0f, cctv.yawAmount, 0f);
 
-                if (_entity.IsFullySpawned())
-                    _entity.SendNetworkUpdate();
+                if (Entity.IsFullySpawned())
+                    Entity.SendNetworkUpdate();
             }
 
+            public string GetIdentifier() =>
+                (Entity as CCTV_RC).rcIdentifier;
+
             private void SetIdentifier(string id) =>
-                (_entity as CCTV_RC).rcIdentifier = id;
+                (Entity as CCTV_RC).rcIdentifier = id;
 
             private List<ComputerStation> GetNearbyStaticComputerStations()
             {
-                var cargoShip = _entity.GetParentEntity() as CargoShip;
+                var cargoShip = Entity.GetParentEntity() as CargoShip;
                 if (cargoShip != null)
                 {
                     var cargoComputerStationList = new List<ComputerStation>();
@@ -2019,7 +2136,7 @@ namespace Oxide.Plugins
                 }
 
                 var entityList = new List<BaseEntity>();
-                Vis.Entities(_entity.transform.position, 100, entityList, Rust.Layers.Mask.Deployed, QueryTriggerInteraction.Ignore);
+                Vis.Entities(Entity.transform.position, 100, entityList, Rust.Layers.Mask.Deployed, QueryTriggerInteraction.Ignore);
                 if (entityList.Count == 0)
                     return null;
 
@@ -2283,6 +2400,156 @@ namespace Oxide.Plugins
 
         #endregion
 
+        #region Entity Display Manager
+
+        private class EntityDisplayManager
+        {
+            public const int DefaultDisplayDuration = 60;
+            private const int DisplayIntervalDuration = 3;
+
+            private class PlayerInfo
+            {
+                public Timer Timer;
+                public ProfileController ProfileController;
+            }
+
+            private float DisplayDistanceSquared => Mathf.Pow(_pluginConfig.DebugDisplayDistance, 2);
+
+            private StringBuilder _sb = new StringBuilder(200);
+            private Dictionary<ulong, PlayerInfo> _playerInfo = new Dictionary<ulong, PlayerInfo>();
+
+            public void SetPlayerProfile(BasePlayer player, ProfileController profileController)
+            {
+                GetOrCreatePlayerInfo(player).ProfileController = profileController;
+            }
+
+            public void ShowAllRepeatedly(BasePlayer player, int duration = -1)
+            {
+                var playerInfo = GetOrCreatePlayerInfo(player);
+
+                ShowNearbyEntities(player, player.transform.position, playerInfo);
+
+                if (playerInfo.Timer != null && !playerInfo.Timer.Destroyed)
+                {
+                    if (duration == 0)
+                    {
+                        playerInfo.Timer.Destroy();
+                    }
+                    else
+                    {
+                        var remainingTime = playerInfo.Timer.Repetitions * DisplayIntervalDuration;
+                        var newDuration = duration > 0 ? duration : Math.Max(remainingTime, DefaultDisplayDuration);
+                        var newRepetitions = Math.Max(newDuration / DisplayIntervalDuration, 1);
+                        playerInfo.Timer.Reset(delay: -1, repetitions: newRepetitions);
+                    }
+                    return;
+                }
+
+                if (duration == -1)
+                    duration = DefaultDisplayDuration;
+
+                // Ensure repetitions is not 0 since that would result in infintire repetitions.
+                var repetitions = Math.Max(duration / DisplayIntervalDuration, 1);
+
+                playerInfo.Timer = _pluginInstance.timer.Repeat(DisplayIntervalDuration - 0.2f, repetitions, () =>
+                {
+                    ShowNearbyEntities(player, player.transform.position, playerInfo);
+                });
+            }
+
+            private void ShowEntityInfo(BasePlayer player, EntityAdapterBase adapter, PlayerInfo playerInfo)
+            {
+                var entityData = adapter.EntityData;
+                var entityController = adapter.Controller;
+                var profileController = entityController.ProfileController;
+
+                var color = Color.magenta;
+
+                if (playerInfo.ProfileController != null && playerInfo.ProfileController != profileController)
+                {
+                    color = Color.grey;
+                }
+
+                _sb.Clear();
+                _sb.AppendLine(_pluginInstance.GetMessage(player, Lang.ShowLabelMonumentAddon));
+                _sb.AppendLine(_pluginInstance.GetMessage(player, Lang.ShowLabelMonument, adapter.Monument.AliasOrShortName, entityController.Adapters.Count));
+                _sb.AppendLine(_pluginInstance.GetMessage(player, Lang.ShowLabelProfile, profileController.Profile.Name));
+                _sb.AppendLine(_pluginInstance.GetMessage(player, Lang.ShowLabelPrefab, entityData.ShortPrefabName));
+
+                if (entityData.Skin != 0)
+                    _sb.AppendLine(_pluginInstance.GetMessage(player, Lang.ShowLabelSkin, entityData.Skin));
+
+                if (entityData.Scale != 1)
+                    _sb.AppendLine(_pluginInstance.GetMessage(player, Lang.ShowLabelScale, entityData.Scale));
+
+                var singleEntityAdapter = adapter as SingleEntityAdapter;
+                if (singleEntityAdapter != null)
+                {
+                    var vehicleVendor = singleEntityAdapter.Entity as VehicleVendor;
+                    if (vehicleVendor != null)
+                    {
+                        var vehicleSpawner = vehicleVendor.GetVehicleSpawner();
+                        if (vehicleSpawner != null)
+                        {
+                            Ddraw.Arrow(player, adapter.Position + new Vector3(0, 1.5f, 0), vehicleSpawner.transform.position, 0.25f, color, DisplayIntervalDuration);
+                        }
+                    }
+                }
+
+                var cctvIdentifier = entityData.CCTV?.RCIdentifier;
+                if (cctvIdentifier != null)
+                {
+                    var identifier = (adapter as CCTVEntityAdapter)?.GetIdentifier();
+                    if (identifier != null)
+                        _sb.AppendLine(_pluginInstance.GetMessage(player, Lang.ShowLabelRCIdentifier, identifier));
+                }
+
+                Ddraw.Text(player, adapter.Position, _sb.ToString(), color, DisplayIntervalDuration);
+            }
+
+            private void ShowNearbyEntities(BasePlayer player, Vector3 playerPosition, PlayerInfo playerInfo)
+            {
+                if (!player.IsConnected)
+                {
+                    playerInfo.Timer.Destroy();
+                    _playerInfo.Remove(player.userID);
+                    return;
+                }
+
+                var isAdmin = player.IsAdmin;
+                if (!isAdmin)
+                {
+                    player.SetPlayerFlag(BasePlayer.PlayerFlags.IsAdmin, true);
+                    player.SendNetworkUpdateImmediate();
+                }
+
+                foreach (var adapter in _pluginInstance._profileManager.GetEnabledAdapters())
+                {
+                    if ((playerPosition - adapter.Position).sqrMagnitude <= DisplayDistanceSquared)
+                        ShowEntityInfo(player, adapter, playerInfo);
+                }
+
+                if (!isAdmin)
+                {
+                    player.SetPlayerFlag(BasePlayer.PlayerFlags.IsAdmin, false);
+                    player.SendNetworkUpdateImmediate();
+                }
+            }
+
+            private PlayerInfo GetOrCreatePlayerInfo(BasePlayer player)
+            {
+                PlayerInfo playerInfo;
+                if (!_playerInfo.TryGetValue(player.userID, out playerInfo))
+                {
+                    playerInfo = new PlayerInfo();
+                    _playerInfo[player.userID] = playerInfo;
+                }
+                return playerInfo;
+            }
+        }
+
+        #endregion
+
         #region Profile Data
 
         private static class ProfileDataMigration
@@ -2310,7 +2577,7 @@ namespace Oxide.Plugins
 
                         foreach (var entityData in entityDataList)
                         {
-                            if (GetShortName(entityData.PrefabName) == "big_wheel"
+                            if (entityData.ShortPrefabName == "big_wheel"
                                 && entityData.RotationAngles.x != 90)
                             {
                                 // The plugin used to coerce the x component to 90.
@@ -2556,6 +2823,17 @@ namespace Oxide.Plugins
 
             public void StartCoroutine(IEnumerator enumerator) =>
                 _coroutineManager.StartCoroutine(enumerator);
+
+            public IEnumerable<EntityAdapterBase> GetAdapters()
+            {
+                foreach (var controller in _controllersByEntityData.Values)
+                {
+                    foreach (var adapter in controller.Adapters)
+                    {
+                        yield return adapter;
+                    }
+                }
+            }
 
             public void Load(ReferenceTypeWrapper<int> entityCounter = null)
             {
@@ -2926,6 +3204,18 @@ namespace Oxide.Plugins
                 return controller;
             }
 
+            public IEnumerable<EntityAdapterBase> GetEnabledAdapters()
+            {
+                foreach (var profileControler in _profileControllers)
+                {
+                    if (!profileControler.IsEnabled)
+                        continue;
+
+                    foreach (var adapter in profileControler.GetAdapters())
+                        yield return adapter;
+                }
+            }
+
             private IEnumerator UnloadAllProfilesRoutine()
             {
                 foreach (var controller in _profileControllers)
@@ -3167,6 +3457,20 @@ namespace Oxide.Plugins
 
             [JsonProperty("SignArtistImages", DefaultValueHandling = DefaultValueHandling.Ignore)]
             public SignArtistImage[] SignArtistImages;
+
+            private string _shortPrefabName;
+
+            [JsonIgnore]
+            public string ShortPrefabName
+            {
+                get
+                {
+                    if (_shortPrefabName == null)
+                        _shortPrefabName = GetShortName(PrefabName);
+
+                    return _shortPrefabName;
+                }
+            }
         }
 
         #endregion
@@ -3177,6 +3481,9 @@ namespace Oxide.Plugins
         {
             [JsonProperty("Debug", DefaultValueHandling = DefaultValueHandling.Ignore)]
             public bool Debug = false;
+
+            [JsonProperty("DebugDisplayDistance")]
+            public float DebugDisplayDistance = 150;
         }
 
         private Configuration GetDefaultConfig() => new Configuration();
@@ -3300,6 +3607,9 @@ namespace Oxide.Plugins
         private string GetMessage(IPlayer player, string messageName, params object[] args) =>
             GetMessage(player.Id, messageName, args);
 
+        private string GetMessage(BasePlayer player, string messageName, params object[] args) =>
+            GetMessage(player.UserIDString, messageName, args);
+
         private void ReplyToPlayer(IPlayer player, string messageName, params object[] args) =>
             player.Reply(string.Format(GetMessage(player, messageName), args));
 
@@ -3322,6 +3632,15 @@ namespace Oxide.Plugins
             public const string SpawnErrorNoTarget = "Spawn.Error.NoTarget";
             public const string SpawnSuccess = "Spawn.Success2";
             public const string KillSuccess = "Kill.Success2";
+
+            public const string ShowSuccess = "Show.Success";
+            public const string ShowLabelMonumentAddon = "Show.Label.MonumentAddon";
+            public const string ShowLabelMonument = "Show.Label.Monument";
+            public const string ShowLabelProfile = "Show.Label.Profile";
+            public const string ShowLabelPrefab = "Show.Label.Prefab";
+            public const string ShowLabelSkin = "Show.Label.Skin";
+            public const string ShowLabelScale = "Show.Label.Scale";
+            public const string ShowLabelRCIdentifier = "Show.Label.RCIdentifier";
 
             public const string SkinGet = "Skin.Get";
             public const string SkinSetSyntax = "Skin.Set.Syntax";
@@ -3404,6 +3723,15 @@ namespace Oxide.Plugins
                 [Lang.SpawnErrorNoTarget] = "Error: No valid spawn position found.",
                 [Lang.SpawnSuccess] = "Spawned entity at <color=#fd4>{0}</color> matching monument(s) and saved to <color=#fd4>{1}</color> profile for monument <color=#fd4>{2}</color>.",
                 [Lang.KillSuccess] = "Killed entity at <color=#fd4>{0}</color> matching monument(s) and removed from profile <color=#fd4>{1}</color>.",
+
+                [Lang.ShowSuccess] = "Showing nearby Monument Addons for <color=#fd4>{0}</color>.",
+                [Lang.ShowLabelMonumentAddon] = "Monument Addon",
+                [Lang.ShowLabelMonument] = "Monument: {0} (x{1})",
+                [Lang.ShowLabelProfile] = "Profile: {0}",
+                [Lang.ShowLabelPrefab] = "Prefab: {0}",
+                [Lang.ShowLabelSkin] = "Skin: {0}",
+                [Lang.ShowLabelScale] = "Scale: {0}",
+                [Lang.ShowLabelRCIdentifier] = "RC Identifier: {0}",
 
                 [Lang.SkinGet] = "Skin ID: <color=#fd4>{0}</color>. Run <color=#fd4>{1} <skin id></color> to change it.",
                 [Lang.SkinSetSyntax] = "Syntax: <color=#fd4>{0} <skin id></color>",
