@@ -551,7 +551,7 @@ namespace Oxide.Plugins
             {
                 case "list":
                 {
-                    var profileList = ProfileInfo.GetList();
+                    var profileList = ProfileInfo.GetList(_profileManager);
                     if (profileList.Length == 0)
                     {
                         ReplyToPlayer(player, Lang.ProfileListEmpty);
@@ -577,7 +577,7 @@ namespace Oxide.Plugins
                             ? Lang.ProfileListItemEnabled
                             : Lang.ProfileListItemDisabled;
 
-                        sb.AppendLine(GetMessage(player, messageName, profile.Name));
+                        sb.AppendLine(GetMessage(player, messageName, profile.Name, GetAuthorSuffix(player, profile.Profile?.Author)));
                     }
                     player.Reply(sb.ToString());
                     break;
@@ -959,7 +959,7 @@ namespace Oxide.Plugins
                     profileController.Enable();
 
                 var sb = new StringBuilder();
-                sb.AppendLine(GetMessage(player, Lang.ProfileInstallSuccess, profile.Name));
+                sb.AppendLine(GetMessage(player, Lang.ProfileInstallSuccess, profile.Name, GetAuthorSuffix(player, profile.Author)));
                 AddProfileDescription(sb, player, profileController);
                 player.Reply(sb.ToString());
 
@@ -3169,7 +3169,7 @@ namespace Oxide.Plugins
 
         private struct ProfileInfo
         {
-            public static ProfileInfo[] GetList()
+            public static ProfileInfo[] GetList(ProfileManager profileManager)
             {
                 var profileNameList = Profile.GetProfileNames();
                 var profileInfoList = new ProfileInfo[profileNameList.Length];
@@ -3181,6 +3181,7 @@ namespace Oxide.Plugins
                     {
                         Name = profileName,
                         Enabled = _pluginData.EnabledProfiles.Contains(profileName),
+                        Profile = profileManager.GetCachedProfileController(profileName)?.Profile
                     };
                 }
 
@@ -3189,6 +3190,7 @@ namespace Oxide.Plugins
 
             public string Name;
             public bool Enabled;
+            public Profile Profile;
         }
 
         private class ProfileManager
@@ -3213,7 +3215,7 @@ namespace Oxide.Plugins
                     yield return controller.WaitUntilLoaded;
 
                     var profile = controller.Profile;
-                    var byAuthor = profile.Author != null ? $" by {profile.Author}" : string.Empty;
+                    var byAuthor = !string.IsNullOrWhiteSpace(profile.Author) ? $" by {profile.Author}" : string.Empty;
 
                     _pluginInstance.Puts($"Loaded profile {profile.Name}{byAuthor} ({entityCounter.Value} entities spawned).");
                 }
@@ -3242,7 +3244,7 @@ namespace Oxide.Plugins
                 }
             }
 
-            public ProfileController GetProfileController(string profileName)
+            public ProfileController GetCachedProfileController(string profileName)
             {
                 var profileNameLower = profileName.ToLower();
 
@@ -3251,6 +3253,15 @@ namespace Oxide.Plugins
                     if (cachedController.Profile.Name.ToLower() == profileNameLower)
                         return cachedController;
                 }
+
+                return null;
+            }
+
+            public ProfileController GetProfileController(string profileName)
+            {
+                var profileController = GetCachedProfileController(profileName);
+                if (profileController != null)
+                    return profileController;
 
                 var profile = Profile.LoadIfExists(profileName);
                 if (profile != null)
@@ -3716,6 +3727,13 @@ namespace Oxide.Plugins
         private void ChatMessage(BasePlayer player, string messageName, params object[] args) =>
             player.ChatMessage(string.Format(GetMessage(player.UserIDString, messageName), args));
 
+        private string GetAuthorSuffix(IPlayer player, string author)
+        {
+            return !string.IsNullOrWhiteSpace(author)
+                ? GetMessage(player, Lang.ProfileByAuthor, author)
+                : string.Empty;
+        }
+
         private class Lang
         {
             public const string ErrorNoPermission = "Error.NoPermission";
@@ -3753,15 +3771,16 @@ namespace Oxide.Plugins
 
             public const string ProfileListEmpty = "Profile.List.Empty";
             public const string ProfileListHeader = "Profile.List.Header";
-            public const string ProfileListItemEnabled = "Profile.List.Item.Enabled";
-            public const string ProfileListItemDisabled = "Profile.List.Item.Disabled";
-            public const string ProfileListItemSelected = "Profile.List.Item.Selected";
+            public const string ProfileListItemEnabled = "Profile.List.Item.Enabled2";
+            public const string ProfileListItemDisabled = "Profile.List.Item.Disabled2";
+            public const string ProfileListItemSelected = "Profile.List.Item.Selected2";
+            public const string ProfileByAuthor = "Profile.ByAuthor";
 
             public const string ProfileInstallSyntax = "Profile.Install.Syntax";
             public const string ProfileInstallShorthandSyntax = "Profile.Install.Shorthand.Syntax";
             public const string ProfileUrlInvalid = "Profile.Url.Invalid";
             public const string ProfileAlreadyExistsNotEmpty = "Profile.Error.AlreadyExists.NotEmpty";
-            public const string ProfileInstallSuccess = "Profile.Install.Success";
+            public const string ProfileInstallSuccess = "Profile.Install.Success2";
             public const string ProfileInstallError = "Profile.Install.Error";
 
             public const string ProfileDescribeSyntax = "Profile.Describe.Syntax";
@@ -3845,15 +3864,16 @@ namespace Oxide.Plugins
 
                 [Lang.ProfileListEmpty] = "You have no profiles. Create one with <color=#fd4>maprofile create <name></maprofile>",
                 [Lang.ProfileListHeader] = "<size=18>Monument Addons Profiles</size>",
-                [Lang.ProfileListItemEnabled] = "<color=#fd4>{0}</color> - <color=#6e6>ENABLED</color>",
-                [Lang.ProfileListItemDisabled] = "<color=#fd4>{0}</color> - <color=#f44>DISABLED</color>",
-                [Lang.ProfileListItemSelected] = "<color=#fd4>{0}</color> - <color=#6cf>SELECTED</color>",
+                [Lang.ProfileListItemEnabled] = "<color=#fd4>{0}</color>{1} - <color=#6e6>ENABLED</color>",
+                [Lang.ProfileListItemDisabled] = "<color=#fd4>{0}</color>{1} - <color=#f44>DISABLED</color>",
+                [Lang.ProfileListItemSelected] = "<color=#fd4>{0}</color>{1} - <color=#6cf>SELECTED</color>",
+                [Lang.ProfileByAuthor] = " by {0}",
 
                 [Lang.ProfileInstallSyntax] = "Syntax: <color=#fd4>maprofile install <url></color>",
                 [Lang.ProfileInstallShorthandSyntax] = "Syntax: <color=#fd4>mainstall <url></color>",
                 [Lang.ProfileUrlInvalid] = "Invalid URL: {0}",
                 [Lang.ProfileAlreadyExistsNotEmpty] = "Error: Profile <color=#fd4>{0}</color> already exists and is not empty.",
-                [Lang.ProfileInstallSuccess] = "Successfully installed and <color=#6e6>ENABLED</color> profile <color=#fd4>{0}</color>",
+                [Lang.ProfileInstallSuccess] = "Successfully installed and <color=#6e6>ENABLED</color> profile <color=#fd4>{0}</color>{1}.",
                 [Lang.ProfileInstallError] = "Error installing profile from url {0}. See the error logs for more details.",
 
                 [Lang.ProfileDescribeSyntax] = "Syntax: <color=#fd4>maprofile describe <name></color>",
