@@ -2561,10 +2561,10 @@ namespace Oxide.Plugins
 
             public static bool MigrateV0ToV1(Profile data)
             {
-                if (data.DataFileVersion != 0)
+                if (data.SchemaVersion != 0)
                     return false;
 
-                data.DataFileVersion++;
+                data.SchemaVersion++;
 
                 var contentChanged = false;
 
@@ -2648,12 +2648,12 @@ namespace Oxide.Plugins
                     }
                 }
 
-                var originalDataFileVersion = profile.DataFileVersion;
+                var originalSchemaVersion = profile.SchemaVersion;
 
                 if (ProfileDataMigration.MigrateToLatest(profile))
                     _pluginInstance.LogWarning($"Profile {profile.Name} has been automatically migrated.");
 
-                if (profile.DataFileVersion != originalDataFileVersion)
+                if (profile.SchemaVersion != originalSchemaVersion)
                     profile.Save();
 
                 return profile;
@@ -2675,8 +2675,8 @@ namespace Oxide.Plugins
             [JsonProperty("Name")]
             public string Name;
 
-            [JsonProperty("DataFileVersion", DefaultValueHandling = DefaultValueHandling.Ignore)]
-            public float DataFileVersion;
+            [JsonProperty("SchemaVersion", DefaultValueHandling = DefaultValueHandling.Ignore)]
+            public float SchemaVersion;
 
             [JsonProperty("Url", DefaultValueHandling = DefaultValueHandling.Ignore)]
             public string Url;

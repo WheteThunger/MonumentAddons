@@ -1,6 +1,6 @@
 {
   "Name": "MonumentLifts",
-  "DataFileVersion": 1.0,
+  "SchemaVersion": 1.0,
   "Monuments": {
     "gas_station_1": [
       {
