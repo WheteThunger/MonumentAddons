@@ -47,9 +47,10 @@ namespace Oxide.Plugins
             { "Content-Type", "application/json" }
         };
 
-        private readonly EntityManager _entityManager = new EntityManager();
+        private readonly ProfileManager _profileManager = new ProfileManager();
         private readonly CoroutineManager _coroutineManager = new CoroutineManager();
-        private ProfileManager _profileManager;
+        private readonly EntityListenerManager _entityListenerManager = new EntityListenerManager();
+        private readonly EntityControllerFactoryResolver _entityControllerFactoryResolver = new EntityControllerFactoryResolver();
 
         private ItemDefinition _waterDefinition;
         private ProtectionProperties _immortalProtection;
@@ -66,8 +67,6 @@ namespace Oxide.Plugins
             _pluginInstance = this;
             _pluginData = StoredData.Load();
 
-            _profileManager = new ProfileManager(_entityManager);
-
             // Ensure the profile folder is created to avoid errors.
             Profile.LoadDefaultProfile();
 
@@ -75,7 +74,7 @@ namespace Oxide.Plugins
 
             Unsubscribe(nameof(OnEntitySpawned));
 
-            _entityManager.Init();
+            _entityListenerManager.Init();
         }
 
         private void OnServerInitialized()
@@ -85,6 +84,8 @@ namespace Oxide.Plugins
             _immortalProtection = ScriptableObject.CreateInstance<ProtectionProperties>();
             _immortalProtection.name = "MonumentAddonsProtection";
             _immortalProtection.Add(1);
+
+            _entityListenerManager.OnServerInitialized();
 
             if (CheckDependencies())
                 StartupRoutine();
@@ -405,12 +406,11 @@ namespace Oxide.Plugins
             if (!VerifyLookEntity(player, out entity, out controller))
                 return;
 
-            var numEntities = controller.Adapters.Count;
-            controller.Destroy();
+            int numAdapters;
+            if (!controller.TryDestroyAndRemove(out numAdapters))
+                return;
 
-            var profile = controller.ProfileController.Profile;
-            profile.RemoveEntityData(controller.EntityData);
-            ReplyToPlayer(player, Lang.KillSuccess, numEntities, profile.Name);
+            ReplyToPlayer(player, Lang.KillSuccess, numAdapters, controller.ProfileController.Profile.Name);
         }
 
         [Command("masetid")]
@@ -764,34 +764,27 @@ namespace Oxide.Plugins
                     if (!VerifyLookEntity(player, out entity, out entityController))
                         return;
 
-                    ProfileController profileController;
-                    if (!VerifyProfile(player, args, out profileController, Lang.ProfileMoveToSyntax))
+                    ProfileController newProfileController;
+                    if (!VerifyProfile(player, args, out newProfileController, Lang.ProfileMoveToSyntax))
                         return;
 
                     var entityData = entityController.EntityData;
                     var oldProfile = entityController.ProfileController.Profile;
 
-                    if (profileController == entityController.ProfileController)
+                    if (newProfileController == entityController.ProfileController)
                     {
                         ReplyToPlayer(player, Lang.ProfileMoveToAlreadyPresent, GetShortName(entityData.PrefabName), oldProfile.Name);
                         return;
                     }
 
                     string monumentAliasOrShortName;
-                    if (!oldProfile.RemoveEntityData(entityData, out monumentAliasOrShortName))
+                    if (!entityController.TryDestroyAndRemove(out monumentAliasOrShortName))
                         return;
 
-                    if (profileController.ProfileState == ProfileState.Unloading
-                        || profileController.ProfileState == ProfileState.Unloaded)
-                    {
-                        entityController.PreUnload();
-                        entityController.Destroy();
-                    }
-
-                    entityController.ProfileController = profileController;
-
-                    var newProfile = profileController.Profile;
+                    var newProfile = newProfileController.Profile;
                     newProfile.AddEntityData(monumentAliasOrShortName, entityData);
+                    newProfileController.SpawnNewEntity(entityData, GetMonumentsByAliasOrShortName(monumentAliasOrShortName));
+
                     ReplyToPlayer(player, Lang.ProfileMoveToSuccess, GetShortName(entityData.PrefabName), oldProfile.Name, newProfile.Name);
                     break;
                 }
@@ -1081,6 +1074,15 @@ namespace Oxide.Plugins
             }
 
             return false;
+        }
+
+        private static BaseEntity FindBaseEntityForPrefab(string prefabName)
+        {
+            var prefab = GameManager.server.FindPrefab(prefabName);
+            if (prefab == null)
+                return null;
+
+            return prefab.GetComponent<BaseEntity>();
         }
 
         private BaseMonument GetClosestMonument(BasePlayer player, Vector3 position)
@@ -1433,14 +1435,12 @@ namespace Oxide.Plugins
 
         private abstract class EntityControllerBase
         {
-            public EntityManager Manager { get; private set; }
-            public ProfileController ProfileController;
+            public ProfileController ProfileController { get; private set; }
             public EntityData EntityData { get; private set; }
             public List<EntityAdapterBase> Adapters { get; private set; } = new List<EntityAdapterBase>();
 
-            public EntityControllerBase(EntityManager manager, ProfileController profileController, EntityData entityData)
+            public EntityControllerBase(ProfileController profileController, EntityData entityData)
             {
-                Manager = manager;
                 ProfileController = profileController;
                 EntityData = entityData;
             }
@@ -1448,6 +1448,21 @@ namespace Oxide.Plugins
             public abstract EntityAdapterBase CreateAdapter(BaseMonument monument);
 
             public virtual void PreUnload() {}
+
+            public virtual void OnAdapterSpawned(EntityAdapterBase adapter)
+            {
+                _pluginInstance?._entityListenerManager.OnAdapterSpawned(adapter);
+            }
+
+            public virtual void OnAdapterDestroyed(EntityAdapterBase adapter)
+            {
+                _pluginInstance?._entityListenerManager.OnAdapterDestroyed(adapter);
+
+                Adapters.Remove(adapter);
+
+                if (Adapters.Count == 0)
+                    ProfileController.OnControllerDestroyed(this);
+            }
 
             public EntityAdapterBase SpawnAtMonument(BaseMonument monument)
             {
@@ -1480,22 +1495,36 @@ namespace Oxide.Plugins
                 }
             }
 
-            public void Destroy()
+            public bool TryDestroyAndRemove(out string monumentAliasOrShortName, out int numAdapters)
             {
-                if (Adapters.Count > 0)
+                numAdapters = Adapters.Count;
+
+                var profile = ProfileController.Profile;
+                if (!profile.RemoveEntityData(EntityData, out monumentAliasOrShortName))
+                {
+                    _pluginInstance?.LogError($"Unexpected error: Entity {EntityData.PrefabName} was not found in profile {profile.Name}");
+                    return false;
+                }
+
+                PreUnload();
+
+                if (numAdapters > 0)
                     CoroutineManager.StartGlobalCoroutine(DestroyRoutine());
 
-                Manager.OnControllerDestroyed(this);
+                ProfileController.OnControllerDestroyed(this);
+                return true;
             }
 
-            public virtual void OnAdapterSpawned(EntityAdapterBase adapter) {}
-
-            public virtual void OnAdapterDestroyed(EntityAdapterBase adapter)
+            public bool TryDestroyAndRemove(out int numAdapters)
             {
-                Adapters.Remove(adapter);
+                string monumentAliasOrShortName;
+                return TryDestroyAndRemove(out monumentAliasOrShortName, out numAdapters);
+            }
 
-                if (Adapters.Count == 0)
-                    Manager.OnControllerDestroyed(this);
+            public bool TryDestroyAndRemove(out string monumentAliasOrShortName)
+            {
+                int numAdapters;
+                return TryDestroyAndRemove(out monumentAliasOrShortName, out numAdapters);
             }
         }
 
@@ -1706,8 +1735,8 @@ namespace Oxide.Plugins
 
         private class SingleEntityController : EntityControllerBase
         {
-            public SingleEntityController(EntityManager manager, ProfileController profileController, EntityData data)
-                : base(manager, profileController, data) {}
+            public SingleEntityController(ProfileController profileController, EntityData data)
+                : base(profileController, data) {}
 
             public override EntityAdapterBase CreateAdapter(BaseMonument monument) =>
                 new SingleEntityAdapter(this, EntityData, monument);
@@ -1805,8 +1834,8 @@ namespace Oxide.Plugins
 
         private class SignEntityController : SingleEntityController
         {
-            public SignEntityController(EntityManager manager, ProfileController profileController, EntityData data)
-                : base(manager, profileController, data) {}
+            public SignEntityController(ProfileController profileController, EntityData data)
+                : base(profileController, data) {}
 
             // Sign artist will only be called for the primary adapter.
             // Texture ids are copied to the others.
@@ -1817,6 +1846,8 @@ namespace Oxide.Plugins
 
             public override void OnAdapterSpawned(EntityAdapterBase adapter)
             {
+                base.OnAdapterSpawned(adapter);
+
                 var signEntityAdapter = adapter as SignEntityAdapter;
 
                 if (_primaryAdapter != null)
@@ -2004,8 +2035,8 @@ namespace Oxide.Plugins
         {
             private int _nextId = 1;
 
-            public CCTVEntityController(EntityManager manager, ProfileController profileController, EntityData data)
-                : base(manager, profileController, data) {}
+            public CCTVEntityController(ProfileController profileController, EntityData data)
+                : base(profileController, data) {}
 
             public override EntityAdapterBase CreateAdapter(BaseMonument monument) =>
                 new CCTVEntityAdapter(this, EntityData, monument, _nextId++);
@@ -2058,17 +2089,28 @@ namespace Oxide.Plugins
 
         #endregion
 
-        #region Entity Manager
+        #region Entity Listeners
 
-        private abstract class EntityControllerFactoryBase
+        private abstract class EntityListenerBase
+        {
+            public virtual void Init() {}
+            public virtual void OnServerInitialized() {}
+            public abstract bool InterestedInEntity(EntityAdapterBase entityAdapter);
+            public abstract void OnAdapterSpawned(EntityAdapterBase entityAdapter);
+            public abstract void OnAdapterDestroyed(EntityAdapterBase entityAdapter);
+        }
+
+        private abstract class DynamicHookListener : EntityListenerBase
         {
             protected string[] _dynamicHookNames;
             private int _controllerCount;
 
-            public abstract bool AppliesToEntity(BaseEntity entity);
-            public abstract EntityControllerBase CreateController(EntityManager manager, ProfileController controller, EntityData entityData);
+            public override void Init()
+            {
+                UnsubscribeHooks();
+            }
 
-            public void OnControllerCreated()
+            public override void OnAdapterSpawned(EntityAdapterBase entityAdapter)
             {
                 _controllerCount++;
 
@@ -2076,7 +2118,7 @@ namespace Oxide.Plugins
                     SubscribeHooks();
             }
 
-            public void OnControllerDestroyed()
+            public override void OnAdapterDestroyed(EntityAdapterBase entityAdapter)
             {
                 _controllerCount--;
 
@@ -2084,7 +2126,7 @@ namespace Oxide.Plugins
                     UnsubscribeHooks();
             }
 
-            public void SubscribeHooks()
+            private void SubscribeHooks()
             {
                 if (_dynamicHookNames == null)
                     return;
@@ -2093,7 +2135,7 @@ namespace Oxide.Plugins
                     _pluginInstance?.Subscribe(hookName);
             }
 
-            public void UnsubscribeHooks()
+            private void UnsubscribeHooks()
             {
                 if (_dynamicHookNames == null)
                     return;
@@ -2103,12 +2145,79 @@ namespace Oxide.Plugins
             }
         }
 
+        private class SignEntityListener : DynamicHookListener
+        {
+            public SignEntityListener()
+            {
+                _dynamicHookNames = new string[]
+                {
+                    nameof(CanUpdateSign),
+                    nameof(OnSignUpdated),
+                    nameof(OnImagePost),
+                };
+            }
+
+            public override bool InterestedInEntity(EntityAdapterBase entityAdapterBase) =>
+                FindBaseEntityForPrefab(entityAdapterBase.EntityData.PrefabName) is ISignage;
+        }
+
+        private class EntityListenerManager
+        {
+            private EntityListenerBase[] _listeners = new EntityListenerBase[]
+            {
+                new SignEntityListener(),
+            };
+
+            public void Init()
+            {
+                foreach (var listener in _listeners)
+                    listener.Init();
+            }
+
+            public void OnServerInitialized()
+            {
+                foreach (var listener in _listeners)
+                    listener.OnServerInitialized();
+            }
+
+            public void OnAdapterSpawned(EntityAdapterBase entityAdapter)
+            {
+                foreach (var listener in _listeners)
+                {
+                    if (listener.InterestedInEntity(entityAdapter))
+                        listener.OnAdapterSpawned(entityAdapter);
+                }
+            }
+
+            public void OnAdapterDestroyed(EntityAdapterBase entityAdapter)
+            {
+                foreach (var listener in _listeners)
+                {
+                    if (listener.InterestedInEntity(entityAdapter))
+                        listener.OnAdapterDestroyed(entityAdapter);
+                }
+            }
+        }
+
+        #endregion
+
+        #region Entity Controller Factories
+
+        private abstract class EntityControllerFactoryBase
+        {
+            protected string[] _dynamicHookNames;
+            private int _controllerCount;
+
+            public abstract bool AppliesToEntity(BaseEntity entity);
+            public abstract EntityControllerBase CreateController(ProfileController controller, EntityData entityData);
+        }
+
         private class SingleEntityControllerFactory : EntityControllerFactoryBase
         {
             public override bool AppliesToEntity(BaseEntity entity) => true;
 
-            public override EntityControllerBase CreateController(EntityManager manager, ProfileController controller, EntityData entityData) =>
-                new SingleEntityController(manager, controller, entityData);
+            public override EntityControllerBase CreateController(ProfileController controller, EntityData entityData) =>
+                new SingleEntityController(controller, entityData);
         }
 
         private class SignEntityControllerFactory : SingleEntityControllerFactory
@@ -2125,20 +2234,23 @@ namespace Oxide.Plugins
 
             public override bool AppliesToEntity(BaseEntity entity) => entity is ISignage;
 
-            public override EntityControllerBase CreateController(EntityManager manager, ProfileController controller, EntityData entityData) =>
-                new SignEntityController(manager, controller, entityData);
+            public override EntityControllerBase CreateController(ProfileController controller, EntityData entityData) =>
+                new SignEntityController(controller, entityData);
         }
 
         private class CCTVEntityControllerFactory : SingleEntityControllerFactory
         {
             public override bool AppliesToEntity(BaseEntity entity) => entity is CCTV_RC;
 
-            public override EntityControllerBase CreateController(EntityManager manager, ProfileController controller, EntityData entityData) =>
-                new CCTVEntityController(manager, controller, entityData);
+            public override EntityControllerBase CreateController(ProfileController controller, EntityData entityData) =>
+                new CCTVEntityController(controller, entityData);
         }
 
-        private class EntityManager
+        private class EntityControllerFactoryResolver
         {
+            private static EntityControllerFactoryResolver _instance = new EntityControllerFactoryResolver();
+            public static EntityControllerFactoryResolver Instance => _instance;
+
             private List<EntityControllerFactoryBase> _entityFactories = new List<EntityControllerFactoryBase>
             {
                 // The first that matches will be used.
@@ -2147,66 +2259,12 @@ namespace Oxide.Plugins
                 new SingleEntityControllerFactory(),
             };
 
-            private Dictionary<EntityData, EntityControllerBase> _controllersByEntityData = new Dictionary<EntityData, EntityControllerBase>();
+            public EntityControllerBase CreateController(ProfileController profileController, EntityData entityData) =>
+                ResolveFactory(entityData)?.CreateController(profileController, entityData);
 
-            public void Init()
+            private EntityControllerFactoryBase ResolveFactory(EntityData entityData)
             {
-                foreach (var entityInfo in _entityFactories)
-                    entityInfo.UnsubscribeHooks();
-            }
-
-            public void OnControllerDestroyed(EntityControllerBase controller)
-            {
-                _controllersByEntityData.Remove(controller.EntityData);
-                GetControllerFactory(controller.EntityData).OnControllerDestroyed();
-            }
-
-            public IEnumerator SpawnEntityAtMonumentsRoutine(ProfileController profileController, EntityData entityData, IEnumerable<BaseMonument> monumentList)
-            {
-                _pluginInstance.TrackStart();
-                var controller = GetController(entityData);
-                if (controller != null)
-                {
-                    // If the controller already exists, the entity was added while the plugin was still spawning entities.
-                    _pluginInstance.TrackEnd();
-                    yield break;
-                }
-
-                controller = EnsureController(entityData, profileController);
-                _pluginInstance.TrackEnd();
-                yield return controller.SpawnAtMonumentsRoutine(monumentList);
-            }
-
-            public IEnumerator SpawnEntitiesAtMonumentRoutine(ProfileController profileController, IEnumerable<EntityData> entityDataList, BaseMonument monument)
-            {
-                foreach (var entityData in entityDataList)
-                {
-                    // Check for null in case the cargo ship was destroyed.
-                    if (!monument.IsValid)
-                        yield break;
-
-                    _pluginInstance.TrackStart();
-                    EnsureController(entityData, profileController).SpawnAtMonument(monument);
-                    _pluginInstance.TrackEnd();
-                    yield return CoroutineEx.waitForEndOfFrame;
-                }
-            }
-
-            public EntityControllerBase GetController(EntityData entityData)
-            {
-                EntityControllerBase controller;
-                return _controllersByEntityData.TryGetValue(entityData, out controller)
-                    ? controller
-                    : null;
-            }
-
-            private EntityControllerFactoryBase GetControllerFactory(EntityData entityData)
-            {
-                var prefab = GameManager.server.FindPrefab(entityData.PrefabName);
-                if (prefab == null)
-                    return null;
-
-                var baseEntity = prefab.GetComponent<BaseEntity>();
+                var baseEntity = FindBaseEntityForPrefab(entityData.PrefabName);
                 if (baseEntity == null)
                     return null;
 
@@ -2217,19 +2275,6 @@ namespace Oxide.Plugins
                 }
 
                 return null;
-            }
-
-            private EntityControllerBase EnsureController(EntityData entityData, ProfileController profileController)
-            {
-                var controller = GetController(entityData);
-                if (controller == null)
-                {
-                    var controllerFactory = GetControllerFactory(entityData);
-                    controller = controllerFactory.CreateController(this, profileController, entityData);
-                    controllerFactory.OnControllerCreated();
-                    _controllersByEntityData[entityData] = controller;
-                }
-                return controller;
             }
         }
 
@@ -2472,12 +2517,6 @@ namespace Oxide.Plugins
                 monumentAliasOrShortName = null;
                 return false;
             }
-
-            public bool RemoveEntityData(EntityData entityData)
-            {
-                string monumentShortName;
-                return RemoveEntityData(entityData, out monumentShortName);
-            }
         }
 
         #endregion
@@ -2494,21 +2533,23 @@ namespace Oxide.Plugins
             public WaitUntil WaitUntilUnloaded;
 
             private CoroutineManager _coroutineManager = new CoroutineManager();
-            private EntityManager _entityManager;
+            private Dictionary<EntityData, EntityControllerBase> _controllersByEntityData = new Dictionary<EntityData, EntityControllerBase>();
 
             public bool IsEnabled =>
                 _pluginData.IsProfileEnabled(Profile.Name);
 
-            public ProfileController(EntityManager entityManager, Profile profile)
+            public ProfileController(Profile profile, bool startLoaded = false)
             {
-                _entityManager = entityManager;
                 Profile = profile;
                 WaitUntilLoaded = new WaitUntil(() => ProfileState == ProfileState.Loaded);
                 WaitUntilUnloaded = new WaitUntil(() => ProfileState == ProfileState.Unloaded);
 
-                if (profile.IsEmpty() && IsEnabled)
+                if (startLoaded || (profile.IsEmpty() && IsEnabled))
                     ProfileState = ProfileState.Loaded;
             }
+
+            public void OnControllerDestroyed(EntityControllerBase controller) =>
+                _controllersByEntityData.Remove(controller.EntityData);
 
             public void StartCoroutine(IEnumerator enumerator) =>
                 _coroutineManager.StartCoroutine(enumerator);
@@ -2530,7 +2571,7 @@ namespace Oxide.Plugins
                 {
                     foreach (var entityData in entityDataList)
                     {
-                        var controller = _entityManager.GetController(entityData);
+                        var controller = GetEntityController(entityData);
                         if (controller == null)
                             continue;
 
@@ -2610,6 +2651,25 @@ namespace Oxide.Plugins
                 StartCoroutine(ClearRoutine());
             }
 
+            private EntityControllerBase GetEntityController(EntityData entityData)
+            {
+                EntityControllerBase controller;
+                return _controllersByEntityData.TryGetValue(entityData, out controller)
+                    ? controller
+                    : null;
+            }
+
+            private EntityControllerBase EnsureEntityController(EntityData entityData)
+            {
+                var controller = GetEntityController(entityData);
+                if (controller == null)
+                {
+                    controller = EntityControllerFactoryResolver.Instance.CreateController(this, entityData);
+                    _controllersByEntityData[entityData] = controller;
+                }
+                return controller;
+            }
+
             private IEnumerator LoadRoutine(ReferenceTypeWrapper<int> entityCounter)
             {
                 foreach (var entry in Profile.MonumentMap.ToArray())
@@ -2625,7 +2685,7 @@ namespace Oxide.Plugins
                         entityCounter.Value += matchingMonuments.Count * entry.Value.Count;
 
                     foreach (var entityData in entry.Value.ToArray())
-                        yield return _entityManager.SpawnEntityAtMonumentsRoutine(this, entityData, matchingMonuments);
+                        yield return SpawnEntityAtMonumentsRoutine(this, entityData, matchingMonuments);
                 }
 
                 ProfileState = ProfileState.Loaded;
@@ -2638,7 +2698,7 @@ namespace Oxide.Plugins
                     foreach (var entityData in entityDataList.ToArray())
                     {
                         _pluginInstance?.TrackStart();
-                        var controller = _entityManager.GetController(entityData);
+                        var controller = GetEntityController(entityData);
                         _pluginInstance?.TrackEnd();
 
                         if (controller == null)
@@ -2674,13 +2734,41 @@ namespace Oxide.Plugins
 
             private IEnumerator PartialLoadForLateMonumentRoutine(List<EntityData> entityDataList, BaseMonument monument)
             {
-                yield return _entityManager.SpawnEntitiesAtMonumentRoutine(this, entityDataList, monument);
+                foreach (var entityData in entityDataList)
+                {
+                    // Check for null in case the cargo ship was destroyed.
+                    if (!monument.IsValid)
+                        break;
+
+                    _pluginInstance.TrackStart();
+                    EnsureEntityController(entityData).SpawnAtMonument(monument);
+                    _pluginInstance.TrackEnd();
+                    yield return CoroutineEx.waitForEndOfFrame;
+                }
+
                 ProfileState = ProfileState.Loaded;
+            }
+
+            private IEnumerator SpawnEntityAtMonumentsRoutine(ProfileController profileController, EntityData entityData, IEnumerable<BaseMonument> monumentList)
+            {
+                _pluginInstance.TrackStart();
+                var controller = GetEntityController(entityData);
+                if (controller != null)
+                {
+                    // If the controller already exists, the entity was added while the plugin was still spawning entities.
+                    _pluginInstance.TrackEnd();
+                    yield break;
+                }
+
+                controller = EnsureEntityController(entityData);
+                _pluginInstance.TrackEnd();
+
+                yield return controller.SpawnAtMonumentsRoutine(monumentList);
             }
 
             private IEnumerator PartialLoadForLateEntityRoutine(EntityData entityData, IEnumerable<BaseMonument> monument)
             {
-                yield return _entityManager.SpawnEntityAtMonumentsRoutine(this, entityData, monument);
+                yield return SpawnEntityAtMonumentsRoutine(this, entityData, monument);
                 ProfileState = ProfileState.Loaded;
             }
         }
@@ -2726,13 +2814,7 @@ namespace Oxide.Plugins
 
         private class ProfileManager
         {
-            private EntityManager _entityManager;
             private List<ProfileController> _profileControllers = new List<ProfileController>();
-
-            public ProfileManager(EntityManager entityManager)
-            {
-                _entityManager = entityManager;
-            }
 
             public IEnumerator LoadAllProfilesRoutine()
             {
@@ -2792,7 +2874,7 @@ namespace Oxide.Plugins
                 var profile = Profile.LoadIfExists(profileName);
                 if (profile != null)
                 {
-                    var controller = new ProfileController(_entityManager, profile);
+                    var controller = new ProfileController(profile);
                     _profileControllers.Add(controller);
                     return controller;
                 }
@@ -2836,7 +2918,7 @@ namespace Oxide.Plugins
             public ProfileController CreateProfile(string profileName)
             {
                 var profile = Profile.Create(profileName);
-                var controller = new ProfileController(_entityManager, profile);
+                var controller = new ProfileController(profile, startLoaded: true);
                 _profileControllers.Add(controller);
                 return controller;
             }
