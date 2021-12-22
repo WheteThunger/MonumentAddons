@@ -1759,9 +1759,9 @@ namespace Oxide.Plugins
                     computerStation.CancelInvoke(computerStation.GatherStaticCameras);
                     computerStation.Invoke(() =>
                     {
-                        _pluginInstance.TrackStart();
+                        _pluginInstance?.TrackStart();
                         GatherStaticCameras(computerStation);
-                        _pluginInstance.TrackEnd();
+                        _pluginInstance?.TrackEnd();
                     }, 1);
                 }
 
@@ -1779,9 +1779,9 @@ namespace Oxide.Plugins
                 {
                     vehicleSpawner.Invoke(() =>
                     {
-                        _pluginInstance.TrackStart();
+                        _pluginInstance?.TrackStart();
                         EntityUtils.ConnectNearbyVehicleVendor(vehicleSpawner);
-                        _pluginInstance.TrackEnd();
+                        _pluginInstance?.TrackEnd();
                     }, 1);
                 }
 
@@ -1791,9 +1791,9 @@ namespace Oxide.Plugins
                     // Use a slightly longer delay than the vendor check check since this can short-circuit as an optimization.
                     vehicleVendor.Invoke(() =>
                     {
-                        _pluginInstance.TrackStart();
+                        _pluginInstance?.TrackStart();
                         EntityUtils.ConnectNearbyVehicleSpawner(vehicleVendor);
-                        _pluginInstance.TrackEnd();
+                        _pluginInstance?.TrackEnd();
                     }, 2);
                 }
 
