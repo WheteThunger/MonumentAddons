@@ -720,6 +720,12 @@ namespace Oxide.Plugins
                     if (!VerifyProfile(player, args, out controller, Lang.ProfileReloadSyntax))
                         return;
 
+                    if (!controller.IsEnabled)
+                    {
+                        ReplyToPlayer(player, Lang.ProfileNotEnabled, controller.Profile.Name);
+                        return;
+                    }
+
                     controller.Reload();
                     ReplyToPlayer(player, Lang.ProfileReloadSuccess, controller.Profile.Name);
                     if (!player.IsServer)
@@ -3800,6 +3806,7 @@ namespace Oxide.Plugins
             public const string ProfileAlreadyDisabled = "Profile.AlreadyDisabled";
             public const string ProfileDisableSuccess = "Profile.Disable.Success";
             public const string ProfileReloadSyntax = "Profile.Reload.Syntax";
+            public const string ProfileNotEnabled = "Profile.NotEnabled";
             public const string ProfileReloadSuccess = "Profile.Reload.Success";
 
             public const string ProfileCreateSyntax = "Profile.Create.Syntax";
@@ -3894,6 +3901,7 @@ namespace Oxide.Plugins
                 [Lang.ProfileAlreadyDisabled] = "Profile <color=#fd4>{0}</color> is already <color=#f44>DISABLED</color>.",
                 [Lang.ProfileDisableSuccess] = "Profile <color=#fd4>{0}</color> is now: <color=#f44>DISABLED</color>.",
                 [Lang.ProfileReloadSyntax] = "Syntax: <color=#fd4>maprofile reload <name></color>",
+                [Lang.ProfileNotEnabled] = "Error: Profile <color=#fd4>{0}</color> is not enabled.",
                 [Lang.ProfileReloadSuccess] = "Reloaded profile <color=#fd4>{0}</color>.",
 
                 [Lang.ProfileCreateSyntax] = "Syntax: <color=#fd4>maprofile create <name></color>",
