@@ -108,6 +108,14 @@ Adds an Air Wolf vendor to Outpost, with some ladders to allow access.
 maprofile install https://github.com/WheteThunger/MonumentAddons/blob/master/Profiles/OutpostAirwolf.json?raw=true
 ```
 
+#### Barn Air Wolf
+
+Adds an Air Wolf vendor to Large Barn and Ranch.
+
+```
+maprofile install https://github.com/WheteThunger/MonumentAddons/blob/master/Profiles/BarnAirwolf.json?raw=true
+```
+
 #### TrainStationCCTV
 
 Adds 6 CCTVs and one computer station to each underground Train Station.

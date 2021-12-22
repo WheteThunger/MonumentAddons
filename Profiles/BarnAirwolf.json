@@ -1,0 +1,68 @@
+{
+  "Name": "BarnAirwolf",
+  "Author": "WhiteThunder",
+  "SchemaVersion": 1.0,
+  "Monuments": {
+    "stables_b": [
+      {
+        "Id": "4633bb88-4d90-4a98-989b-72417e63aba3",
+        "PrefabName": "assets/prefabs/npc/bandit/shopkeepers/bandit_conversationalist.prefab",
+        "Position": {
+          "x": -6.0,
+          "y": 3.0054245,
+          "z": -3.0
+        },
+        "RotationAngles": {
+          "x": 0.0,
+          "y": 50.0,
+          "z": 0.0
+        },
+        "OnTerrain": true
+      },
+      {
+        "Id": "a611b3cb-7984-4455-ab09-fb5e0bc58682",
+        "PrefabName": "assets/prefabs/npc/bandit/airwolfspawner.prefab",
+        "Position": {
+          "x": -14.0,
+          "y": 3.0054245,
+          "z": -9.0
+        },
+        "RotationAngles": {
+          "x": 0.0,
+          "y": 90.0,
+          "z": 0.0
+        }
+      }
+    ],
+    "stables_a": [
+      {
+        "Id": "78763fb2-fe9b-4f0a-b8b1-02b3dae26acc",
+        "PrefabName": "assets/prefabs/npc/bandit/shopkeepers/bandit_conversationalist.prefab",
+        "Position": {
+          "x": -10.0,
+          "y": 3.06004333,
+          "z": 0.0
+        },
+        "RotationAngles": {
+          "x": 0.0,
+          "y": 190.0,
+          "z": 0.0
+        }
+      },
+      {
+        "Id": "fce6be35-3c50-4271-8569-bfbd42697911",
+        "PrefabName": "assets/prefabs/npc/bandit/airwolfspawner.prefab",
+        "Position": {
+          "x": -13.0,
+          "y": 3.04246521,
+          "z": 10.0
+        },
+        "RotationAngles": {
+          "x": 0.0,
+          "y": 180.0,
+          "z": 0.0
+        }
+      }
+    ]
+  }
+}
