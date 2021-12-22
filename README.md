@@ -116,6 +116,14 @@ Adds an Air Wolf vendor to Large Barn and Ranch.
 maprofile install https://github.com/WheteThunger/MonumentAddons/blob/master/Profiles/BarnAirwolf.json?raw=true
 ```
 
+#### Fishing Village Air Wolf
+
+Adds an Air Wolf vendor to the Large Fishing Village and one of the small Fishing Villages.
+
+```
+maprofile install https://github.com/WheteThunger/MonumentAddons/blob/master/Profiles/FishingVillageAirwolf.json?raw=true
+```
+
 #### TrainStationCCTV
 
 Adds 6 CCTVs and one computer station to each underground Train Station.
