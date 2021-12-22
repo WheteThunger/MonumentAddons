@@ -75,7 +75,8 @@ Profiles allow you to organize entities into groups. Each profile can be indepen
 - `maprofile clear <name>` -- Removes all entities from the specified profile.
 - `maprofile moveto <name>` -- Moves the entity you are looking at to the specified profile.
 - `maprofile install <url>` -- Installs a profile from a URL.
-  - You may replace the URL with simply the profile name if installing from https://github.com/WheteThunger/MonumentAddons/tree/master/Profiles. For example, `maprofile install OutpostAirwolf`.
+  - Abbreviated command: `mainstall <url>`.
+  - You may replace the URL with simply the profile name if installing from https://github.com/WheteThunger/MonumentAddons/tree/master/Profiles. For example, `maprofile install OutpostAirwolf` or `mainstall OutpostAirwolf`.
 
 ## Configuration
 
@@ -104,7 +105,7 @@ Want to showcase a profile you created? Fork the repository on [GitHub](https://
 Adds an Air Wolf vendor to Outpost, with some ladders to allow access.
 
 ```
-maprofile install OutpostAirwolf
+mainstall OutpostAirwolf
 ```
 
 #### Barn Air Wolf
@@ -112,7 +113,7 @@ maprofile install OutpostAirwolf
 Adds an Air Wolf vendor to Large Barn and Ranch.
 
 ```
-maprofile install BarnAirwolf
+mainstall BarnAirwolf
 ```
 
 #### Fishing Village Air Wolf
@@ -120,7 +121,7 @@ maprofile install BarnAirwolf
 Adds an Air Wolf vendor to the Large Fishing Village and one of the small Fishing Villages.
 
 ```
-maprofile install FishingVillageAirwolf
+mainstall FishingVillageAirwolf
 ```
 
 #### TrainStationCCTV
@@ -128,7 +129,7 @@ maprofile install FishingVillageAirwolf
 Adds 6 CCTVs and one computer station to each underground Train Station.
 
 ```
-maprofile install TrainStationCCTV
+mainstall TrainStationCCTV
 ```
 
 #### MonumentLifts
@@ -136,7 +137,7 @@ maprofile install TrainStationCCTV
 Adds car lifts to gas station and supermarket.
 
 ```
-maprofile install MonumentLifts
+mainstall MonumentLifts
 ```
 
 ## Instructions for sharing profiles
@@ -326,6 +327,7 @@ Simply remove the plugin. Spawned entities are automatically removed when the pl
   "Profile.List.Item.Disabled": "<color=#fd4>{0}</color> - <color=#f44>DISABLED</color>",
   "Profile.List.Item.Selected": "<color=#fd4>{0}</color> - <color=#6cf>SELECTED</color>",
   "Profile.Install.Syntax": "Syntax: <color=#fd4>maprofile install <url></color>",
+  "Profile.Install.Shorthand.Syntax": "Syntax: <color=#fd4>mainstall <url></color>",
   "Profile.Url.Invalid": "Invalid URL: {0}",
   "Profile.Error.AlreadyExists.NotEmpty": "Error: Profile <color=#fd4>{0}</color> already exists and is not empty.",
   "Profile.Install.Success": "Successfully installed and <color=#6e6>ENABLED</color> profile <color=#fd4>{0}</color>",

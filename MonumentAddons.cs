@@ -841,91 +841,7 @@ namespace Oxide.Plugins
                         return;
                     }
 
-                    var url = args[1];
-                    Uri parsedUri;
-
-                    if (!Uri.TryCreate(url, UriKind.Absolute, out parsedUri))
-                    {
-                        var fallbackUrl = string.Format(DefaultUrlPattern, url);
-                        if (Uri.TryCreate(fallbackUrl, UriKind.Absolute, out parsedUri))
-                        {
-                            url = fallbackUrl;
-                        }
-                        else
-                        {
-                            ReplyToPlayer(player, Lang.ProfileUrlInvalid, url);
-                            return;
-                        }
-                    }
-
-                    DownloadProfile(url, profile =>
-                    {
-                        if (profile == null)
-                        {
-                            ReplyToPlayer(player, Lang.ProfileInstallError, url);
-                            return;
-                        }
-
-                        profile.Name = DynamicConfigFile.SanitizeName(profile.Name);
-
-                        if (string.IsNullOrWhiteSpace(profile.Name))
-                        {
-                            var urlDerivedProfileName = DynamicConfigFile.SanitizeName(parsedUri.Segments.LastOrDefault().Replace(".json", ""));
-
-                            if (string.IsNullOrEmpty(urlDerivedProfileName))
-                            {
-                                LogError($"Unable to determine profile name from url: \"{url}\". Please ask the URL owner to supply a \"Name\" in the file.");
-                                ReplyToPlayer(player, Lang.ProfileInstallError, url);
-                                return;
-                            }
-
-                            profile.Name = urlDerivedProfileName;
-                        }
-
-                        if (profile.Name.EndsWith(Profile.OriginalSuffix))
-                        {
-                            LogError($"Profile \"{profile.Name}\" should not end with \"{Profile.OriginalSuffix}\".");
-                            ReplyToPlayer(player, Lang.ProfileInstallError, url);
-                            return;
-                        }
-
-                        var profileController = _profileManager.GetProfileController(profile.Name);
-                        if (profileController != null && !profileController.Profile.IsEmpty())
-                        {
-                            ReplyToPlayer(player, Lang.ProfileAlreadyExistsNotEmpty, profile.Name);
-                            return;
-                        }
-
-                        profile.Save();
-                        profile.SaveAsOriginal();
-
-                        if (profileController == null)
-                            profileController = _profileManager.GetProfileController(profile.Name);
-
-                        if (profileController == null)
-                        {
-                            LogError($"Profile \"{profile.Name}\" could not be found on disk after download from url: \"{url}\"");
-                            ReplyToPlayer(player, Lang.ProfileInstallError, url);
-                            return;
-                        }
-
-                        if (profileController.IsEnabled)
-                            profileController.Reload();
-                        else
-                            profileController.Enable();
-
-                        var sb = new StringBuilder();
-                        sb.AppendLine(GetMessage(player, Lang.ProfileInstallSuccess, profile.Name));
-                        AddProfileDescription(sb, player, profileController);
-                        player.Reply(sb.ToString());
-
-                        if (!player.IsServer)
-                        {
-                            _entityDisplayManager.SetPlayerProfile(basePlayer, profileController);
-                            _entityDisplayManager.ShowAllRepeatedly(basePlayer);
-                        }
-                    });
-
+                    SharedCommandInstallProfile(player, args.Skip(1).ToArray());
                     break;
                 }
 
@@ -953,6 +869,107 @@ namespace Oxide.Plugins
             sb.AppendLine(GetMessage(player, Lang.ProfileHelpMoveTo));
             sb.AppendLine(GetMessage(player, Lang.ProfileHelpInstall));
             ReplyToPlayer(player, sb.ToString());
+        }
+
+        [Command("mainstall")]
+        private void CommandInstallProfile(IPlayer player, string cmd, string[] args)
+        {
+            if (args.Length < 1)
+            {
+                ReplyToPlayer(player, Lang.ProfileInstallShorthandSyntax);
+                return;
+            }
+
+            SharedCommandInstallProfile(player, args);
+        }
+
+        private void SharedCommandInstallProfile(IPlayer player, string[] args)
+        {
+            var url = args[0];
+            Uri parsedUri;
+
+            if (!Uri.TryCreate(url, UriKind.Absolute, out parsedUri))
+            {
+                var fallbackUrl = string.Format(DefaultUrlPattern, url);
+                if (Uri.TryCreate(fallbackUrl, UriKind.Absolute, out parsedUri))
+                {
+                    url = fallbackUrl;
+                }
+                else
+                {
+                    ReplyToPlayer(player, Lang.ProfileUrlInvalid, url);
+                    return;
+                }
+            }
+
+            DownloadProfile(url, profile =>
+            {
+                if (profile == null)
+                {
+                    ReplyToPlayer(player, Lang.ProfileInstallError, url);
+                    return;
+                }
+
+                profile.Name = DynamicConfigFile.SanitizeName(profile.Name);
+
+                if (string.IsNullOrWhiteSpace(profile.Name))
+                {
+                    var urlDerivedProfileName = DynamicConfigFile.SanitizeName(parsedUri.Segments.LastOrDefault().Replace(".json", ""));
+
+                    if (string.IsNullOrEmpty(urlDerivedProfileName))
+                    {
+                        LogError($"Unable to determine profile name from url: \"{url}\". Please ask the URL owner to supply a \"Name\" in the file.");
+                        ReplyToPlayer(player, Lang.ProfileInstallError, url);
+                        return;
+                    }
+
+                    profile.Name = urlDerivedProfileName;
+                }
+
+                if (profile.Name.EndsWith(Profile.OriginalSuffix))
+                {
+                    LogError($"Profile \"{profile.Name}\" should not end with \"{Profile.OriginalSuffix}\".");
+                    ReplyToPlayer(player, Lang.ProfileInstallError, url);
+                    return;
+                }
+
+                var profileController = _profileManager.GetProfileController(profile.Name);
+                if (profileController != null && !profileController.Profile.IsEmpty())
+                {
+                    ReplyToPlayer(player, Lang.ProfileAlreadyExistsNotEmpty, profile.Name);
+                    return;
+                }
+
+                profile.Save();
+                profile.SaveAsOriginal();
+
+                if (profileController == null)
+                    profileController = _profileManager.GetProfileController(profile.Name);
+
+                if (profileController == null)
+                {
+                    LogError($"Profile \"{profile.Name}\" could not be found on disk after download from url: \"{url}\"");
+                    ReplyToPlayer(player, Lang.ProfileInstallError, url);
+                    return;
+                }
+
+                if (profileController.IsEnabled)
+                    profileController.Reload();
+                else
+                    profileController.Enable();
+
+                var sb = new StringBuilder();
+                sb.AppendLine(GetMessage(player, Lang.ProfileInstallSuccess, profile.Name));
+                AddProfileDescription(sb, player, profileController);
+                player.Reply(sb.ToString());
+
+                if (!player.IsServer)
+                {
+                    var basePlayer = player.Object as BasePlayer;
+                    _entityDisplayManager.SetPlayerProfile(basePlayer, profileController);
+                    _entityDisplayManager.ShowAllRepeatedly(basePlayer);
+                }
+            });
         }
 
         [Command("mashow")]
@@ -3741,6 +3758,7 @@ namespace Oxide.Plugins
             public const string ProfileListItemSelected = "Profile.List.Item.Selected";
 
             public const string ProfileInstallSyntax = "Profile.Install.Syntax";
+            public const string ProfileInstallShorthandSyntax = "Profile.Install.Shorthand.Syntax";
             public const string ProfileUrlInvalid = "Profile.Url.Invalid";
             public const string ProfileAlreadyExistsNotEmpty = "Profile.Error.AlreadyExists.NotEmpty";
             public const string ProfileInstallSuccess = "Profile.Install.Success";
@@ -3832,6 +3850,7 @@ namespace Oxide.Plugins
                 [Lang.ProfileListItemSelected] = "<color=#fd4>{0}</color> - <color=#6cf>SELECTED</color>",
 
                 [Lang.ProfileInstallSyntax] = "Syntax: <color=#fd4>maprofile install <url></color>",
+                [Lang.ProfileInstallShorthandSyntax] = "Syntax: <color=#fd4>mainstall <url></color>",
                 [Lang.ProfileUrlInvalid] = "Invalid URL: {0}",
                 [Lang.ProfileAlreadyExistsNotEmpty] = "Error: Profile <color=#fd4>{0}</color> already exists and is not empty.",
                 [Lang.ProfileInstallSuccess] = "Successfully installed and <color=#6e6>ENABLED</color> profile <color=#fd4>{0}</color>",
