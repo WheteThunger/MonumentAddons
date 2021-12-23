@@ -3228,7 +3228,18 @@ namespace Oxide.Plugins
             {
                 foreach (var profileName in _pluginData.EnabledProfiles.ToArray())
                 {
-                    var controller = GetProfileController(profileName);
+                    ProfileController controller;
+                    try
+                    {
+                        controller = GetProfileController(profileName);
+                    }
+                    catch (Exception ex)
+                    {
+                        _pluginData.SetProfileDisabled(profileName);
+                        _pluginInstance.LogError($"Disabled profile {profileName} due to error: {ex.Message}");
+                        continue;
+                    }
+
                     if (controller == null)
                     {
                         _pluginData.SetProfileDisabled(profileName);
