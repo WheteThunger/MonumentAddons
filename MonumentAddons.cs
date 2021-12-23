@@ -189,7 +189,7 @@ namespace Oxide.Plugins
                 Url = url,
                 Raw = raw,
             };
-            controller.ProfileController.Profile.Save();
+            controller.Profile.Save();
         }
 
         private void OnEntityScaled(BaseEntity entity, float scale)
@@ -207,7 +207,7 @@ namespace Oxide.Plugins
 
             controller.EntityData.Scale = scale;
             controller.UpdateScale();
-            controller.ProfileController.Profile.Save();
+            controller.Profile.Save();
         }
 
         #endregion
@@ -417,10 +417,10 @@ namespace Oxide.Plugins
             adapter.EntityData.Position = adapter.LocalPosition;
             adapter.EntityData.RotationAngles = adapter.LocalRotation.eulerAngles;
             adapter.EntityData.OnTerrain = IsOnTerrain(adapter.Position);
-            controller.ProfileController.Profile.Save();
+            controller.Profile.Save();
             controller.UpdatePosition();
 
-            ReplyToPlayer(player, Lang.MoveSuccess, controller.Adapters.Count, controller.ProfileController.Profile.Name);
+            ReplyToPlayer(player, Lang.MoveSuccess, controller.Adapters.Count, controller.Profile.Name);
 
             var basePlayer = player.Object as BasePlayer;
             _entityDisplayManager.ShowAllRepeatedly(basePlayer);
@@ -442,7 +442,7 @@ namespace Oxide.Plugins
 
             var basePlayer = player.Object as BasePlayer;
             _entityDisplayManager.ShowAllRepeatedly(basePlayer);
-            ReplyToPlayer(player, Lang.KillSuccess, numAdapters, controller.ProfileController.Profile.Name);
+            ReplyToPlayer(player, Lang.KillSuccess, numAdapters, controller.Profile.Name);
         }
 
         [Command("masetid")]
@@ -465,14 +465,12 @@ namespace Oxide.Plugins
                 controller.EntityData.CCTV = new CCTVInfo();
 
             controller.EntityData.CCTV.RCIdentifier = args[0];
+            controller.Profile.Save();
             controller.UpdateIdentifier();
-
-            var profile = controller.ProfileController.Profile;
-            profile.Save();
 
             var basePlayer = player.Object as BasePlayer;
             _entityDisplayManager.ShowAllRepeatedly(basePlayer);
-            ReplyToPlayer(player, Lang.CCTVSetIdSuccess, args[0], controller.Adapters.Count, profile.Name);
+            ReplyToPlayer(player, Lang.CCTVSetIdSuccess, args[0], controller.Adapters.Count, controller.Profile.Name);
         }
 
         [Command("masetdir")]
@@ -498,13 +496,11 @@ namespace Oxide.Plugins
 
             controller.EntityData.CCTV.Pitch = lookAngles.x;
             controller.EntityData.CCTV.Yaw = lookAngles.y;
+            controller.Profile.Save();
             controller.UpdateDirection();
 
-            var profile = controller.ProfileController.Profile;
-            profile.Save();
-
             _entityDisplayManager.ShowAllRepeatedly(basePlayer);
-            ReplyToPlayer(player, Lang.CCTVSetDirectionSuccess, controller.Adapters.Count, profile.Name);
+            ReplyToPlayer(player, Lang.CCTVSetDirectionSuccess, controller.Adapters.Count, controller.Profile.Name);
         }
 
         [Command("maskin")]
@@ -539,14 +535,12 @@ namespace Oxide.Plugins
             }
 
             controller.EntityData.Skin = skinId;
+            controller.Profile.Save();
             controller.UpdateSkin();
-
-            var profile = controller.ProfileController.Profile;
-            profile.Save();
 
             var basePlayer = player.Object as BasePlayer;
             _entityDisplayManager.ShowAllRepeatedly(basePlayer);
-            ReplyToPlayer(player, Lang.SkinSetSuccess, skinId, controller.Adapters.Count, profile.Name);
+            ReplyToPlayer(player, Lang.SkinSetSuccess, skinId, controller.Adapters.Count, controller.Profile.Name);
         }
 
         private void AddProfileDescription(StringBuilder sb, IPlayer player, ProfileController profileController)
@@ -855,7 +849,7 @@ namespace Oxide.Plugins
                         return;
 
                     var entityData = entityController.EntityData;
-                    var oldProfile = entityController.ProfileController.Profile;
+                    var oldProfile = entityController.Profile;
 
                     if (newProfileController == entityController.ProfileController)
                     {
@@ -1718,6 +1712,7 @@ namespace Oxide.Plugins
         private abstract class EntityControllerBase
         {
             public ProfileController ProfileController { get; private set; }
+            public Profile Profile => ProfileController.Profile;
             public EntityData EntityData { get; private set; }
             public List<EntityAdapterBase> Adapters { get; private set; } = new List<EntityAdapterBase>();
 
