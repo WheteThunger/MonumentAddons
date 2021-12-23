@@ -726,7 +726,18 @@ namespace Oxide.Plugins
                         return;
                     }
 
-                    controller.Reload();
+                    Profile newProfileData;
+                    try
+                    {
+                        newProfileData = Profile.Load(controller.Profile.Name);
+                    }
+                    catch (JsonReaderException ex)
+                    {
+                        player.Reply(ex.Message);
+                        return;
+                    }
+
+                    controller.Reload(newProfileData);
                     ReplyToPlayer(player, Lang.ProfileReloadSuccess, controller.Profile.Name);
                     if (!player.IsServer)
                     {
@@ -961,7 +972,7 @@ namespace Oxide.Plugins
                 }
 
                 if (profileController.IsEnabled)
-                    profileController.Reload();
+                    profileController.Reload(profile);
                 else
                     profileController.Enable();
 
@@ -2984,10 +2995,10 @@ namespace Oxide.Plugins
                 CoroutineManager.StartGlobalCoroutine(UnloadRoutine());
             }
 
-            public void Reload()
+            public void Reload(Profile newProfileData)
             {
                 _coroutineManager.StopAll();
-                StartCoroutine(ReloadRoutine());
+                StartCoroutine(ReloadRoutine(newProfileData));
             }
 
             public IEnumerator PartialLoadForLateMonument(List<EntityData> entityDataList, BaseMonument monument)
@@ -3106,12 +3117,12 @@ namespace Oxide.Plugins
                 ProfileState = ProfileState.Unloaded;
             }
 
-            private IEnumerator ReloadRoutine()
+            private IEnumerator ReloadRoutine(Profile newProfileData)
             {
                 Unload();
                 yield return WaitUntilUnloaded;
 
-                Profile = Profile.Load(Profile.Name);
+                Profile = newProfileData;
 
                 Load();
                 yield return WaitUntilLoaded;
