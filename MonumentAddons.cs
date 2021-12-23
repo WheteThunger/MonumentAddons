@@ -3812,8 +3812,8 @@ namespace Oxide.Plugins
             public const string ProfileAlreadyEnabled = "Profile.AlreadyEnabled";
             public const string ProfileEnableSuccess = "Profile.Enable.Success";
             public const string ProfileDisableSyntax = "Profile.Disable.Syntax";
-            public const string ProfileAlreadyDisabled = "Profile.AlreadyDisabled";
-            public const string ProfileDisableSuccess = "Profile.Disable.Success";
+            public const string ProfileAlreadyDisabled = "Profile.AlreadyDisabled2";
+            public const string ProfileDisableSuccess = "Profile.Disable.Success2";
             public const string ProfileReloadSyntax = "Profile.Reload.Syntax";
             public const string ProfileNotEnabled = "Profile.NotEnabled";
             public const string ProfileReloadSuccess = "Profile.Reload.Success";
@@ -3883,7 +3883,7 @@ namespace Oxide.Plugins
                 [Lang.ProfileListEmpty] = "You have no profiles. Create one with <color=#fd4>maprofile create <name></maprofile>",
                 [Lang.ProfileListHeader] = "<size=18>Monument Addons Profiles</size>",
                 [Lang.ProfileListItemEnabled] = "<color=#fd4>{0}</color>{1} - <color=#6e6>ENABLED</color>",
-                [Lang.ProfileListItemDisabled] = "<color=#fd4>{0}</color>{1} - <color=#f44>DISABLED</color>",
+                [Lang.ProfileListItemDisabled] = "<color=#fd4>{0}</color>{1} - <color=#ccc>DISABLED</color>",
                 [Lang.ProfileListItemSelected] = "<color=#fd4>{0}</color>{1} - <color=#6cf>SELECTED</color>",
                 [Lang.ProfileByAuthor] = " by {0}",
 
@@ -3907,8 +3907,8 @@ namespace Oxide.Plugins
                 [Lang.ProfileAlreadyEnabled] = "Profile <color=#fd4>{0}</color> is already <color=#6e6>ENABLED</color>.",
                 [Lang.ProfileEnableSuccess] = "Profile <color=#fd4>{0}</color> is now: <color=#6e6>ENABLED</color>.",
                 [Lang.ProfileDisableSyntax] = "Syntax: <color=#fd4>maprofile disable <name></color>",
-                [Lang.ProfileAlreadyDisabled] = "Profile <color=#fd4>{0}</color> is already <color=#f44>DISABLED</color>.",
-                [Lang.ProfileDisableSuccess] = "Profile <color=#fd4>{0}</color> is now: <color=#f44>DISABLED</color>.",
+                [Lang.ProfileAlreadyDisabled] = "Profile <color=#fd4>{0}</color> is already <color=#ccc>DISABLED</color>.",
+                [Lang.ProfileDisableSuccess] = "Profile <color=#fd4>{0}</color> is now: <color=#ccc>DISABLED</color>.",
                 [Lang.ProfileReloadSyntax] = "Syntax: <color=#fd4>maprofile reload <name></color>",
                 [Lang.ProfileNotEnabled] = "Error: Profile <color=#fd4>{0}</color> is not enabled.",
                 [Lang.ProfileReloadSuccess] = "Reloaded profile <color=#fd4>{0}</color>.",
