@@ -1775,7 +1775,7 @@ namespace Oxide.Plugins
             public override void Spawn()
             {
                 var position = Monument.TransformPoint(EntityData.Position);
-                var rotation = Quaternion.Euler(EntityData.RotationAngles.WithY(Monument.Rotation.eulerAngles.y + EntityData.RotationAngles.y));
+                var rotation = Monument.Rotation * Quaternion.Euler(EntityData.RotationAngles);
 
                 if (EntityData.OnTerrain)
                     position.y = TerrainMeta.HeightMap.GetHeight(position);
