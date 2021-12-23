@@ -385,7 +385,7 @@ namespace Oxide.Plugins
                 PrefabName = prefabName,
                 Position = localPosition,
                 RotationAngles = localRotationAngles,
-                OnTerrain = Math.Abs(position.y - TerrainMeta.HeightMap.GetHeight(position)) <= TerrainProximityTolerance
+                OnTerrain = IsOnTerrain(position),
             };
 
             var matchingMonuments = GetMonumentsByAliasOrShortName(closestMonument.AliasOrShortName);
@@ -395,6 +395,35 @@ namespace Oxide.Plugins
 
             _entityDisplayManager.ShowAllRepeatedly(basePlayer);
             ReplyToPlayer(player, Lang.SpawnSuccess, matchingMonuments.Count, controller.Profile.Name, closestMonument.AliasOrShortName);
+        }
+
+        [Command("masave")]
+        private void CommandSave(IPlayer player, string cmd, string[] args)
+        {
+            if (player.IsServer || !VerifyHasPermission(player))
+                return;
+
+            SingleEntityAdapter adapter;
+            SingleEntityController controller;
+            if (!VerifyLookEntity(player, out adapter, out controller))
+                return;
+
+            if (adapter.IsAtIntendedPosition)
+            {
+                ReplyToPlayer(player, Lang.MoveNothingToDo);
+                return;
+            }
+
+            adapter.EntityData.Position = adapter.LocalPosition;
+            adapter.EntityData.RotationAngles = adapter.LocalRotation.eulerAngles;
+            adapter.EntityData.OnTerrain = IsOnTerrain(adapter.Position);
+            controller.ProfileController.Profile.Save();
+            controller.UpdatePosition();
+
+            ReplyToPlayer(player, Lang.MoveSuccess, controller.Adapters.Count, controller.ProfileController.Profile.Name);
+
+            var basePlayer = player.Object as BasePlayer;
+            _entityDisplayManager.ShowAllRepeatedly(basePlayer);
         }
 
         [Command("makill")]
@@ -1206,6 +1235,9 @@ namespace Oxide.Plugins
             return adapter != null;
         }
 
+        private static bool IsOnTerrain(Vector3 position) =>
+            Math.Abs(position.y - TerrainMeta.HeightMap.GetHeight(position)) <= TerrainProximityTolerance;
+
         private static string GetShortName(string prefabName)
         {
             var slashIndex = prefabName.LastIndexOf("/");
@@ -1621,6 +1653,25 @@ namespace Oxide.Plugins
             public BaseMonument Monument { get; private set; }
             public virtual bool IsDestroyed { get; }
             public abstract Vector3 Position { get; }
+            public abstract Quaternion Rotation { get; }
+            public abstract bool IsAtIntendedPosition { get; }
+
+            public Vector3 LocalPosition => Monument.InverseTransformPoint(Position);
+            public Quaternion LocalRotation => Quaternion.Inverse(Monument.Rotation) * Rotation;
+
+            public Vector3 IntendedPosition
+            {
+                get
+                {
+                    var intendedPosition = Monument.TransformPoint(EntityData.Position);
+
+                    if (EntityData.OnTerrain)
+                        intendedPosition.y = TerrainMeta.HeightMap.GetHeight(intendedPosition);
+
+                    return intendedPosition;
+                }
+            }
+            public Quaternion IntendedRotation => Monument.Rotation * Quaternion.Euler(EntityData.RotationAngles);
 
             protected static readonly HashSet<BaseEntity> _registeredEntities = new HashSet<BaseEntity>();
 
@@ -1634,6 +1685,7 @@ namespace Oxide.Plugins
             public abstract void Spawn();
             public abstract void Kill();
             public abstract void OnEntityDestroyed(BaseEntity entity);
+            public abstract void UpdatePosition();
 
             protected BaseEntity CreateEntity(string prefabName, Vector3 position, Quaternion rotation)
             {
@@ -1692,6 +1744,11 @@ namespace Oxide.Plugins
 
                 if (Adapters.Count == 0)
                     ProfileController.OnControllerDestroyed(this);
+            }
+
+            public void UpdatePosition()
+            {
+                ProfileController.StartCoroutine(UpdatePositionRoutine());
             }
 
             public EntityAdapterBase SpawnAtMonument(BaseMonument monument)
@@ -1756,6 +1813,18 @@ namespace Oxide.Plugins
                 int numAdapters;
                 return TryDestroyAndRemove(out monumentAliasOrShortName, out numAdapters);
             }
+
+            private IEnumerator UpdatePositionRoutine()
+            {
+                foreach (var adapter in Adapters.ToArray())
+                {
+                    if (adapter.IsDestroyed)
+                        continue;
+
+                    adapter.UpdatePosition();
+                    yield return CoroutineEx.waitForEndOfFrame;
+                }
+            }
         }
 
         #endregion
@@ -1764,23 +1833,20 @@ namespace Oxide.Plugins
 
         private class SingleEntityAdapter : EntityAdapterBase
         {
-            protected Transform _transform { get; private set; }
             public BaseEntity Entity { get; private set; }
-
             public override bool IsDestroyed => Entity == null || Entity.IsDestroyed;
             public override Vector3 Position => _transform.position;
+            public override Quaternion Rotation => _transform.rotation;
+            public override bool IsAtIntendedPosition =>
+                Position == IntendedPosition && Rotation == IntendedRotation;
+
+            protected Transform _transform { get; private set; }
 
             public SingleEntityAdapter(EntityControllerBase controller, EntityData entityData, BaseMonument monument) : base(controller, entityData, monument) {}
 
             public override void Spawn()
             {
-                var position = Monument.TransformPoint(EntityData.Position);
-                var rotation = Monument.Rotation * Quaternion.Euler(EntityData.RotationAngles);
-
-                if (EntityData.OnTerrain)
-                    position.y = TerrainMeta.HeightMap.GetHeight(position);
-
-                Entity = CreateEntity(EntityData.PrefabName, position, rotation);
+                Entity = CreateEntity(EntityData.PrefabName, IntendedPosition, IntendedRotation);
                 _transform = Entity.transform;
 
                 OnEntitySpawn();
@@ -1806,6 +1872,15 @@ namespace Oxide.Plugins
                 Controller.OnAdapterDestroyed(this);
 
                 _pluginInstance?.TrackEnd();
+            }
+
+            public override void UpdatePosition()
+            {
+                if (IsAtIntendedPosition)
+                    return;
+
+                Entity.transform.SetPositionAndRotation(IntendedPosition, IntendedRotation);
+                Entity.SendNetworkUpdate();
             }
 
             public void UpdateScale()
@@ -3788,6 +3863,8 @@ namespace Oxide.Plugins
             public const string SpawnErrorNoTarget = "Spawn.Error.NoTarget";
             public const string SpawnSuccess = "Spawn.Success2";
             public const string KillSuccess = "Kill.Success2";
+            public const string MoveNothingToDo = "Move.NothingToDo";
+            public const string MoveSuccess = "Move.Success";
 
             public const string ShowSuccess = "Show.Success";
             public const string ShowLabelMonumentAddon = "Show.Label.MonumentAddon";
@@ -3883,6 +3960,8 @@ namespace Oxide.Plugins
                 [Lang.SpawnErrorNoTarget] = "Error: No valid spawn position found.",
                 [Lang.SpawnSuccess] = "Spawned entity at <color=#fd4>{0}</color> matching monument(s) and saved to <color=#fd4>{1}</color> profile for monument <color=#fd4>{2}</color>.",
                 [Lang.KillSuccess] = "Killed entity at <color=#fd4>{0}</color> matching monument(s) and removed from profile <color=#fd4>{1}</color>.",
+                [Lang.MoveNothingToDo] = "That entity is already at the saved position.",
+                [Lang.MoveSuccess] = "Updated entity position at <color=#fd4>{0}</color> matching monument(s) and saved to profile <color=#fd4>{1}</color>.",
 
                 [Lang.ShowSuccess] = "Showing nearby Monument Addons for <color=#fd4>{0}</color>.",
                 [Lang.ShowLabelMonumentAddon] = "Monument Addon",
