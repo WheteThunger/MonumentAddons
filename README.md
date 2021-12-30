@@ -240,6 +240,8 @@ Notes:
 
 ## Example entities
 
+List of spawnable entities: https://github.com/OrangeWulf/Rust-Docs/blob/master/Entities.md
+
 Structure/Defense:
 - `barricade.{*}`
 - `door_barricade_{*}`
