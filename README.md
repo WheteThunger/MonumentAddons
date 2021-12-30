@@ -73,13 +73,13 @@ Profiles allow you to organize entities into groups. Each profile can be indepen
 - `maprofile disable <name>` -- Disables the specified profile. Disabling a profile despawns all of the profile's entities, and marks the profile as disabled in the data file so it won't automatically load when the plugin does.
 - `maprofile reload <name>` -- Reloads the specified profile from disk. This despawns all the profile's entities, re-reads the data file, then respawns all the profile's entities. This is useful if you downloaded a new version of a profile or if you made manual edits to the data file.
 - `maprofile select <name>` -- Selects and enables the specified profile. Running `maspawn <entity>` will save entities to the currently selected profile. Each player can have a separate profile selected, allowing multiple players to work on different profiles at the same time.
-- `maprofile create <name>` -- Creats a new profile, enables it and selects it.
+- `maprofile create <name>` -- Creates a new profile, enables it and selects it.
 - `maprofile rename <name> <new name>` -- Renames the specified profile. The plugin cannot delete the data file for the old name, so you will have to delete it yourself at `oxide/data/MonumentAddons/{name}.json`.
 - `maprofile clear <name>` -- Removes all entities from the specified profile.
 - `maprofile moveto <name>` -- Moves the entity you are looking at to the specified profile.
 - `maprofile install <url>` -- Installs a profile from a URL.
   - Abbreviated command: `mainstall <url>`.
-  - You may replace the URL with simply the profile name if installing from https://github.com/WheteThunger/MonumentAddons/tree/master/Profiles. For example, `maprofile install OutpostAirwolf` or `mainstall OutpostAirwolf`.
+  - You may replace the URL with simply the profile name if installing from [https://github.com/WheteThunger/MonumentAddons/tree/master/Profiles](https://github.com/WheteThunger/MonumentAddons/tree/master/Profiles). For example, `maprofile install OutpostAirwolf` or `mainstall OutpostAirwolf`.
 
 ## Configuration
 
@@ -153,7 +153,7 @@ Sharing a profile via a website allows recipients to install the profile with a 
 
 1. Profile author locates the `oxide/data/MonumentAddons/PROFILE_NAME.json` file, where `PROFILE_NAME` is replaced with the profile's actual name.
 2. Profile author uploads the file to a website of their choice and obtains a *raw* download link. For example, if hosting on pastebin or GitHub, click the "raw" button before copying the URL.
-3. Recipient runs a command like `maprofile install <url>` using the URL provided by the profile author.
+3. Recipient runs a command like `mainstall <url>` using the URL provided by the profile author.
 
 Sharing a profile via a website will eventually have additional perks, including the ability to download updates to the profile automatically, while preserving customizations you have made.
 
@@ -237,12 +237,11 @@ Use the following steps to set up a custom bandit wheel to allow players to gamb
 4. Spawn a bandit wheel with `maspawn big_wheel`. This needs to be within 30 meters (equivalent to 10 foundations) of the betting terminals to find them.
 
 Notes:
-- The `big_wheel` entity does not have a collider so you cannot currently use `makill` on it. If you need to reposition it, you will have to remove it from the profile's data file and reload the profile.
 - If a betting terminal spawns more than 3 seconds after the wheel, the wheel won't know about it. This means that if you add more betting terminals after spawning the wheel, you will likely have to reload the profile to respawn the wheel so that it can find all the betting terminals.
 
 ## Example entities
 
-List of spawnable entities: https://github.com/OrangeWulf/Rust-Docs/blob/master/Entities.md
+List of spawnable entities: [https://github.com/OrangeWulf/Rust-Docs/blob/master/Entities.md](https://github.com/OrangeWulf/Rust-Docs/blob/master/Entities.md)
 
 Structure/Defense:
 - `barricade.{*}`
@@ -284,13 +283,12 @@ Fun / role play:
 
 - Be careful where you spawn entities. Make sure you are aiming at a point that is clearly inside a monument, or it may spawn in an unexpected location at other instances of that monument or for different map seeds. If you are aiming at a point where the terrain is not flat, that usually means it is not in the monument, though there are some exceptions.
 - When placing an entity that has a matching deployable, equip the corresponding item and use it as a placement guide for pinpoint precision before running the `maspawn` command. Note: You may need to rotate the placement guide.
-- Bind `makill` to a key while setting up entities to save time, since you may need to remove and replace an entity a few times to get it where you want.
+- Bind `makill` to a key while setting up entities to save time.
 
 ## Troubleshooting
 
 - If you receive the "Not at a monument" error, and you think you are at a monument, it means the Monument Finder plugin may have inaccurate bounds for that monument, such as if the monument is new to the game, or if it's a custom monument. Monument Finder provides commands to visualize the monument bounds, and configuration options to change them per monument.
 - If you accidentally `ent kill` an entity that you spawned with this plugin, you can reload the plugin to restore it.
-- If you spawn an entity that is either invisible or doesn't have a collider, and you want to remove it, you can remove the entity from the profile's data file and then reload the profile.
 
 ## Uninstallation
 
