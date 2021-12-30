@@ -208,28 +208,28 @@ namespace Oxide.Plugins
         }
 
         // This hook is exposed by plugin: Telekinesis.
-        private bool? CanStartTelekinesis(BasePlayer player, BaseEntity entity)
+        private bool? CanStartTelekinesis(BasePlayer player, BaseEntity moveEntity)
         {
-            if (_entityTracker.IsMonumentEntity(entity) && !HasAdminPermission(player))
+            if (_entityTracker.IsMonumentEntity(moveEntity) && !HasAdminPermission(player))
                 return false;
 
             return null;
         }
 
         // This hook is exposed by plugin: Telekinesis.
-        private void OnTelekinesisStarted(BasePlayer player, BaseEntity entity)
+        private void OnTelekinesisStarted(BasePlayer player, BaseEntity moveEntity, BaseEntity rotateEntity)
         {
-            if (_entityTracker.IsMonumentEntity(entity))
+            if (_entityTracker.IsMonumentEntity(moveEntity))
                 _entityDisplayManager.ShowAllRepeatedly(player);
         }
 
         // This hook is exposed by plugin: Telekinesis.
-        private void OnTelekinesisStopped(BasePlayer player, BaseEntity entity)
+        private void OnTelekinesisStopped(BasePlayer player, BaseEntity moveEntity, BaseEntity rotateEntity)
         {
             SingleEntityAdapter adapter;
             SingleEntityController controller;
 
-            if (!_entityTracker.IsMonumentEntity(entity, out adapter, out controller)
+            if (!_entityTracker.IsMonumentEntity(moveEntity, out adapter, out controller)
                 || adapter.IsAtIntendedPosition)
                 return;
 
@@ -2041,16 +2041,16 @@ namespace Oxide.Plugins
 
             public void UpdateScale()
             {
-                var previousScale = _pluginInstance.GetEntityScale(Entity);
-
                 if (_pluginInstance.TryScaleEntity(Entity, EntityData.Scale))
                 {
                     var parentSphere = Entity.GetParentEntity() as SphereEntity;
                     if (parentSphere == null)
                         return;
 
-                    if (previousScale == 1 && EntityData.Scale != 1)
-                        MonumentEntityComponent.AddToEntity(parentSphere, this, Monument);
+                    if (_pluginInstance._entityTracker.IsMonumentEntity(parentSphere))
+                        return;
+
+                    MonumentEntityComponent.AddToEntity(parentSphere, this, Monument);
                 }
             }
 
