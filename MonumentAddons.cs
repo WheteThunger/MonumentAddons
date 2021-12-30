@@ -50,6 +50,7 @@ namespace Oxide.Plugins
 
         private readonly ProfileManager _profileManager = new ProfileManager();
         private readonly CoroutineManager _coroutineManager = new CoroutineManager();
+        private readonly MonumentEntityTracker _entityTracker = new MonumentEntityTracker();
         private readonly EntityDisplayManager _entityDisplayManager = new EntityDisplayManager();
         private readonly EntityListenerManager _entityListenerManager = new EntityListenerManager();
         private readonly EntityControllerFactoryResolver _entityControllerFactoryResolver = new EntityControllerFactoryResolver();
@@ -102,8 +103,6 @@ namespace Oxide.Plugins
 
             UnityEngine.Object.Destroy(_immortalProtection);
 
-            EntityAdapterBase.ClearEntityCache();
-
             _pluginData = null;
             _pluginConfig = null;
             _pluginInstance = null;
@@ -128,7 +127,7 @@ namespace Oxide.Plugins
         // This hook is exposed by plugin: Remover Tool (RemoverTool).
         private object canRemove(BasePlayer player, BaseEntity entity)
         {
-            if (EntityAdapterBase.IsMonumentEntity(entity))
+            if (_entityTracker.IsMonumentEntity(entity))
                 return false;
 
             return null;
@@ -136,7 +135,7 @@ namespace Oxide.Plugins
 
         private bool? CanUpdateSign(BasePlayer player, ISignage signage)
         {
-            if (EntityAdapterBase.IsMonumentEntity(signage as BaseEntity) && !HasAdminPermission(player))
+            if (_entityTracker.IsMonumentEntity(signage as BaseEntity) && !HasAdminPermission(player))
             {
                 ChatMessage(player, Lang.ErrorNoPermission);
                 return false;
@@ -147,7 +146,7 @@ namespace Oxide.Plugins
 
         private void OnSignUpdated(ISignage signage, BasePlayer player)
         {
-            if (!EntityAdapterBase.IsMonumentEntity(signage as BaseEntity))
+            if (!_entityTracker.IsMonumentEntity(signage as BaseEntity))
                 return;
 
             var component = MonumentEntityComponent.GetForEntity(signage.NetworkID);
@@ -166,7 +165,7 @@ namespace Oxide.Plugins
         {
             SignEntityController controller;
 
-            if (!EntityAdapterBase.IsMonumentEntity(signage as BaseEntity, out controller))
+            if (!_entityTracker.IsMonumentEntity(signage as BaseEntity, out controller))
                 return;
 
             if (controller.EntityData.SignArtistImages == null)
@@ -190,7 +189,7 @@ namespace Oxide.Plugins
         {
             SingleEntityController controller;
 
-            if (!EntityAdapterBase.IsMonumentEntity(entity, out controller)
+            if (!_entityTracker.IsMonumentEntity(entity, out controller)
                 || controller.EntityData.Scale == scale)
                 return;
 
@@ -211,7 +210,7 @@ namespace Oxide.Plugins
         // This hook is exposed by plugin: Telekinesis.
         private bool? CanStartTelekinesis(BasePlayer player, BaseEntity entity)
         {
-            if (EntityAdapterBase.IsMonumentEntity(entity) && !HasAdminPermission(player))
+            if (_entityTracker.IsMonumentEntity(entity) && !HasAdminPermission(player))
                 return false;
 
             return null;
@@ -220,7 +219,7 @@ namespace Oxide.Plugins
         // This hook is exposed by plugin: Telekinesis.
         private void OnTelekinesisStarted(BasePlayer player, BaseEntity entity)
         {
-            if (EntityAdapterBase.IsMonumentEntity(entity))
+            if (_entityTracker.IsMonumentEntity(entity))
                 _entityDisplayManager.ShowAllRepeatedly(player);
         }
 
@@ -230,7 +229,7 @@ namespace Oxide.Plugins
             SingleEntityAdapter adapter;
             SingleEntityController controller;
 
-            if (!EntityAdapterBase.IsMonumentEntity(entity, out adapter, out controller)
+            if (!_entityTracker.IsMonumentEntity(entity, out adapter, out controller)
                 || adapter.IsAtIntendedPosition)
                 return;
 
@@ -285,9 +284,18 @@ namespace Oxide.Plugins
         private List<BaseMonument> FindMonumentsByShortName(string shortName) =>
             WrapFindMonumentResults(MonumentFinder.Call("API_FindByShortName", shortName) as List<Dictionary<string, object>>);
 
-        private void ScaleEntity(BaseEntity entity, float scale)
+        private float GetEntityScale(BaseEntity entity)
         {
-            EntityScaleManager?.Call("API_ScaleEntity", entity, scale);
+            if (EntityScaleManager == null)
+                return 1;
+
+            return Convert.ToSingle(EntityScaleManager?.Call("API_GetScale", entity));
+        }
+
+        private bool TryScaleEntity(BaseEntity entity, float scale)
+        {
+            var result = EntityScaleManager?.Call("API_ScaleEntity", entity, scale);
+            return result is bool && (bool)result;
         }
 
         private void SkinSign(ISignage signage, SignArtistImage[] signArtistImages)
@@ -1407,6 +1415,16 @@ namespace Oxide.Plugins
         private static string FormatTime(double seconds) =>
             TimeSpan.FromSeconds(seconds).ToString("g");
 
+        private static void BroadcastEntityTransformChange(BaseEntity entity)
+        {
+            var wasSyncPosition = entity.syncPosition;
+            entity.syncPosition = true;
+            entity.TransformChanged();
+            entity.syncPosition = wasSyncPosition;
+
+            entity.transform.hasChanged = false;
+        }
+
         private bool HasAdminPermission(string userId) =>
             permission.UserHasPermission(userId, PermissionAdmin);
 
@@ -1669,6 +1687,7 @@ namespace Oxide.Plugins
             private void Awake()
             {
                 _entity = GetComponent<BaseEntity>();
+                _pluginInstance?._entityTracker.RegisterEntity(_entity);
             }
 
             public void Init(EntityAdapterBase adapter, BaseMonument monument)
@@ -1678,8 +1697,49 @@ namespace Oxide.Plugins
 
             private void OnDestroy()
             {
+                _pluginInstance?._entityTracker.UnregisterEntity(_entity);
                 Adapter.OnEntityDestroyed(_entity);
             }
+        }
+
+        private class MonumentEntityTracker
+        {
+            private HashSet<BaseEntity> _trackedEntities = new HashSet<BaseEntity>();
+
+            public bool IsMonumentEntity(BaseEntity entity)
+            {
+                return entity != null && !entity.IsDestroyed && _trackedEntities.Contains(entity);
+            }
+
+            public bool IsMonumentEntity<TAdapter, TController>(BaseEntity entity, out TAdapter adapter, out TController controller)
+                where TAdapter : EntityAdapterBase
+                where TController : EntityControllerBase
+            {
+                adapter = null;
+                controller = null;
+
+                if (!IsMonumentEntity(entity))
+                    return false;
+
+                var component = MonumentEntityComponent.GetForEntity(entity);
+                if (component == null)
+                    return false;
+
+                adapter = component.Adapter as TAdapter;
+                controller = adapter?.Controller as TController;
+
+                return controller != null;
+            }
+
+            public bool IsMonumentEntity<TController>(BaseEntity entity, out TController controller)
+                where TController : EntityControllerBase
+            {
+                EntityAdapterBase adapter;
+                return IsMonumentEntity(entity, out adapter, out controller);
+            }
+
+            public void RegisterEntity(BaseEntity entity) => _trackedEntities.Add(entity);
+            public void UnregisterEntity(BaseEntity entity) => _trackedEntities.Remove(entity);
         }
 
         #endregion
@@ -1738,40 +1798,6 @@ namespace Oxide.Plugins
 
         private abstract class EntityAdapterBase
         {
-            public static bool IsMonumentEntity(BaseEntity entity)
-            {
-                return entity != null && !entity.IsDestroyed && _registeredEntities.Contains(entity);
-            }
-
-            public static bool IsMonumentEntity<TAdapter, TController>(BaseEntity entity, out TAdapter adapter, out TController controller)
-                where TAdapter : EntityAdapterBase
-                where TController : EntityControllerBase
-            {
-                adapter = null;
-                controller = null;
-
-                if (!IsMonumentEntity(entity))
-                    return false;
-
-                var component = MonumentEntityComponent.GetForEntity(entity);
-                if (component == null)
-                    return false;
-
-                adapter = component.Adapter as TAdapter;
-                controller = adapter?.Controller as TController;
-
-                return controller != null;
-            }
-
-            public static bool IsMonumentEntity<TController>(BaseEntity entity, out TController controller)
-                where TController : EntityControllerBase
-            {
-                EntityAdapterBase adapter;
-                return IsMonumentEntity(entity, out adapter, out controller);
-            }
-
-            public static void ClearEntityCache() => _registeredEntities.Clear();
-
             public EntityControllerBase Controller { get; private set; }
             public EntityData EntityData { get; private set; }
             public BaseMonument Monument { get; private set; }
@@ -1796,8 +1822,6 @@ namespace Oxide.Plugins
                 }
             }
             public Quaternion IntendedRotation => Monument.Rotation * Quaternion.Euler(EntityData.RotationAngles);
-
-            protected static readonly HashSet<BaseEntity> _registeredEntities = new HashSet<BaseEntity>();
 
             public EntityAdapterBase(EntityControllerBase controller, EntityData entityData, BaseMonument monument)
             {
@@ -1833,7 +1857,6 @@ namespace Oxide.Plugins
                 DestroyProblemComponents(entity);
 
                 MonumentEntityComponent.AddToEntity(entity, this, Monument);
-                _registeredEntities.Add(entity);
 
                 return entity;
             }
@@ -1991,10 +2014,10 @@ namespace Oxide.Plugins
             {
                 _pluginInstance?.TrackStart();
 
-                if (entity.net != null)
-                    _registeredEntities.Remove(entity);
-
-                Controller.OnAdapterDestroyed(this);
+                // Only consider the adapter destroyed if the main entity was destroyed.
+                // For example, the scaled sphere parent may be killed if resized to default scale.
+                if (entity == Entity)
+                    Controller.OnAdapterDestroyed(this);
 
                 _pluginInstance?.TrackEnd();
             }
@@ -2004,13 +2027,31 @@ namespace Oxide.Plugins
                 if (IsAtIntendedPosition)
                     return;
 
-                Entity.transform.SetPositionAndRotation(IntendedPosition, IntendedRotation);
-                Entity.SendNetworkUpdate();
+                var entityToMove = GetEntityToMove();
+                var entityToRotate = Entity;
+
+                entityToMove.transform.position = IntendedPosition;
+                entityToRotate.transform.rotation = IntendedRotation;
+
+                BroadcastEntityTransformChange(entityToMove);
+
+                if (entityToRotate != entityToMove)
+                    BroadcastEntityTransformChange(entityToRotate);
             }
 
             public void UpdateScale()
             {
-                _pluginInstance.ScaleEntity(Entity, EntityData.Scale);
+                var previousScale = _pluginInstance.GetEntityScale(Entity);
+
+                if (_pluginInstance.TryScaleEntity(Entity, EntityData.Scale))
+                {
+                    var parentSphere = Entity.GetParentEntity() as SphereEntity;
+                    if (parentSphere == null)
+                        return;
+
+                    if (previousScale == 1 && EntityData.Scale != 1)
+                        MonumentEntityComponent.AddToEntity(parentSphere, this, Monument);
+                }
             }
 
             public void UpdateSkin()
@@ -2020,15 +2061,6 @@ namespace Oxide.Plugins
 
                 Entity.skinID = EntityData.Skin;
                 Entity.SendNetworkUpdate();
-            }
-
-            private bool ShouldBeImmortal()
-            {
-                var samSite = Entity as SamSite;
-                if (samSite != null && samSite.staticRespawn)
-                    return false;
-
-                return true;
             }
 
             protected virtual void OnEntitySpawn()
@@ -2164,6 +2196,27 @@ namespace Oxide.Plugins
 
                 foreach (var cctv in cameraList)
                     computerStation.ForceAddBookmark(cctv.rcIdentifier);
+            }
+
+            private BaseEntity GetEntityToMove()
+            {
+                if (EntityData.Scale != 1 && _pluginInstance.GetEntityScale(Entity) != 1)
+                {
+                    var parentSphere = Entity.GetParentEntity() as SphereEntity;
+                    if (parentSphere != null)
+                        return parentSphere;
+                }
+
+                return Entity;
+            }
+
+            private bool ShouldBeImmortal()
+            {
+                var samSite = Entity as SamSite;
+                if (samSite != null && samSite.staticRespawn)
+                    return false;
+
+                return true;
             }
         }
 
