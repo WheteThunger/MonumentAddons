@@ -2722,7 +2722,7 @@ namespace Oxide.Plugins
         private class EntityDisplayManager
         {
             public const int DefaultDisplayDuration = 60;
-            private const int DisplayIntervalDuration = 3;
+            private const int DisplayIntervalDuration = 2;
 
             private class PlayerInfo
             {
