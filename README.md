@@ -14,6 +14,7 @@ Easily spawn permanent entities at monuments, which auto respawn after restarts 
 - Allows skinning spawned entities
 - [Sign Artist](https://umod.org/plugins/sign-artist) integration allows persisting sign images
 - [Entity Scale Manager](https://umod.org/plugins/entity-scale-manager) integration allows persisting entity scale
+- [Telekinesis](https://umod.org/plugins/telekinesis) integration allows easily moving and rotating entities
 
 ## Required plugins
 
@@ -21,6 +22,7 @@ Easily spawn permanent entities at monuments, which auto respawn after restarts 
 
 ## Recommended compatible plugins
 
+- [Telekinesis](https://umod.org/plugins/telekinesis) -- Allows moving and rotating entities in-place. Very useful for precisely placing entities. Monument Addons integrates with it to automatically save updated positions.
 - [Custom Vending Setup](https://umod.org/plugins/custom-vending-setup) -- Allows customizing monument vending machines. Works with vending machines spawned by this plugin that use the `npcvendingmachine` or `shopkeeper_vm_invis` prefabs.
 
 ## Getting started
@@ -54,7 +56,7 @@ This does several things.
 The following commands only work on entities spawned by this plugin. The effect of these commands automatically applies to all copies of the entity at matching monuments, and also applies updates the data files.
 
 - `makill` -- Kills the entity that you are aiming at.
-- `masave` -- Saves the current position and rotation of the entity you are aiming at. This is useful if you moved the entity with a plugin such as Telekinesis.
+- `masave` -- Saves the current position and rotation of the entity you are aiming at. This is useful if you moved the entity with a plugin such as Edit Tool or Uber Tool. This is not necessary if you are repositioning entities with [Telekinesis](https://umod.org/plugins/telekinesis) since that will be automatically detected.
 - `maskin <skin id>` -- Updates the skin of the entity you are aiming at.
 - `masetid <id>` -- Updates the RC identifier of the CCTV camera you are aiming at.
   - Note: Each CCTV's RC identifier will have a numeric suffix like `1`, `2`, `3` and so on. This is done because each CCTV must have a unique identifier.
