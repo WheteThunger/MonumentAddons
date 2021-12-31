@@ -30,7 +30,7 @@ Easily spawn permanent entities at monuments, which auto respawn after restarts 
 1. Install the plugin and grant the `monumentaddons.admin` permission to admins or moderators (not to normal players).
 2. Go to any monument, such as a gas station.
 3. Aim somewhere, such as a floor, wall or ceiling.
-4. Run the `maspawn <entity>` command to spawn an entity of your choice. For example, `maspawn modularcarlift.static`.
+4. Run the `maspawn <entity>` command to spawn an entity of your choice. For example, `maspawn modularcarlift.static`. Alternatively, if you are holding a deployable item, you can simply run `maspawn` to spawn the corresponding entity.
 
 This does several things.
 - It spawns the entity where you are aiming.
@@ -44,6 +44,7 @@ This does several things.
 ## Commands
 
 - `maspawn <entity>` -- Spawns an entity where you are aiming, using the entity short prefab name.
+  - If you are holding a deployable item, you can simply run `maspawn` without specifying the entity name.
   - You must be at a monument, as determined by Monument Finder.
   - Works just like the native `spawn` command, so if the entity name isn't specific enough, it will print all matching entity names.
   - Also spawns the entity at other matching monuments (e.g., if at a gas station, will spawn at all gas stations).
@@ -85,11 +86,32 @@ Profiles allow you to organize entities into groups. Each profile can be indepen
 
 ```json
 {
-  "DebugDisplayDistance": 150
+  "DebugDisplayDistance": 150.0,
+  "DeployableOverrides": {
+    "arcade.machine.chippy": "assets/bundled/prefabs/static/chippyarcademachine.static.prefab",
+    "autoturret": "assets/content/props/sentry_scientists/sentry.bandit.static.prefab",
+    "boombox": "assets/prefabs/voiceaudio/boombox/boombox.static.prefab",
+    "box.repair.bench": "assets/bundled/prefabs/static/repairbench_static.prefab",
+    "cctv.camera": "assets/prefabs/deployable/cctvcamera/cctv.static.prefab",
+    "chair": "assets/bundled/prefabs/static/chair.static.prefab",
+    "computerstation": "assets/prefabs/deployable/computerstation/computerstation.static.prefab",
+    "connected.speaker": "assets/prefabs/voiceaudio/hornspeaker/connectedspeaker.deployed.static.prefab",
+    "hobobarrel": "assets/bundled/prefabs/static/hobobarrel_static.prefab",
+    "microphonestand": "assets/prefabs/voiceaudio/microphonestand/microphonestand.deployed.static.prefab",
+    "modularcarlift": "assets/bundled/prefabs/static/modularcarlift.static.prefab",
+    "research.table": "assets/bundled/prefabs/static/researchtable_static.prefab",
+    "samsite": "assets/prefabs/npc/sam_site_turret/sam_static.prefab",
+    "telephone": "assets/bundled/prefabs/autospawn/phonebooth/phonebooth.static.prefab",
+    "vending.machine": "assets/prefabs/deployable/vendingmachine/npcvendingmachine.prefab",
+    "wall.frame.shopfront.metal": "assets/bundled/prefabs/static/wall.frame.shopfront.metal.static.prefab",
+    "workbench1": "assets/bundled/prefabs/static/workbench1.static.prefab",
+    "workbench2": "assets/bundled/prefabs/static/workbench2.static.prefab"
+  }
 }
 ```
 
 - `DebugDisplayDistance` -- Determines how far away you can see debug information about entities (i.e., when using `mashow`).
+- `DeployableOverrides` -- Determines which entity will be spawned when using `maspawn` if you don't specify the entity name in the command. For example, while you are holding an auto turret, running `maspawn` will spawn the `sentry.bandit.static` prefab instead of the `autoturret_deployed` prefab.
 
 ## Localization
 
@@ -281,14 +303,14 @@ Fun / role play:
 
 ## Tips
 
+- Bind `maspawn` and `makill` to keys while setting up entities to save time. Remember that running `maspawn` without specifying the entity name will spawn whichever deployable you are currently holding. Note: You may need to rotate the placement guide in some cases because the server cannot detect which way you have it rotated.
+- Install [Telekinesis](https://umod.org/plugins/telekinesis) and bind `tls` to a key to quickly toggle entity movement controls.
 - Be careful where you spawn entities. Make sure you are aiming at a point that is clearly inside a monument, or it may spawn in an unexpected location at other instances of that monument or for different map seeds. If you are aiming at a point where the terrain is not flat, that usually means it is not in the monument, though there are some exceptions.
-- When placing an entity that has a matching deployable, equip the corresponding item and use it as a placement guide for pinpoint precision before running the `maspawn` command. Note: You may need to rotate the placement guide.
-- Bind `makill` to a key while setting up entities to save time.
 
 ## Troubleshooting
 
 - If you receive the "Not at a monument" error, and you think you are at a monument, it means the Monument Finder plugin may have inaccurate bounds for that monument, such as if the monument is new to the game, or if it's a custom monument. Monument Finder provides commands to visualize the monument bounds, and configuration options to change them per monument.
-- If you accidentally `ent kill` an entity that you spawned with this plugin, you can reload the plugin to restore it.
+- If you accidentally `ent kill` an entity that you spawned with this plugin, you can reload the entity's profile (or reload the whole plugin) to restore it.
 
 ## Uninstallation
 

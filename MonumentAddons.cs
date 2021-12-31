@@ -350,30 +350,10 @@ namespace Oxide.Plugins
                 return;
             }
 
-            if (args.Length == 0 || string.IsNullOrWhiteSpace(args[0]))
-            {
-                ReplyToPlayer(player, Lang.SpawnErrorSyntax);
+            string prefabName;
+            if (!VerifyValidPrefabToSpawn(player, args, out prefabName))
                 return;
-            }
 
-            var matches = FindPrefabMatches(args[0]);
-            if (matches.Length == 0)
-            {
-                ReplyToPlayer(player, Lang.SpawnErrorEntityNotFound, args[0]);
-                return;
-            }
-
-            if (matches.Length > 1)
-            {
-                var replyMessage = GetMessage(player, Lang.SpawnErrorMultipleMatches);
-                foreach (var match in matches)
-                    replyMessage += $"\n{GetShortName(match)}";
-
-                player.Reply(replyMessage);
-                return;
-            }
-
-            var prefabName = matches[0];
             var basePlayer = player.Object as BasePlayer;
 
             Vector3 position;
@@ -1107,6 +1087,49 @@ namespace Oxide.Plugins
             return false;
         }
 
+        private bool VerifyValidPrefabToSpawn(IPlayer player, string[] args, out string prefabPath)
+        {
+            prefabPath = null;
+
+            // An explicit entity name takes precedence.
+            // Ignore "True" argument because that simply means the player used a key bind.
+            if (args.Length > 0 && args[0] != "True" && !string.IsNullOrWhiteSpace(args[0]))
+            {
+                var matches = FindPrefabMatches(args[0]);
+                if (matches.Length == 0)
+                {
+                    ReplyToPlayer(player, Lang.SpawnErrorEntityNotFound, args[0]);
+                    return false;
+                }
+                else if (matches.Length == 1)
+                {
+                    prefabPath = matches[0];
+                    return true;
+                }
+                else
+                {
+                    // Multiple matches were found
+                    var replyMessage = GetMessage(player, Lang.SpawnErrorMultipleMatches);
+                    foreach (var match in matches)
+                        replyMessage += $"\n{GetShortName(match)}";
+
+                    player.Reply(replyMessage);
+                    return false;
+                }
+            }
+
+            var basePlayer = player.Object as BasePlayer;
+            var deployablePrefab = DeterminePrefabFromPlayerActiveDeployable(basePlayer);
+            if (!string.IsNullOrEmpty(deployablePrefab))
+            {
+                prefabPath = deployablePrefab;
+                return true;
+            }
+
+            ReplyToPlayer(player, Lang.SpawnErrorSyntax);
+            return false;
+        }
+
         private bool VerifyLookingAtAdapter<TAdapter, TController>(IPlayer player, out AdapterFindResult<TAdapter, TController> findResult)
             where TAdapter : EntityAdapterBase
             where TController : EntityControllerBase
@@ -1528,6 +1551,23 @@ namespace Oxide.Plugins
             adapter.EntityData.OnTerrain = IsOnTerrain(adapter.Position);
             controller.Profile.Save();
             controller.UpdatePosition();
+        }
+
+        private string DeterminePrefabFromPlayerActiveDeployable(BasePlayer basePlayer)
+        {
+            var activeItem = basePlayer.GetActiveItem();
+            if (activeItem == null)
+                return null;
+
+            string overridePrefabPath;
+            if (_pluginConfig.DeployableOverrides.TryGetValue(activeItem.info.shortname, out overridePrefabPath))
+                return overridePrefabPath;
+
+            var itemModDeployable = activeItem.info.GetComponent<ItemModDeployable>();
+            if (itemModDeployable == null)
+                return null;
+
+            return itemModDeployable.entityPrefab.resourcePath;
         }
 
         #endregion
@@ -3886,6 +3926,29 @@ namespace Oxide.Plugins
 
             [JsonProperty("DebugDisplayDistance")]
             public float DebugDisplayDistance = 150;
+
+            [JsonProperty("DeployableOverrides")]
+            public Dictionary<string, string> DeployableOverrides = new Dictionary<string, string>
+            {
+                ["arcade.machine.chippy"] = "assets/bundled/prefabs/static/chippyarcademachine.static.prefab",
+                ["autoturret"] = "assets/content/props/sentry_scientists/sentry.bandit.static.prefab",
+                ["boombox"] = "assets/prefabs/voiceaudio/boombox/boombox.static.prefab",
+                ["box.repair.bench"] = "assets/bundled/prefabs/static/repairbench_static.prefab",
+                ["cctv.camera"] = "assets/prefabs/deployable/cctvcamera/cctv.static.prefab",
+                ["chair"] = "assets/bundled/prefabs/static/chair.static.prefab",
+                ["computerstation"] = "assets/prefabs/deployable/computerstation/computerstation.static.prefab",
+                ["connected.speaker"] = "assets/prefabs/voiceaudio/hornspeaker/connectedspeaker.deployed.static.prefab",
+                ["hobobarrel"] = "assets/bundled/prefabs/static/hobobarrel_static.prefab",
+                ["microphonestand"] = "assets/prefabs/voiceaudio/microphonestand/microphonestand.deployed.static.prefab",
+                ["modularcarlift"] = "assets/bundled/prefabs/static/modularcarlift.static.prefab",
+                ["research.table"] = "assets/bundled/prefabs/static/researchtable_static.prefab",
+                ["samsite"] = "assets/prefabs/npc/sam_site_turret/sam_static.prefab",
+                ["telephone"] = "assets/bundled/prefabs/autospawn/phonebooth/phonebooth.static.prefab",
+                ["vending.machine"] = "assets/prefabs/deployable/vendingmachine/npcvendingmachine.prefab",
+                ["wall.frame.shopfront.metal"] = "assets/bundled/prefabs/static/wall.frame.shopfront.metal.static.prefab",
+                ["workbench1"] = "assets/bundled/prefabs/static/workbench1.static.prefab",
+                ["workbench2"] = "assets/bundled/prefabs/static/workbench2.static.prefab",
+            };
         }
 
         private Configuration GetDefaultConfig() => new Configuration();
