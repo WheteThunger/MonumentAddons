@@ -1,4 +1,5 @@
 ﻿using Newtonsoft.Json;
+using Newtonsoft.Json.Converters;
 using Newtonsoft.Json.Linq;
 using Newtonsoft.Json.Serialization;
 using Oxide.Core;
@@ -2962,6 +2963,183 @@ namespace Oxide.Plugins
 
         #endregion
 
+        #region Base Data
+
+        private abstract class BaseIdentifiableData
+        {
+            [JsonProperty("Id", DefaultValueHandling = DefaultValueHandling.Ignore)]
+            public Guid Id;
+        }
+
+        private abstract class BaseTransformData : BaseIdentifiableData
+        {
+            [JsonProperty("Position")]
+            public Vector3 Position;
+
+            // Kept for backwards compatibility.
+            [JsonProperty("RotationAngle", DefaultValueHandling = DefaultValueHandling.Ignore)]
+            public float DeprecatedRotationAngle { set { RotationAngles = new Vector3(0, value, 0); } }
+
+            [JsonProperty("RotationAngles", DefaultValueHandling = DefaultValueHandling.Ignore)]
+            public Vector3 RotationAngles;
+
+            [JsonProperty("OnTerrain", DefaultValueHandling = DefaultValueHandling.Ignore)]
+            public bool OnTerrain = false;
+        }
+
+        #endregion
+
+        #region Entity Data
+
+        private class CCTVInfo
+        {
+            [JsonProperty("RCIdentifier", DefaultValueHandling = DefaultValueHandling.Ignore)]
+            public string RCIdentifier;
+
+            [JsonProperty("Pitch", DefaultValueHandling = DefaultValueHandling.Ignore)]
+            public float Pitch;
+
+            [JsonProperty("Yaw", DefaultValueHandling = DefaultValueHandling.Ignore)]
+            public float Yaw;
+        }
+
+        private class SignArtistImage
+        {
+            [JsonProperty("Url")]
+            public string Url;
+
+            [JsonProperty("Raw", DefaultValueHandling = DefaultValueHandling.Ignore)]
+            public bool Raw;
+        }
+
+        private class EntityData : BaseTransformData
+        {
+            [JsonProperty("PrefabName")]
+            public string PrefabName;
+
+            private string _shortPrefabName;
+
+            [JsonIgnore]
+            public string ShortPrefabName
+            {
+                get
+                {
+                    if (_shortPrefabName == null)
+                        _shortPrefabName = GetShortName(PrefabName);
+
+                    return _shortPrefabName;
+                }
+            }
+
+            [JsonProperty("Skin", DefaultValueHandling = DefaultValueHandling.Ignore)]
+            public ulong Skin;
+
+            [JsonProperty("Scale", DefaultValueHandling = DefaultValueHandling.Ignore)]
+            [DefaultValue(1f)]
+            public float Scale = 1;
+
+            [JsonProperty("CCTV", DefaultValueHandling = DefaultValueHandling.Ignore)]
+            public CCTVInfo CCTV;
+
+            [JsonProperty("SignArtistImages", DefaultValueHandling = DefaultValueHandling.Ignore)]
+            public SignArtistImage[] SignArtistImages;
+        }
+
+        #endregion
+
+        #region Spawn Group Data
+
+        private enum SpawnPointType
+        {
+            // Do not change these names, since they are depended on by existing data files.
+            Generic,
+            Radial,
+            SpaceChecking,
+        }
+
+        private class GenericSpawnPointSettings : BaseTransformData
+        {
+            [JsonProperty("DropsToGround")]
+            public bool DropsToGround = true;
+
+            [JsonProperty("UseRandomRotation")]
+            public bool UseRandomRotation;
+        }
+
+        private class RadialSpawnPointSettings : BaseTransformData
+        {
+            [JsonProperty("Radius")]
+            public float Radius = 10;
+        }
+
+        private class SpawnPointData : BaseTransformData
+        {
+            [JsonProperty("Type")]
+            [JsonConverter(typeof(StringEnumConverter))]
+            public SpawnPointType Type;
+
+            [JsonProperty("GenericSpawnPointSettings")]
+            public GenericSpawnPointSettings GenericSpawnPointSettings;
+
+            [JsonProperty("RadialSpawnPointSettings")]
+            public RadialSpawnPointSettings RadialSpawnPointSettings;
+        }
+
+        private class WeightedPrefabData
+        {
+            [JsonProperty("PrefabName")]
+            public string PrefabName;
+
+            private string _shortPrefabName;
+
+            [JsonIgnore]
+            public string ShortPrefabName
+            {
+                get
+                {
+                    if (_shortPrefabName == null)
+                        _shortPrefabName = GetShortName(PrefabName);
+
+                    return _shortPrefabName;
+                }
+            }
+
+            [JsonProperty("Weight")]
+            public int Weight = 1;
+        }
+
+        private class SpawnGroupData : BaseIdentifiableData
+        {
+            [JsonProperty("Name")]
+            public string Name;
+
+            [JsonProperty("MaxPopulation")]
+            public int MaxPopulation = 1;
+
+            [JsonProperty("RespawnDelayMin")]
+            public float RespawnDelayMin = 10;
+
+            [JsonProperty("RespawnDelayMax")]
+            public float RespawnDelayMax = 20;
+
+            [JsonProperty("Prefabs")]
+            public List<WeightedPrefabData> Prefabs = new List<WeightedPrefabData>();
+
+            [JsonProperty("SpawnPoints")]
+            public List<SpawnPointData> SpawnPoints = new List<SpawnPointData>();
+        }
+
+        private class MonumentData
+        {
+            [JsonProperty("Entities")]
+            public List<EntityData> Entities = new List<EntityData>();
+
+            [JsonProperty("SpawnGroups")]
+            public List<SpawnGroupData> SpawnGroups = new List<SpawnGroupData>();
+        }
+
+        #endregion
+
         #region Profile Data
 
         private static class ProfileDataMigration
@@ -3034,12 +3212,6 @@ namespace Oxide.Plugins
 
                 return contentChanged;
             }
-        }
-
-        private class MonumentData
-        {
-            [JsonProperty("Entities")]
-            public List<EntityData> Entities = new List<EntityData>();
         }
 
         private class Profile
@@ -3763,14 +3935,14 @@ namespace Oxide.Plugins
                             if (alias == "LootTunnel" || alias == "BarricadeTunnel")
                             {
                                 // Migrate from the original rotations to the rotations used by MonumentFinder.
-                                entityData.RotationAngle = (entityData.RotationAngles.y + 180) % 360;
+                                entityData.DeprecatedRotationAngle = (entityData.RotationAngles.y + 180) % 360;
                                 entityData.Position = Quaternion.Euler(0, 180, 0) * entityData.Position;
                                 contentChanged = true;
                             }
 
                             // Migrate from the backwards rotations to the correct ones.
                             var newAngle = (720 - entityData.RotationAngles.y) % 360;
-                            entityData.RotationAngle = newAngle;
+                            entityData.DeprecatedRotationAngle = newAngle;
                             contentChanged = true;
                         }
                     }
@@ -3886,76 +4058,6 @@ namespace Oxide.Plugins
             public void SetProfileSelected(string userId, string profileName)
             {
                 SelectedProfiles[userId] = profileName;
-            }
-        }
-
-        private class CCTVInfo
-        {
-            [JsonProperty("RCIdentifier", DefaultValueHandling = DefaultValueHandling.Ignore)]
-            public string RCIdentifier;
-
-            [JsonProperty("Pitch", DefaultValueHandling = DefaultValueHandling.Ignore)]
-            public float Pitch;
-
-            [JsonProperty("Yaw", DefaultValueHandling = DefaultValueHandling.Ignore)]
-            public float Yaw;
-        }
-
-        private class SignArtistImage
-        {
-            [JsonProperty("Url")]
-            public string Url;
-
-            [JsonProperty("Raw", DefaultValueHandling = DefaultValueHandling.Ignore)]
-            public bool Raw;
-        }
-
-        private class EntityData
-        {
-            [JsonProperty("Id", DefaultValueHandling = DefaultValueHandling.Ignore)]
-            public Guid Id;
-
-            [JsonProperty("PrefabName")]
-            public string PrefabName;
-
-            [JsonProperty("Position")]
-            public Vector3 Position;
-
-            // Deprecated. Kept for backwards compatibility.
-            [JsonProperty("RotationAngle", DefaultValueHandling = DefaultValueHandling.Ignore)]
-            public float RotationAngle { set { RotationAngles = new Vector3(0, value, 0); } }
-
-            [JsonProperty("RotationAngles", DefaultValueHandling = DefaultValueHandling.Ignore)]
-            public Vector3 RotationAngles;
-
-            [JsonProperty("OnTerrain", DefaultValueHandling = DefaultValueHandling.Ignore)]
-            public bool OnTerrain = false;
-
-            [JsonProperty("Skin", DefaultValueHandling = DefaultValueHandling.Ignore)]
-            public ulong Skin;
-
-            [JsonProperty("Scale", DefaultValueHandling = DefaultValueHandling.Ignore)]
-            [DefaultValue(1f)]
-            public float Scale = 1;
-
-            [JsonProperty("CCTV", DefaultValueHandling = DefaultValueHandling.Ignore)]
-            public CCTVInfo CCTV;
-
-            [JsonProperty("SignArtistImages", DefaultValueHandling = DefaultValueHandling.Ignore)]
-            public SignArtistImage[] SignArtistImages;
-
-            private string _shortPrefabName;
-
-            [JsonIgnore]
-            public string ShortPrefabName
-            {
-                get
-                {
-                    if (_shortPrefabName == null)
-                        _shortPrefabName = GetShortName(PrefabName);
-
-                    return _shortPrefabName;
-                }
             }
         }
 
