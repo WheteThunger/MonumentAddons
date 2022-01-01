@@ -1,31 +1,35 @@
 {
   "Name": "MonumentLifts",
   "Author": "WhiteThunder/Mevent",
-  "SchemaVersion": 1.0,
-  "Monuments": {
-    "gas_station_1": [
-      {
-        "Id": "fad154c5-5546-4d02-bb7a-baf57f32b964",
-        "PrefabName": "assets/bundled/prefabs/static/modularcarlift.static.prefab",
-        "Position": {
-          "x": 4.2,
-          "y": 0.0,
-          "z": -0.5
-        },
-        "OnTerrain": true
-      }
-    ],
-    "supermarket_1": [
-      {
-        "Id": "bb02b4da-03bd-4cae-9139-ac3b2fdaa8c6",
-        "PrefabName": "assets/bundled/prefabs/static/modularcarlift.static.prefab",
-        "Position": {
-          "x": 0.2,
-          "y": 0.0,
-          "z": 17.5
-        },
-        "OnTerrain": true
-      }
-    ]
+  "SchemaVersion": 2.0,
+  "MonumentData": {
+    "gas_station_1": {
+      "Entities": [
+        {
+          "Id": "fad154c5-5546-4d02-bb7a-baf57f32b964",
+          "PrefabName": "assets/bundled/prefabs/static/modularcarlift.static.prefab",
+          "Position": {
+            "x": 4.2,
+            "y": 0.0,
+            "z": -0.5
+          },
+          "OnTerrain": true
+        }
+      ]
+    },
+    "supermarket_1": {
+      "Entities": [
+        {
+          "Id": "bb02b4da-03bd-4cae-9139-ac3b2fdaa8c6",
+          "PrefabName": "assets/bundled/prefabs/static/modularcarlift.static.prefab",
+          "Position": {
+            "x": 0.2,
+            "y": 0.0,
+            "z": 17.5
+          },
+          "OnTerrain": true
+        }
+      ]
+    }
   }
 }

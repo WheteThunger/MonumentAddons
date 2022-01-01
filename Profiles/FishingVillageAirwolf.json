@@ -1,67 +1,71 @@
 {
   "Name": "FishingVillageAirwolf",
   "Author": "WhiteThunder",
-  "SchemaVersion": 1.0,
-  "Monuments": {
-    "fishing_village_a": [
-      {
-        "Id": "8a17e6f2-7628-4761-a308-3da95a066aa5",
-        "PrefabName": "assets/prefabs/npc/bandit/shopkeepers/bandit_conversationalist.prefab",
-        "Position": {
-          "x": -8.1,
-          "y": 0.25000003,
-          "z": -8.8
+  "SchemaVersion": 2.0,
+  "MonumentData": {
+    "fishing_village_a": {
+      "Entities": [
+        {
+          "Id": "8a17e6f2-7628-4761-a308-3da95a066aa5",
+          "PrefabName": "assets/prefabs/npc/bandit/shopkeepers/bandit_conversationalist.prefab",
+          "Position": {
+            "x": -8.1,
+            "y": 0.25000003,
+            "z": -8.8
+          },
+          "RotationAngles": {
+            "x": 0.0,
+            "y": 90.0,
+            "z": 0.0
+          }
         },
-        "RotationAngles": {
-          "x": 0.0,
-          "y": 90.0,
-          "z": 0.0
+        {
+          "Id": "9c5f6ecb-4c92-431a-a680-bb953bab4391",
+          "PrefabName": "assets/prefabs/npc/bandit/airwolfspawner.prefab",
+          "Position": {
+            "x": -18.0,
+            "y": 0.25,
+            "z": -6.3
+          },
+          "RotationAngles": {
+            "x": 0.0,
+            "y": 127.0,
+            "z": 0.0
+          }
         }
-      },
-      {
-        "Id": "9c5f6ecb-4c92-431a-a680-bb953bab4391",
-        "PrefabName": "assets/prefabs/npc/bandit/airwolfspawner.prefab",
-        "Position": {
-          "x": -18.0,
-          "y": 0.25,
-          "z": -6.3
+      ]
+    },
+    "fishing_village_b": {
+      "Entities": [
+        {
+          "Id": "c4e1ffbd-d87d-482c-8020-c7fc0975db45",
+          "PrefabName": "assets/prefabs/npc/bandit/shopkeepers/bandit_conversationalist.prefab",
+          "Position": {
+            "x": -5.0,
+            "y": 1.99900055,
+            "z": 1.0
+          },
+          "RotationAngles": {
+            "x": 0.0,
+            "y": 120.0,
+            "z": 0.0
+          }
         },
-        "RotationAngles": {
-          "x": 0.0,
-          "y": 127.0,
-          "z": 0.0
+        {
+          "Id": "103cb414-4079-417e-a7ce-f22794b80a48",
+          "PrefabName": "assets/prefabs/npc/bandit/airwolfspawner.prefab",
+          "Position": {
+            "x": -10.2837543,
+            "y": 0.292107254,
+            "z": -4.43170071
+          },
+          "RotationAngles": {
+            "x": 0.0,
+            "y": 72.0,
+            "z": 0.0
+          }
         }
-      }
-    ],
-    "fishing_village_b": [
-      {
-        "Id": "c4e1ffbd-d87d-482c-8020-c7fc0975db45",
-        "PrefabName": "assets/prefabs/npc/bandit/shopkeepers/bandit_conversationalist.prefab",
-        "Position": {
-          "x": -5.0,
-          "y": 1.99900055,
-          "z": 1.0
-        },
-        "RotationAngles": {
-          "x": 0.0,
-          "y": 120.0,
-          "z": 0.0
-        }
-      },
-      {
-        "Id": "103cb414-4079-417e-a7ce-f22794b80a48",
-        "PrefabName": "assets/prefabs/npc/bandit/airwolfspawner.prefab",
-        "Position": {
-          "x": -10.2837543,
-          "y": 0.292107254,
-          "z": -4.43170071
-        },
-        "RotationAngles": {
-          "x": 0.0,
-          "y": 72.0,
-          "z": 0.0
-        }
-      }
-    ]
+      ]
+    }
   }
 }

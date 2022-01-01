@@ -1,122 +1,124 @@
 {
   "Name": "TrainStationCCTV",
   "Author": "WhiteThunder",
-  "SchemaVersion": 1.0,
-  "Monuments": {
-    "TrainStation": [
-      {
-        "Id": "ce613299-996f-48d0-9c67-410497ecff07",
-        "PrefabName": "assets/prefabs/deployable/computerstation/computerstation.static.prefab",
-        "Position": {
-          "x": -20.1,
-          "y": 0.0,
-          "z": -11.0
+  "SchemaVersion": 2.0,
+  "MonumentData": {
+    "TrainStation": {
+      "Entities": [
+        {
+          "Id": "ce613299-996f-48d0-9c67-410497ecff07",
+          "PrefabName": "assets/prefabs/deployable/computerstation/computerstation.static.prefab",
+          "Position": {
+            "x": -20.1,
+            "y": 0.0,
+            "z": -11.0
+          },
+          "RotationAngles": {
+            "x": 0.0,
+            "y": 270.0,
+            "z": 0.0
+          }
         },
-        "RotationAngles": {
-          "x": 0.0,
-          "y": 270.0,
-          "z": 0.0
+        {
+          "Id": "75832c03-fb4f-4506-a296-05e3ea2bf50a",
+          "PrefabName": "assets/prefabs/deployable/cctvcamera/cctv.static.prefab",
+          "Position": {
+            "x": 0.0,
+            "y": 6.8,
+            "z": 58.24
+          },
+          "CCTV": {
+            "RCIdentifier": "STATIONFRONT",
+            "Pitch": 25.0
+          }
+        },
+        {
+          "Id": "49327831-1d6e-43e2-bd89-4ee6281a2547",
+          "PrefabName": "assets/prefabs/deployable/cctvcamera/cctv.static.prefab",
+          "Position": {
+            "x": 0.0,
+            "y": 6.8,
+            "z": 49.76
+          },
+          "RotationAngles": {
+            "x": 0.0,
+            "y": 180.0,
+            "z": 0.0
+          },
+          "CCTV": {
+            "RCIdentifier": "STATIONMIDDLE",
+            "Pitch": 25.0
+          }
+        },
+        {
+          "Id": "280de957-22c6-4e04-82cc-9ee600eaa144",
+          "PrefabName": "assets/prefabs/deployable/cctvcamera/cctv.static.prefab",
+          "Position": {
+            "x": 0.0,
+            "y": 6.8,
+            "z": 13.76
+          },
+          "RotationAngles": {
+            "x": 0.0,
+            "y": 180.0,
+            "z": 0.0
+          },
+          "CCTV": {
+            "RCIdentifier": "STATIONREAR",
+            "Pitch": 25.0
+          }
+        },
+        {
+          "Id": "648f1b45-5a96-4769-b3ac-3819e1e09433",
+          "PrefabName": "assets/prefabs/deployable/cctvcamera/cctv.static.prefab",
+          "Position": {
+            "x": 6.75,
+            "y": 7.5,
+            "z": -30.0
+          },
+          "RotationAngles": {
+            "x": 0.0,
+            "y": 270.0,
+            "z": 0.0
+          },
+          "CCTV": {
+            "RCIdentifier": "STATIONSUPPLIES",
+            "Pitch": 20.0,
+            "Yaw": -35.0
+          }
+        },
+        {
+          "Id": "d01f6223-933c-49f8-a164-6870a32f5c90",
+          "PrefabName": "assets/prefabs/deployable/cctvcamera/cctv.static.prefab",
+          "Position": {
+            "x": 45.0,
+            "y": 5.75,
+            "z": 35.9
+          },
+          "RotationAngles": {
+            "x": 0.0,
+            "y": 180.0,
+            "z": 0.0
+          },
+          "CCTV": {
+            "RCIdentifier": "MAINTENANCE",
+            "Pitch": 15.0
+          }
+        },
+        {
+          "Id": "881978da-2959-456e-9a4c-2819132feaa1",
+          "PrefabName": "assets/prefabs/deployable/cctvcamera/cctv.static.prefab",
+          "Position": {
+            "x": -45.0,
+            "y": 5.75,
+            "z": -35.9
+          },
+          "CCTV": {
+            "RCIdentifier": "MAINTENANCEALT",
+            "Pitch": 15.0
+          }
         }
-      },
-      {
-        "Id": "75832c03-fb4f-4506-a296-05e3ea2bf50a",
-        "PrefabName": "assets/prefabs/deployable/cctvcamera/cctv.static.prefab",
-        "Position": {
-          "x": 0.0,
-          "y": 6.8,
-          "z": 58.24
-        },
-        "CCTV": {
-          "RCIdentifier": "STATIONFRONT",
-          "Pitch": 25.0
-        }
-      },
-      {
-        "Id": "49327831-1d6e-43e2-bd89-4ee6281a2547",
-        "PrefabName": "assets/prefabs/deployable/cctvcamera/cctv.static.prefab",
-        "Position": {
-          "x": 0.0,
-          "y": 6.8,
-          "z": 49.76
-        },
-        "RotationAngles": {
-          "x": 0.0,
-          "y": 180.0,
-          "z": 0.0
-        },
-        "CCTV": {
-          "RCIdentifier": "STATIONMIDDLE",
-          "Pitch": 25.0
-        }
-      },
-      {
-        "Id": "280de957-22c6-4e04-82cc-9ee600eaa144",
-        "PrefabName": "assets/prefabs/deployable/cctvcamera/cctv.static.prefab",
-        "Position": {
-          "x": 0.0,
-          "y": 6.8,
-          "z": 13.76
-        },
-        "RotationAngles": {
-          "x": 0.0,
-          "y": 180.0,
-          "z": 0.0
-        },
-        "CCTV": {
-          "RCIdentifier": "STATIONREAR",
-          "Pitch": 25.0
-        }
-      },
-      {
-        "Id": "648f1b45-5a96-4769-b3ac-3819e1e09433",
-        "PrefabName": "assets/prefabs/deployable/cctvcamera/cctv.static.prefab",
-        "Position": {
-          "x": 6.75,
-          "y": 7.5,
-          "z": -30.0
-        },
-        "RotationAngles": {
-          "x": 0.0,
-          "y": 270.0,
-          "z": 0.0
-        },
-        "CCTV": {
-          "RCIdentifier": "STATIONSUPPLIES",
-          "Pitch": 20.0,
-          "Yaw": -35.0
-        }
-      },
-      {
-        "Id": "d01f6223-933c-49f8-a164-6870a32f5c90",
-        "PrefabName": "assets/prefabs/deployable/cctvcamera/cctv.static.prefab",
-        "Position": {
-          "x": 45.0,
-          "y": 5.75,
-          "z": 35.9
-        },
-        "RotationAngles": {
-          "x": 0.0,
-          "y": 180.0,
-          "z": 0.0
-        },
-        "CCTV": {
-          "RCIdentifier": "MAINTENANCE",
-          "Pitch": 15.0
-        }
-      },
-      {
-        "Id": "881978da-2959-456e-9a4c-2819132feaa1",
-        "PrefabName": "assets/prefabs/deployable/cctvcamera/cctv.static.prefab",
-        "Position": {
-          "x": -45.0,
-          "y": 5.75,
-          "z": -35.9
-        },
-        "CCTV": {
-          "RCIdentifier": "MAINTENANCEALT",
-          "Pitch": 15.0
-        }
-      }
-    ]
+      ]
+    }
   }
 }

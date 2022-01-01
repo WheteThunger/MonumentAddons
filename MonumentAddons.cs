@@ -1534,6 +1534,8 @@ namespace Oxide.Plugins
                         return;
                     }
 
+                    ProfileDataMigration.MigrateToLatest(profile);
+
                     profile.Url = url;
                     successCallback(profile);
                 },
@@ -2966,7 +2968,9 @@ namespace Oxide.Plugins
         {
             public static bool MigrateToLatest(Profile data)
             {
-                return MigrateV0ToV1(data);
+                // Using single | to avoid short-circuiting.
+                return MigrateV0ToV1(data)
+                    | MigrateV1ToV2(data);
             }
 
             public static bool MigrateV0ToV1(Profile data)
@@ -2978,9 +2982,9 @@ namespace Oxide.Plugins
 
                 var contentChanged = false;
 
-                if (data.MonumentMap != null)
+                if (data.DeprecatedMonumentMap != null)
                 {
-                    foreach (var entityDataList in data.MonumentMap.Values)
+                    foreach (var entityDataList in data.DeprecatedMonumentMap.Values)
                     {
                         if (entityDataList == null)
                             continue;
@@ -3000,6 +3004,42 @@ namespace Oxide.Plugins
 
                 return contentChanged;
             }
+
+            public static bool MigrateV1ToV2(Profile data)
+            {
+                if (data.SchemaVersion != 1)
+                    return false;
+
+                data.SchemaVersion++;
+
+                var contentChanged = false;
+
+                if (data.DeprecatedMonumentMap != null)
+                {
+                    foreach (var entry in data.DeprecatedMonumentMap)
+                    {
+                        var entityDataList = entry.Value;
+                        if (entityDataList == null || entityDataList.Count == 0)
+                            continue;
+
+                        data.MonumentDataMap[entry.Key] = new MonumentData
+                        {
+                            Entities = entityDataList,
+                        };
+                        contentChanged = true;
+                    }
+
+                    data.DeprecatedMonumentMap = null;
+                }
+
+                return contentChanged;
+            }
+        }
+
+        private class MonumentData
+        {
+            [JsonProperty("Entities")]
+            public List<EntityData> Entities = new List<EntityData>();
         }
 
         private class Profile
@@ -3044,24 +3084,20 @@ namespace Oxide.Plugins
                 var profile = Interface.Oxide.DataFileSystem.ReadObject<Profile>(GetProfilePath(profileName)) ?? new Profile();
                 profile.Name = GetActualFileName(profileName);
 
-                // Fix issue caused by v0.7.0 for first time users.
-                if (profile.MonumentMap == null)
-                    profile.MonumentMap = new Dictionary<string, List<EntityData>>();
-
-                // Backfill ids if missing.
-                foreach (var entityDataList in profile.MonumentMap.Values)
-                {
-                    foreach (var entityData in entityDataList)
-                    {
-                        if (entityData.Id == default(Guid))
-                            entityData.Id = Guid.NewGuid();
-                    }
-                }
-
                 var originalSchemaVersion = profile.SchemaVersion;
 
                 if (ProfileDataMigration.MigrateToLatest(profile))
                     _pluginInstance.LogWarning($"Profile {profile.Name} has been automatically migrated.");
+
+                // Backfill ids if missing.
+                foreach (var monumentData in profile.MonumentDataMap.Values)
+                {
+                    foreach (var entityData in monumentData.Entities)
+                    {
+                        if (entityData.Id == Guid.Empty)
+                            entityData.Id = Guid.NewGuid();
+                    }
+                }
 
                 if (profile.SchemaVersion != originalSchemaVersion)
                     profile.Save();
@@ -3098,8 +3134,11 @@ namespace Oxide.Plugins
             [JsonProperty("Url", DefaultValueHandling = DefaultValueHandling.Ignore)]
             public string Url;
 
-            [JsonProperty("Monuments")]
-            public Dictionary<string, List<EntityData>> MonumentMap = new Dictionary<string, List<EntityData>>();
+            [JsonProperty("Monuments", DefaultValueHandling = DefaultValueHandling.Ignore)]
+            public Dictionary<string, List<EntityData>> DeprecatedMonumentMap;
+
+            [JsonProperty("MonumentData")]
+            public Dictionary<string, MonumentData> MonumentDataMap = new Dictionary<string, MonumentData>();
 
             public void Save() =>
                 Interface.Oxide.DataFileSystem.WriteObject(GetProfilePath(Name), this);
@@ -3133,12 +3172,12 @@ namespace Oxide.Plugins
 
             public bool IsEmpty()
             {
-                if (MonumentMap == null || MonumentMap.IsEmpty())
+                if (MonumentDataMap == null || MonumentDataMap.IsEmpty())
                     return true;
 
-                foreach (var entityDataList in MonumentMap.Values)
+                foreach (var monumentData in MonumentDataMap.Values)
                 {
-                    if (!entityDataList.IsEmpty())
+                    if (!monumentData.Entities.IsEmpty())
                         return false;
                 }
 
@@ -3149,28 +3188,28 @@ namespace Oxide.Plugins
             {
                 var aggregateData = new Dictionary<string, Dictionary<string, int>>();
 
-                foreach (var entry in MonumentMap)
+                foreach (var entry in MonumentDataMap)
                 {
-                    var entityDataList = entry.Value;
-                    if (entityDataList.Count == 0)
+                    var monumentAliasOrShortName = entry.Key;
+                    var monumentData = entry.Value;
+
+                    if (monumentData.Entities.Count == 0)
                         continue;
 
-                    var monumentAliasOrShortName = entry.Key;
-
-                    Dictionary<string, int> monumentData;
-                    if (!aggregateData.TryGetValue(monumentAliasOrShortName, out monumentData))
+                    Dictionary<string, int> monumentAggregateData;
+                    if (!aggregateData.TryGetValue(monumentAliasOrShortName, out monumentAggregateData))
                     {
-                        monumentData = new Dictionary<string, int>();
-                        aggregateData[monumentAliasOrShortName] = monumentData;
+                        monumentAggregateData = new Dictionary<string, int>();
+                        aggregateData[monumentAliasOrShortName] = monumentAggregateData;
                     }
 
-                    foreach (var entityData in entityDataList)
+                    foreach (var entityData in monumentData.Entities)
                     {
                         int count;
-                        if (!monumentData.TryGetValue(entityData.PrefabName, out count))
+                        if (!monumentAggregateData.TryGetValue(entityData.PrefabName, out count))
                             count = 0;
 
-                        monumentData[entityData.PrefabName] = count + 1;
+                        monumentAggregateData[entityData.PrefabName] = count + 1;
                     }
                 }
 
@@ -3179,22 +3218,22 @@ namespace Oxide.Plugins
 
             public void AddEntityData(string monumentAliasOrShortName, EntityData entityData)
             {
-                List<EntityData> entityDataList;
-                if (!MonumentMap.TryGetValue(monumentAliasOrShortName, out entityDataList))
+                MonumentData monumentData;
+                if (!MonumentDataMap.TryGetValue(monumentAliasOrShortName, out monumentData))
                 {
-                    entityDataList = new List<EntityData>();
-                    MonumentMap[monumentAliasOrShortName] = entityDataList;
+                    monumentData = new MonumentData();
+                    MonumentDataMap[monumentAliasOrShortName] = monumentData;
                 }
 
-                entityDataList.Add(entityData);
+                monumentData.Entities.Add(entityData);
                 Save();
             }
 
             public bool RemoveEntityData(EntityData entityData, out string monumentAliasOrShortName)
             {
-                foreach (var entry in MonumentMap)
+                foreach (var entry in MonumentDataMap)
                 {
-                    if (entry.Value.Remove(entityData))
+                    if (entry.Value.Entities.Remove(entityData))
                     {
                         monumentAliasOrShortName = entry.Key;
                         Save();
@@ -3266,9 +3305,9 @@ namespace Oxide.Plugins
             {
                 _coroutineManager.Destroy();
 
-                foreach (var entityDataList in Profile.MonumentMap.Values)
+                foreach (var monumentData in Profile.MonumentDataMap.Values)
                 {
-                    foreach (var entityData in entityDataList)
+                    foreach (var entityData in monumentData.Entities)
                     {
                         var controller = GetEntityController(entityData);
                         if (controller == null)
@@ -3341,7 +3380,7 @@ namespace Oxide.Plugins
             {
                 if (!IsEnabled)
                 {
-                    Profile.MonumentMap.Clear();
+                    Profile.MonumentDataMap.Clear();
                     Profile.Save();
                     return;
                 }
@@ -3371,19 +3410,21 @@ namespace Oxide.Plugins
 
             private IEnumerator LoadRoutine(ReferenceTypeWrapper<int> entityCounter)
             {
-                foreach (var entry in Profile.MonumentMap.ToArray())
+                foreach (var entry in Profile.MonumentDataMap.ToArray())
                 {
-                    if (entry.Value.Count == 0)
+                    var monumentData = entry.Value;
+                    if (monumentData.Entities.Count == 0)
                         continue;
 
-                    var matchingMonuments = _pluginInstance.GetMonumentsByAliasOrShortName(entry.Key);
+                    var monumentAliasOrShortName = entry.Key;
+                    var matchingMonuments = _pluginInstance.GetMonumentsByAliasOrShortName(monumentAliasOrShortName);
                     if (matchingMonuments == null)
                         continue;
 
                     if (entityCounter != null)
-                        entityCounter.Value += matchingMonuments.Count * entry.Value.Count;
+                        entityCounter.Value += matchingMonuments.Count * monumentData.Entities.Count;
 
-                    foreach (var entityData in entry.Value.ToArray())
+                    foreach (var entityData in monumentData.Entities.ToArray())
                         yield return SpawnEntityAtMonumentsRoutine(this, entityData, matchingMonuments);
                 }
 
@@ -3392,9 +3433,9 @@ namespace Oxide.Plugins
 
             private IEnumerator UnloadRoutine()
             {
-                foreach (var entityDataList in Profile.MonumentMap.Values.ToArray())
+                foreach (var monumentData in Profile.MonumentDataMap.Values.ToArray())
                 {
-                    foreach (var entityData in entityDataList.ToArray())
+                    foreach (var entityData in monumentData.Entities.ToArray())
                     {
                         _pluginInstance?.TrackStart();
                         var controller = GetEntityController(entityData);
@@ -3426,7 +3467,7 @@ namespace Oxide.Plugins
                 Unload();
                 yield return WaitUntilUnloaded;
 
-                Profile.MonumentMap.Clear();
+                Profile.MonumentDataMap.Clear();
                 Profile.Save();
                 ProfileState = ProfileState.Loaded;
             }
@@ -3567,11 +3608,14 @@ namespace Oxide.Plugins
                     if (!controller.IsEnabled)
                         continue;
 
-                    List<EntityData> entityDataList;
-                    if (!controller.Profile.MonumentMap.TryGetValue(monument.AliasOrShortName, out entityDataList))
+                    MonumentData monumentData;
+                    if (!controller.Profile.MonumentDataMap.TryGetValue(monument.AliasOrShortName, out monumentData))
                         continue;
 
-                    yield return controller.PartialLoadForLateMonument(entityDataList, monument);
+                    if (monumentData.Entities.Count == 0)
+                        continue;
+
+                    yield return controller.PartialLoadForLateMonument(monumentData.Entities, monument);
                 }
             }
 
@@ -3699,9 +3743,9 @@ namespace Oxide.Plugins
 
                 var contentChanged = false;
 
-                if (data.MonumentMap != null)
+                if (data.DeprecatedMonumentMap != null)
                 {
-                    foreach (var monumentEntry in data.MonumentMap.ToArray())
+                    foreach (var monumentEntry in data.DeprecatedMonumentMap.ToArray())
                     {
                         var alias = monumentEntry.Key;
                         var entityList = monumentEntry.Value;
@@ -3709,8 +3753,8 @@ namespace Oxide.Plugins
                         string newAlias;
                         if (MigrateMonumentNames.TryGetValue(alias, out newAlias))
                         {
-                            data.MonumentMap[newAlias] = entityList;
-                            data.MonumentMap.Remove(alias);
+                            data.DeprecatedMonumentMap[newAlias] = entityList;
+                            data.DeprecatedMonumentMap.Remove(alias);
                             alias = newAlias;
                         }
 
@@ -3747,12 +3791,12 @@ namespace Oxide.Plugins
                     Name = DefaultProfileName,
                 };
 
-                if (data.MonumentMap != null)
-                    profile.MonumentMap = data.MonumentMap;
+                if (data.DeprecatedMonumentMap != null)
+                    profile.DeprecatedMonumentMap = data.DeprecatedMonumentMap;
 
                 profile.Save();
 
-                data.MonumentMap = null;
+                data.DeprecatedMonumentMap = null;
                 data.EnabledProfiles.Add(DefaultProfileName);
 
                 return true;
@@ -3786,7 +3830,7 @@ namespace Oxide.Plugins
             public Dictionary<string, string> SelectedProfiles = new Dictionary<string, string>();
 
             [JsonProperty("Monuments", DefaultValueHandling = DefaultValueHandling.Ignore)]
-            public Dictionary<string, List<EntityData>> MonumentMap;
+            public Dictionary<string, List<EntityData>> DeprecatedMonumentMap;
 
             public void Save() =>
                 Interface.Oxide.DataFileSystem.WriteObject(_pluginInstance.Name, this);
