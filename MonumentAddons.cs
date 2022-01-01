@@ -1741,7 +1741,7 @@ namespace Oxide.Plugins
             private void OnDestroy()
             {
                 _pluginInstance?._entityTracker.UnregisterEntity(_entity);
-                Adapter.OnEntityDestroyed(_entity);
+                Adapter.OnEntityKilled(_entity);
             }
         }
 
@@ -1912,13 +1912,13 @@ namespace Oxide.Plugins
 
             public virtual void PreUnload() {}
             public virtual void OnAdapterSpawned(BaseAdapter adapter) {}
-            public virtual void OnAdapterDestroyed(BaseAdapter adapter)
+            public virtual void OnAdapterKilled(BaseAdapter adapter)
             {
                 Adapters.Remove(adapter);
 
                 if (Adapters.Count == 0)
                 {
-                    ProfileController.OnControllerDestroyed(this);
+                    ProfileController.OnControllerKilled(this);
                 }
             }
 
@@ -1962,7 +1962,7 @@ namespace Oxide.Plugins
                     CoroutineManager.StartGlobalCoroutine(DestroyRoutine());
                 }
 
-                ProfileController.OnControllerDestroyed(this);
+                ProfileController.OnControllerKilled(this);
             }
         }
 
@@ -1980,7 +1980,7 @@ namespace Oxide.Plugins
                 EntityData = entityData;
             }
 
-            public abstract void OnEntityDestroyed(BaseEntity entity);
+            public abstract void OnEntityKilled(BaseEntity entity);
             public abstract void UpdatePosition();
 
             protected BaseEntity CreateEntity(string prefabName, Vector3 position, Quaternion rotation)
@@ -2025,10 +2025,10 @@ namespace Oxide.Plugins
                 _pluginInstance?._entityListenerManager.OnAdapterSpawned(adapter as EntityAdapterBase);
             }
 
-            public override void OnAdapterDestroyed(BaseAdapter adapter)
+            public override void OnAdapterKilled(BaseAdapter adapter)
             {
-                base.OnAdapterDestroyed(adapter);
-                _pluginInstance?._entityListenerManager.OnAdapterDestroyed(adapter as EntityAdapterBase);
+                base.OnAdapterKilled(adapter);
+                _pluginInstance?._entityListenerManager.OnAdapterKilled(adapter as EntityAdapterBase);
             }
 
             public void UpdatePosition()
@@ -2098,14 +2098,14 @@ namespace Oxide.Plugins
                 Entity.Kill();
             }
 
-            public override void OnEntityDestroyed(BaseEntity entity)
+            public override void OnEntityKilled(BaseEntity entity)
             {
                 _pluginInstance?.TrackStart();
 
                 // Only consider the adapter destroyed if the main entity was destroyed.
                 // For example, the scaled sphere parent may be killed if resized to default scale.
                 if (entity == Entity)
-                    Controller.OnAdapterDestroyed(this);
+                    Controller.OnAdapterKilled(this);
 
                 _pluginInstance?.TrackEnd();
             }
@@ -2438,9 +2438,9 @@ namespace Oxide.Plugins
                 }
             }
 
-            public override void OnAdapterDestroyed(BaseAdapter adapter)
+            public override void OnAdapterKilled(BaseAdapter adapter)
             {
-                base.OnAdapterDestroyed(adapter);
+                base.OnAdapterKilled(adapter);
 
                 if (adapter == _primaryAdapter)
                     _primaryAdapter = Adapters.FirstOrDefault() as SignEntityAdapter;
@@ -2491,9 +2491,9 @@ namespace Oxide.Plugins
                 }
             }
 
-            public override void OnEntityDestroyed(BaseEntity entity)
+            public override void OnEntityKilled(BaseEntity entity)
             {
-                base.OnEntityDestroyed(entity);
+                base.OnEntityKilled(entity);
 
                 _pluginInstance?.TrackStart();
 
@@ -2675,7 +2675,7 @@ namespace Oxide.Plugins
             public virtual void OnServerInitialized() {}
             public abstract bool InterestedInEntity(EntityAdapterBase entityAdapter);
             public abstract void OnAdapterSpawned(EntityAdapterBase entityAdapter);
-            public abstract void OnAdapterDestroyed(EntityAdapterBase entityAdapter);
+            public abstract void OnAdapterKilled(EntityAdapterBase entityAdapter);
         }
 
         private abstract class DynamicHookListener : EntityListenerBase
@@ -2696,7 +2696,7 @@ namespace Oxide.Plugins
                     SubscribeHooks();
             }
 
-            public override void OnAdapterDestroyed(EntityAdapterBase entityAdapter)
+            public override void OnAdapterKilled(EntityAdapterBase entityAdapter)
             {
                 _controllerCount--;
 
@@ -2767,12 +2767,12 @@ namespace Oxide.Plugins
                 }
             }
 
-            public void OnAdapterDestroyed(EntityAdapterBase entityAdapter)
+            public void OnAdapterKilled(EntityAdapterBase entityAdapter)
             {
                 foreach (var listener in _listeners)
                 {
                     if (listener.InterestedInEntity(entityAdapter))
-                        listener.OnAdapterDestroyed(entityAdapter);
+                        listener.OnAdapterKilled(entityAdapter);
                 }
             }
         }
@@ -3498,7 +3498,7 @@ namespace Oxide.Plugins
                     ProfileState = ProfileState.Loaded;
             }
 
-            public void OnControllerDestroyed(BaseController controller) =>
+            public void OnControllerKilled(BaseController controller) =>
                 _controllersByEntityData.Remove(controller.Data);
 
             public void StartCoroutine(IEnumerator enumerator) =>
