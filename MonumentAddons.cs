@@ -2783,9 +2783,6 @@ namespace Oxide.Plugins
 
         private abstract class EntityControllerFactoryBase
         {
-            protected string[] _dynamicHookNames;
-            private int _controllerCount;
-
             public abstract bool AppliesToEntity(BaseEntity entity);
             public abstract EntityControllerBase CreateController(ProfileController controller, EntityData entityData);
         }
@@ -2800,16 +2797,6 @@ namespace Oxide.Plugins
 
         private class SignEntityControllerFactory : SingleEntityControllerFactory
         {
-            public SignEntityControllerFactory()
-            {
-                _dynamicHookNames = new string[]
-                {
-                    nameof(CanUpdateSign),
-                    nameof(OnSignUpdated),
-                    nameof(OnImagePost),
-                };
-            }
-
             public override bool AppliesToEntity(BaseEntity entity) => entity is ISignage;
 
             public override EntityControllerBase CreateController(ProfileController controller, EntityData entityData) =>
