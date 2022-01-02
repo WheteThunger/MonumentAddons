@@ -3100,40 +3100,22 @@ namespace Oxide.Plugins
 
         #region Spawn Group Data
 
-        private enum SpawnPointType
-        {
-            // Do not change these names, since they are depended on by existing data files.
-            Generic,
-            Radial,
-            SpaceChecking,
-        }
-
-        private class GenericSpawnPointSettings : BaseTransformData
-        {
-            [JsonProperty("DropsToGround")]
-            public bool DropsToGround = true;
-
-            [JsonProperty("UseRandomRotation")]
-            public bool UseRandomRotation;
-        }
-
-        private class RadialSpawnPointSettings : BaseTransformData
-        {
-            [JsonProperty("Radius")]
-            public float Radius = 10;
-        }
-
         private class SpawnPointData : BaseTransformData
         {
-            [JsonProperty("Type")]
-            [JsonConverter(typeof(StringEnumConverter))]
-            public SpawnPointType Type;
+            [JsonProperty("Exclusive")]
+            public bool Exclusive = true;
 
-            [JsonProperty("GenericSpawnPointSettings")]
-            public GenericSpawnPointSettings GenericSpawnPointSettings;
+            [JsonProperty("DropToGround")]
+            public bool DropToGround = true;
 
-            [JsonProperty("RadialSpawnPointSettings")]
-            public RadialSpawnPointSettings RadialSpawnPointSettings;
+            [JsonProperty("CheckSpace")]
+            public bool CheckSpace = false;
+
+            [JsonProperty("RandomRotation")]
+            public bool RandomRotation = false;
+
+            [JsonProperty("RandomRadius")]
+            public float RandomRadius = 0;
         }
 
         private class WeightedPrefabData
