@@ -413,7 +413,7 @@ namespace Oxide.Plugins
             var matchingMonuments = GetMonumentsByAliasOrShortName(closestMonument.AliasOrShortName);
 
             controller.Profile.AddEntityData(closestMonument.AliasOrShortName, entityData);
-            controller.SpawnNewEntity(entityData, matchingMonuments);
+            controller.SpawnNewData(entityData, matchingMonuments);
 
             _entityDisplayManager.ShowAllRepeatedly(basePlayer);
             ReplyToPlayer(player, Lang.SpawnSuccess, matchingMonuments.Count, controller.Profile.Name, closestMonument.AliasOrShortName);
@@ -880,7 +880,7 @@ namespace Oxide.Plugins
 
                     var newProfile = newProfileController.Profile;
                     newProfile.AddEntityData(monumentAliasOrShortName, entityData);
-                    newProfileController.SpawnNewEntity(entityData, GetMonumentsByAliasOrShortName(monumentAliasOrShortName));
+                    newProfileController.SpawnNewData(entityData, GetMonumentsByAliasOrShortName(monumentAliasOrShortName));
 
                     ReplyToPlayer(player, Lang.ProfileMoveToSuccess, entityData.ShortPrefabName, oldProfile.Name, newProfile.Name);
                     if (!player.IsServer)
@@ -2824,8 +2824,16 @@ namespace Oxide.Plugins
                 new SingleEntityControllerFactory(),
             };
 
-            public EntityControllerBase CreateController(ProfileController profileController, EntityData entityData) =>
-                ResolveFactory(entityData)?.CreateController(profileController, entityData);
+            public BaseController CreateController(ProfileController profileController, BaseIdentifiableData data)
+            {
+                var entityData = data as EntityData;
+                if (entityData != null)
+                {
+                    return ResolveFactory(entityData)?.CreateController(profileController, entityData);
+                }
+
+                return null;
+            }
 
             private EntityControllerFactoryBase ResolveFactory(EntityData entityData)
             {
@@ -3156,6 +3164,17 @@ namespace Oxide.Plugins
 
             [JsonProperty("SpawnGroups")]
             public List<SpawnGroupData> SpawnGroups = new List<SpawnGroupData>();
+
+            [JsonIgnore]
+            public int NumSpawnables => Entities.Count + SpawnGroups.Count;
+
+            public ICollection<BaseIdentifiableData> GetSpawnables()
+            {
+                var list = new List<BaseIdentifiableData>(NumSpawnables);
+                list.AddRange(Entities);
+                list.AddRange(SpawnGroups);
+                return list;
+            }
         }
 
         #endregion
@@ -3452,7 +3471,7 @@ namespace Oxide.Plugins
             public WaitUntil WaitUntilUnloaded;
 
             private CoroutineManager _coroutineManager = new CoroutineManager();
-            private Dictionary<BaseIdentifiableData, BaseController> _controllersByEntityData = new Dictionary<BaseIdentifiableData, BaseController>();
+            private Dictionary<BaseIdentifiableData, BaseController> _controllersByData = new Dictionary<BaseIdentifiableData, BaseController>();
 
             public bool IsEnabled =>
                 _pluginData.IsProfileEnabled(Profile.Name);
@@ -3468,14 +3487,14 @@ namespace Oxide.Plugins
             }
 
             public void OnControllerKilled(BaseController controller) =>
-                _controllersByEntityData.Remove(controller.Data);
+                _controllersByData.Remove(controller.Data);
 
             public void StartCoroutine(IEnumerator enumerator) =>
                 _coroutineManager.StartCoroutine(enumerator);
 
             public IEnumerable<BaseAdapter> GetAdapters()
             {
-                foreach (var controller in _controllersByEntityData.Values)
+                foreach (var controller in _controllersByData.Values)
                 {
                     foreach (var adapter in controller.Adapters)
                     {
@@ -3497,16 +3516,9 @@ namespace Oxide.Plugins
             {
                 _coroutineManager.Destroy();
 
-                foreach (var monumentData in Profile.MonumentDataMap.Values)
+                foreach (var controller in _controllersByData.Values)
                 {
-                    foreach (var entityData in monumentData.Entities)
-                    {
-                        var controller = GetEntityController(entityData);
-                        if (controller == null)
-                            continue;
-
-                        controller.PreUnload();
-                    }
+                    controller.PreUnload();
                 }
             }
 
@@ -3525,23 +3537,23 @@ namespace Oxide.Plugins
                 StartCoroutine(ReloadRoutine(newProfileData));
             }
 
-            public IEnumerator PartialLoadForLateMonument(List<EntityData> entityDataList, BaseMonument monument)
+            public IEnumerator PartialLoadForLateMonument(ICollection<BaseIdentifiableData> dataList, BaseMonument monument)
             {
                 if (ProfileState == ProfileState.Loading)
                     yield break;
 
                 ProfileState = ProfileState.Loading;
-                StartCoroutine(PartialLoadForLateMonumentRoutine(entityDataList, monument));
+                StartCoroutine(PartialLoadForLateMonumentRoutine(dataList, monument));
                 yield return WaitUntilLoaded;
             }
 
-            public void SpawnNewEntity(EntityData entityData, IEnumerable<BaseMonument> monument)
+            public void SpawnNewData(BaseIdentifiableData data, ICollection<BaseMonument> monuments)
             {
                 if (ProfileState == ProfileState.Unloading || ProfileState == ProfileState.Unloaded)
                     return;
 
                 ProfileState = ProfileState.Loading;
-                StartCoroutine(PartialLoadForLateEntityRoutine(entityData, monument));
+                StartCoroutine(PartialLoadForLateDataRoutine(data, monuments));
             }
 
             public void Rename(string newName)
@@ -3581,21 +3593,21 @@ namespace Oxide.Plugins
                 StartCoroutine(ClearRoutine());
             }
 
-            private BaseController GetEntityController(EntityData entityData)
+            private BaseController GetController(BaseIdentifiableData data)
             {
                 BaseController controller;
-                return _controllersByEntityData.TryGetValue(entityData, out controller)
+                return _controllersByData.TryGetValue(data, out controller)
                     ? controller
                     : null;
             }
 
-            private EntityControllerBase EnsureEntityController(EntityData entityData)
+            private BaseController EnsureController(BaseIdentifiableData data)
             {
-                var controller = GetEntityController(entityData) as EntityControllerBase;
+                var controller = GetController(data);
                 if (controller == null)
                 {
-                    controller = EntityControllerFactoryResolver.Instance.CreateController(this, entityData);
-                    _controllersByEntityData[entityData] = controller;
+                    controller = EntityControllerFactoryResolver.Instance.CreateController(this, data);
+                    _controllersByData[data] = controller;
                 }
                 return controller;
             }
@@ -3616,8 +3628,8 @@ namespace Oxide.Plugins
                     if (entityCounter != null)
                         entityCounter.Value += matchingMonuments.Count * monumentData.Entities.Count;
 
-                    foreach (var entityData in monumentData.Entities.ToArray())
-                        yield return SpawnEntityAtMonumentsRoutine(this, entityData, matchingMonuments);
+                    foreach (var data in monumentData.GetSpawnables())
+                        yield return SpawnAtMonumentsRoutine(this, data, matchingMonuments);
                 }
 
                 ProfileState = ProfileState.Loaded;
@@ -3625,19 +3637,9 @@ namespace Oxide.Plugins
 
             private IEnumerator UnloadRoutine()
             {
-                foreach (var monumentData in Profile.MonumentDataMap.Values.ToArray())
+                foreach (var controller in _controllersByData.Values.ToArray())
                 {
-                    foreach (var entityData in monumentData.Entities.ToArray())
-                    {
-                        _pluginInstance?.TrackStart();
-                        var controller = GetEntityController(entityData);
-                        _pluginInstance?.TrackEnd();
-
-                        if (controller == null)
-                            continue;
-
-                        yield return controller.DestroyRoutine();
-                    }
+                    yield return controller.DestroyRoutine();
                 }
 
                 ProfileState = ProfileState.Unloaded;
@@ -3664,16 +3666,16 @@ namespace Oxide.Plugins
                 ProfileState = ProfileState.Loaded;
             }
 
-            private IEnumerator PartialLoadForLateMonumentRoutine(List<EntityData> entityDataList, BaseMonument monument)
+            private IEnumerator PartialLoadForLateMonumentRoutine(ICollection<BaseIdentifiableData> dataList, BaseMonument monument)
             {
-                foreach (var entityData in entityDataList)
+                foreach (var entityData in dataList)
                 {
                     // Check for null in case the cargo ship was destroyed.
                     if (!monument.IsValid)
                         break;
 
                     _pluginInstance.TrackStart();
-                    EnsureEntityController(entityData).SpawnAtMonument(monument);
+                    EnsureController(entityData).SpawnAtMonument(monument);
                     _pluginInstance.TrackEnd();
                     yield return CoroutineEx.waitForEndOfFrame;
                 }
@@ -3681,10 +3683,10 @@ namespace Oxide.Plugins
                 ProfileState = ProfileState.Loaded;
             }
 
-            private IEnumerator SpawnEntityAtMonumentsRoutine(ProfileController profileController, EntityData entityData, IEnumerable<BaseMonument> monumentList)
+            private IEnumerator SpawnAtMonumentsRoutine(ProfileController profileController, BaseIdentifiableData data, IEnumerable<BaseMonument> monumentList)
             {
                 _pluginInstance.TrackStart();
-                var controller = GetEntityController(entityData);
+                var controller = GetController(data);
                 if (controller != null)
                 {
                     // If the controller already exists, the entity was added while the plugin was still spawning entities.
@@ -3692,15 +3694,15 @@ namespace Oxide.Plugins
                     yield break;
                 }
 
-                controller = EnsureEntityController(entityData);
+                controller = EnsureController(data);
                 _pluginInstance.TrackEnd();
 
                 yield return controller.SpawnAtMonumentsRoutine(monumentList);
             }
 
-            private IEnumerator PartialLoadForLateEntityRoutine(EntityData entityData, IEnumerable<BaseMonument> monument)
+            private IEnumerator PartialLoadForLateDataRoutine(BaseIdentifiableData data, IEnumerable<BaseMonument> monumentList)
             {
-                yield return SpawnEntityAtMonumentsRoutine(this, entityData, monument);
+                yield return SpawnAtMonumentsRoutine(this, data, monumentList);
                 ProfileState = ProfileState.Loaded;
             }
         }
@@ -3804,10 +3806,10 @@ namespace Oxide.Plugins
                     if (!controller.Profile.MonumentDataMap.TryGetValue(monument.AliasOrShortName, out monumentData))
                         continue;
 
-                    if (monumentData.Entities.Count == 0)
+                    if (monumentData.NumSpawnables == 0)
                         continue;
 
-                    yield return controller.PartialLoadForLateMonument(monumentData.Entities, monument);
+                    yield return controller.PartialLoadForLateMonument(monumentData.GetSpawnables(), monument);
                 }
             }
 
