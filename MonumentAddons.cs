@@ -1132,8 +1132,8 @@ namespace Oxide.Plugins
         }
 
         private bool VerifyLookingAtAdapter<TAdapter, TController>(IPlayer player, out AdapterFindResult<TAdapter, TController> findResult)
-            where TAdapter : EntityAdapterBase
-            where TController : EntityControllerBase
+            where TAdapter : BaseTransformAdapter
+            where TController : BaseController
         {
             var basePlayer = player.Object as BasePlayer;
 
@@ -1170,8 +1170,8 @@ namespace Oxide.Plugins
         }
 
         private bool VerifyLookingAtAdapter<TAdapter, TController>(IPlayer player, out TAdapter adapter, out TController controller)
-            where TAdapter : EntityAdapterBase
-            where TController : EntityControllerBase
+            where TAdapter : BaseTransformAdapter
+            where TController : BaseController
         {
             AdapterFindResult<TAdapter, TController> findResult;
             var result = VerifyLookingAtAdapter(player, out findResult);
@@ -1182,9 +1182,9 @@ namespace Oxide.Plugins
 
         // Convenient method that does not require an adapter type.
         private bool VerifyLookingAtAdapter<TController>(IPlayer player, out TController controller)
-            where TController : EntityControllerBase
+            where TController : BaseController
         {
-            AdapterFindResult<EntityAdapterBase, TController> findResult;
+            AdapterFindResult<BaseTransformAdapter, TController> findResult;
             var result = VerifyLookingAtAdapter(player, out findResult);
             controller = findResult.Controller;
             return result;
@@ -1238,8 +1238,8 @@ namespace Oxide.Plugins
         #region Helper Methods - Finding Adapters
 
         private struct AdapterFindResult<TAdapter, TController>
-            where TAdapter : EntityAdapterBase
-            where TController : EntityControllerBase
+            where TAdapter : BaseTransformAdapter
+            where TController : BaseController
         {
             public BaseEntity Entity;
             public MonumentEntityComponent Component;
@@ -1264,8 +1264,8 @@ namespace Oxide.Plugins
         }
 
         private AdapterFindResult<TAdapter, TController> FindHitAdapter<TAdapter, TController>(BasePlayer basePlayer, out RaycastHit hit)
-            where TAdapter : EntityAdapterBase
-            where TController : EntityControllerBase
+            where TAdapter : BaseTransformAdapter
+            where TController : BaseController
         {
             if (!TryRaycast(basePlayer, out hit))
                 return default(AdapterFindResult<TAdapter, TController>);
@@ -1278,8 +1278,8 @@ namespace Oxide.Plugins
         }
 
         private AdapterFindResult<TAdapter, TController> FindClosestNearbyAdapter<TAdapter, TController>(Vector3 position)
-            where TAdapter : EntityAdapterBase
-            where TController : EntityControllerBase
+            where TAdapter : BaseTransformAdapter
+            where TController : BaseController
         {
             TAdapter closestNearbyAdapter = null;
             TController associatedController = null;
@@ -1310,8 +1310,6 @@ namespace Oxide.Plugins
         }
 
         private AdapterFindResult<TAdapter, TController> FindAdapter<TAdapter, TController>(BasePlayer basePlayer)
-            where TAdapter : EntityAdapterBase
-            where TController : EntityControllerBase
         {
             RaycastHit hit;
             var hitResult = FindHitAdapter<TAdapter, TController>(basePlayer, out hit);
@@ -1322,10 +1320,10 @@ namespace Oxide.Plugins
         }
 
         // Convenient method that does not require a controller type.
-        private AdapterFindResult<TAdapter, EntityControllerBase> FindAdapter<TAdapter>(BasePlayer basePlayer)
-            where TAdapter : EntityAdapterBase
+        private AdapterFindResult<TAdapter, BaseController> FindAdapter<TAdapter>(BasePlayer basePlayer)
+            where TAdapter : BaseTransformAdapter
         {
-            return FindAdapter<TAdapter, EntityControllerBase>(basePlayer);
+            return FindAdapter<TAdapter, BaseController>(basePlayer);
         }
 
         #endregion
