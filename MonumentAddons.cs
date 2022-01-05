@@ -335,56 +335,26 @@ namespace Oxide.Plugins
         [Command("maspawn")]
         private void CommandSpawn(IPlayer player, string cmd, string[] args)
         {
-            if (player.IsServer || !VerifyHasPermission(player))
-                return;
-
-            if (MonumentFinder == null)
-            {
-                ReplyToPlayer(player, Lang.ErrorMonumentFinderNotLoaded);
-                return;
-            }
-
-            var controller = _profileManager.GetPlayerProfileControllerOrDefault(player.Id);
-            if (controller == null)
-            {
-                ReplyToPlayer(player, Lang.SpawnErrorNoProfileSelected);
-                return;
-            }
-
+            ProfileController profileController;
             string prefabName;
-            if (!VerifyValidPrefabToSpawn(player, args, out prefabName))
+            Vector3 position;
+            BaseMonument monument;
+
+            if (player.IsServer
+                || !VerifyHasPermission(player)
+                || !VerifyMonumentFinderLoaded(player)
+                || !VerifyProfileSelected(player, out profileController)
+                || !VerifyValidPrefabOrDeployable(player, args, out prefabName)
+                || !VerifyHitPosition(player, out position)
+                || !VerifyAtMonument(player, position, out monument))
                 return;
 
             var basePlayer = player.Object as BasePlayer;
 
-            Vector3 position;
-            if (!TryGetHitPosition(basePlayer, out position))
-            {
-                ReplyToPlayer(player, Lang.SpawnErrorNoTarget);
-                return;
-            }
+            Vector3 localPosition;
+            Vector3 localRotationAngles;
+            DetermineLocalTransformData(position, basePlayer, monument, out localPosition, out localRotationAngles);
 
-            var closestMonument = GetClosestMonument(basePlayer, position);
-            if (closestMonument == null)
-            {
-                ReplyToPlayer(player, Lang.ErrorNoMonuments);
-                return;
-            }
-
-            if (!closestMonument.IsInBounds(position))
-            {
-                var closestPoint = closestMonument.ClosestPointOnBounds(position);
-                var distance = (position - closestPoint).magnitude;
-                ReplyToPlayer(player, Lang.ErrorNotAtMonument, closestMonument.AliasOrShortName, distance.ToString("f1"));
-                return;
-            }
-
-            var localPosition = closestMonument.InverseTransformPoint(position);
-            var localRotationAngle = basePlayer.HasParent()
-                ? basePlayer.viewAngles.y - 180
-                : basePlayer.viewAngles.y - closestMonument.Rotation.eulerAngles.y + 180;
-
-            var localRotationAngles = new Vector3(0, (localRotationAngle + 360) % 360, 0);
             var shortPrefabName = GetShortName(prefabName);
 
             if (shortPrefabName == "big_wheel")
@@ -410,13 +380,13 @@ namespace Oxide.Plugins
                 OnTerrain = IsOnTerrain(position),
             };
 
-            var matchingMonuments = GetMonumentsByAliasOrShortName(closestMonument.AliasOrShortName);
+            var matchingMonuments = GetMonumentsByAliasOrShortName(monument.AliasOrShortName);
 
-            controller.Profile.AddEntityData(closestMonument.AliasOrShortName, entityData);
-            controller.SpawnNewData(entityData, matchingMonuments);
+            profileController.Profile.AddEntityData(monument.AliasOrShortName, entityData);
+            profileController.SpawnNewData(entityData, matchingMonuments);
 
             _entityDisplayManager.ShowAllRepeatedly(basePlayer);
-            ReplyToPlayer(player, Lang.SpawnSuccess, matchingMonuments.Count, controller.Profile.Name, closestMonument.AliasOrShortName);
+            ReplyToPlayer(player, Lang.SpawnSuccess, matchingMonuments.Count, profileController.Profile.Name, monument.AliasOrShortName);
         }
 
         [Command("masave")]
@@ -1088,35 +1058,86 @@ namespace Oxide.Plugins
             return false;
         }
 
-        private bool VerifyValidPrefabToSpawn(IPlayer player, string[] args, out string prefabPath)
+        private bool VerifyMonumentFinderLoaded(IPlayer player)
+        {
+            if (MonumentFinder != null)
+                return true;
+
+            ReplyToPlayer(player, Lang.ErrorMonumentFinderNotLoaded);
+            return false;
+        }
+
+        private bool VerifyProfileSelected(IPlayer player, out ProfileController profileController)
+        {
+            profileController = _profileManager.GetPlayerProfileControllerOrDefault(player.Id);
+            if (profileController != null)
+                return true;
+
+            ReplyToPlayer(player, Lang.SpawnErrorNoProfileSelected);
+            return false;
+        }
+
+        private bool VerifyHitPosition(IPlayer player, out Vector3 position)
+        {
+            if (TryGetHitPosition(player.Object as BasePlayer, out position))
+                return true;
+
+            ReplyToPlayer(player, Lang.SpawnErrorNoTarget);
+            return false;
+        }
+
+        private bool VerifyAtMonument(IPlayer player, Vector3 position, out BaseMonument closestMonument)
+        {
+            closestMonument = GetClosestMonument(player.Object as BasePlayer, position);
+            if (closestMonument == null)
+            {
+                ReplyToPlayer(player, Lang.ErrorNoMonuments);
+                return false;
+            }
+
+            if (!closestMonument.IsInBounds(position))
+            {
+                var closestPoint = closestMonument.ClosestPointOnBounds(position);
+                var distance = (position - closestPoint).magnitude;
+                ReplyToPlayer(player, Lang.ErrorNotAtMonument, closestMonument.AliasOrShortName, distance.ToString("f1"));
+                return false;
+            }
+
+            return true;
+        }
+
+        private bool VerifyValidPrefab(IPlayer player, string desiredPrefabName, out string prefabPath)
         {
             prefabPath = null;
 
+            var matches = FindPrefabMatches(desiredPrefabName);
+            if (matches.Length == 0)
+            {
+                ReplyToPlayer(player, Lang.SpawnErrorEntityNotFound, desiredPrefabName);
+                return false;
+            }
+            else if (matches.Length == 1)
+            {
+                prefabPath = matches[0];
+                return true;
+            }
+
+            // Multiple matches were found
+            var replyMessage = GetMessage(player, Lang.SpawnErrorMultipleMatches);
+            foreach (var match in matches)
+                replyMessage += $"\n{GetShortName(match)}";
+
+            player.Reply(replyMessage);
+            return false;
+        }
+
+        private bool VerifyValidPrefabOrDeployable(IPlayer player, string[] args, out string prefabPath)
+        {
             // An explicit entity name takes precedence.
             // Ignore "True" argument because that simply means the player used a key bind.
             if (args.Length > 0 && args[0] != "True" && !string.IsNullOrWhiteSpace(args[0]))
             {
-                var matches = FindPrefabMatches(args[0]);
-                if (matches.Length == 0)
-                {
-                    ReplyToPlayer(player, Lang.SpawnErrorEntityNotFound, args[0]);
-                    return false;
-                }
-                else if (matches.Length == 1)
-                {
-                    prefabPath = matches[0];
-                    return true;
-                }
-                else
-                {
-                    // Multiple matches were found
-                    var replyMessage = GetMessage(player, Lang.SpawnErrorMultipleMatches);
-                    foreach (var match in matches)
-                        replyMessage += $"\n{GetShortName(match)}";
-
-                    player.Reply(replyMessage);
-                    return false;
-                }
+                return VerifyValidPrefab(player, args[0], out prefabPath);
             }
 
             var basePlayer = player.Object as BasePlayer;
@@ -1127,6 +1148,7 @@ namespace Oxide.Plugins
                 return true;
             }
 
+            prefabPath = null;
             ReplyToPlayer(player, Lang.SpawnErrorSyntax);
             return false;
         }
@@ -1310,6 +1332,8 @@ namespace Oxide.Plugins
         }
 
         private AdapterFindResult<TAdapter, TController> FindAdapter<TAdapter, TController>(BasePlayer basePlayer)
+            where TAdapter : BaseTransformAdapter
+            where TController : BaseController
         {
             RaycastHit hit;
             var hitResult = FindHitAdapter<TAdapter, TController>(basePlayer, out hit);
@@ -1356,6 +1380,17 @@ namespace Oxide.Plugins
             var slashIndex = prefabName.LastIndexOf("/");
             var baseName = (slashIndex == -1) ? prefabName : prefabName.Substring(slashIndex + 1);
             return baseName.Replace(".prefab", "");
+        }
+
+        private static void DetermineLocalTransformData(Vector3 position, BasePlayer basePlayer, BaseMonument monument, out Vector3 localPosition, out Vector3 localRotationAngles)
+        {
+            localPosition = monument.InverseTransformPoint(position);
+
+            var localRotationAngle = basePlayer.HasParent()
+                ? basePlayer.viewAngles.y - 180
+                : basePlayer.viewAngles.y - monument.Rotation.eulerAngles.y + 180;
+
+            localRotationAngles = new Vector3(0, (localRotationAngle + 360) % 360, 0);
         }
 
         private static void DestroyProblemComponents(BaseEntity entity)
