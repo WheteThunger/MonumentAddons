@@ -1,5 +1,4 @@
 ﻿using Newtonsoft.Json;
-using Newtonsoft.Json.Converters;
 using Newtonsoft.Json.Linq;
 using Newtonsoft.Json.Serialization;
 using Oxide.Core;
@@ -54,7 +53,7 @@ namespace Oxide.Plugins
         private readonly MonumentEntityTracker _entityTracker = new MonumentEntityTracker();
         private readonly AdapterDisplayManager _entityDisplayManager = new AdapterDisplayManager();
         private readonly EntityListenerManager _entityListenerManager = new EntityListenerManager();
-        private readonly EntityControllerFactoryResolver _entityControllerFactoryResolver = new EntityControllerFactoryResolver();
+        private readonly ControllerFactory _entityControllerFactoryResolver = new ControllerFactory();
 
         private ItemDefinition _waterDefinition;
         private ProtectionProperties _immortalProtection;
@@ -1307,20 +1306,16 @@ namespace Oxide.Plugins
             TController associatedController = null;
             var closestDistanceSquared = float.MaxValue;
 
-            foreach (var possibleAdapter in _profileManager.GetEnabledAdapters())
+            foreach (var adapter in _profileManager.GetEnabledAdapters<TAdapter>())
             {
-                var adapterOfType = possibleAdapter as TAdapter;
-                if (adapterOfType == null)
-                    continue;
-
-                var controllerOfType = adapterOfType.Controller as TController;
+                var controllerOfType = adapter.Controller as TController;
                 if (controllerOfType == null)
                     continue;
 
-                var adapterDistanceSquared = (adapterOfType.Position - position).sqrMagnitude;
+                var adapterDistanceSquared = (adapter.Position - position).sqrMagnitude;
                 if (adapterDistanceSquared <= MaxFindDistanceSquared && adapterDistanceSquared < closestDistanceSquared)
                 {
-                    closestNearbyAdapter = adapterOfType;
+                    closestNearbyAdapter = adapter;
                     associatedController = controllerOfType;
                     closestDistanceSquared = adapterDistanceSquared;
                 }
@@ -1872,6 +1867,11 @@ namespace Oxide.Plugins
 
         #region Adapter/Controller - Base
 
+        private interface IAdapterParent<T>
+        {
+            List<T> Adapters { get; }
+        }
+
         // Represents a single entity, spawn group, or spawn point at a single monument.
         private abstract class BaseAdapter
         {
@@ -1927,7 +1927,7 @@ namespace Oxide.Plugins
         }
 
         // Represents an entity or spawn point across one or more identical monuments.
-        private abstract class BaseController
+        private abstract class BaseController : IAdapterParent<BaseAdapter>
         {
             public ProfileController ProfileController { get; private set; }
             public BaseIdentifiableData Data { get; private set; }
@@ -1986,7 +1986,7 @@ namespace Oxide.Plugins
                 }
             }
 
-            protected void DestroyAndRemove()
+            protected void Destroy()
             {
                 PreUnload();
 
@@ -2078,7 +2078,7 @@ namespace Oxide.Plugins
                     return false;
                 }
 
-                base.DestroyAndRemove();
+                base.Destroy();
                 return true;
             }
 
@@ -2812,6 +2812,429 @@ namespace Oxide.Plugins
 
         #endregion
 
+        #region Spawn Group Components
+
+        private class SpawnedVehicleComponent : FacepunchBehaviour
+        {
+            private const float MaxDistanceSquared = 1;
+
+            private Vector3 _originalPosition;
+            private Transform _transform;
+
+            private void Awake()
+            {
+                _transform = transform;
+                _originalPosition = _transform.position;
+
+                InvokeRandomized(CheckPositionTracked, 10, 10, 1);
+            }
+
+            private void CheckPositionTracked()
+            {
+                _pluginInstance?.TrackStart();
+                CheckPosition();
+                _pluginInstance?.TrackEnd();
+            }
+
+            private void CheckPosition()
+            {
+                if ((_transform.position - _originalPosition).sqrMagnitude < MaxDistanceSquared)
+                    return;
+
+                // Vehicle has moved from its spawn point, so unregister it and re-enable saving.
+                var vehicle = GetComponent<BaseVehicle>();
+                if (vehicle != null && !vehicle.IsDestroyed)
+                {
+                    vehicle.EnableSaving(true);
+                }
+
+                Destroy(GetComponent<SpawnPointInstance>());
+                Destroy(this);
+            }
+        }
+
+        private class CustomSpawnPoint : BaseSpawnPoint
+        {
+            public SpawnPointData SpawnPointData;
+
+            private Transform _transform;
+            private List<SpawnPointInstance> _instances = new List<SpawnPointInstance>();
+
+            private void Awake()
+            {
+                _transform = transform;
+            }
+
+            public override void GetLocation(out Vector3 position, out Quaternion rotation)
+            {
+                position = _transform.position;
+                rotation = _transform.rotation;
+
+                if (SpawnPointData.RandomRadius > 0)
+                {
+                    Vector2 vector = UnityEngine.Random.insideUnitCircle * SpawnPointData.RandomRadius;
+                    position += new Vector3(vector.x, 0f, vector.y);
+                }
+
+                if (SpawnPointData.RandomRotation)
+                {
+                    rotation *= Quaternion.Euler(0f, UnityEngine.Random.Range(0f, 360f), 0f);
+                }
+
+                if (SpawnPointData.DropToGround)
+                {
+                    DropToGround(ref position, ref rotation);
+                }
+            }
+
+            public override void ObjectSpawned(SpawnPointInstance instance)
+            {
+                _instances.Add(instance);
+
+                var entity = instance.GetComponent<BaseEntity>();
+
+                var vehicle = entity as BaseVehicle;
+                if (vehicle != null)
+                {
+                    instance.gameObject.AddComponent<SpawnedVehicleComponent>();
+                }
+            }
+
+            public override void ObjectRetired(SpawnPointInstance instance)
+            {
+                _instances.Remove(instance);
+            }
+
+            public override bool IsAvailableTo(GameObjectRef prefabRef)
+            {
+                if (SpawnPointData.Exclusive && _instances.Count > 0)
+                {
+                    return false;
+                }
+
+                if (SpawnPointData.CheckSpace)
+                {
+                    return SingletonComponent<SpawnHandler>.Instance.CheckBounds(prefabRef.Get(), _transform.position, _transform.rotation, Vector3.one);
+                }
+
+                return true;
+            }
+
+            public void OnDestroy()
+            {
+                for (var i = _instances.Count - 1; i >= 0; i--)
+                {
+                    var entity = _instances[i].GetComponent<BaseEntity>();
+                    if (entity != null && !entity.IsDestroyed)
+                    {
+                        entity.Kill();
+                    }
+                }
+            }
+        }
+
+        private class CustomSpawnGroup : SpawnGroup
+        {
+            private static AIInformationZone FindVirtualInfoZone(Vector3 position)
+            {
+                foreach (var zone in AIInformationZone.zones)
+                {
+                    if (zone.Virtual && zone.PointInside(position))
+                        return zone;
+                }
+
+                return null;
+            }
+
+            private AIInformationZone _cachedInfoZone;
+            private bool _didLookForInfoZone;
+
+            public void UpdateSpawnClock()
+            {
+                spawnClock = new LocalClock();
+                spawnClock.Add(GetSpawnDelta(), GetSpawnVariance(), Spawn);
+            }
+
+            public float GetTimeToNextSpawn()
+            {
+                if (spawnClock.events.Count == 0)
+                    return float.PositiveInfinity;
+
+                return spawnClock.events.First().time - UnityEngine.Time.time;
+            }
+
+            protected override void PostSpawnProcess(BaseEntity entity, BaseSpawnPoint spawnPoint)
+            {
+                base.PostSpawnProcess(entity, spawnPoint);
+
+                entity.EnableSaving(false);
+
+                var npcPlayer = entity as NPCPlayer;
+                if (npcPlayer != null)
+                {
+                    var virtualInfoZone = GetVirtualInfoZone();
+                    if (virtualInfoZone != null)
+                    {
+                        npcPlayer.VirtualInfoZone = virtualInfoZone;
+
+                        var humanNpc = npcPlayer as HumanNPC;
+                        if (humanNpc != null)
+                        {
+                            virtualInfoZone.RegisterSleepableEntity(humanNpc.Brain);
+                        }
+                    }
+                }
+            }
+
+            private AIInformationZone GetVirtualInfoZone()
+            {
+                if (!_didLookForInfoZone)
+                {
+                    _cachedInfoZone = FindVirtualInfoZone(transform.position);
+                    _didLookForInfoZone = true;
+                }
+
+                return _cachedInfoZone;
+            }
+
+            private void OnDestroy()
+            {
+                SingletonComponent<SpawnHandler>.Instance.SpawnGroups.Remove(this);
+            }
+        }
+
+        #endregion
+
+        #region SpawnGroup Adapter/Controller
+
+        private class SpawnPointAdapter : BaseTransformAdapter
+        {
+            public SpawnPointData SpawnPointData { get; private set; }
+            public CustomSpawnPoint SpawnPoint { get; private set; }
+
+            public SpawnPointAdapter(SpawnPointData spawnPointData, BaseController controller, BaseMonument monument) : base(spawnPointData, controller, monument)
+            {
+                SpawnPointData = spawnPointData;
+            }
+
+            public override void Spawn()
+            {
+                var gameObject = new GameObject();
+                _transform = gameObject.transform;
+                _transform.SetPositionAndRotation(IntendedPosition, IntendedRotation);
+
+                SpawnPoint = gameObject.AddComponent<CustomSpawnPoint>();
+                SpawnPoint.SpawnPointData = SpawnPointData;
+            }
+
+            public override void Kill()
+            {
+                UnityEngine.Object.Destroy(SpawnPoint?.gameObject);
+            }
+        }
+
+        private class SpawnGroupAdapter : BaseAdapter, IAdapterParent<SpawnPointAdapter>
+        {
+            public SpawnGroupData SpawnGroupData { get; private set; }
+            public List<SpawnPointAdapter> Adapters { get; private set; } = new List<SpawnPointAdapter>();
+            public CustomSpawnGroup SpawnGroup { get; private set; }
+
+            public SpawnGroupAdapter(SpawnGroupData spawnGroupData, BaseController controller, BaseMonument monument) : base(spawnGroupData, controller, monument)
+            {
+                SpawnGroupData = spawnGroupData;
+            }
+
+            public override void Spawn()
+            {
+                var spawnGroupGameObject = new GameObject();
+                spawnGroupGameObject.SetActive(false);
+
+                // Configure the spawn group and create spawn points before enabling the group.
+                // This allows the vanilla Awake() method to perform initial spawn and schedule spawns.
+                SpawnGroup = spawnGroupGameObject.AddComponent<CustomSpawnGroup>();
+
+                if (SpawnGroup.prefabs == null)
+                    SpawnGroup.prefabs = new List<SpawnGroup.SpawnEntry>();
+
+                UpdateMaxPopulation();
+                UpdateRespawnDelay();
+                UpdatePrefabEntries();
+
+                // This will call Awake() on the CustomSpawnGroup component.
+                spawnGroupGameObject.SetActive(true);
+
+                foreach (var spawnPointData in SpawnGroupData.SpawnPoints)
+                {
+                    AddSpawnPoint(spawnPointData);
+                }
+
+                UpdateSpawnPointReferences();
+
+                // Do initial spawn.
+                SpawnGroup.Spawn();
+            }
+
+            public override void Kill()
+            {
+                foreach (var spawnPointAdapter in Adapters.ToArray())
+                {
+                    spawnPointAdapter.Kill();
+                }
+
+                UnityEngine.Object.Destroy(SpawnGroup?.gameObject);
+
+                Controller.OnAdapterKilled(this);
+            }
+
+            private void UpdateMaxPopulation()
+            {
+                SpawnGroup.numToSpawnPerTickMin = SpawnGroupData.MaxPopulation;
+                SpawnGroup.numToSpawnPerTickMax = SpawnGroupData.MaxPopulation;
+                SpawnGroup.maxPopulation = SpawnGroupData.MaxPopulation;
+            }
+
+            private void UpdateRespawnDelay()
+            {
+                var respawnDelayMinChanged = SpawnGroup.respawnDelayMin != SpawnGroupData.RespawnDelayMin;
+                var respawnDelayMaxChanged = SpawnGroup.respawnDelayMax != SpawnGroupData.RespawnDelayMax;
+
+                SpawnGroup.respawnDelayMin = SpawnGroupData.RespawnDelayMin;
+                SpawnGroup.respawnDelayMax = SpawnGroupData.RespawnDelayMax;
+
+                if (SpawnGroup.gameObject.activeSelf && (respawnDelayMinChanged || respawnDelayMaxChanged))
+                {
+                    SpawnGroup.UpdateSpawnClock();
+                }
+            }
+
+            private void UpdatePrefabEntries()
+            {
+                if (SpawnGroup.prefabs.Count == SpawnGroupData.Prefabs.Count)
+                    return;
+
+                SpawnGroup.prefabs.Clear();
+
+                foreach (var prefabEntry in SpawnGroupData.Prefabs)
+                {
+                    string guid;
+                    if (!GameManifest.pathToGuid.TryGetValue(prefabEntry.PrefabName, out guid))
+                    {
+                        continue;
+                    }
+
+                    SpawnGroup.prefabs.Add(new SpawnGroup.SpawnEntry
+                    {
+                        prefab = new GameObjectRef { guid = guid },
+                        weight = prefabEntry.Weight,
+                    });
+                }
+            }
+
+            private void UpdateSpawnPointReferences()
+            {
+                if (!SpawnGroup.gameObject.activeSelf || SpawnGroup.spawnPoints.Length == Adapters.Count)
+                    return;
+
+                SpawnGroup.spawnPoints = new BaseSpawnPoint[Adapters.Count];
+
+                for (var i = 0; i < Adapters.Count; i++)
+                {
+                    SpawnGroup.spawnPoints[i] = Adapters[i].SpawnPoint;
+                }
+            }
+
+            public void UpdateSpawnGroup()
+            {
+                UpdateMaxPopulation();
+                UpdateRespawnDelay();
+                UpdatePrefabEntries();
+                UpdateSpawnPointReferences();
+            }
+
+            public void AddSpawnPoint(SpawnPointData spawnPointData)
+            {
+                var spawnPointAdapter = new SpawnPointAdapter(spawnPointData, Controller, Monument);
+                Adapters.Add(spawnPointAdapter);
+                spawnPointAdapter.Spawn();
+
+                if (SpawnGroup.gameObject.activeSelf)
+                {
+                    UpdateSpawnPointReferences();
+                }
+            }
+
+            public void RemoveSpawnPoint(SpawnPointData spawnPointData)
+            {
+                var spawnPointAdapter = FindSpawnPoint(spawnPointData);
+                if (spawnPointAdapter == null)
+                    return;
+
+                spawnPointAdapter.Kill();
+                Adapters.Remove(spawnPointAdapter);
+
+                UpdateSpawnPointReferences();
+            }
+
+            private SpawnPointAdapter FindSpawnPoint(SpawnPointData spawnPointData)
+            {
+                foreach (var spawnPointAdapter in Adapters)
+                {
+                    if (spawnPointAdapter.SpawnPointData == spawnPointData)
+                        return spawnPointAdapter;
+                }
+
+                return null;
+            }
+        }
+
+        private class SpawnGroupController : BaseController
+        {
+            public SpawnGroupData SpawnGroupData { get; private set; }
+            public IEnumerable<SpawnGroupAdapter> SpawnGroupAdapters { get; private set; }
+
+            public SpawnGroupController(ProfileController profileController, SpawnGroupData spawnGroupData) : base(profileController, spawnGroupData)
+            {
+                SpawnGroupData = spawnGroupData;
+                SpawnGroupAdapters = Adapters.Cast<SpawnGroupAdapter>();
+            }
+
+            public override BaseAdapter CreateAdapter(BaseMonument monument) =>
+                new SpawnGroupAdapter(SpawnGroupData, this, monument);
+
+            public void AddSpawnPoint(SpawnPointData spawnPointData)
+            {
+                foreach (var spawnGroupAdapter in SpawnGroupAdapters)
+                    spawnGroupAdapter.AddSpawnPoint(spawnPointData);
+            }
+
+            public void RemoveSpawnPoint(SpawnPointData spawnPointData)
+            {
+                foreach (var spawnGroupAdapter in SpawnGroupAdapters)
+                    spawnGroupAdapter.RemoveSpawnPoint(spawnPointData);
+            }
+
+            public void UpdateSpawnGroups()
+            {
+                foreach (var spawnGroupAdapter in SpawnGroupAdapters)
+                    spawnGroupAdapter.UpdateSpawnGroup();
+            }
+
+            public bool TryDestroyAndRemove(out string monumentAliasOrShortName)
+            {
+                var profile = ProfileController.Profile;
+                if (!profile.RemoveSpawnGroup(SpawnGroupData, out monumentAliasOrShortName))
+                {
+                    _pluginInstance?.LogError($"Unexpected error: Spawn group {SpawnGroupData.Name} was not found in profile {profile.Name}");
+                    return false;
+                }
+
+                base.Destroy();
+                return true;
+            }
+        }
+
+        #endregion
+
         #region Entity Controller Factories
 
         private abstract class EntityControllerFactoryBase
@@ -2844,10 +3267,10 @@ namespace Oxide.Plugins
                 new CCTVEntityController(controller, entityData);
         }
 
-        private class EntityControllerFactoryResolver
+        private class ControllerFactory
         {
-            private static EntityControllerFactoryResolver _instance = new EntityControllerFactoryResolver();
-            public static EntityControllerFactoryResolver Instance => _instance;
+            private static ControllerFactory _instance = new ControllerFactory();
+            public static ControllerFactory Instance => _instance;
 
             private List<EntityControllerFactoryBase> _entityFactories = new List<EntityControllerFactoryBase>
             {
@@ -2859,16 +3282,22 @@ namespace Oxide.Plugins
 
             public BaseController CreateController(ProfileController profileController, BaseIdentifiableData data)
             {
+                var spawnGroupData = data as SpawnGroupData;
+                if (spawnGroupData != null)
+                {
+                    return new SpawnGroupController(profileController, spawnGroupData);
+                }
+
                 var entityData = data as EntityData;
                 if (entityData != null)
                 {
-                    return ResolveFactory(entityData)?.CreateController(profileController, entityData);
+                    return ResolveEntityFactory(entityData)?.CreateController(profileController, entityData);
                 }
 
                 return null;
             }
 
-            private EntityControllerFactoryBase ResolveFactory(EntityData entityData)
+            private EntityControllerFactoryBase ResolveEntityFactory(EntityData entityData)
             {
                 var baseEntity = FindBaseEntityForPrefab(entityData.PrefabName);
                 if (baseEntity == null)
@@ -3009,7 +3438,7 @@ namespace Oxide.Plugins
                     player.SendNetworkUpdateImmediate();
                 }
 
-                foreach (var adapter in _pluginInstance._profileManager.GetEnabledAdapters())
+                foreach (var adapter in _pluginInstance._profileManager.GetEnabledAdapters<BaseAdapter>())
                 {
                     var entityAdapter = adapter as EntityAdapterBase;
                     if (entityAdapter != null)
@@ -3421,7 +3850,7 @@ namespace Oxide.Plugins
 
                 foreach (var monumentData in MonumentDataMap.Values)
                 {
-                    if (!monumentData.Entities.IsEmpty())
+                    if (monumentData.NumSpawnables > 0)
                         return false;
                 }
 
@@ -3462,14 +3891,7 @@ namespace Oxide.Plugins
 
             public void AddEntityData(string monumentAliasOrShortName, EntityData entityData)
             {
-                MonumentData monumentData;
-                if (!MonumentDataMap.TryGetValue(monumentAliasOrShortName, out monumentData))
-                {
-                    monumentData = new MonumentData();
-                    MonumentDataMap[monumentAliasOrShortName] = monumentData;
-                }
-
-                monumentData.Entities.Add(entityData);
+                EnsureMonumentData(monumentAliasOrShortName).Entities.Add(entityData);
                 Save();
             }
 
@@ -3487,6 +3909,40 @@ namespace Oxide.Plugins
 
                 monumentAliasOrShortName = null;
                 return false;
+            }
+
+            public void AddSpawnGroup(string monumentAliasOrShortName, SpawnGroupData spawnGroupData)
+            {
+                EnsureMonumentData(monumentAliasOrShortName).SpawnGroups.Add(spawnGroupData);
+                Save();
+            }
+
+            public bool RemoveSpawnGroup(SpawnGroupData spawnGroup, out string monumentAliasOrShortName)
+            {
+                foreach (var entry in MonumentDataMap)
+                {
+                    if (entry.Value.SpawnGroups.Remove(spawnGroup))
+                    {
+                        monumentAliasOrShortName = entry.Key;
+                        Save();
+                        return true;
+                    }
+                }
+
+                monumentAliasOrShortName = null;
+                return false;
+            }
+
+            private MonumentData EnsureMonumentData(string monumentAliasOrShortName)
+            {
+                MonumentData monumentData;
+                if (!MonumentDataMap.TryGetValue(monumentAliasOrShortName, out monumentData))
+                {
+                    monumentData = new MonumentData();
+                    MonumentDataMap[monumentAliasOrShortName] = monumentData;
+                }
+
+                return monumentData;
             }
         }
 
@@ -3525,13 +3981,37 @@ namespace Oxide.Plugins
             public void StartCoroutine(IEnumerator enumerator) =>
                 _coroutineManager.StartCoroutine(enumerator);
 
-            public IEnumerable<BaseAdapter> GetAdapters()
+            public IEnumerable<T> GetControllers<T>() where T : BaseController
+            {
+                foreach (var controller in _controllersByData.Values)
+                {
+                    var controllerOfType = controller as T;
+                    if (controllerOfType != null)
+                        yield return controllerOfType;
+                }
+            }
+
+            public IEnumerable<T> GetAdapters<T>() where T : BaseAdapter
             {
                 foreach (var controller in _controllersByData.Values)
                 {
                     foreach (var adapter in controller.Adapters)
                     {
-                        yield return adapter;
+                        var adapterOfType = adapter as T;
+                        if (adapterOfType != null)
+                        {
+                            yield return adapterOfType;
+                            continue;
+                        }
+
+                        var adapterParent = adapter as IAdapterParent<T>;
+                        if (adapterParent != null)
+                        {
+                            foreach (var childAdapter in adapterParent.Adapters)
+                            {
+                                yield return childAdapter;
+                            }
+                        }
                     }
                 }
             }
@@ -3639,7 +4119,7 @@ namespace Oxide.Plugins
                 var controller = GetController(data);
                 if (controller == null)
                 {
-                    controller = EntityControllerFactoryResolver.Instance.CreateController(this, data);
+                    controller = ControllerFactory.Instance.CreateController(this, data);
                     _controllersByData[data] = controller;
                 }
                 return controller;
@@ -3650,7 +4130,7 @@ namespace Oxide.Plugins
                 foreach (var entry in Profile.MonumentDataMap.ToArray())
                 {
                     var monumentData = entry.Value;
-                    if (monumentData.Entities.Count == 0)
+                    if (monumentData.NumSpawnables == 0)
                         continue;
 
                     var monumentAliasOrShortName = entry.Key;
@@ -3917,14 +4397,11 @@ namespace Oxide.Plugins
                 return controller;
             }
 
-            public IEnumerable<BaseAdapter> GetEnabledAdapters()
+            public IEnumerable<T> GetEnabledAdapters<T>() where T : BaseAdapter
             {
-                foreach (var profileControler in _profileControllers)
+                foreach (var profileControler in GetEnabledProfileControllers())
                 {
-                    if (!profileControler.IsEnabled)
-                        continue;
-
-                    foreach (var adapter in profileControler.GetAdapters())
+                    foreach (var adapter in profileControler.GetAdapters<T>())
                         yield return adapter;
                 }
             }
@@ -3935,6 +4412,17 @@ namespace Oxide.Plugins
                 {
                     controller.Unload();
                     yield return controller.WaitUntilUnloaded;
+                }
+            }
+
+            private IEnumerable<ProfileController> GetEnabledProfileControllers()
+            {
+                foreach (var profileControler in _profileControllers)
+                {
+                    if (profileControler.IsEnabled)
+                    {
+                        yield return profileControler;
+                    }
                 }
             }
         }
