@@ -1483,6 +1483,14 @@ namespace Oxide.Plugins
             entity.transform.hasChanged = false;
         }
 
+        private static void EnableSavingResursive(BaseEntity entity, bool enableSaving)
+        {
+            entity.EnableSaving(enableSaving);
+
+            foreach (var child in entity.children)
+                EnableSavingResursive(child, enableSaving);
+        }
+
         private static IEnumerator WaitForFrames(int frames)
         {
             for (var elapsed = 0; elapsed < frames; elapsed++)
@@ -2051,7 +2059,7 @@ namespace Oxide.Plugins
                     return null;
 
                 // In case the plugin doesn't clean it up on server shutdown, make sure it doesn't come back so it's not duplicated.
-                entity.EnableSaving(false);
+                EnableSavingResursive(entity, false);
 
                 var cargoShipMonument = Monument as CargoShipMonument;
                 if (cargoShipMonument != null)
@@ -2278,14 +2286,6 @@ namespace Oxide.Plugins
 
                 if (EntityData.Scale != 1)
                     UpdateScale();
-            }
-
-            private void EnableSavingResursive(BaseEntity entity, bool enableSaving)
-            {
-                entity.EnableSaving(enableSaving);
-
-                foreach (var child in entity.children)
-                    EnableSavingResursive(child, enableSaving);
             }
 
             private List<CCTV_RC> GetNearbyStaticCameras()
@@ -2854,7 +2854,7 @@ namespace Oxide.Plugins
                 var vehicle = GetComponent<BaseVehicle>();
                 if (vehicle != null && !vehicle.IsDestroyed)
                 {
-                    vehicle.EnableSaving(true);
+                    EnableSavingResursive(vehicle, true);
                 }
 
                 Destroy(GetComponent<SpawnPointInstance>());
@@ -2976,7 +2976,7 @@ namespace Oxide.Plugins
             {
                 base.PostSpawnProcess(entity, spawnPoint);
 
-                entity.EnableSaving(false);
+                EnableSavingResursive(entity, false);
 
                 var npcPlayer = entity as NPCPlayer;
                 if (npcPlayer != null)
