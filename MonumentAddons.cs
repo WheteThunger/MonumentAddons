@@ -381,7 +381,7 @@ namespace Oxide.Plugins
 
             var matchingMonuments = GetMonumentsByAliasOrShortName(monument.AliasOrShortName);
 
-            profileController.Profile.AddEntityData(monument.AliasOrShortName, entityData);
+            profileController.Profile.AddData(monument.AliasOrShortName, entityData);
             profileController.SpawnNewData(entityData, matchingMonuments);
 
             _entityDisplayManager.ShowAllRepeatedly(basePlayer);
@@ -826,32 +826,38 @@ namespace Oxide.Plugins
 
                 case "moveto":
                 {
-                    EntityControllerBase entityController;
-                    if (!VerifyLookingAtAdapter(player, out entityController))
+                    BaseController controller;
+                    if (!VerifyLookingAtAdapter(player, out controller))
                         return;
 
                     ProfileController newProfileController;
                     if (!VerifyProfile(player, args, out newProfileController, Lang.ProfileMoveToSyntax))
                         return;
 
-                    var entityData = entityController.EntityData;
-                    var oldProfile = entityController.Profile;
+                    var newProfile = newProfileController.Profile;
+                    var oldProfile = controller.Profile;
 
-                    if (newProfileController == entityController.ProfileController)
+                    var data = controller.Data;
+                    var entityData = controller.Data as EntityData;
+
+                    var objectName = entityData != null
+                        ? entityData.ShortPrefabName
+                        : GetMessage(player, Lang.AddonTypeSpawnPoint);
+
+                    if (newProfileController == controller.ProfileController)
                     {
-                        ReplyToPlayer(player, Lang.ProfileMoveToAlreadyPresent, entityData.ShortPrefabName, oldProfile.Name);
+                        ReplyToPlayer(player, Lang.ProfileMoveToAlreadyPresent, objectName, oldProfile.Name);
                         return;
                     }
 
                     string monumentAliasOrShortName;
-                    if (!entityController.TryDestroyAndRemove(out monumentAliasOrShortName))
+                    if (!controller.TryDestroyAndRemove(out monumentAliasOrShortName))
                         return;
 
-                    var newProfile = newProfileController.Profile;
-                    newProfile.AddEntityData(monumentAliasOrShortName, entityData);
-                    newProfileController.SpawnNewData(entityData, GetMonumentsByAliasOrShortName(monumentAliasOrShortName));
+                    newProfile.AddData(monumentAliasOrShortName, data);
+                    newProfileController.SpawnNewData(data, GetMonumentsByAliasOrShortName(monumentAliasOrShortName), delay: true);
 
-                    ReplyToPlayer(player, Lang.ProfileMoveToSuccess, entityData.ShortPrefabName, oldProfile.Name, newProfile.Name);
+                    ReplyToPlayer(player, Lang.ProfileMoveToSuccess, objectName, oldProfile.Name, newProfile.Name);
                     if (!player.IsServer)
                     {
                         _entityDisplayManager.SetPlayerProfile(basePlayer, newProfileController);
@@ -1477,6 +1483,14 @@ namespace Oxide.Plugins
             entity.transform.hasChanged = false;
         }
 
+        private static IEnumerator WaitForFrames(int frames)
+        {
+            for (var elapsed = 0; elapsed < frames; elapsed++)
+            {
+                yield return CoroutineEx.waitForEndOfFrame;
+            }
+        }
+
         private bool HasAdminPermission(string userId) =>
             permission.UserHasPermission(userId, PermissionAdmin);
 
@@ -1867,11 +1881,6 @@ namespace Oxide.Plugins
 
         #region Adapter/Controller - Base
 
-        private interface IAdapterParent<T>
-        {
-            List<T> Adapters { get; }
-        }
-
         // Represents a single entity, spawn group, or spawn point at a single monument.
         private abstract class BaseAdapter
         {
@@ -1927,7 +1936,7 @@ namespace Oxide.Plugins
         }
 
         // Represents an entity or spawn point across one or more identical monuments.
-        private abstract class BaseController : IAdapterParent<BaseAdapter>
+        private abstract class BaseController
         {
             public ProfileController ProfileController { get; private set; }
             public BaseIdentifiableData Data { get; private set; }
@@ -1962,6 +1971,25 @@ namespace Oxide.Plugins
                 adapter.Spawn();
                 OnAdapterSpawned(adapter);
                 return adapter;
+            }
+
+            public bool TryDestroyAndRemove(out string monumentAliasOrShortName)
+            {
+                var profile = ProfileController.Profile;
+                if (!profile.RemoveData(Data, out monumentAliasOrShortName))
+                {
+                    _pluginInstance?.LogError($"Unexpected error: {Data.GetType()} {Data.Id} was not found in profile {profile.Name}");
+                    return false;
+                }
+
+                Destroy();
+                return true;
+            }
+
+            public bool TryDestroyAndRemove()
+            {
+                string monumentAliasOrShortName;
+                return TryDestroyAndRemove(out monumentAliasOrShortName);
             }
 
             public IEnumerator SpawnAtMonumentsRoutine(IEnumerable<BaseMonument> monumentList)
@@ -2067,25 +2095,6 @@ namespace Oxide.Plugins
             public void UpdatePosition()
             {
                 ProfileController.StartCoroutine(UpdatePositionRoutine());
-            }
-
-            public bool TryDestroyAndRemove(out string monumentAliasOrShortName)
-            {
-                var profile = ProfileController.Profile;
-                if (!profile.RemoveEntityData(EntityData, out monumentAliasOrShortName))
-                {
-                    _pluginInstance?.LogError($"Unexpected error: Entity {EntityData.PrefabName} was not found in profile {profile.Name}");
-                    return false;
-                }
-
-                base.Destroy();
-                return true;
-            }
-
-            public bool TryDestroyAndRemove()
-            {
-                string monumentAliasOrShortName;
-                return TryDestroyAndRemove(out monumentAliasOrShortName);
             }
 
             private IEnumerator UpdatePositionRoutine()
@@ -3033,7 +3042,7 @@ namespace Oxide.Plugins
             }
         }
 
-        private class SpawnGroupAdapter : BaseAdapter, IAdapterParent<SpawnPointAdapter>
+        private class SpawnGroupAdapter : BaseAdapter
         {
             public SpawnGroupData SpawnGroupData { get; private set; }
             public List<SpawnPointAdapter> Adapters { get; private set; } = new List<SpawnPointAdapter>();
@@ -3217,19 +3226,6 @@ namespace Oxide.Plugins
             {
                 foreach (var spawnGroupAdapter in SpawnGroupAdapters)
                     spawnGroupAdapter.UpdateSpawnGroup();
-            }
-
-            public bool TryDestroyAndRemove(out string monumentAliasOrShortName)
-            {
-                var profile = ProfileController.Profile;
-                if (!profile.RemoveSpawnGroup(SpawnGroupData, out monumentAliasOrShortName))
-                {
-                    _pluginInstance?.LogError($"Unexpected error: Spawn group {SpawnGroupData.Name} was not found in profile {profile.Name}");
-                    return false;
-                }
-
-                base.Destroy();
-                return true;
             }
         }
 
@@ -3744,6 +3740,43 @@ namespace Oxide.Plugins
                 list.AddRange(SpawnGroups);
                 return list;
             }
+
+            public void AddData(BaseIdentifiableData data)
+            {
+                var entityData = data as EntityData;
+                if (entityData != null)
+                {
+                    Entities.Add(entityData);
+                    return;
+                }
+
+                var spawnGroupData = data as SpawnGroupData;
+                if (spawnGroupData != null)
+                {
+                    SpawnGroups.Add(spawnGroupData);
+                    return;
+                }
+
+                _pluginInstance?.LogError($"AddData not implemented for type: {data.GetType()}");
+            }
+
+            public bool RemoveData(BaseIdentifiableData data)
+            {
+                var entityData = data as EntityData;
+                if (entityData != null)
+                {
+                    return Entities.Remove(entityData);
+                }
+
+                var spawnGroupData = data as SpawnGroupData;
+                if (spawnGroupData != null)
+                {
+                    return SpawnGroups.Remove(spawnGroupData);
+                }
+
+                _pluginInstance.LogError($"RemoveData not implemented for type: {data.GetType()}");
+                return false;
+            }
         }
 
         #endregion
@@ -3996,39 +4029,17 @@ namespace Oxide.Plugins
                 return aggregateData;
             }
 
-            public void AddEntityData(string monumentAliasOrShortName, EntityData entityData)
+            public void AddData(string monumentAliasOrShortName, BaseIdentifiableData data)
             {
-                EnsureMonumentData(monumentAliasOrShortName).Entities.Add(entityData);
+                EnsureMonumentData(monumentAliasOrShortName).AddData(data);
                 Save();
             }
 
-            public bool RemoveEntityData(EntityData entityData, out string monumentAliasOrShortName)
+            public bool RemoveData(BaseIdentifiableData data, out string monumentAliasOrShortName)
             {
                 foreach (var entry in MonumentDataMap)
                 {
-                    if (entry.Value.Entities.Remove(entityData))
-                    {
-                        monumentAliasOrShortName = entry.Key;
-                        Save();
-                        return true;
-                    }
-                }
-
-                monumentAliasOrShortName = null;
-                return false;
-            }
-
-            public void AddSpawnGroup(string monumentAliasOrShortName, SpawnGroupData spawnGroupData)
-            {
-                EnsureMonumentData(monumentAliasOrShortName).SpawnGroups.Add(spawnGroupData);
-                Save();
-            }
-
-            public bool RemoveSpawnGroup(SpawnGroupData spawnGroup, out string monumentAliasOrShortName)
-            {
-                foreach (var entry in MonumentDataMap)
-                {
-                    if (entry.Value.SpawnGroups.Remove(spawnGroup))
+                    if (entry.Value.RemoveData(data))
                     {
                         monumentAliasOrShortName = entry.Key;
                         Save();
@@ -4111,10 +4122,10 @@ namespace Oxide.Plugins
                             continue;
                         }
 
-                        var adapterParent = adapter as IAdapterParent<T>;
-                        if (adapterParent != null)
+                        var spawnGroupAdapter = adapter as SpawnGroupAdapter;
+                        if (spawnGroupAdapter != null)
                         {
-                            foreach (var childAdapter in adapterParent.Adapters)
+                            foreach (var childAdapter in spawnGroupAdapter.Adapters.OfType<T>())
                             {
                                 yield return childAdapter;
                             }
@@ -4167,13 +4178,13 @@ namespace Oxide.Plugins
                 yield return WaitUntilLoaded;
             }
 
-            public void SpawnNewData(BaseIdentifiableData data, ICollection<BaseMonument> monuments)
+            public void SpawnNewData(BaseIdentifiableData data, ICollection<BaseMonument> monuments, bool delay = false)
             {
                 if (ProfileState == ProfileState.Unloading || ProfileState == ProfileState.Unloaded)
                     return;
 
                 ProfileState = ProfileState.Loading;
-                StartCoroutine(PartialLoadForLateDataRoutine(data, monuments));
+                StartCoroutine(PartialLoadForLateDataRoutine(data, monuments, delay));
             }
 
             public void Rename(string newName)
@@ -4320,8 +4331,15 @@ namespace Oxide.Plugins
                 yield return controller.SpawnAtMonumentsRoutine(monumentList);
             }
 
-            private IEnumerator PartialLoadForLateDataRoutine(BaseIdentifiableData data, IEnumerable<BaseMonument> monumentList)
+            private IEnumerator PartialLoadForLateDataRoutine(BaseIdentifiableData data, ICollection<BaseMonument> monumentList, bool delay)
             {
+                if (delay)
+                {
+                    // Since the previous profile will despawn one object per frame, wait exactly that long before respawning.
+                    // One reason to do this is to make sure spawn points that check for space don't find the previous entity in the way.
+                    yield return WaitForFrames(monumentList.Count);
+                }
+
                 yield return SpawnAtMonumentsRoutine(this, data, monumentList);
                 ProfileState = ProfileState.Loaded;
             }
@@ -4902,6 +4920,7 @@ namespace Oxide.Plugins
             public const string KillSuccess = "Kill.Success2";
             public const string MoveNothingToDo = "Move.NothingToDo";
             public const string MoveSuccess = "Move.Success";
+            public const string AddonTypeSpawnPoint = "AddonType.SpawnPoint";
 
             public const string ShowSuccess = "Show.Success";
             public const string ShowHeaderEntity = "Show.Header.Entity";
@@ -4909,7 +4928,6 @@ namespace Oxide.Plugins
             public const string ShowHeaderSpawnPoint = "Show.Header.SpawnPoint";
             public const string ShowLabelMonument = "Show.Label.Monument";
             public const string ShowLabelProfile = "Show.Label.Profile";
-            public const string ShowLabelPrefab = "Show.Label.Prefab";
             public const string ShowLabelSkin = "Show.Label.Skin";
             public const string ShowLabelScale = "Show.Label.Scale";
             public const string ShowLabelRCIdentifier = "Show.Label.RCIdentifier";
@@ -5019,9 +5037,9 @@ namespace Oxide.Plugins
                 [Lang.KillSuccess] = "Killed entity at <color=#fd4>{0}</color> matching monument(s) and removed from profile <color=#fd4>{1}</color>.",
                 [Lang.MoveNothingToDo] = "That entity is already at the saved position.",
                 [Lang.MoveSuccess] = "Updated entity position at <color=#fd4>{0}</color> matching monument(s) and saved to profile <color=#fd4>{1}</color>.",
+                [Lang.AddonTypeSpawnPoint] = "Spawn point",
 
                 [Lang.ShowSuccess] = "Showing nearby Monument Addons for <color=#fd4>{0}</color>.",
-                [Lang.ShowLabelMonumentAddon] = "Monument Addon",
                 [Lang.ShowLabelMonument] = "Monument: {0} (x{1})",
                 [Lang.ShowLabelProfile] = "Profile: {0}",
                 [Lang.ShowLabelSkin] = "Skin: {0}",
