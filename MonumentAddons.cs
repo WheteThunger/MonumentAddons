@@ -52,7 +52,7 @@ namespace Oxide.Plugins
         private readonly CoroutineManager _coroutineManager = new CoroutineManager();
         private readonly MonumentEntityTracker _entityTracker = new MonumentEntityTracker();
         private readonly AdapterDisplayManager _entityDisplayManager = new AdapterDisplayManager();
-        private readonly EntityListenerManager _entityListenerManager = new EntityListenerManager();
+        private readonly AdapterListenerManager _adapterListenerManager = new AdapterListenerManager();
         private readonly ControllerFactory _entityControllerFactoryResolver = new ControllerFactory();
 
         private ItemDefinition _waterDefinition;
@@ -77,7 +77,7 @@ namespace Oxide.Plugins
 
             Unsubscribe(nameof(OnEntitySpawned));
 
-            _entityListenerManager.Init();
+            _adapterListenerManager.Init();
         }
 
         private void OnServerInitialized()
@@ -88,7 +88,7 @@ namespace Oxide.Plugins
             _immortalProtection.name = "MonumentAddonsProtection";
             _immortalProtection.Add(1);
 
-            _entityListenerManager.OnServerInitialized();
+            _adapterListenerManager.OnServerInitialized();
 
             if (CheckDependencies())
                 StartupRoutine();
@@ -2091,13 +2091,13 @@ namespace Oxide.Plugins
             public override void OnAdapterSpawned(BaseAdapter adapter)
             {
                 base.OnAdapterSpawned(adapter);
-                _pluginInstance?._entityListenerManager.OnAdapterSpawned(adapter as EntityAdapterBase);
+                _pluginInstance?._adapterListenerManager.OnAdapterSpawned(adapter as EntityAdapterBase);
             }
 
             public override void OnAdapterKilled(BaseAdapter adapter)
             {
                 base.OnAdapterKilled(adapter);
-                _pluginInstance?._entityListenerManager.OnAdapterKilled(adapter as EntityAdapterBase);
+                _pluginInstance?._adapterListenerManager.OnAdapterKilled(adapter as EntityAdapterBase);
             }
 
             public void UpdatePosition()
@@ -2711,38 +2711,39 @@ namespace Oxide.Plugins
 
         #region Entity Listeners
 
-        private abstract class EntityListenerBase
+        private abstract class AdapterListenerBase
         {
             public virtual void Init() {}
             public virtual void OnServerInitialized() {}
-            public abstract bool InterestedInEntity(EntityAdapterBase entityAdapter);
-            public abstract void OnAdapterSpawned(EntityAdapterBase entityAdapter);
-            public abstract void OnAdapterKilled(EntityAdapterBase entityAdapter);
+            public abstract bool InterestedInAdapter(BaseAdapter adapter);
+            public abstract void OnAdapterSpawned(BaseAdapter adapter);
+            public abstract void OnAdapterKilled(BaseAdapter adapter);
         }
 
-        private abstract class DynamicHookListener : EntityListenerBase
+        private abstract class DynamicHookListener : AdapterListenerBase
         {
             protected string[] _dynamicHookNames;
-            private int _controllerCount;
+
+            private HashSet<BaseAdapter> _adapters = new HashSet<BaseAdapter>();
 
             public override void Init()
             {
                 UnsubscribeHooks();
             }
 
-            public override void OnAdapterSpawned(EntityAdapterBase entityAdapter)
+            public override void OnAdapterSpawned(BaseAdapter adapter)
             {
-                _controllerCount++;
+                _adapters.Add(adapter);
 
-                if (_controllerCount == 1)
+                if (_adapters.Count == 1)
                     SubscribeHooks();
             }
 
-            public override void OnAdapterKilled(EntityAdapterBase entityAdapter)
+            public override void OnAdapterKilled(BaseAdapter adapter)
             {
-                _controllerCount--;
+                _adapters.Remove(adapter);
 
-                if (_controllerCount == 0)
+                if (_adapters.Count == 0)
                     UnsubscribeHooks();
             }
 
@@ -2777,13 +2778,19 @@ namespace Oxide.Plugins
                 };
             }
 
-            public override bool InterestedInEntity(EntityAdapterBase entityAdapterBase) =>
-                FindBaseEntityForPrefab(entityAdapterBase.EntityData.PrefabName) is ISignage;
+            public override bool InterestedInAdapter(BaseAdapter adapter)
+            {
+                var entityData = adapter.Data as EntityData;
+                if (entityData == null)
+                    return false;
+
+                return FindBaseEntityForPrefab(entityData.PrefabName) is ISignage;
+            }
         }
 
-        private class EntityListenerManager
+        private class AdapterListenerManager
         {
-            private EntityListenerBase[] _listeners = new EntityListenerBase[]
+            private AdapterListenerBase[] _listeners = new AdapterListenerBase[]
             {
                 new SignEntityListener(),
             };
@@ -2804,7 +2811,7 @@ namespace Oxide.Plugins
             {
                 foreach (var listener in _listeners)
                 {
-                    if (listener.InterestedInEntity(entityAdapter))
+                    if (listener.InterestedInAdapter(entityAdapter))
                         listener.OnAdapterSpawned(entityAdapter);
                 }
             }
@@ -2813,7 +2820,7 @@ namespace Oxide.Plugins
             {
                 foreach (var listener in _listeners)
                 {
-                    if (listener.InterestedInEntity(entityAdapter))
+                    if (listener.InterestedInAdapter(entityAdapter))
                         listener.OnAdapterKilled(entityAdapter);
                 }
             }
