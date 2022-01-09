@@ -2827,6 +2827,12 @@ namespace Oxide.Plugins
                     paddlingPool.SetFlag(BaseEntity.Flags.Busy, true);
                 }
 
+                var decayEntity = Entity as DecayEntity;
+                if (decayEntity != null)
+                {
+                    decayEntity.decay = null;
+                }
+
                 var vehicleSpawner = Entity as VehicleSpawner;
                 if (vehicleSpawner != null)
                 {
