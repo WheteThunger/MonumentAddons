@@ -447,19 +447,9 @@ namespace Oxide.Plugins
             if (spawnPointAdapter != null)
             {
                 var spawnGroupController = controller as SpawnGroupController;
-
-                var spawnGroupData = spawnGroupController.SpawnGroupData;
-                if (spawnGroupData.SpawnPoints.Count > 1)
-                {
-                    var spawnPointData = spawnPointAdapter.SpawnPointData;
-                    spawnGroupController.RemoveSpawnPoint(spawnPointData);
-                    spawnGroupController.SpawnGroupData.SpawnPoints.Remove(spawnPointData);
-                    spawnGroupController.Profile.Save();
-                }
-                else
-                {
-                    spawnGroupController.TryDestroyAndRemove();
-                }
+                var spawnPointData = spawnPointAdapter.SpawnPointData;
+                spawnGroupController.RemoveSpawnPoint(spawnPointData);
+                spawnGroupController.Profile.RemoveSpawnPoint(spawnGroupController.SpawnGroupData, spawnPointData);
             }
             else
             {
@@ -3483,11 +3473,17 @@ namespace Oxide.Plugins
 
         private class CustomSpawnPoint : BaseSpawnPoint
         {
-            public SpawnPointData SpawnPointData;
-
+            private SpawnPointAdapter _adapter;
+            private SpawnPointData _spawnPointData;
             private Transform _transform;
             private BaseEntity _parentEntity;
             private List<SpawnPointInstance> _instances = new List<SpawnPointInstance>();
+
+            public void Init(SpawnPointAdapter adapter, SpawnPointData spawnPointData)
+            {
+                _adapter = adapter;
+                _spawnPointData = spawnPointData;
+            }
 
             private void Awake()
             {
@@ -3500,18 +3496,18 @@ namespace Oxide.Plugins
                 position = _transform.position;
                 rotation = _transform.rotation;
 
-                if (SpawnPointData.RandomRadius > 0)
+                if (_spawnPointData.RandomRadius > 0)
                 {
-                    Vector2 vector = UnityEngine.Random.insideUnitCircle * SpawnPointData.RandomRadius;
+                    Vector2 vector = UnityEngine.Random.insideUnitCircle * _spawnPointData.RandomRadius;
                     position += new Vector3(vector.x, 0f, vector.y);
                 }
 
-                if (SpawnPointData.RandomRotation)
+                if (_spawnPointData.RandomRotation)
                 {
                     rotation *= Quaternion.Euler(0f, UnityEngine.Random.Range(0f, 360f), 0f);
                 }
 
-                if (SpawnPointData.DropToGround)
+                if (_spawnPointData.DropToGround)
                 {
                     DropToGround(ref position, ref rotation);
                 }
@@ -3542,12 +3538,12 @@ namespace Oxide.Plugins
 
             public override bool IsAvailableTo(GameObjectRef prefabRef)
             {
-                if (SpawnPointData.Exclusive && _instances.Count > 0)
+                if (_spawnPointData.Exclusive && _instances.Count > 0)
                 {
                     return false;
                 }
 
-                if (SpawnPointData.CheckSpace)
+                if (_spawnPointData.CheckSpace)
                 {
                     return SingletonComponent<SpawnHandler>.Instance.CheckBounds(prefabRef.Get(), _transform.position, _transform.rotation, Vector3.one);
                 }
@@ -3565,6 +3561,8 @@ namespace Oxide.Plugins
                         entity.Kill();
                     }
                 }
+
+                _adapter.OnSpawnPointKilled(this);
             }
         }
 
@@ -3581,8 +3579,14 @@ namespace Oxide.Plugins
                 return null;
             }
 
+            private SpawnGroupAdapter _spawnGroupAdapter;
             private AIInformationZone _cachedInfoZone;
             private bool _didLookForInfoZone;
+
+            public void Init(SpawnGroupAdapter spawnGroupAdapter)
+            {
+                _spawnGroupAdapter = spawnGroupAdapter;
+            }
 
             public void UpdateSpawnClock()
             {
@@ -3635,6 +3639,7 @@ namespace Oxide.Plugins
             private void OnDestroy()
             {
                 SingletonComponent<SpawnHandler>.Instance.SpawnGroups.Remove(this);
+                _spawnGroupAdapter.OnSpawnGroupKilled(this);
             }
         }
 
@@ -3647,9 +3652,12 @@ namespace Oxide.Plugins
             public SpawnPointData SpawnPointData { get; private set; }
             public CustomSpawnPoint SpawnPoint { get; private set; }
 
-            public SpawnPointAdapter(SpawnPointData spawnPointData, BaseController controller, BaseMonument monument) : base(spawnPointData, controller, monument)
+            private SpawnGroupAdapter _spawnGroupAdapter;
+
+            public SpawnPointAdapter(SpawnPointData spawnPointData, SpawnGroupAdapter spawnGroupAdapter, BaseController controller, BaseMonument monument) : base(spawnPointData, controller, monument)
             {
                 SpawnPointData = spawnPointData;
+                _spawnGroupAdapter = spawnGroupAdapter;
             }
 
             public override void Spawn()
@@ -3665,12 +3673,17 @@ namespace Oxide.Plugins
                 }
 
                 SpawnPoint = gameObject.AddComponent<CustomSpawnPoint>();
-                SpawnPoint.SpawnPointData = SpawnPointData;
+                SpawnPoint.Init(this, SpawnPointData);
             }
 
             public override void Kill()
             {
                 UnityEngine.Object.Destroy(SpawnPoint?.gameObject);
+            }
+
+            public void OnSpawnPointKilled(CustomSpawnPoint spawnPoint)
+            {
+                _spawnGroupAdapter.OnSpawnPointAdapterKilled(this);
             }
         }
 
@@ -3693,6 +3706,7 @@ namespace Oxide.Plugins
                 // Configure the spawn group and create spawn points before enabling the group.
                 // This allows the vanilla Awake() method to perform initial spawn and schedule spawns.
                 SpawnGroup = spawnGroupGameObject.AddComponent<CustomSpawnGroup>();
+                SpawnGroup.Init(this);
 
                 if (SpawnGroup.prefabs == null)
                     SpawnGroup.prefabs = new List<SpawnGroup.SpawnEntry>();
@@ -3717,14 +3731,30 @@ namespace Oxide.Plugins
 
             public override void Kill()
             {
+                UnityEngine.Object.Destroy(SpawnGroup?.gameObject);
+            }
+
+            public void OnSpawnPointAdapterKilled(SpawnPointAdapter spawnPointAdapter)
+            {
+                Adapters.Remove(spawnPointAdapter);
+
+                if (SpawnGroup != null)
+                {
+                    UpdateSpawnPointReferences();
+                }
+
+                if (Adapters.Count == 0)
+                {
+                    Controller.OnAdapterKilled(this);
+                }
+            }
+
+            public void OnSpawnGroupKilled(CustomSpawnGroup spawnGroup)
+            {
                 foreach (var spawnPointAdapter in Adapters.ToArray())
                 {
                     spawnPointAdapter.Kill();
                 }
-
-                UnityEngine.Object.Destroy(SpawnGroup?.gameObject);
-
-                Controller.OnAdapterKilled(this);
             }
 
             private void UpdateMaxPopulation()
@@ -3800,7 +3830,7 @@ namespace Oxide.Plugins
 
             public void AddSpawnPoint(SpawnPointData spawnPointData)
             {
-                var spawnPointAdapter = new SpawnPointAdapter(spawnPointData, Controller, Monument);
+                var spawnPointAdapter = new SpawnPointAdapter(spawnPointData, this, Controller, Monument);
                 Adapters.Add(spawnPointAdapter);
                 spawnPointAdapter.Spawn();
 
@@ -3817,9 +3847,6 @@ namespace Oxide.Plugins
                     return;
 
                 spawnPointAdapter.Kill();
-                Adapters.Remove(spawnPointAdapter);
-
-                UpdateSpawnPointReferences();
             }
 
             private SpawnPointAdapter FindSpawnPoint(SpawnPointData spawnPointData)
@@ -4732,6 +4759,19 @@ namespace Oxide.Plugins
 
                 monumentAliasOrShortName = null;
                 return false;
+            }
+
+            public bool RemoveSpawnPoint(SpawnGroupData spawnGroupData, SpawnPointData spawnPointData)
+            {
+                var removed = spawnGroupData.SpawnPoints.Remove(spawnPointData);
+                if (spawnGroupData.SpawnPoints.Count > 0)
+                {
+                    Save();
+                    return removed;
+                }
+
+                string monumentAliasOrShortName;
+                return RemoveData(spawnGroupData, out monumentAliasOrShortName);
             }
 
             private MonumentData EnsureMonumentData(string monumentAliasOrShortName)
