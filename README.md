@@ -74,6 +74,7 @@ Spawn groups:
   - `SpawnPerTickMax`: number
   - `RespawnDelayMin`: number
   - `RespawnDelayMax`: number
+  - `PreventDuplicates`: true/false
 - `maspawngroup add <entity> <weight>` -- Adds the specified entity prefab to the spawn group of the spawn point you are looking at.
 - `maspawngroup remove <entity>` -- Removes the specified entity prefab from the spawn group of the spawn point you are looking at.
 
