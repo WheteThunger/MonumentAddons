@@ -3524,10 +3524,10 @@ namespace Oxide.Plugins
                     entity.SetParent(_parentEntity, worldPositionStays: true);
                 }
 
-                var vehicle = entity as BaseVehicle;
-                if (vehicle != null)
+                if (IsVehicle(entity))
                 {
                     instance.gameObject.AddComponent<SpawnedVehicleComponent>();
+                    entity.Invoke(() => DisableVehicleDecay(entity), 5);
                 }
             }
 
@@ -3563,6 +3563,63 @@ namespace Oxide.Plugins
                 }
 
                 _adapter.OnSpawnPointKilled(this);
+            }
+
+            private bool IsVehicle(BaseEntity entity)
+            {
+                return entity is HotAirBalloon || entity is BaseVehicle;
+            }
+
+            private void DisableVehicleDecay(BaseEntity vehicle)
+            {
+                var kayak = vehicle as Kayak;
+                if (kayak != null)
+                {
+                    kayak.timeSinceLastUsed = float.MinValue;
+                    return;
+                }
+
+                var boat = vehicle as MotorRowboat;
+                if (boat != null)
+                {
+                    boat.timeSinceLastUsedFuel = float.MinValue;
+                    return;
+                }
+
+                var sub = vehicle as BaseSubmarine;
+                if (sub != null)
+                {
+                    sub.timeSinceLastUsed = float.MinValue;
+                    return;
+                }
+
+                var hab = vehicle as HotAirBalloon;
+                if (hab != null)
+                {
+                    hab.lastBlastTime = float.MaxValue;
+                    return;
+                }
+
+                var heli = vehicle as MiniCopter;
+                if (heli != null)
+                {
+                    heli.lastEngineOnTime = float.MaxValue;
+                    return;
+                }
+
+                var car = vehicle as ModularCar;
+                if (car != null)
+                {
+                    car.lastEngineOnTime = float.MaxValue;
+                    return;
+                }
+
+                var horse = vehicle as RidableHorse;
+                if (horse != null)
+                {
+                    horse.lastInputTime = float.MaxValue;
+                    return;
+                }
             }
         }
 
