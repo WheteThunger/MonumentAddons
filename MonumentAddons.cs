@@ -2847,6 +2847,13 @@ namespace Oxide.Plugins
                 if (decayEntity != null)
                 {
                     decayEntity.decay = null;
+
+                    var buildingBlock = Entity as BuildingBlock;
+                    if (buildingBlock != null && buildingBlock.HasFlag(BuildingBlock.BlockFlags.CanDemolish))
+                    {
+                        // Must be set after spawn for some reason.
+                        buildingBlock.StopBeingDemolishable();
+                    }
                 }
 
                 var vehicleSpawner = Entity as VehicleSpawner;
