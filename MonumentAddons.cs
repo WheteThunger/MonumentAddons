@@ -121,7 +121,7 @@ namespace Oxide.Plugins
 
         private void OnEntitySpawned(CargoShip cargoShip)
         {
-            var cargoShipMonument = new CargoShipMonument(cargoShip);
+            var cargoShipMonument = new MobileMonument(cargoShip);
             _coroutineManager.StartCoroutine(_profileManager.PartialLoadForLateMonumentRoutine(cargoShipMonument));
         }
 
@@ -1968,7 +1968,7 @@ namespace Oxide.Plugins
             return matches.ToArray();
         }
 
-        private static bool OnCargoShip(BasePlayer player, Vector3 position, out CargoShipMonument cargoShipMonument)
+        private static bool OnCargoShip(BasePlayer player, Vector3 position, out BaseMonument cargoShipMonument)
         {
             cargoShipMonument = null;
 
@@ -1976,7 +1976,7 @@ namespace Oxide.Plugins
             if (cargoShip == null)
                 return false;
 
-            cargoShipMonument = new CargoShipMonument(cargoShip);
+            cargoShipMonument = new MobileMonument(cargoShip);
 
             if (!cargoShipMonument.IsInBounds(position))
                 return false;
@@ -2074,7 +2074,7 @@ namespace Oxide.Plugins
 
         private BaseMonument GetClosestMonument(BasePlayer player, Vector3 position)
         {
-            CargoShipMonument cargoShipMonument;
+            BaseMonument cargoShipMonument;
             if (OnCargoShip(player, position, out cargoShipMonument))
                 return cargoShipMonument;
 
@@ -2090,7 +2090,7 @@ namespace Oxide.Plugins
                 {
                     var cargoShip = entity as CargoShip;
                     if (cargoShip != null)
-                        cargoShipList.Add(new CargoShipMonument(cargoShip));
+                        cargoShipList.Add(new MobileMonument(cargoShip));
                 }
                 return cargoShipList.Count > 0 ? cargoShipList : null;
             }
@@ -2307,16 +2307,16 @@ namespace Oxide.Plugins
                 ((Func<Vector3, bool>)_monumentInfo["IsInBounds"]).Invoke(position);
         }
 
-        private class CargoShipMonument : BaseMonument
+        private class DynamicMonument : BaseMonument
         {
-            public CargoShip CargoShip { get; private set; }
-            public override bool IsValid => base.IsValid && !CargoShip.IsDestroyed;
+            public BaseEntity RootEntity { get; private set; }
+            public override bool IsValid => base.IsValid && !RootEntity.IsDestroyed;
 
-            private OBB BoundingBox => CargoShip.WorldSpaceBounds();
+            protected OBB BoundingBox => RootEntity.WorldSpaceBounds();
 
-            public CargoShipMonument(CargoShip cargoShip) : base(cargoShip)
+            public DynamicMonument(BaseEntity entity) : base(entity)
             {
-                CargoShip = cargoShip;
+                RootEntity = entity;
             }
 
             public override Vector3 ClosestPointOnBounds(Vector3 position) =>
@@ -2324,6 +2324,11 @@ namespace Oxide.Plugins
 
             public override bool IsInBounds(Vector3 position) =>
                 BoundingBox.Contains(position);
+        }
+
+        private class MobileMonument : DynamicMonument
+        {
+            public MobileMonument(BaseEntity entity) : base(entity) {}
         }
 
         #endregion
@@ -2628,14 +2633,21 @@ namespace Oxide.Plugins
                 // In case the plugin doesn't clean it up on server shutdown, make sure it doesn't come back so it's not duplicated.
                 EnableSavingResursive(entity, false);
 
-                var cargoShipMonument = Monument as CargoShipMonument;
-                if (cargoShipMonument != null)
+                var dynamicMonument = Monument as DynamicMonument;
+                if (dynamicMonument != null)
                 {
-                    entity.SetParent(cargoShipMonument.CargoShip, worldPositionStays: true);
+                    entity.SetParent(dynamicMonument.RootEntity, worldPositionStays: true);
 
-                    var mountable = entity as BaseMountable;
-                    if (mountable != null)
-                        mountable.isMobile = true;
+                    var mobileMonument = Monument as MobileMonument;
+                    if (mobileMonument != null)
+                    {
+                        var mountable = entity as BaseMountable;
+                        if (mountable != null)
+                        {
+                            // Setting isMobile prior to spawn will automatically update the position of mounted players.
+                            mountable.isMobile = true;
+                        }
+                    }
                 }
 
                 DestroyProblemComponents(entity);
@@ -2890,11 +2902,11 @@ namespace Oxide.Plugins
 
             private List<CCTV_RC> GetNearbyStaticCameras()
             {
-                var cargoShip = Entity.GetParentEntity() as CargoShip;
-                if (cargoShip != null)
+                var mobileMonument = Monument as MobileMonument;
+                if (mobileMonument != null && mobileMonument.RootEntity == Entity.GetParentEntity())
                 {
                     var cargoCameraList = new List<CCTV_RC>();
-                    foreach (var child in cargoShip.children)
+                    foreach (var child in mobileMonument.RootEntity.children)
                     {
                         var cctv = child as CCTV_RC;
                         if (cctv != null && cctv.isStatic)
@@ -3222,11 +3234,11 @@ namespace Oxide.Plugins
 
             private List<ComputerStation> GetNearbyStaticComputerStations()
             {
-                var cargoShip = Entity.GetParentEntity() as CargoShip;
-                if (cargoShip != null)
+                var mobileMonument = Monument as MobileMonument;
+                if (mobileMonument != null && mobileMonument.RootEntity == Entity.GetParentEntity())
                 {
                     var cargoComputerStationList = new List<ComputerStation>();
-                    foreach (var child in cargoShip.children)
+                    foreach (var child in mobileMonument.RootEntity.children)
                     {
                         var computerStation = child as ComputerStation;
                         if (computerStation != null && computerStation.isStatic)
