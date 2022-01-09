@@ -1522,6 +1522,8 @@ namespace Oxide.Plugins
 
         #endregion
 
+        #region Utilities
+
         #region Helper Methods - Command Checks
 
         private bool VerifyHasPermission(IPlayer player, string perm = PermissionAdmin)
@@ -1908,30 +1910,6 @@ namespace Oxide.Plugins
 
         #region Helper Methods
 
-        private static class BooleanParser
-        {
-            private static string[] _booleanYesValues = new string[] { "true", "yes", "on", "1" };
-            private static string[] _booleanNoValues = new string[] { "false", "no", "off", "0" };
-
-            public static bool TryParse(string arg, out bool value)
-            {
-                if (_booleanYesValues.Contains(arg, StringComparer.InvariantCultureIgnoreCase))
-                {
-                    value = true;
-                    return true;
-                }
-
-                if (_booleanNoValues.Contains(arg, StringComparer.InvariantCultureIgnoreCase))
-                {
-                    value = false;
-                    return true;
-                }
-
-                value = false;
-                return false;
-            }
-        }
-
         private static bool TryRaycast(BasePlayer player, out RaycastHit hit, float maxDistance = MaxRaycastDistance)
         {
             return Physics.Raycast(player.eyes.HeadRay(), out hit, maxDistance, HitLayers, QueryTriggerInteraction.Ignore);
@@ -2217,6 +2195,34 @@ namespace Oxide.Plugins
 
         #endregion
 
+        #region Boolean Parser
+
+        private static class BooleanParser
+        {
+            private static string[] _booleanYesValues = new string[] { "true", "yes", "on", "1" };
+            private static string[] _booleanNoValues = new string[] { "false", "no", "off", "0" };
+
+            public static bool TryParse(string arg, out bool value)
+            {
+                if (_booleanYesValues.Contains(arg, StringComparer.InvariantCultureIgnoreCase))
+                {
+                    value = true;
+                    return true;
+                }
+
+                if (_booleanNoValues.Contains(arg, StringComparer.InvariantCultureIgnoreCase))
+                {
+                    value = false;
+                    return true;
+                }
+
+                value = false;
+                return false;
+            }
+        }
+
+        #endregion
+
         #region Ddraw
 
         private static class Ddraw
@@ -2232,6 +2238,56 @@ namespace Oxide.Plugins
 
             public static void Text(BasePlayer player, Vector3 origin, string text, Color color, float duration) =>
                 player.SendConsoleCommand("ddraw.text", duration, color, origin, text);
+        }
+
+        #endregion
+
+        #region Entity Utilities
+
+        private static class EntityUtils
+        {
+            public static T GetNearbyEntity<T>(BaseEntity originEntity, float maxDistance, int layerMask, string filterShortPrefabName = null) where T : BaseEntity
+            {
+                var entityList = new List<T>();
+                Vis.Entities(originEntity.transform.position, maxDistance, entityList, layerMask, QueryTriggerInteraction.Ignore);
+                foreach (var entity in entityList)
+                {
+                    if (filterShortPrefabName == null || entity.ShortPrefabName == filterShortPrefabName)
+                        return entity;
+                }
+                return null;
+            }
+
+            public static void ConnectNearbyVehicleSpawner(VehicleVendor vehicleVendor)
+            {
+                if (vehicleVendor.GetVehicleSpawner() != null)
+                    return;
+
+                var vehicleSpawner = vehicleVendor.ShortPrefabName == "bandit_conversationalist"
+                    ? GetNearbyEntity<VehicleSpawner>(vehicleVendor, 40, Rust.Layers.Mask.Deployed, "airwolfspawner")
+                    : vehicleVendor.ShortPrefabName == "boat_shopkeeper"
+                    ? GetNearbyEntity<VehicleSpawner>(vehicleVendor, 20, Rust.Layers.Mask.Deployed, "boatspawner")
+                    : null;
+
+                if (vehicleSpawner == null)
+                    return;
+
+                vehicleVendor.spawnerRef.Set(vehicleSpawner);
+            }
+
+            public static void ConnectNearbyVehicleVendor(VehicleSpawner vehicleSpawner)
+            {
+                var vehicleVendor = vehicleSpawner.ShortPrefabName == "airwolfspawner"
+                    ? GetNearbyEntity<VehicleVendor>(vehicleSpawner, 40, Rust.Layers.Mask.Player_Server, "bandit_conversationalist")
+                    : vehicleSpawner.ShortPrefabName == "boatspawner"
+                    ? GetNearbyEntity<VehicleVendor>(vehicleSpawner, 20, Rust.Layers.Mask.Player_Server, "boat_shopkeeper")
+                    : null;
+
+                if (vehicleVendor == null)
+                    return;
+
+                vehicleVendor.spawnerRef.Set(vehicleSpawner);
+            }
         }
 
         #endregion
@@ -2273,6 +2329,8 @@ namespace Oxide.Plugins
                 UnityEngine.Object.Destroy(_coroutineComponent?.gameObject);
             }
         }
+
+        #endregion
 
         #endregion
 
@@ -2358,6 +2416,8 @@ namespace Oxide.Plugins
 
         #endregion
 
+        #region Adapters/Controllers
+
         #region Entity Component
 
         private class MonumentEntityComponent : FacepunchBehaviour
@@ -2434,51 +2494,273 @@ namespace Oxide.Plugins
 
         #endregion
 
-        #region Entity Utilities
+        #region Spawn Group Components
 
-        private static class EntityUtils
+        private class SpawnedVehicleComponent : FacepunchBehaviour
         {
-            public static T GetNearbyEntity<T>(BaseEntity originEntity, float maxDistance, int layerMask, string filterShortPrefabName = null) where T : BaseEntity
+            private const float MaxDistanceSquared = 1;
+
+            private Vector3 _originalPosition;
+            private Transform _transform;
+
+            private void Awake()
             {
-                var entityList = new List<T>();
-                Vis.Entities(originEntity.transform.position, maxDistance, entityList, layerMask, QueryTriggerInteraction.Ignore);
-                foreach (var entity in entityList)
+                _transform = transform;
+                _originalPosition = _transform.position;
+
+                InvokeRandomized(CheckPositionTracked, 10, 10, 1);
+            }
+
+            private void CheckPositionTracked()
+            {
+                _pluginInstance?.TrackStart();
+                CheckPosition();
+                _pluginInstance?.TrackEnd();
+            }
+
+            private void CheckPosition()
+            {
+                if ((_transform.position - _originalPosition).sqrMagnitude < MaxDistanceSquared)
+                    return;
+
+                // Vehicle has moved from its spawn point, so unregister it and re-enable saving.
+                var vehicle = GetComponent<BaseVehicle>();
+                if (vehicle != null && !vehicle.IsDestroyed)
                 {
-                    if (filterShortPrefabName == null || entity.ShortPrefabName == filterShortPrefabName)
-                        return entity;
+                    EnableSavingResursive(vehicle, true);
                 }
+
+                Destroy(GetComponent<SpawnPointInstance>());
+                Destroy(this);
+            }
+        }
+
+        private class CustomSpawnPoint : BaseSpawnPoint
+        {
+            private SpawnPointAdapter _adapter;
+            private SpawnPointData _spawnPointData;
+            private Transform _transform;
+            private BaseEntity _parentEntity;
+            private List<SpawnPointInstance> _instances = new List<SpawnPointInstance>();
+
+            public void Init(SpawnPointAdapter adapter, SpawnPointData spawnPointData)
+            {
+                _adapter = adapter;
+                _spawnPointData = spawnPointData;
+            }
+
+            private void Awake()
+            {
+                _transform = transform;
+                _parentEntity = _transform.parent?.ToBaseEntity();
+            }
+
+            public override void GetLocation(out Vector3 position, out Quaternion rotation)
+            {
+                position = _transform.position;
+                rotation = _transform.rotation;
+
+                if (_spawnPointData.RandomRadius > 0)
+                {
+                    Vector2 vector = UnityEngine.Random.insideUnitCircle * _spawnPointData.RandomRadius;
+                    position += new Vector3(vector.x, 0f, vector.y);
+                }
+
+                if (_spawnPointData.RandomRotation)
+                {
+                    rotation *= Quaternion.Euler(0f, UnityEngine.Random.Range(0f, 360f), 0f);
+                }
+
+                if (_spawnPointData.DropToGround)
+                {
+                    DropToGround(ref position, ref rotation);
+                }
+            }
+
+            public override void ObjectSpawned(SpawnPointInstance instance)
+            {
+                _instances.Add(instance);
+
+                var entity = instance.GetComponent<BaseEntity>();
+
+                if (!entity.HasParent() && _parentEntity != null && !_parentEntity.IsDestroyed)
+                {
+                    entity.SetParent(_parentEntity, worldPositionStays: true);
+                }
+
+                if (IsVehicle(entity))
+                {
+                    instance.gameObject.AddComponent<SpawnedVehicleComponent>();
+                    entity.Invoke(() => DisableVehicleDecay(entity), 5);
+                }
+            }
+
+            public override void ObjectRetired(SpawnPointInstance instance)
+            {
+                _instances.Remove(instance);
+            }
+
+            public override bool IsAvailableTo(GameObjectRef prefabRef)
+            {
+                if (_spawnPointData.Exclusive && _instances.Count > 0)
+                {
+                    return false;
+                }
+
+                if (_spawnPointData.CheckSpace)
+                {
+                    return SingletonComponent<SpawnHandler>.Instance.CheckBounds(prefabRef.Get(), _transform.position, _transform.rotation, Vector3.one);
+                }
+
+                return true;
+            }
+
+            public void OnDestroy()
+            {
+                for (var i = _instances.Count - 1; i >= 0; i--)
+                {
+                    var entity = _instances[i].GetComponent<BaseEntity>();
+                    if (entity != null && !entity.IsDestroyed)
+                    {
+                        entity.Kill();
+                    }
+                }
+
+                _adapter.OnSpawnPointKilled(this);
+            }
+
+            private bool IsVehicle(BaseEntity entity)
+            {
+                return entity is HotAirBalloon || entity is BaseVehicle;
+            }
+
+            private void DisableVehicleDecay(BaseEntity vehicle)
+            {
+                var kayak = vehicle as Kayak;
+                if (kayak != null)
+                {
+                    kayak.timeSinceLastUsed = float.MinValue;
+                    return;
+                }
+
+                var boat = vehicle as MotorRowboat;
+                if (boat != null)
+                {
+                    boat.timeSinceLastUsedFuel = float.MinValue;
+                    return;
+                }
+
+                var sub = vehicle as BaseSubmarine;
+                if (sub != null)
+                {
+                    sub.timeSinceLastUsed = float.MinValue;
+                    return;
+                }
+
+                var hab = vehicle as HotAirBalloon;
+                if (hab != null)
+                {
+                    hab.lastBlastTime = float.MaxValue;
+                    return;
+                }
+
+                var heli = vehicle as MiniCopter;
+                if (heli != null)
+                {
+                    heli.lastEngineOnTime = float.MaxValue;
+                    return;
+                }
+
+                var car = vehicle as ModularCar;
+                if (car != null)
+                {
+                    car.lastEngineOnTime = float.MaxValue;
+                    return;
+                }
+
+                var horse = vehicle as RidableHorse;
+                if (horse != null)
+                {
+                    horse.lastInputTime = float.MaxValue;
+                    return;
+                }
+            }
+        }
+
+        private class CustomSpawnGroup : SpawnGroup
+        {
+            private static AIInformationZone FindVirtualInfoZone(Vector3 position)
+            {
+                foreach (var zone in AIInformationZone.zones)
+                {
+                    if (zone.Virtual && zone.PointInside(position))
+                        return zone;
+                }
+
                 return null;
             }
 
-            public static void ConnectNearbyVehicleSpawner(VehicleVendor vehicleVendor)
+            private SpawnGroupAdapter _spawnGroupAdapter;
+            private AIInformationZone _cachedInfoZone;
+            private bool _didLookForInfoZone;
+
+            public void Init(SpawnGroupAdapter spawnGroupAdapter)
             {
-                if (vehicleVendor.GetVehicleSpawner() != null)
-                    return;
-
-                var vehicleSpawner = vehicleVendor.ShortPrefabName == "bandit_conversationalist"
-                    ? GetNearbyEntity<VehicleSpawner>(vehicleVendor, 40, Rust.Layers.Mask.Deployed, "airwolfspawner")
-                    : vehicleVendor.ShortPrefabName == "boat_shopkeeper"
-                    ? GetNearbyEntity<VehicleSpawner>(vehicleVendor, 20, Rust.Layers.Mask.Deployed, "boatspawner")
-                    : null;
-
-                if (vehicleSpawner == null)
-                    return;
-
-                vehicleVendor.spawnerRef.Set(vehicleSpawner);
+                _spawnGroupAdapter = spawnGroupAdapter;
             }
 
-            public static void ConnectNearbyVehicleVendor(VehicleSpawner vehicleSpawner)
+            public void UpdateSpawnClock()
             {
-                var vehicleVendor = vehicleSpawner.ShortPrefabName == "airwolfspawner"
-                    ? GetNearbyEntity<VehicleVendor>(vehicleSpawner, 40, Rust.Layers.Mask.Player_Server, "bandit_conversationalist")
-                    : vehicleSpawner.ShortPrefabName == "boatspawner"
-                    ? GetNearbyEntity<VehicleVendor>(vehicleSpawner, 20, Rust.Layers.Mask.Player_Server, "boat_shopkeeper")
-                    : null;
+                spawnClock = new LocalClock();
+                spawnClock.Add(GetSpawnDelta(), GetSpawnVariance(), Spawn);
+            }
 
-                if (vehicleVendor == null)
-                    return;
+            public float GetTimeToNextSpawn()
+            {
+                if (spawnClock.events.Count == 0)
+                    return float.PositiveInfinity;
 
-                vehicleVendor.spawnerRef.Set(vehicleSpawner);
+                return spawnClock.events.First().time - UnityEngine.Time.time;
+            }
+
+            protected override void PostSpawnProcess(BaseEntity entity, BaseSpawnPoint spawnPoint)
+            {
+                base.PostSpawnProcess(entity, spawnPoint);
+
+                EnableSavingResursive(entity, false);
+
+                var npcPlayer = entity as NPCPlayer;
+                if (npcPlayer != null)
+                {
+                    var virtualInfoZone = GetVirtualInfoZone();
+                    if (virtualInfoZone != null)
+                    {
+                        npcPlayer.VirtualInfoZone = virtualInfoZone;
+
+                        var humanNpc = npcPlayer as HumanNPC;
+                        if (humanNpc != null)
+                        {
+                            virtualInfoZone.RegisterSleepableEntity(humanNpc.Brain);
+                        }
+                    }
+                }
+            }
+
+            private AIInformationZone GetVirtualInfoZone()
+            {
+                if (!_didLookForInfoZone)
+                {
+                    _cachedInfoZone = FindVirtualInfoZone(transform.position);
+                    _didLookForInfoZone = true;
+                }
+
+                return _cachedInfoZone;
+            }
+
+            private void OnDestroy()
+            {
+                SingletonComponent<SpawnHandler>.Instance.SpawnGroups.Remove(this);
+                _spawnGroupAdapter.OnSpawnGroupKilled(this);
             }
         }
 
@@ -3465,278 +3747,6 @@ namespace Oxide.Plugins
 
         #endregion
 
-        #region Spawn Group Components
-
-        private class SpawnedVehicleComponent : FacepunchBehaviour
-        {
-            private const float MaxDistanceSquared = 1;
-
-            private Vector3 _originalPosition;
-            private Transform _transform;
-
-            private void Awake()
-            {
-                _transform = transform;
-                _originalPosition = _transform.position;
-
-                InvokeRandomized(CheckPositionTracked, 10, 10, 1);
-            }
-
-            private void CheckPositionTracked()
-            {
-                _pluginInstance?.TrackStart();
-                CheckPosition();
-                _pluginInstance?.TrackEnd();
-            }
-
-            private void CheckPosition()
-            {
-                if ((_transform.position - _originalPosition).sqrMagnitude < MaxDistanceSquared)
-                    return;
-
-                // Vehicle has moved from its spawn point, so unregister it and re-enable saving.
-                var vehicle = GetComponent<BaseVehicle>();
-                if (vehicle != null && !vehicle.IsDestroyed)
-                {
-                    EnableSavingResursive(vehicle, true);
-                }
-
-                Destroy(GetComponent<SpawnPointInstance>());
-                Destroy(this);
-            }
-        }
-
-        private class CustomSpawnPoint : BaseSpawnPoint
-        {
-            private SpawnPointAdapter _adapter;
-            private SpawnPointData _spawnPointData;
-            private Transform _transform;
-            private BaseEntity _parentEntity;
-            private List<SpawnPointInstance> _instances = new List<SpawnPointInstance>();
-
-            public void Init(SpawnPointAdapter adapter, SpawnPointData spawnPointData)
-            {
-                _adapter = adapter;
-                _spawnPointData = spawnPointData;
-            }
-
-            private void Awake()
-            {
-                _transform = transform;
-                _parentEntity = _transform.parent?.ToBaseEntity();
-            }
-
-            public override void GetLocation(out Vector3 position, out Quaternion rotation)
-            {
-                position = _transform.position;
-                rotation = _transform.rotation;
-
-                if (_spawnPointData.RandomRadius > 0)
-                {
-                    Vector2 vector = UnityEngine.Random.insideUnitCircle * _spawnPointData.RandomRadius;
-                    position += new Vector3(vector.x, 0f, vector.y);
-                }
-
-                if (_spawnPointData.RandomRotation)
-                {
-                    rotation *= Quaternion.Euler(0f, UnityEngine.Random.Range(0f, 360f), 0f);
-                }
-
-                if (_spawnPointData.DropToGround)
-                {
-                    DropToGround(ref position, ref rotation);
-                }
-            }
-
-            public override void ObjectSpawned(SpawnPointInstance instance)
-            {
-                _instances.Add(instance);
-
-                var entity = instance.GetComponent<BaseEntity>();
-
-                if (!entity.HasParent() && _parentEntity != null && !_parentEntity.IsDestroyed)
-                {
-                    entity.SetParent(_parentEntity, worldPositionStays: true);
-                }
-
-                if (IsVehicle(entity))
-                {
-                    instance.gameObject.AddComponent<SpawnedVehicleComponent>();
-                    entity.Invoke(() => DisableVehicleDecay(entity), 5);
-                }
-            }
-
-            public override void ObjectRetired(SpawnPointInstance instance)
-            {
-                _instances.Remove(instance);
-            }
-
-            public override bool IsAvailableTo(GameObjectRef prefabRef)
-            {
-                if (_spawnPointData.Exclusive && _instances.Count > 0)
-                {
-                    return false;
-                }
-
-                if (_spawnPointData.CheckSpace)
-                {
-                    return SingletonComponent<SpawnHandler>.Instance.CheckBounds(prefabRef.Get(), _transform.position, _transform.rotation, Vector3.one);
-                }
-
-                return true;
-            }
-
-            public void OnDestroy()
-            {
-                for (var i = _instances.Count - 1; i >= 0; i--)
-                {
-                    var entity = _instances[i].GetComponent<BaseEntity>();
-                    if (entity != null && !entity.IsDestroyed)
-                    {
-                        entity.Kill();
-                    }
-                }
-
-                _adapter.OnSpawnPointKilled(this);
-            }
-
-            private bool IsVehicle(BaseEntity entity)
-            {
-                return entity is HotAirBalloon || entity is BaseVehicle;
-            }
-
-            private void DisableVehicleDecay(BaseEntity vehicle)
-            {
-                var kayak = vehicle as Kayak;
-                if (kayak != null)
-                {
-                    kayak.timeSinceLastUsed = float.MinValue;
-                    return;
-                }
-
-                var boat = vehicle as MotorRowboat;
-                if (boat != null)
-                {
-                    boat.timeSinceLastUsedFuel = float.MinValue;
-                    return;
-                }
-
-                var sub = vehicle as BaseSubmarine;
-                if (sub != null)
-                {
-                    sub.timeSinceLastUsed = float.MinValue;
-                    return;
-                }
-
-                var hab = vehicle as HotAirBalloon;
-                if (hab != null)
-                {
-                    hab.lastBlastTime = float.MaxValue;
-                    return;
-                }
-
-                var heli = vehicle as MiniCopter;
-                if (heli != null)
-                {
-                    heli.lastEngineOnTime = float.MaxValue;
-                    return;
-                }
-
-                var car = vehicle as ModularCar;
-                if (car != null)
-                {
-                    car.lastEngineOnTime = float.MaxValue;
-                    return;
-                }
-
-                var horse = vehicle as RidableHorse;
-                if (horse != null)
-                {
-                    horse.lastInputTime = float.MaxValue;
-                    return;
-                }
-            }
-        }
-
-        private class CustomSpawnGroup : SpawnGroup
-        {
-            private static AIInformationZone FindVirtualInfoZone(Vector3 position)
-            {
-                foreach (var zone in AIInformationZone.zones)
-                {
-                    if (zone.Virtual && zone.PointInside(position))
-                        return zone;
-                }
-
-                return null;
-            }
-
-            private SpawnGroupAdapter _spawnGroupAdapter;
-            private AIInformationZone _cachedInfoZone;
-            private bool _didLookForInfoZone;
-
-            public void Init(SpawnGroupAdapter spawnGroupAdapter)
-            {
-                _spawnGroupAdapter = spawnGroupAdapter;
-            }
-
-            public void UpdateSpawnClock()
-            {
-                spawnClock = new LocalClock();
-                spawnClock.Add(GetSpawnDelta(), GetSpawnVariance(), Spawn);
-            }
-
-            public float GetTimeToNextSpawn()
-            {
-                if (spawnClock.events.Count == 0)
-                    return float.PositiveInfinity;
-
-                return spawnClock.events.First().time - UnityEngine.Time.time;
-            }
-
-            protected override void PostSpawnProcess(BaseEntity entity, BaseSpawnPoint spawnPoint)
-            {
-                base.PostSpawnProcess(entity, spawnPoint);
-
-                EnableSavingResursive(entity, false);
-
-                var npcPlayer = entity as NPCPlayer;
-                if (npcPlayer != null)
-                {
-                    var virtualInfoZone = GetVirtualInfoZone();
-                    if (virtualInfoZone != null)
-                    {
-                        npcPlayer.VirtualInfoZone = virtualInfoZone;
-
-                        var humanNpc = npcPlayer as HumanNPC;
-                        if (humanNpc != null)
-                        {
-                            virtualInfoZone.RegisterSleepableEntity(humanNpc.Brain);
-                        }
-                    }
-                }
-            }
-
-            private AIInformationZone GetVirtualInfoZone()
-            {
-                if (!_didLookForInfoZone)
-                {
-                    _cachedInfoZone = FindVirtualInfoZone(transform.position);
-                    _didLookForInfoZone = true;
-                }
-
-                return _cachedInfoZone;
-            }
-
-            private void OnDestroy()
-            {
-                SingletonComponent<SpawnHandler>.Instance.SpawnGroups.Remove(this);
-                _spawnGroupAdapter.OnSpawnGroupKilled(this);
-            }
-        }
-
-        #endregion
-
         #region SpawnGroup Adapter/Controller
 
         private class SpawnPointAdapter : BaseTransformAdapter
@@ -4064,6 +4074,8 @@ namespace Oxide.Plugins
 
         #endregion
 
+        #endregion
+
         #region Adapter Display Manager
 
         private class AdapterDisplayManager
@@ -4337,6 +4349,500 @@ namespace Oxide.Plugins
 
         #endregion
 
+        #region Profile Management
+
+        private enum ProfileState { Loading, Loaded, Unloading, Unloaded }
+
+        private class ProfileController
+        {
+            public Profile Profile { get; private set; }
+            public ProfileState ProfileState { get; private set; } = ProfileState.Unloaded;
+            public WaitUntil WaitUntilLoaded;
+            public WaitUntil WaitUntilUnloaded;
+
+            private CoroutineManager _coroutineManager = new CoroutineManager();
+            private Dictionary<BaseIdentifiableData, BaseController> _controllersByData = new Dictionary<BaseIdentifiableData, BaseController>();
+
+            public bool IsEnabled =>
+                _pluginData.IsProfileEnabled(Profile.Name);
+
+            public ProfileController(Profile profile, bool startLoaded = false)
+            {
+                Profile = profile;
+                WaitUntilLoaded = new WaitUntil(() => ProfileState == ProfileState.Loaded);
+                WaitUntilUnloaded = new WaitUntil(() => ProfileState == ProfileState.Unloaded);
+
+                if (startLoaded || (profile.IsEmpty() && IsEnabled))
+                    ProfileState = ProfileState.Loaded;
+            }
+
+            public void OnControllerKilled(BaseController controller) =>
+                _controllersByData.Remove(controller.Data);
+
+            public void StartCoroutine(IEnumerator enumerator) =>
+                _coroutineManager.StartCoroutine(enumerator);
+
+            public IEnumerable<T> GetControllers<T>() where T : BaseController
+            {
+                return _controllersByData.Values.OfType<T>();
+            }
+
+            public IEnumerable<T> GetAdapters<T>() where T : BaseAdapter
+            {
+                foreach (var controller in _controllersByData.Values)
+                {
+                    foreach (var adapter in controller.Adapters)
+                    {
+                        var adapterOfType = adapter as T;
+                        if (adapterOfType != null)
+                        {
+                            yield return adapterOfType;
+                            continue;
+                        }
+
+                        var spawnGroupAdapter = adapter as SpawnGroupAdapter;
+                        if (spawnGroupAdapter != null)
+                        {
+                            foreach (var childAdapter in spawnGroupAdapter.Adapters.OfType<T>())
+                            {
+                                yield return childAdapter;
+                            }
+                        }
+                    }
+                }
+            }
+
+            public void Load(ReferenceTypeWrapper<int> entityCounter = null)
+            {
+                if (ProfileState == ProfileState.Loading || ProfileState == ProfileState.Loaded)
+                    return;
+
+                ProfileState = ProfileState.Loading;
+                StartCoroutine(LoadRoutine(entityCounter));
+            }
+
+            public void PreUnload()
+            {
+                _coroutineManager.Destroy();
+
+                foreach (var controller in _controllersByData.Values)
+                {
+                    controller.PreUnload();
+                }
+            }
+
+            public void Unload()
+            {
+                if (ProfileState == ProfileState.Unloading || ProfileState == ProfileState.Unloaded)
+                    return;
+
+                ProfileState = ProfileState.Unloading;
+                CoroutineManager.StartGlobalCoroutine(UnloadRoutine());
+            }
+
+            public void Reload(Profile newProfileData)
+            {
+                _coroutineManager.StopAll();
+                StartCoroutine(ReloadRoutine(newProfileData));
+            }
+
+            public IEnumerator PartialLoadForLateMonument(ICollection<BaseIdentifiableData> dataList, BaseMonument monument)
+            {
+                if (ProfileState == ProfileState.Loading)
+                    yield break;
+
+                ProfileState = ProfileState.Loading;
+                StartCoroutine(PartialLoadForLateMonumentRoutine(dataList, monument));
+                yield return WaitUntilLoaded;
+            }
+
+            public void SpawnNewData(BaseIdentifiableData data, ICollection<BaseMonument> monuments, bool delay = false)
+            {
+                if (ProfileState == ProfileState.Unloading || ProfileState == ProfileState.Unloaded)
+                    return;
+
+                ProfileState = ProfileState.Loading;
+                StartCoroutine(PartialLoadForLateDataRoutine(data, monuments, delay));
+            }
+
+            public void Rename(string newName)
+            {
+                _pluginData.RenameProfileReferences(Profile.Name, newName);
+                Profile.CopyTo(newName);
+            }
+
+            public void Enable()
+            {
+                if (IsEnabled)
+                    return;
+
+                _pluginData.SetProfileEnabled(Profile.Name);
+                Load();
+            }
+
+            public void Disable()
+            {
+                if (!IsEnabled)
+                    return;
+
+                PreUnload();
+                Unload();
+            }
+
+            public void Clear()
+            {
+                if (!IsEnabled)
+                {
+                    Profile.MonumentDataMap.Clear();
+                    Profile.Save();
+                    return;
+                }
+
+                _coroutineManager.StopAll();
+                StartCoroutine(ClearRoutine());
+            }
+
+            private BaseController GetController(BaseIdentifiableData data)
+            {
+                BaseController controller;
+                return _controllersByData.TryGetValue(data, out controller)
+                    ? controller
+                    : null;
+            }
+
+            private BaseController EnsureController(BaseIdentifiableData data)
+            {
+                var controller = GetController(data);
+                if (controller == null)
+                {
+                    controller = ControllerFactory.Instance.CreateController(this, data);
+                    _controllersByData[data] = controller;
+                }
+                return controller;
+            }
+
+            private IEnumerator LoadRoutine(ReferenceTypeWrapper<int> entityCounter)
+            {
+                foreach (var entry in Profile.MonumentDataMap.ToArray())
+                {
+                    var monumentData = entry.Value;
+                    if (monumentData.NumSpawnables == 0)
+                        continue;
+
+                    var monumentAliasOrShortName = entry.Key;
+                    var matchingMonuments = _pluginInstance.GetMonumentsByAliasOrShortName(monumentAliasOrShortName);
+                    if (matchingMonuments == null)
+                        continue;
+
+                    if (entityCounter != null)
+                        entityCounter.Value += matchingMonuments.Count * monumentData.Entities.Count;
+
+                    foreach (var data in monumentData.GetSpawnables())
+                        yield return SpawnAtMonumentsRoutine(this, data, matchingMonuments);
+                }
+
+                ProfileState = ProfileState.Loaded;
+            }
+
+            private IEnumerator UnloadRoutine()
+            {
+                foreach (var controller in _controllersByData.Values.ToArray())
+                {
+                    yield return controller.DestroyRoutine();
+                }
+
+                ProfileState = ProfileState.Unloaded;
+            }
+
+            private IEnumerator ReloadRoutine(Profile newProfileData)
+            {
+                Unload();
+                yield return WaitUntilUnloaded;
+
+                Profile = newProfileData;
+
+                Load();
+                yield return WaitUntilLoaded;
+            }
+
+            private IEnumerator ClearRoutine()
+            {
+                Unload();
+                yield return WaitUntilUnloaded;
+
+                Profile.MonumentDataMap.Clear();
+                Profile.Save();
+                ProfileState = ProfileState.Loaded;
+            }
+
+            private IEnumerator PartialLoadForLateMonumentRoutine(ICollection<BaseIdentifiableData> dataList, BaseMonument monument)
+            {
+                foreach (var entityData in dataList)
+                {
+                    // Check for null in case the cargo ship was destroyed.
+                    if (!monument.IsValid)
+                        break;
+
+                    _pluginInstance.TrackStart();
+                    EnsureController(entityData).SpawnAtMonument(monument);
+                    _pluginInstance.TrackEnd();
+                    yield return CoroutineEx.waitForEndOfFrame;
+                }
+
+                ProfileState = ProfileState.Loaded;
+            }
+
+            private IEnumerator SpawnAtMonumentsRoutine(ProfileController profileController, BaseIdentifiableData data, IEnumerable<BaseMonument> monumentList)
+            {
+                _pluginInstance.TrackStart();
+                var controller = GetController(data);
+                if (controller != null)
+                {
+                    // If the controller already exists, the entity was added while the plugin was still spawning entities.
+                    _pluginInstance.TrackEnd();
+                    yield break;
+                }
+
+                controller = EnsureController(data);
+                _pluginInstance.TrackEnd();
+
+                yield return controller.SpawnAtMonumentsRoutine(monumentList);
+            }
+
+            private IEnumerator PartialLoadForLateDataRoutine(BaseIdentifiableData data, ICollection<BaseMonument> monumentList, bool delay)
+            {
+                if (delay)
+                {
+                    // Since the previous profile will despawn one object per frame, wait exactly that long before respawning.
+                    // One reason to do this is to make sure spawn points that check for space don't find the previous entity in the way.
+                    yield return WaitForFrames(monumentList.Count);
+                }
+
+                yield return SpawnAtMonumentsRoutine(this, data, monumentList);
+                ProfileState = ProfileState.Loaded;
+            }
+        }
+
+        // This works around coroutines not allowing ref/out parameters.
+        private class ReferenceTypeWrapper<T>
+        {
+            public T Value;
+
+            public ReferenceTypeWrapper(T value = default(T))
+            {
+                Value = value;
+            }
+        }
+
+        private struct ProfileInfo
+        {
+            public static ProfileInfo[] GetList(ProfileManager profileManager)
+            {
+                var profileNameList = Profile.GetProfileNames();
+                var profileInfoList = new ProfileInfo[profileNameList.Length];
+
+                for (var i = 0; i < profileNameList.Length; i++)
+                {
+                    var profileName = profileNameList[i];
+                    profileInfoList[i] = new ProfileInfo
+                    {
+                        Name = profileName,
+                        Enabled = _pluginData.EnabledProfiles.Contains(profileName),
+                        Profile = profileManager.GetCachedProfileController(profileName)?.Profile
+                    };
+                }
+
+                return profileInfoList;
+            }
+
+            public string Name;
+            public bool Enabled;
+            public Profile Profile;
+        }
+
+        private class ProfileManager
+        {
+            private List<ProfileController> _profileControllers = new List<ProfileController>();
+
+            public IEnumerator LoadAllProfilesRoutine()
+            {
+                foreach (var profileName in _pluginData.EnabledProfiles.ToArray())
+                {
+                    ProfileController controller;
+                    try
+                    {
+                        controller = GetProfileController(profileName);
+                    }
+                    catch (Exception ex)
+                    {
+                        _pluginData.SetProfileDisabled(profileName);
+                        _pluginInstance.LogError($"Disabled profile {profileName} due to error: {ex.Message}");
+                        continue;
+                    }
+
+                    if (controller == null)
+                    {
+                        _pluginData.SetProfileDisabled(profileName);
+                        _pluginInstance.LogWarning($"Disabled profile {profileName} because its data file was not found.");
+                        continue;
+                    }
+
+                    var entityCounter = new ReferenceTypeWrapper<int>();
+
+                    controller.Load(entityCounter);
+                    yield return controller.WaitUntilLoaded;
+
+                    var profile = controller.Profile;
+                    var byAuthor = !string.IsNullOrWhiteSpace(profile.Author) ? $" by {profile.Author}" : string.Empty;
+
+                    _pluginInstance.Puts($"Loaded profile {profile.Name}{byAuthor} ({entityCounter.Value} entities spawned).");
+                }
+            }
+
+            public void UnloadAllProfiles()
+            {
+                foreach (var controller in _profileControllers)
+                    controller.PreUnload();
+
+                CoroutineManager.StartGlobalCoroutine(UnloadAllProfilesRoutine());
+            }
+
+            public IEnumerator PartialLoadForLateMonumentRoutine(BaseMonument monument)
+            {
+                foreach (var controller in _profileControllers)
+                {
+                    if (!controller.IsEnabled)
+                        continue;
+
+                    MonumentData monumentData;
+                    if (!controller.Profile.MonumentDataMap.TryGetValue(monument.AliasOrShortName, out monumentData))
+                        continue;
+
+                    if (monumentData.NumSpawnables == 0)
+                        continue;
+
+                    yield return controller.PartialLoadForLateMonument(monumentData.GetSpawnables(), monument);
+                }
+            }
+
+            public ProfileController GetCachedProfileController(string profileName)
+            {
+                var profileNameLower = profileName.ToLower();
+
+                foreach (var cachedController in _profileControllers)
+                {
+                    if (cachedController.Profile.Name.ToLower() == profileNameLower)
+                        return cachedController;
+                }
+
+                return null;
+            }
+
+            public ProfileController GetProfileController(string profileName)
+            {
+                var profileController = GetCachedProfileController(profileName);
+                if (profileController != null)
+                    return profileController;
+
+                var profile = Profile.LoadIfExists(profileName);
+                if (profile != null)
+                {
+                    var controller = new ProfileController(profile);
+                    _profileControllers.Add(controller);
+                    return controller;
+                }
+
+                return null;
+            }
+
+            public ProfileController GetPlayerProfileController(string userId)
+            {
+                string profileName;
+                return _pluginData.SelectedProfiles.TryGetValue(userId, out profileName)
+                    ? GetProfileController(profileName)
+                    : null;
+            }
+
+            public ProfileController GetPlayerProfileControllerOrDefault(string userId)
+            {
+                var controller = GetPlayerProfileController(userId);
+                if (controller != null)
+                    return controller;
+
+                controller = GetProfileController(DefaultProfileName);
+                return controller != null && controller.IsEnabled
+                    ? controller
+                    : null;
+            }
+
+            public bool ProfileExists(string profileName)
+            {
+                var profileNameLower = profileName.ToLower();
+
+                foreach (var cachedController in _profileControllers)
+                {
+                    if (cachedController.Profile.Name.ToLower() == profileNameLower)
+                        return true;
+                }
+
+                return Profile.Exists(profileName);
+            }
+
+            public ProfileController CreateProfile(string profileName, string authorName)
+            {
+                var profile = Profile.Create(profileName, authorName);
+                var controller = new ProfileController(profile, startLoaded: true);
+                _profileControllers.Add(controller);
+                return controller;
+            }
+
+            public IEnumerable<T> GetEnabledAdapters<T>() where T : BaseAdapter
+            {
+                foreach (var profileControler in GetEnabledProfileControllers())
+                {
+                    foreach (var adapter in profileControler.GetAdapters<T>())
+                    {
+                        yield return adapter;
+                    }
+                }
+            }
+
+            public IEnumerable<T> GetEnabledControllers<T>() where T : BaseController
+            {
+                foreach (var profileController in GetEnabledProfileControllers())
+                {
+                    foreach (var controller in profileController.GetControllers<T>())
+                    {
+                        yield return controller;
+                    }
+                }
+            }
+
+            private IEnumerator UnloadAllProfilesRoutine()
+            {
+                foreach (var controller in _profileControllers)
+                {
+                    controller.Unload();
+                    yield return controller.WaitUntilUnloaded;
+                }
+            }
+
+            private IEnumerable<ProfileController> GetEnabledProfileControllers()
+            {
+                foreach (var profileControler in _profileControllers)
+                {
+                    if (profileControler.IsEnabled)
+                    {
+                        yield return profileControler;
+                    }
+                }
+            }
+        }
+
+        #endregion
+
+        #region Data
+
         #region Base Data
 
         private abstract class BaseIdentifiableData
@@ -4539,6 +5045,10 @@ namespace Oxide.Plugins
             }
         }
 
+        #endregion
+
+        #region Profile Data
+
         private class MonumentData
         {
             [JsonProperty("Entities")]
@@ -4595,10 +5105,6 @@ namespace Oxide.Plugins
                 return false;
             }
         }
-
-        #endregion
-
-        #region Profile Data
 
         private static class ProfileDataMigration
         {
@@ -4896,503 +5402,7 @@ namespace Oxide.Plugins
 
         #endregion
 
-        #region Profile Controller
-
-        private enum ProfileState { Loading, Loaded, Unloading, Unloaded }
-
-        private class ProfileController
-        {
-            public Profile Profile { get; private set; }
-            public ProfileState ProfileState { get; private set; } = ProfileState.Unloaded;
-            public WaitUntil WaitUntilLoaded;
-            public WaitUntil WaitUntilUnloaded;
-
-            private CoroutineManager _coroutineManager = new CoroutineManager();
-            private Dictionary<BaseIdentifiableData, BaseController> _controllersByData = new Dictionary<BaseIdentifiableData, BaseController>();
-
-            public bool IsEnabled =>
-                _pluginData.IsProfileEnabled(Profile.Name);
-
-            public ProfileController(Profile profile, bool startLoaded = false)
-            {
-                Profile = profile;
-                WaitUntilLoaded = new WaitUntil(() => ProfileState == ProfileState.Loaded);
-                WaitUntilUnloaded = new WaitUntil(() => ProfileState == ProfileState.Unloaded);
-
-                if (startLoaded || (profile.IsEmpty() && IsEnabled))
-                    ProfileState = ProfileState.Loaded;
-            }
-
-            public void OnControllerKilled(BaseController controller) =>
-                _controllersByData.Remove(controller.Data);
-
-            public void StartCoroutine(IEnumerator enumerator) =>
-                _coroutineManager.StartCoroutine(enumerator);
-
-            public IEnumerable<T> GetControllers<T>() where T : BaseController
-            {
-                return _controllersByData.Values.OfType<T>();
-            }
-
-            public IEnumerable<T> GetAdapters<T>() where T : BaseAdapter
-            {
-                foreach (var controller in _controllersByData.Values)
-                {
-                    foreach (var adapter in controller.Adapters)
-                    {
-                        var adapterOfType = adapter as T;
-                        if (adapterOfType != null)
-                        {
-                            yield return adapterOfType;
-                            continue;
-                        }
-
-                        var spawnGroupAdapter = adapter as SpawnGroupAdapter;
-                        if (spawnGroupAdapter != null)
-                        {
-                            foreach (var childAdapter in spawnGroupAdapter.Adapters.OfType<T>())
-                            {
-                                yield return childAdapter;
-                            }
-                        }
-                    }
-                }
-            }
-
-            public void Load(ReferenceTypeWrapper<int> entityCounter = null)
-            {
-                if (ProfileState == ProfileState.Loading || ProfileState == ProfileState.Loaded)
-                    return;
-
-                ProfileState = ProfileState.Loading;
-                StartCoroutine(LoadRoutine(entityCounter));
-            }
-
-            public void PreUnload()
-            {
-                _coroutineManager.Destroy();
-
-                foreach (var controller in _controllersByData.Values)
-                {
-                    controller.PreUnload();
-                }
-            }
-
-            public void Unload()
-            {
-                if (ProfileState == ProfileState.Unloading || ProfileState == ProfileState.Unloaded)
-                    return;
-
-                ProfileState = ProfileState.Unloading;
-                CoroutineManager.StartGlobalCoroutine(UnloadRoutine());
-            }
-
-            public void Reload(Profile newProfileData)
-            {
-                _coroutineManager.StopAll();
-                StartCoroutine(ReloadRoutine(newProfileData));
-            }
-
-            public IEnumerator PartialLoadForLateMonument(ICollection<BaseIdentifiableData> dataList, BaseMonument monument)
-            {
-                if (ProfileState == ProfileState.Loading)
-                    yield break;
-
-                ProfileState = ProfileState.Loading;
-                StartCoroutine(PartialLoadForLateMonumentRoutine(dataList, monument));
-                yield return WaitUntilLoaded;
-            }
-
-            public void SpawnNewData(BaseIdentifiableData data, ICollection<BaseMonument> monuments, bool delay = false)
-            {
-                if (ProfileState == ProfileState.Unloading || ProfileState == ProfileState.Unloaded)
-                    return;
-
-                ProfileState = ProfileState.Loading;
-                StartCoroutine(PartialLoadForLateDataRoutine(data, monuments, delay));
-            }
-
-            public void Rename(string newName)
-            {
-                _pluginData.RenameProfileReferences(Profile.Name, newName);
-                Profile.CopyTo(newName);
-            }
-
-            public void Enable()
-            {
-                if (IsEnabled)
-                    return;
-
-                _pluginData.SetProfileEnabled(Profile.Name);
-                Load();
-            }
-
-            public void Disable()
-            {
-                if (!IsEnabled)
-                    return;
-
-                PreUnload();
-                Unload();
-            }
-
-            public void Clear()
-            {
-                if (!IsEnabled)
-                {
-                    Profile.MonumentDataMap.Clear();
-                    Profile.Save();
-                    return;
-                }
-
-                _coroutineManager.StopAll();
-                StartCoroutine(ClearRoutine());
-            }
-
-            private BaseController GetController(BaseIdentifiableData data)
-            {
-                BaseController controller;
-                return _controllersByData.TryGetValue(data, out controller)
-                    ? controller
-                    : null;
-            }
-
-            private BaseController EnsureController(BaseIdentifiableData data)
-            {
-                var controller = GetController(data);
-                if (controller == null)
-                {
-                    controller = ControllerFactory.Instance.CreateController(this, data);
-                    _controllersByData[data] = controller;
-                }
-                return controller;
-            }
-
-            private IEnumerator LoadRoutine(ReferenceTypeWrapper<int> entityCounter)
-            {
-                foreach (var entry in Profile.MonumentDataMap.ToArray())
-                {
-                    var monumentData = entry.Value;
-                    if (monumentData.NumSpawnables == 0)
-                        continue;
-
-                    var monumentAliasOrShortName = entry.Key;
-                    var matchingMonuments = _pluginInstance.GetMonumentsByAliasOrShortName(monumentAliasOrShortName);
-                    if (matchingMonuments == null)
-                        continue;
-
-                    if (entityCounter != null)
-                        entityCounter.Value += matchingMonuments.Count * monumentData.Entities.Count;
-
-                    foreach (var data in monumentData.GetSpawnables())
-                        yield return SpawnAtMonumentsRoutine(this, data, matchingMonuments);
-                }
-
-                ProfileState = ProfileState.Loaded;
-            }
-
-            private IEnumerator UnloadRoutine()
-            {
-                foreach (var controller in _controllersByData.Values.ToArray())
-                {
-                    yield return controller.DestroyRoutine();
-                }
-
-                ProfileState = ProfileState.Unloaded;
-            }
-
-            private IEnumerator ReloadRoutine(Profile newProfileData)
-            {
-                Unload();
-                yield return WaitUntilUnloaded;
-
-                Profile = newProfileData;
-
-                Load();
-                yield return WaitUntilLoaded;
-            }
-
-            private IEnumerator ClearRoutine()
-            {
-                Unload();
-                yield return WaitUntilUnloaded;
-
-                Profile.MonumentDataMap.Clear();
-                Profile.Save();
-                ProfileState = ProfileState.Loaded;
-            }
-
-            private IEnumerator PartialLoadForLateMonumentRoutine(ICollection<BaseIdentifiableData> dataList, BaseMonument monument)
-            {
-                foreach (var entityData in dataList)
-                {
-                    // Check for null in case the cargo ship was destroyed.
-                    if (!monument.IsValid)
-                        break;
-
-                    _pluginInstance.TrackStart();
-                    EnsureController(entityData).SpawnAtMonument(monument);
-                    _pluginInstance.TrackEnd();
-                    yield return CoroutineEx.waitForEndOfFrame;
-                }
-
-                ProfileState = ProfileState.Loaded;
-            }
-
-            private IEnumerator SpawnAtMonumentsRoutine(ProfileController profileController, BaseIdentifiableData data, IEnumerable<BaseMonument> monumentList)
-            {
-                _pluginInstance.TrackStart();
-                var controller = GetController(data);
-                if (controller != null)
-                {
-                    // If the controller already exists, the entity was added while the plugin was still spawning entities.
-                    _pluginInstance.TrackEnd();
-                    yield break;
-                }
-
-                controller = EnsureController(data);
-                _pluginInstance.TrackEnd();
-
-                yield return controller.SpawnAtMonumentsRoutine(monumentList);
-            }
-
-            private IEnumerator PartialLoadForLateDataRoutine(BaseIdentifiableData data, ICollection<BaseMonument> monumentList, bool delay)
-            {
-                if (delay)
-                {
-                    // Since the previous profile will despawn one object per frame, wait exactly that long before respawning.
-                    // One reason to do this is to make sure spawn points that check for space don't find the previous entity in the way.
-                    yield return WaitForFrames(monumentList.Count);
-                }
-
-                yield return SpawnAtMonumentsRoutine(this, data, monumentList);
-                ProfileState = ProfileState.Loaded;
-            }
-        }
-
-        #endregion
-
-        #region Profile Manager
-
-        // This works around coroutines not allowing ref/out parameters.
-        private class ReferenceTypeWrapper<T>
-        {
-            public T Value;
-
-            public ReferenceTypeWrapper(T value = default(T))
-            {
-                Value = value;
-            }
-        }
-
-        private struct ProfileInfo
-        {
-            public static ProfileInfo[] GetList(ProfileManager profileManager)
-            {
-                var profileNameList = Profile.GetProfileNames();
-                var profileInfoList = new ProfileInfo[profileNameList.Length];
-
-                for (var i = 0; i < profileNameList.Length; i++)
-                {
-                    var profileName = profileNameList[i];
-                    profileInfoList[i] = new ProfileInfo
-                    {
-                        Name = profileName,
-                        Enabled = _pluginData.EnabledProfiles.Contains(profileName),
-                        Profile = profileManager.GetCachedProfileController(profileName)?.Profile
-                    };
-                }
-
-                return profileInfoList;
-            }
-
-            public string Name;
-            public bool Enabled;
-            public Profile Profile;
-        }
-
-        private class ProfileManager
-        {
-            private List<ProfileController> _profileControllers = new List<ProfileController>();
-
-            public IEnumerator LoadAllProfilesRoutine()
-            {
-                foreach (var profileName in _pluginData.EnabledProfiles.ToArray())
-                {
-                    ProfileController controller;
-                    try
-                    {
-                        controller = GetProfileController(profileName);
-                    }
-                    catch (Exception ex)
-                    {
-                        _pluginData.SetProfileDisabled(profileName);
-                        _pluginInstance.LogError($"Disabled profile {profileName} due to error: {ex.Message}");
-                        continue;
-                    }
-
-                    if (controller == null)
-                    {
-                        _pluginData.SetProfileDisabled(profileName);
-                        _pluginInstance.LogWarning($"Disabled profile {profileName} because its data file was not found.");
-                        continue;
-                    }
-
-                    var entityCounter = new ReferenceTypeWrapper<int>();
-
-                    controller.Load(entityCounter);
-                    yield return controller.WaitUntilLoaded;
-
-                    var profile = controller.Profile;
-                    var byAuthor = !string.IsNullOrWhiteSpace(profile.Author) ? $" by {profile.Author}" : string.Empty;
-
-                    _pluginInstance.Puts($"Loaded profile {profile.Name}{byAuthor} ({entityCounter.Value} entities spawned).");
-                }
-            }
-
-            public void UnloadAllProfiles()
-            {
-                foreach (var controller in _profileControllers)
-                    controller.PreUnload();
-
-                CoroutineManager.StartGlobalCoroutine(UnloadAllProfilesRoutine());
-            }
-
-            public IEnumerator PartialLoadForLateMonumentRoutine(BaseMonument monument)
-            {
-                foreach (var controller in _profileControllers)
-                {
-                    if (!controller.IsEnabled)
-                        continue;
-
-                    MonumentData monumentData;
-                    if (!controller.Profile.MonumentDataMap.TryGetValue(monument.AliasOrShortName, out monumentData))
-                        continue;
-
-                    if (monumentData.NumSpawnables == 0)
-                        continue;
-
-                    yield return controller.PartialLoadForLateMonument(monumentData.GetSpawnables(), monument);
-                }
-            }
-
-            public ProfileController GetCachedProfileController(string profileName)
-            {
-                var profileNameLower = profileName.ToLower();
-
-                foreach (var cachedController in _profileControllers)
-                {
-                    if (cachedController.Profile.Name.ToLower() == profileNameLower)
-                        return cachedController;
-                }
-
-                return null;
-            }
-
-            public ProfileController GetProfileController(string profileName)
-            {
-                var profileController = GetCachedProfileController(profileName);
-                if (profileController != null)
-                    return profileController;
-
-                var profile = Profile.LoadIfExists(profileName);
-                if (profile != null)
-                {
-                    var controller = new ProfileController(profile);
-                    _profileControllers.Add(controller);
-                    return controller;
-                }
-
-                return null;
-            }
-
-            public ProfileController GetPlayerProfileController(string userId)
-            {
-                string profileName;
-                return _pluginData.SelectedProfiles.TryGetValue(userId, out profileName)
-                    ? GetProfileController(profileName)
-                    : null;
-            }
-
-            public ProfileController GetPlayerProfileControllerOrDefault(string userId)
-            {
-                var controller = GetPlayerProfileController(userId);
-                if (controller != null)
-                    return controller;
-
-                controller = GetProfileController(DefaultProfileName);
-                return controller != null && controller.IsEnabled
-                    ? controller
-                    : null;
-            }
-
-            public bool ProfileExists(string profileName)
-            {
-                var profileNameLower = profileName.ToLower();
-
-                foreach (var cachedController in _profileControllers)
-                {
-                    if (cachedController.Profile.Name.ToLower() == profileNameLower)
-                        return true;
-                }
-
-                return Profile.Exists(profileName);
-            }
-
-            public ProfileController CreateProfile(string profileName, string authorName)
-            {
-                var profile = Profile.Create(profileName, authorName);
-                var controller = new ProfileController(profile, startLoaded: true);
-                _profileControllers.Add(controller);
-                return controller;
-            }
-
-            public IEnumerable<T> GetEnabledAdapters<T>() where T : BaseAdapter
-            {
-                foreach (var profileControler in GetEnabledProfileControllers())
-                {
-                    foreach (var adapter in profileControler.GetAdapters<T>())
-                    {
-                        yield return adapter;
-                    }
-                }
-            }
-
-            public IEnumerable<T> GetEnabledControllers<T>() where T : BaseController
-            {
-                foreach (var profileController in GetEnabledProfileControllers())
-                {
-                    foreach (var controller in profileController.GetControllers<T>())
-                    {
-                        yield return controller;
-                    }
-                }
-            }
-
-            private IEnumerator UnloadAllProfilesRoutine()
-            {
-                foreach (var controller in _profileControllers)
-                {
-                    controller.Unload();
-                    yield return controller.WaitUntilUnloaded;
-                }
-            }
-
-            private IEnumerable<ProfileController> GetEnabledProfileControllers()
-            {
-                foreach (var profileControler in _profileControllers)
-                {
-                    if (profileControler.IsEnabled)
-                    {
-                        yield return profileControler;
-                    }
-                }
-            }
-        }
-
-        #endregion
-
-        #region Data
+        #region Plugin Data
 
         private static class StoredDataMigration
         {
@@ -5569,6 +5579,8 @@ namespace Oxide.Plugins
 
         #endregion
 
+        #endregion
+
         #region Configuration
 
         private class Configuration : SerializableConfiguration
@@ -5604,8 +5616,6 @@ namespace Oxide.Plugins
         }
 
         private Configuration GetDefaultConfig() => new Configuration();
-
-        #endregion
 
         #region Configuration Boilerplate
 
@@ -5710,6 +5720,8 @@ namespace Oxide.Plugins
             Log($"Configuration changes saved to {Name}.json");
             Config.WriteObject(_pluginConfig, true);
         }
+
+        #endregion
 
         #endregion
 
