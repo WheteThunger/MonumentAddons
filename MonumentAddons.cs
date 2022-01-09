@@ -3486,11 +3486,13 @@ namespace Oxide.Plugins
             public SpawnPointData SpawnPointData;
 
             private Transform _transform;
+            private BaseEntity _parentEntity;
             private List<SpawnPointInstance> _instances = new List<SpawnPointInstance>();
 
             private void Awake()
             {
                 _transform = transform;
+                _parentEntity = _transform.parent?.ToBaseEntity();
             }
 
             public override void GetLocation(out Vector3 position, out Quaternion rotation)
@@ -3520,6 +3522,11 @@ namespace Oxide.Plugins
                 _instances.Add(instance);
 
                 var entity = instance.GetComponent<BaseEntity>();
+
+                if (!entity.HasParent() && _parentEntity != null && !_parentEntity.IsDestroyed)
+                {
+                    entity.SetParent(_parentEntity, worldPositionStays: true);
+                }
 
                 var vehicle = entity as BaseVehicle;
                 if (vehicle != null)
@@ -3650,6 +3657,12 @@ namespace Oxide.Plugins
                 var gameObject = new GameObject();
                 _transform = gameObject.transform;
                 _transform.SetPositionAndRotation(IntendedPosition, IntendedRotation);
+
+                var dynamicMonument = Monument as DynamicMonument;
+                if (dynamicMonument != null)
+                {
+                    _transform.SetParent(dynamicMonument.RootEntity.transform, worldPositionStays: true);
+                }
 
                 SpawnPoint = gameObject.AddComponent<CustomSpawnPoint>();
                 SpawnPoint.SpawnPointData = SpawnPointData;
