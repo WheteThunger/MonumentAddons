@@ -4191,23 +4191,23 @@ namespace Oxide.Plugins
 
         private abstract class BaseIdentifiableData
         {
-            [JsonProperty("Id", DefaultValueHandling = DefaultValueHandling.Ignore)]
+            [JsonProperty("Id", Order = -5)]
             public Guid Id;
         }
 
         private abstract class BaseTransformData : BaseIdentifiableData
         {
-            [JsonProperty("Position")]
+            [JsonProperty("Position", Order = -4)]
             public Vector3 Position;
 
             // Kept for backwards compatibility.
             [JsonProperty("RotationAngle", DefaultValueHandling = DefaultValueHandling.Ignore)]
             public float DeprecatedRotationAngle { set { RotationAngles = new Vector3(0, value, 0); } }
 
-            [JsonProperty("RotationAngles", DefaultValueHandling = DefaultValueHandling.Ignore)]
+            [JsonProperty("RotationAngles", Order = -3, DefaultValueHandling = DefaultValueHandling.Ignore)]
             public Vector3 RotationAngles;
 
-            [JsonProperty("OnTerrain", DefaultValueHandling = DefaultValueHandling.Ignore)]
+            [JsonProperty("OnTerrain", Order = -2, DefaultValueHandling = DefaultValueHandling.Ignore)]
             public bool OnTerrain = false;
         }
 
