@@ -70,6 +70,8 @@ Spawn groups:
 - `maspawngroup set <option> <value>` -- Sets a property of the spawn group you are looking at.
   - `Name`: string
   - `MaxPopulation`: number
+  - `SpawnPerTickMin`: number
+  - `SpawnPerTickMax`: number
   - `RespawnDelayMin`: number
   - `RespawnDelayMax`: number
 - `maspawngroup add <entity> <weight>` -- Adds the specified entity prefab to the spawn group of the spawn point you are looking at.

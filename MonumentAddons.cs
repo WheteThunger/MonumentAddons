@@ -338,6 +338,8 @@ namespace Oxide.Plugins
             MaxPopulation,
             RespawnDelayMin,
             RespawnDelayMax,
+            SpawnPerTickMin,
+            SpawnPerTickMax,
         }
 
         private enum SpawnPointOption
@@ -1118,9 +1120,6 @@ namespace Oxide.Plugins
                     {
                         Id = Guid.NewGuid(),
                         Name = spawnGroupName,
-                        MaxPopulation = 1,
-                        RespawnDelayMin = 30,
-                        RespawnDelayMax = 60,
                         SpawnPoints = new List<SpawnPointData>
                         {
                             new SpawnPointData
@@ -1191,8 +1190,8 @@ namespace Oxide.Plugins
                                 return;
 
                             spawnGroupData.RespawnDelayMin = respawnDelayMin;
-                            spawnGroupData.RespawnDelayMax = Math.Max(spawnGroupData.RespawnDelayMin, spawnGroupData.RespawnDelayMax);
-                            setValue = spawnGroupData.RespawnDelayMax;
+                            spawnGroupData.RespawnDelayMax = Math.Max(respawnDelayMin, spawnGroupData.RespawnDelayMax);
+                            setValue = respawnDelayMin;
                             break;
                         }
 
@@ -1203,8 +1202,32 @@ namespace Oxide.Plugins
                                 return;
 
                             spawnGroupData.RespawnDelayMax = respawnDelayMax;
-                            spawnGroupData.RespawnDelayMin = Math.Min(spawnGroupData.RespawnDelayMin, spawnGroupData.RespawnDelayMax);
-                            setValue = spawnGroupData.RespawnDelayMin;
+                            spawnGroupData.RespawnDelayMin = Math.Min(spawnGroupData.RespawnDelayMin, respawnDelayMax);
+                            setValue = respawnDelayMax;
+                            break;
+                        }
+
+                        case SpawnGroupOption.SpawnPerTickMin:
+                        {
+                            int spawnPerTickMin;
+                            if (!VerifyValidInt(player, args[2], out spawnPerTickMin, Lang.ErrorSetSyntax, cmd, SpawnGroupOption.SpawnPerTickMin))
+                                return;
+
+                            spawnGroupData.SpawnPerTickMin = spawnPerTickMin;
+                            spawnGroupData.SpawnPerTickMax = Math.Max(spawnPerTickMin, spawnGroupData.SpawnPerTickMax);
+                            setValue = spawnPerTickMin;
+                            break;
+                        }
+
+                        case SpawnGroupOption.SpawnPerTickMax:
+                        {
+                            int spawnPerTickMax;
+                            if (!VerifyValidInt(player, args[2], out spawnPerTickMax, Lang.ErrorSetSyntax, cmd, SpawnGroupOption.SpawnPerTickMax))
+                                return;
+
+                            spawnGroupData.SpawnPerTickMax = spawnPerTickMax;
+                            spawnGroupData.SpawnPerTickMin = Math.Min(spawnGroupData.SpawnPerTickMin, spawnPerTickMax);
+                            setValue = spawnPerTickMax;
                             break;
                         }
                     }
@@ -3816,8 +3839,8 @@ namespace Oxide.Plugins
 
             private void UpdateMaxPopulation()
             {
-                SpawnGroup.numToSpawnPerTickMin = SpawnGroupData.MaxPopulation;
-                SpawnGroup.numToSpawnPerTickMax = SpawnGroupData.MaxPopulation;
+                SpawnGroup.numToSpawnPerTickMin = SpawnGroupData.SpawnPerTickMin;
+                SpawnGroup.numToSpawnPerTickMax = SpawnGroupData.SpawnPerTickMax;
                 SpawnGroup.maxPopulation = SpawnGroupData.MaxPopulation;
             }
 
@@ -4187,7 +4210,8 @@ namespace Oxide.Plugins
 
                     _sb.AppendLine(_pluginInstance.GetMessage(player, Lang.ShowLabelSpawnGroupPoints, spawnGroupData.SpawnPoints.Count));
                     _sb.AppendLine(_pluginInstance.GetMessage(player, Lang.ShowLabelSpawnGroupPopulation, spawnGroupAdapter.SpawnGroup.currentPopulation, spawnGroupData.MaxPopulation));
-                    _sb.AppendLine(_pluginInstance.GetMessage(player, Lang.ShowLabelSpawnGroupRespanDelay, FormatTime(spawnGroupData.RespawnDelayMin), FormatTime(spawnGroupData.RespawnDelayMax)));
+                    _sb.AppendLine(_pluginInstance.GetMessage(player, Lang.ShowLabelSpawnGroupRespawnPerTick, spawnGroupData.SpawnPerTickMin, spawnGroupData.SpawnPerTickMax));
+                    _sb.AppendLine(_pluginInstance.GetMessage(player, Lang.ShowLabelSpawnGroupRespawnDelay, FormatTime(spawnGroupData.RespawnDelayMin), FormatTime(spawnGroupData.RespawnDelayMax)));
 
                     var nextSpawnTime = spawnGroupAdapter.SpawnGroup.GetTimeToNextSpawn();
 
@@ -4442,11 +4466,17 @@ namespace Oxide.Plugins
             [JsonProperty("MaxPopulation")]
             public int MaxPopulation = 1;
 
+            [JsonProperty("SpawnPerTickMin")]
+            public int SpawnPerTickMin = 1;
+
+            [JsonProperty("SpawnPerTickMax")]
+            public int SpawnPerTickMax = 2;
+
             [JsonProperty("RespawnDelayMin")]
-            public float RespawnDelayMin = 10;
+            public float RespawnDelayMin = 30;
 
             [JsonProperty("RespawnDelayMax")]
-            public float RespawnDelayMax = 20;
+            public float RespawnDelayMax = 60;
 
             [JsonProperty("Prefabs")]
             public List<WeightedPrefabData> Prefabs = new List<WeightedPrefabData>();
@@ -5773,7 +5803,8 @@ namespace Oxide.Plugins
 
             public const string ShowLabelSpawnGroupPoints = "Show.Label.SpawnGroup.Points";
             public const string ShowLabelSpawnGroupPopulation = "Show.Label.SpawnGroup.Population";
-            public const string ShowLabelSpawnGroupRespanDelay = "Show.Label.SpawnGroup.RespawnDelay";
+            public const string ShowLabelSpawnGroupRespawnPerTick = "Show.Label.SpawnGroup.RespawnPerTick";
+            public const string ShowLabelSpawnGroupRespawnDelay = "Show.Label.SpawnGroup.RespawnDelay";
             public const string ShowLabelSpawnGroupNextSpawn = "Show.Label.SpawnGroup.NextSpawn";
             public const string ShowLabelSpawnGroupNextSpawnQueued = "Show.Label.SpawnGroup.NextSpawn.Queued";
             public const string ShowLabelSpawnGroupEntities = "Show.Label.SpawnGroup.Entities";
@@ -5923,7 +5954,8 @@ namespace Oxide.Plugins
 
                 [Lang.ShowLabelSpawnGroupPoints] = "Spawn points: {0}",
                 [Lang.ShowLabelSpawnGroupPopulation] = "Population: {0} / {1}",
-                [Lang.ShowLabelSpawnGroupRespanDelay] = "Respawn delay: {0} - {1}",
+                [Lang.ShowLabelSpawnGroupRespawnPerTick] = "Spawn per tick: {0} - {1}",
+                [Lang.ShowLabelSpawnGroupRespawnDelay] = "Respawn delay: {0} - {1}",
                 [Lang.ShowLabelSpawnGroupNextSpawn] = "Next spawn: {0}",
                 [Lang.ShowLabelSpawnGroupNextSpawnQueued] = "Queued",
                 [Lang.ShowLabelSpawnGroupEntities] = "Entities:",
