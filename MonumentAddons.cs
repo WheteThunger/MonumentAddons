@@ -331,6 +331,23 @@ namespace Oxide.Plugins
 
         #region Commands
 
+        private enum SpawnGroupOption
+        {
+            Name,
+            MaxPopulation,
+            RespawnDelayMin,
+            RespawnDelayMax,
+        }
+
+        private enum SpawnPointOption
+        {
+            Exclusive,
+            DropToGround,
+            CheckSpace,
+            RandomRotation,
+            RandomRadius,
+        }
+
         [Command("maspawn")]
         private void CommandSpawn(IPlayer player, string cmd, string[] args)
         {
@@ -396,7 +413,7 @@ namespace Oxide.Plugins
 
             SingleEntityAdapter adapter;
             SingleEntityController controller;
-            if (!VerifyLookingAtAdapter(player, out adapter, out controller))
+            if (!VerifyLookingAtAdapter(player, out adapter, out controller, Lang.ErrorNoSuitableAddonFound))
                 return;
 
             if (adapter.IsAtIntendedPosition)
@@ -418,17 +435,39 @@ namespace Oxide.Plugins
             if (player.IsServer || !VerifyHasPermission(player))
                 return;
 
-            EntityControllerBase controller;
-            if (!VerifyLookingAtAdapter(player, out controller))
+            BaseController controller;
+            BaseTransformAdapter adapter;
+            if (!VerifyLookingAtAdapter(player, out adapter, out controller, Lang.ErrorNoSuitableAddonFound))
                 return;
 
-            var numAdapters = controller.Adapters.Count;;
-            if (!controller.TryDestroyAndRemove())
-                return;
+            var numAdapters = controller.Adapters.Count;
+
+            var spawnPointAdapter = adapter as SpawnPointAdapter;
+            if (spawnPointAdapter != null)
+            {
+                var spawnGroupController = controller as SpawnGroupController;
+
+                var spawnGroupData = spawnGroupController.SpawnGroupData;
+                if (spawnGroupData.SpawnPoints.Count > 1)
+                {
+                    var spawnPointData = spawnPointAdapter.SpawnPointData;
+                    spawnGroupController.RemoveSpawnPoint(spawnPointData);
+                    spawnGroupController.SpawnGroupData.SpawnPoints.Remove(spawnPointData);
+                    spawnGroupController.Profile.Save();
+                }
+                else
+                {
+                    spawnGroupController.TryDestroyAndRemove();
+                }
+            }
+            else
+            {
+                controller.TryDestroyAndRemove();
+            }
 
             var basePlayer = player.Object as BasePlayer;
             _entityDisplayManager.ShowAllRepeatedly(basePlayer);
-            ReplyToPlayer(player, Lang.KillSuccess, numAdapters, controller.Profile.Name);
+            ReplyToPlayer(player, Lang.KillSuccess, GetAddonName(player, adapter.Data), numAdapters, controller.Profile.Name);
         }
 
         [Command("masetid")]
@@ -444,7 +483,7 @@ namespace Oxide.Plugins
             }
 
             CCTVEntityController controller;
-            if (!VerifyLookingAtAdapter(player, out controller))
+            if (!VerifyLookingAtAdapter(player, out controller, Lang.ErrorNoSuitableAddonFound))
                 return;
 
             if (controller.EntityData.CCTV == null)
@@ -467,7 +506,7 @@ namespace Oxide.Plugins
 
             CCTVEntityAdapter adapter;
             CCTVEntityController controller;
-            if (!VerifyLookingAtAdapter(player, out adapter, out controller))
+            if (!VerifyLookingAtAdapter(player, out adapter, out controller, Lang.ErrorNoSuitableAddonFound))
                 return;
 
             var cctv = adapter.Entity as CCTV_RC;
@@ -497,7 +536,7 @@ namespace Oxide.Plugins
 
             SingleEntityAdapter adapter;
             SingleEntityController controller;
-            if (!VerifyLookingAtAdapter(player, out adapter, out controller))
+            if (!VerifyLookingAtAdapter(player, out adapter, out controller, Lang.ErrorNoSuitableAddonFound))
                 return;
 
             if (args.Length == 0)
@@ -827,7 +866,7 @@ namespace Oxide.Plugins
                 case "moveto":
                 {
                     BaseController controller;
-                    if (!VerifyLookingAtAdapter(player, out controller))
+                    if (!VerifyLookingAtAdapter(player, out controller, Lang.ErrorNoSuitableAddonFound))
                         return;
 
                     ProfileController newProfileController;
@@ -838,15 +877,11 @@ namespace Oxide.Plugins
                     var oldProfile = controller.Profile;
 
                     var data = controller.Data;
-                    var entityData = controller.Data as EntityData;
-
-                    var objectName = entityData != null
-                        ? entityData.ShortPrefabName
-                        : GetMessage(player, Lang.AddonTypeSpawnPoint);
+                    var addonName = GetAddonName(player, data);
 
                     if (newProfileController == controller.ProfileController)
                     {
-                        ReplyToPlayer(player, Lang.ProfileMoveToAlreadyPresent, objectName, oldProfile.Name);
+                        ReplyToPlayer(player, Lang.ProfileMoveToAlreadyPresent, addonName, oldProfile.Name);
                         return;
                     }
 
@@ -857,7 +892,7 @@ namespace Oxide.Plugins
                     newProfile.AddData(monumentAliasOrShortName, data);
                     newProfileController.SpawnNewData(data, GetMonumentsByAliasOrShortName(monumentAliasOrShortName), delay: true);
 
-                    ReplyToPlayer(player, Lang.ProfileMoveToSuccess, objectName, oldProfile.Name, newProfile.Name);
+                    ReplyToPlayer(player, Lang.ProfileMoveToSuccess, addonName, oldProfile.Name, newProfile.Name);
                     if (!player.IsServer)
                     {
                         _entityDisplayManager.SetPlayerProfile(basePlayer, newProfileController);
@@ -1050,6 +1085,415 @@ namespace Oxide.Plugins
             ReplyToPlayer(player, Lang.ShowSuccess, FormatTime(duration));
         }
 
+        [Command("maspawngroup", "masg")]
+        private void CommandSpawnGroup(IPlayer player, string cmd, string[] args)
+        {
+            if (player.IsServer || !VerifyHasPermission(player))
+                return;
+
+            if (args.Length < 1)
+            {
+                SubCommandSpawnGroupHelp(player, cmd);
+                return;
+            }
+
+            var basePlayer = player.Object as BasePlayer;
+
+            switch (args[0].ToLower())
+            {
+                case "create":
+                {
+                    if (args.Length < 2)
+                    {
+                        ReplyToPlayer(player, Lang.SpawnGroupCreateSyntax, cmd);
+                        return;
+                    }
+
+                    ProfileController profileController;
+                    Vector3 position;
+                    BaseMonument monument;
+                    if (!VerifyMonumentFinderLoaded(player)
+                        || !VerifyProfileSelected(player, out profileController)
+                        || !VerifyHitPosition(player, out position)
+                        || !VerifyAtMonument(player, position, out monument))
+                        return;
+
+                    Vector3 localPosition;
+                    Vector3 localRotationAngles;
+                    DetermineLocalTransformData(position, basePlayer, monument, out localPosition, out localRotationAngles);
+
+                    var spawnGroupName = args[1];
+                    var spawnGroupData = new SpawnGroupData
+                    {
+                        Id = Guid.NewGuid(),
+                        Name = spawnGroupName,
+                        MaxPopulation = 1,
+                        RespawnDelayMin = 30,
+                        RespawnDelayMax = 60,
+                        SpawnPoints = new List<SpawnPointData>
+                        {
+                            new SpawnPointData
+                            {
+                                Id = Guid.NewGuid(),
+                                Position = localPosition,
+                                RotationAngles = localRotationAngles,
+                                OnTerrain = IsOnTerrain(position),
+                            },
+                        },
+                    };
+
+                    var matchingMonuments = GetMonumentsByAliasOrShortName(monument.AliasOrShortName);
+
+                    profileController.Profile.AddData(monument.AliasOrShortName, spawnGroupData);
+                    profileController.SpawnNewData(spawnGroupData, matchingMonuments);
+
+                    _entityDisplayManager.ShowAllRepeatedly(basePlayer);
+
+                    ReplyToPlayer(player, Lang.SpawnGroupCreateSucces, spawnGroupName);
+                    break;
+                }
+
+                case "set":
+                {
+                    if (args.Length < 3)
+                    {
+                        ReplyToPlayer(player, Lang.ErrorSetSyntax, cmd);
+                        return;
+                    }
+
+                    SpawnGroupOption spawnGroupOption;
+                    if (!TryParseEnum(args[1], out spawnGroupOption))
+                    {
+                        ReplyToPlayer(player, Lang.ErrorSetUnknownOption, args[1]);
+                        return;
+                    }
+
+                    SpawnGroupController spawnGroupController;
+                    if (!VerifyLookingAtAdapter(player, out spawnGroupController, Lang.ErrorNoSpawnPointFound))
+                        return;
+
+                    var spawnGroupData = spawnGroupController.SpawnGroupData;
+                    object setValue = args[2];
+
+                    switch (spawnGroupOption)
+                    {
+                        case SpawnGroupOption.Name:
+                        {
+                            spawnGroupData.Name = args[2];
+                            break;
+                        }
+
+                        case SpawnGroupOption.MaxPopulation:
+                        {
+                            int maxPopulation;
+                            if (!VerifyValidInt(player, args[2], out maxPopulation, Lang.ErrorSetSyntax, cmd, SpawnGroupOption.MaxPopulation))
+                                return;
+
+                            spawnGroupData.MaxPopulation = maxPopulation;
+                            break;
+                        }
+
+                        case SpawnGroupOption.RespawnDelayMin:
+                        {
+                            float respawnDelayMin;
+                            if (!VerifyValidFloat(player, args[2], out respawnDelayMin, Lang.ErrorSetSyntax, cmd, SpawnGroupOption.RespawnDelayMin))
+                                return;
+
+                            spawnGroupData.RespawnDelayMin = respawnDelayMin;
+                            spawnGroupData.RespawnDelayMax = Math.Max(spawnGroupData.RespawnDelayMin, spawnGroupData.RespawnDelayMax);
+                            setValue = spawnGroupData.RespawnDelayMax;
+                            break;
+                        }
+
+                        case SpawnGroupOption.RespawnDelayMax:
+                        {
+                            float respawnDelayMax;
+                            if (!VerifyValidFloat(player, args[2], out respawnDelayMax, Lang.ErrorSetSyntax, cmd, SpawnGroupOption.RespawnDelayMax))
+                                return;
+
+                            spawnGroupData.RespawnDelayMax = respawnDelayMax;
+                            spawnGroupData.RespawnDelayMin = Math.Min(spawnGroupData.RespawnDelayMin, spawnGroupData.RespawnDelayMax);
+                            setValue = spawnGroupData.RespawnDelayMin;
+                            break;
+                        }
+                    }
+
+                    spawnGroupController.UpdateSpawnGroups();
+                    spawnGroupController.Profile.Save();
+
+                    _entityDisplayManager.ShowAllRepeatedly(basePlayer);
+
+                    ReplyToPlayer(player, Lang.SpawnGroupSetSuccess, spawnGroupData.Name, spawnGroupOption, setValue);
+                    break;
+                }
+
+                case "add":
+                {
+                    int weight;
+                    if (args.Length < 3 || !int.TryParse(args[2], out weight))
+                    {
+                        ReplyToPlayer(player, Lang.SpawnGroupAddSyntax, cmd);
+                        return;
+                    }
+
+                    string prefabPath;
+                    if (!VerifyValidPrefab(player, args[1], out prefabPath))
+                        return;
+
+                    SpawnGroupController spawnGroupController;
+                    if (!VerifyLookingAtAdapter(player, out spawnGroupController, Lang.ErrorNoSpawnPointFound))
+                        return;
+
+                    var spawnGroupData = spawnGroupController.SpawnGroupData;
+                    var prefabData = spawnGroupData.Prefabs.Where(entry => entry.PrefabName == prefabPath).FirstOrDefault();
+                    if (prefabData != null)
+                    {
+                        prefabData.Weight = weight;
+                    }
+                    else
+                    {
+                        prefabData = new WeightedPrefabData
+                        {
+                            PrefabName = prefabPath,
+                            Weight = weight,
+                        };
+                        spawnGroupData.Prefabs.Add(prefabData);
+                    }
+
+                    spawnGroupController.UpdateSpawnGroups();
+                    spawnGroupController.Profile.Save();
+
+                    _entityDisplayManager.ShowAllRepeatedly(basePlayer);
+
+                    ReplyToPlayer(player, Lang.SpawnGroupAddSuccess, prefabData.ShortPrefabName, weight, spawnGroupData.Name);
+                    break;
+                }
+
+                case "remove":
+                {
+                    if (args.Length < 2)
+                    {
+                        ReplyToPlayer(player, Lang.SpawnGroupRemoveSyntax, cmd);
+                        return;
+                    }
+
+                    SpawnGroupController spawnGroupController;
+                    if (!VerifyLookingAtAdapter(player, out spawnGroupController, Lang.ErrorNoSpawnPointFound))
+                        return;
+
+                    string desiredPrefab = args[1];
+
+                    var spawnGroupData = spawnGroupController.SpawnGroupData;
+
+                    var matchingPrefabs = spawnGroupData.FindPrefabMatches(desiredPrefab);
+                    if (matchingPrefabs.Count == 0)
+                    {
+                        ReplyToPlayer(player, Lang.SpawnGroupRemoveNoMatch, spawnGroupData.Name, desiredPrefab);
+                        _entityDisplayManager.ShowAllRepeatedly(basePlayer);
+                        return;
+                    }
+
+                    if (matchingPrefabs.Count > 1)
+                    {
+                        ReplyToPlayer(player, Lang.SpawnGroupRemoveMultipleMatches, spawnGroupData.Name, desiredPrefab);
+                        _entityDisplayManager.ShowAllRepeatedly(basePlayer);
+                        return;
+                    }
+
+                    var prefabMatch = matchingPrefabs[0];
+
+                    spawnGroupData.Prefabs.Remove(prefabMatch);
+                    spawnGroupController.UpdateSpawnGroups();
+                    spawnGroupController.Profile.Save();
+
+                    _entityDisplayManager.ShowAllRepeatedly(basePlayer);
+
+                    ReplyToPlayer(player, Lang.SpawnGroupRemoveSuccess, prefabMatch.ShortPrefabName, spawnGroupData.Name);
+                    break;
+                }
+
+                default:
+                {
+                    SubCommandSpawnGroupHelp(player, cmd);
+                    break;
+                }
+            }
+        }
+
+        private void SubCommandSpawnGroupHelp(IPlayer player, string cmd)
+        {
+            var sb = new StringBuilder();
+            sb.AppendLine(GetMessage(player, Lang.SpawnGroupHelpHeader, cmd));
+            sb.AppendLine(GetMessage(player, Lang.SpawnGroupHelpCreate, cmd));
+            sb.AppendLine(GetMessage(player, Lang.SpawnGroupHelpSet, cmd));
+            sb.AppendLine(GetMessage(player, Lang.SpawnGroupHelpAdd, cmd));
+            sb.AppendLine(GetMessage(player, Lang.SpawnGroupHelpRemove, cmd));
+            ReplyToPlayer(player, sb.ToString());
+        }
+
+        [Command("maspawnpoint", "masp")]
+        private void CommandSpawnPoint(IPlayer player, string cmd, string[] args)
+        {
+            if (player.IsServer || !VerifyHasPermission(player))
+                return;
+
+            if (args.Length < 1)
+            {
+                SubCommandSpawnPointHelp(player, cmd);
+                return;
+            }
+
+            var basePlayer = player.Object as BasePlayer;
+
+            switch (args[0].ToLower())
+            {
+                case "create":
+                {
+                    if (args.Length < 2)
+                    {
+                        ReplyToPlayer(player, Lang.SpawnPointCreateSyntax, cmd);
+                        return;
+                    }
+
+                    Vector3 position;
+                    BaseMonument monument;
+                    if (!VerifyMonumentFinderLoaded(player)
+                        || !VerifyHitPosition(player, out position)
+                        || !VerifyAtMonument(player, position, out monument))
+                        return;
+
+                    SpawnGroupController spawnGroupController;
+                    if (!VerifySpawnGroupFound(player, args[1], monument, out spawnGroupController))
+                        return;
+
+                    Vector3 localPosition;
+                    Vector3 localRotationAngles;
+                    DetermineLocalTransformData(position, basePlayer, monument, out localPosition, out localRotationAngles);
+
+                    var spawnPointData = new SpawnPointData
+                    {
+                        Id = Guid.NewGuid(),
+                        Position = localPosition,
+                        RotationAngles = localRotationAngles,
+                        OnTerrain = IsOnTerrain(position),
+                    };
+
+                    spawnGroupController.SpawnGroupData.SpawnPoints.Add(spawnPointData);
+                    spawnGroupController.Profile.Save();
+                    spawnGroupController.AddSpawnPoint(spawnPointData);
+
+                    _entityDisplayManager.ShowAllRepeatedly(basePlayer);
+
+                    ReplyToPlayer(player, Lang.SpawnPointCreateSuccess, spawnGroupController.SpawnGroupData.Name);
+                    break;
+                }
+
+                case "set":
+                {
+                    if (args.Length < 3)
+                    {
+                        ReplyToPlayer(player, Lang.SpawnPointSetSyntax, cmd);
+                        return;
+                    }
+
+                    SpawnPointOption spawnPointOption;
+                    if (!TryParseEnum(args[1], out spawnPointOption))
+                    {
+                        ReplyToPlayer(player, Lang.ErrorSetUnknownOption, args[1]);
+                        return;
+                    }
+
+                    SpawnPointAdapter spawnPointAdapter;
+                    SpawnGroupController spawnGroupController;
+                    if (!VerifyLookingAtAdapter(player, out spawnPointAdapter, out spawnGroupController, Lang.ErrorNoSpawnPointFound))
+                        return;
+
+                    var spawnPointData = spawnPointAdapter.SpawnPointData;
+                    object setValue = args[2];
+
+                    switch (spawnPointOption)
+                    {
+                        case SpawnPointOption.Exclusive:
+                        {
+                            bool exclusive;
+                            if (!VerifyValidBool(player, args[2], out exclusive, Lang.SpawnGroupSetSuccess, Lang.ErrorSetSyntax, cmd, SpawnPointOption.Exclusive))
+                                return;
+
+                            spawnPointData.Exclusive = exclusive;
+                            setValue = spawnPointData.Exclusive;
+                            break;
+                        }
+
+                        case SpawnPointOption.DropToGround:
+                        {
+                            bool dropToGround;
+                            if (!VerifyValidBool(player, args[2], out dropToGround, Lang.ErrorSetSyntax, cmd, SpawnPointOption.DropToGround))
+                                return;
+
+                            spawnPointData.DropToGround = dropToGround;
+                            setValue = spawnPointData.DropToGround;
+                            break;
+                        }
+
+                        case SpawnPointOption.CheckSpace:
+                        {
+                            bool checkSpace;
+                            if (!VerifyValidBool(player, args[2], out checkSpace, Lang.ErrorSetSyntax, cmd, SpawnPointOption.CheckSpace))
+                                return;
+
+                            spawnPointData.CheckSpace = checkSpace;
+                            setValue = spawnPointData.CheckSpace;
+                            break;
+                        }
+
+                        case SpawnPointOption.RandomRotation:
+                        {
+                            bool randomRotation;
+                            if (!VerifyValidBool(player, args[2], out randomRotation, Lang.ErrorSetSyntax, cmd, SpawnPointOption.RandomRotation))
+                                return;
+
+                            spawnPointData.RandomRotation = randomRotation;
+                            setValue = spawnPointData.RandomRotation;
+                            break;
+                        }
+
+                        case SpawnPointOption.RandomRadius:
+                        {
+                            float radius;
+                            if (!VerifyValidFloat(player, args[2], out radius, Lang.ErrorSetSyntax, cmd, SpawnPointOption.RandomRadius))
+                                return;
+
+                            spawnPointData.RandomRadius = radius;
+                            setValue = spawnPointData.RandomRadius;
+                            break;
+                        }
+                    }
+
+                    spawnGroupController.Profile.Save();
+
+                    _entityDisplayManager.ShowAllRepeatedly(basePlayer);
+
+                    ReplyToPlayer(player, Lang.SpawnPointSetSuccess, spawnPointOption, setValue);
+                    break;
+                }
+
+                default:
+                {
+                    SubCommandSpawnPointHelp(player, cmd);
+                    break;
+                }
+            }
+        }
+
+        private void SubCommandSpawnPointHelp(IPlayer player, string cmd)
+        {
+            var sb = new StringBuilder();
+            sb.AppendLine(GetMessage(player, Lang.SpawnPointHelpHeader, cmd));
+            sb.AppendLine(GetMessage(player, Lang.SpawnPointHelpCreate, cmd));
+            sb.AppendLine(GetMessage(player, Lang.SpawnPointHelpSet, cmd));
+            ReplyToPlayer(player, sb.ToString());
+        }
+
         #endregion
 
         #region Helper Methods - Command Checks
@@ -1060,6 +1504,33 @@ namespace Oxide.Plugins
                 return true;
 
             ReplyToPlayer(player, Lang.ErrorNoPermission);
+            return false;
+        }
+
+        private bool VerifyValidInt(IPlayer player, string arg, out int value, string errorMessageName, params object[] args)
+        {
+            if (int.TryParse(arg, out value))
+                return true;
+
+            ReplyToPlayer(player, errorMessageName, args);
+            return false;
+        }
+
+        private bool VerifyValidFloat(IPlayer player, string arg, out float value, string errorMessageName, params object[] args)
+        {
+            if (float.TryParse(arg, out value))
+                return true;
+
+            ReplyToPlayer(player, errorMessageName, args);
+            return false;
+        }
+
+        private bool VerifyValidBool(IPlayer player, string arg, out bool value, string errorMessageName, params object[] args)
+        {
+            if (BooleanParser.TryParse(arg, out value))
+                return true;
+
+            ReplyToPlayer(player, errorMessageName, args);
             return false;
         }
 
@@ -1158,7 +1629,7 @@ namespace Oxide.Plugins
             return false;
         }
 
-        private bool VerifyLookingAtAdapter<TAdapter, TController>(IPlayer player, out AdapterFindResult<TAdapter, TController> findResult)
+        private bool VerifyLookingAtAdapter<TAdapter, TController>(IPlayer player, out AdapterFindResult<TAdapter, TController> findResult, string errorMessageName)
             where TAdapter : BaseTransformAdapter
             where TController : BaseController
         {
@@ -1189,32 +1660,72 @@ namespace Oxide.Plugins
             else
             {
                 // Maybe found an entity, but it did not match the adapter/controller type.
-                ReplyToPlayer(player, Lang.ErrorNoSuitableEntityFound);
+                ReplyToPlayer(player, errorMessageName);
             }
 
             findResult = default(AdapterFindResult<TAdapter, TController>);
             return false;
         }
 
-        private bool VerifyLookingAtAdapter<TAdapter, TController>(IPlayer player, out TAdapter adapter, out TController controller)
+        private bool VerifyLookingAtAdapter<TAdapter, TController>(IPlayer player, out TAdapter adapter, out TController controller, string errorMessageName)
             where TAdapter : BaseTransformAdapter
             where TController : BaseController
         {
             AdapterFindResult<TAdapter, TController> findResult;
-            var result = VerifyLookingAtAdapter(player, out findResult);
+            var result = VerifyLookingAtAdapter(player, out findResult, errorMessageName);
             adapter = findResult.Adapter;
             controller = findResult.Controller;
             return result;
         }
 
         // Convenient method that does not require an adapter type.
-        private bool VerifyLookingAtAdapter<TController>(IPlayer player, out TController controller)
+        private bool VerifyLookingAtAdapter<TController>(IPlayer player, out TController controller, string errorMessageName)
             where TController : BaseController
         {
             AdapterFindResult<BaseTransformAdapter, TController> findResult;
-            var result = VerifyLookingAtAdapter(player, out findResult);
+            var result = VerifyLookingAtAdapter(player, out findResult, errorMessageName);
             controller = findResult.Controller;
             return result;
+        }
+
+        private bool VerifySpawnGroupFound(IPlayer player, string partialGroupName, BaseMonument closestMonument, out SpawnGroupController spawnGroupController)
+        {
+            var matches = FindSpawnGroups(partialGroupName, closestMonument.AliasOrShortName).ToList();
+
+            spawnGroupController = matches.FirstOrDefault();
+
+            if (matches.Count == 1)
+            {
+                return true;
+            }
+
+            if (matches.Count == 0)
+            {
+                ReplyToPlayer(player, Lang.SpawnGroupNotFound, partialGroupName);
+                return false;
+            }
+
+            var playerProfileController = _profileManager.GetPlayerProfileControllerOrDefault(player.Id);
+
+            // Multiple matches found, try to narrow it down.
+            for (var i = matches.Count - 1; i >= 0; i--)
+            {
+                var match = matches[i];
+                if (match.ProfileController != playerProfileController)
+                {
+                    // Remove any controllers that don't match the player's selected profile.
+                    matches.Remove(match);
+                }
+            }
+
+            if (matches.Count == 1)
+            {
+                spawnGroupController = matches[0];
+                return true;
+            }
+
+            ReplyToPlayer(player, Lang.SpawnGroupMultipeMatches, partialGroupName);
+            return false;
         }
 
         private bool VerifyProfileNameAvailable(IPlayer player, string profileName)
@@ -1351,9 +1862,49 @@ namespace Oxide.Plugins
             return FindAdapter<TAdapter, BaseController>(basePlayer);
         }
 
+        private IEnumerable<SpawnGroupController> FindSpawnGroups(string partialGroupName, string monumentAliasOrShortName)
+        {
+            foreach (var spawnGroupController in _profileManager.GetEnabledControllers<SpawnGroupController>())
+            {
+                if (spawnGroupController.SpawnGroupData.Name.IndexOf(partialGroupName, StringComparison.InvariantCultureIgnoreCase) == -1)
+                    continue;
+
+                // Can only select a spawn group for the same monument.
+                // This a slightly hacky way to check this, since data and controllers aren't directly aware of monuments.
+                if (spawnGroupController.Adapters.FirstOrDefault()?.Monument.AliasOrShortName != monumentAliasOrShortName)
+                    continue;
+
+                yield return spawnGroupController;
+            }
+        }
+
         #endregion
 
         #region Helper Methods
+
+        private static class BooleanParser
+        {
+            private static string[] _booleanYesValues = new string[] { "true", "yes", "on", "1" };
+            private static string[] _booleanNoValues = new string[] { "false", "no", "off", "0" };
+
+            public static bool TryParse(string arg, out bool value)
+            {
+                if (_booleanYesValues.Contains(arg, StringComparer.InvariantCultureIgnoreCase))
+                {
+                    value = true;
+                    return true;
+                }
+
+                if (_booleanNoValues.Contains(arg, StringComparer.InvariantCultureIgnoreCase))
+                {
+                    value = false;
+                    return true;
+                }
+
+                value = false;
+                return false;
+            }
+        }
 
         private static bool TryRaycast(BasePlayer player, out RaycastHit hit, float maxDistance = MaxRaycastDistance)
         {
@@ -1497,6 +2048,21 @@ namespace Oxide.Plugins
             {
                 yield return CoroutineEx.waitForEndOfFrame;
             }
+        }
+
+        private static bool TryParseEnum<TEnum>(string arg, out TEnum enumValue) where TEnum : struct
+        {
+            foreach (var value in Enum.GetValues(typeof(TEnum)))
+            {
+                if (value.ToString().IndexOf(arg, StringComparison.InvariantCultureIgnoreCase) >= 0)
+                {
+                    enumValue = (TEnum)value;
+                    return true;
+                }
+            }
+
+            enumValue = default(TEnum);
+            return false;
         }
 
         private bool HasAdminPermission(string userId) =>
@@ -3126,7 +3692,13 @@ namespace Oxide.Plugins
             private void UpdatePrefabEntries()
             {
                 if (SpawnGroup.prefabs.Count == SpawnGroupData.Prefabs.Count)
+                {
+                    for (var i = 0; i < SpawnGroup.prefabs.Count; i++)
+                    {
+                        SpawnGroup.prefabs[i].weight = SpawnGroupData.Prefabs[i].Weight;
+                    }
                     return;
+                }
 
                 SpawnGroup.prefabs.Clear();
 
@@ -3727,6 +4299,40 @@ namespace Oxide.Plugins
 
             [JsonProperty("SpawnPoints")]
             public List<SpawnPointData> SpawnPoints = new List<SpawnPointData>();
+
+            public List<WeightedPrefabData> FindPrefabMatches(string prefabName)
+            {
+                var matches = new List<WeightedPrefabData>();
+
+                // Search for exact matches first.
+                foreach (var prefabData in Prefabs)
+                {
+                    if (prefabData.PrefabName == prefabName)
+                        matches.Add(prefabData);
+                }
+
+                if (matches.Count > 0)
+                    return matches;
+
+                // No exact matches found, so search for exact matches by short prefab name.
+                foreach (var prefabData in Prefabs)
+                {
+                    if (prefabData.ShortPrefabName == prefabName)
+                        matches.Add(prefabData);
+                }
+
+                if (matches.Count > 0)
+                    return matches;
+
+                // No exact matches for short prefab name, so search for partial matches.
+                foreach (var prefabData in Prefabs)
+                {
+                    if (prefabData.PrefabName.Contains(prefabName))
+                        matches.Add(prefabData);
+                }
+
+                return matches;
+            }
         }
 
         private class MonumentData
@@ -4108,12 +4714,7 @@ namespace Oxide.Plugins
 
             public IEnumerable<T> GetControllers<T>() where T : BaseController
             {
-                foreach (var controller in _controllersByData.Values)
-                {
-                    var controllerOfType = controller as T;
-                    if (controllerOfType != null)
-                        yield return controllerOfType;
-                }
+                return _controllersByData.Values.OfType<T>();
             }
 
             public IEnumerable<T> GetAdapters<T>() where T : BaseAdapter
@@ -4534,7 +5135,20 @@ namespace Oxide.Plugins
                 foreach (var profileControler in GetEnabledProfileControllers())
                 {
                     foreach (var adapter in profileControler.GetAdapters<T>())
+                    {
                         yield return adapter;
+                    }
+                }
+            }
+
+            public IEnumerable<T> GetEnabledControllers<T>() where T : BaseController
+            {
+                foreach (var profileController in GetEnabledProfileControllers())
+                {
+                    foreach (var controller in profileController.GetControllers<T>())
+                    {
+                        yield return controller;
+                    }
                 }
             }
 
@@ -4909,14 +5523,30 @@ namespace Oxide.Plugins
                 : string.Empty;
         }
 
+        private string GetAddonName(IPlayer player, BaseIdentifiableData data)
+        {
+            var entityData = data as EntityData;
+            if (entityData != null)
+                return entityData.ShortPrefabName;
+
+            var spawnPointData = data as SpawnPointData;
+            if (spawnPointData != null)
+                return GetMessage(player, Lang.AddonTypeSpawnPoint);
+
+            return GetMessage(player, Lang.AddonTypeUnknown);
+        }
+
         private class Lang
         {
             public const string ErrorNoPermission = "Error.NoPermission";
             public const string ErrorMonumentFinderNotLoaded = "Error.MonumentFinderNotLoaded";
             public const string ErrorNoMonuments = "Error.NoMonuments";
             public const string ErrorNotAtMonument = "Error.NotAtMonument";
-            public const string ErrorNoSuitableEntityFound = "Error.NoSuitableEntityFound";
+            public const string ErrorNoSuitableAddonFound = "Error.NoSuitableAddonFound";
             public const string ErrorEntityNotEligible = "Error.EntityNotEligible";
+            public const string ErrorNoSpawnPointFound = "Error.NoSpawnPointFound";
+            public const string ErrorSetSyntax = "Error.Set.Syntax";
+            public const string ErrorSetUnknownOption = "Error.Set.UnknownOption";
 
             public const string SpawnErrorSyntax = "Spawn.Error.Syntax";
             public const string SpawnErrorNoProfileSelected = "Spawn.Error.NoProfileSelected";
@@ -4924,10 +5554,38 @@ namespace Oxide.Plugins
             public const string SpawnErrorMultipleMatches = "Spawn.Error.MultipleMatches";
             public const string SpawnErrorNoTarget = "Spawn.Error.NoTarget";
             public const string SpawnSuccess = "Spawn.Success2";
-            public const string KillSuccess = "Kill.Success2";
+            public const string KillSuccess = "Kill.Success3";
             public const string MoveNothingToDo = "Move.NothingToDo";
             public const string MoveSuccess = "Move.Success";
+
+            public const string AddonTypeUnknown = "AddonType.Unknown";
             public const string AddonTypeSpawnPoint = "AddonType.SpawnPoint";
+
+            public const string SpawnGroupCreateSyntax = "SpawnGroup.Create.Syntax";
+            public const string SpawnGroupCreateSucces = "SpawnGroup.Create.Success";
+            public const string SpawnGroupSetSuccess = "SpawnGroup.Set.Success";
+            public const string SpawnGroupAddSyntax = "SpawnGroup.Add.Syntax";
+            public const string SpawnGroupAddSuccess = "SpawnGroup.Add.Success";
+            public const string SpawnGroupRemoveSyntax = "SpawnGroup.Remove.Syntax";
+            public const string SpawnGroupRemoveMultipleMatches = "SpawnGroup.Remove.MultipleMatches";
+            public const string SpawnGroupRemoveNoMatch = "SpawnGroup.Remove.NoMatch";
+            public const string SpawnGroupRemoveSuccess = "SpawnGroup.Remove.Success";
+
+            public const string SpawnGroupNotFound = "SpawnGroup.NotFound";
+            public const string SpawnGroupMultipeMatches = "SpawnGroup.MultipeMatches";
+            public const string SpawnPointCreateSyntax = "SpawnPoint.Create.Syntax";
+            public const string SpawnPointCreateSuccess = "SpawnPoint.Create.Success";
+            public const string SpawnPointSetSyntax = "SpawnPoint.Set.Syntax";
+            public const string SpawnPointSetSuccess = "SpawnPoint.Set.Success";
+
+            public const string SpawnGroupHelpHeader = "SpawnGroup.Help.Header";
+            public const string SpawnGroupHelpCreate = "SpawnGroup.Help.Create";
+            public const string SpawnGroupHelpSet = "SpawnGroup.Help.Set";
+            public const string SpawnGroupHelpAdd = "SpawnGroup.Help.Add";
+            public const string SpawnGroupHelpRemove = "SpawnGroup.Help.Remove";
+            public const string SpawnPointHelpHeader = "SpawnPoint.Help.Header";
+            public const string SpawnPointHelpCreate = "SpawnPoint.Help.Create";
+            public const string SpawnPointHelpSet = "SpawnPoint.Help.Set";
 
             public const string ShowSuccess = "Show.Success";
             public const string ShowHeaderEntity = "Show.Header.Entity";
@@ -5032,8 +5690,11 @@ namespace Oxide.Plugins
                 [Lang.ErrorMonumentFinderNotLoaded] = "Error: Monument Finder is not loaded.",
                 [Lang.ErrorNoMonuments] = "Error: No monuments found.",
                 [Lang.ErrorNotAtMonument] = "Error: Not at a monument. Nearest is <color=#fd4>{0}</color> with distance <color=#fd4>{1}</color>",
-                [Lang.ErrorNoSuitableEntityFound] = "Error: No suitable entity found.",
+                [Lang.ErrorNoSuitableAddonFound] = "Error: No suitable addon found.",
                 [Lang.ErrorEntityNotEligible] = "Error: That entity is not managed by Monument Addons.",
+                [Lang.ErrorNoSpawnPointFound] = "Error: No spawn point found.",
+                [Lang.ErrorSetSyntax] = "Syntax: <color=#fd4>{0} set {1} <value></color>",
+                [Lang.ErrorSetUnknownOption] = "Unrecognized option: <color=#fd4>{0}</color>",
 
                 [Lang.SpawnErrorSyntax] = "Syntax: <color=#fd4>maspawn <entity></color>",
                 [Lang.SpawnErrorNoProfileSelected] = "Error: No profile selected. Run <color=#fd4>maprofile help</color> for help.",
@@ -5041,10 +5702,39 @@ namespace Oxide.Plugins
                 [Lang.SpawnErrorMultipleMatches] = "Multiple matches:\n",
                 [Lang.SpawnErrorNoTarget] = "Error: No valid spawn position found.",
                 [Lang.SpawnSuccess] = "Spawned entity at <color=#fd4>{0}</color> matching monument(s) and saved to <color=#fd4>{1}</color> profile for monument <color=#fd4>{2}</color>.",
-                [Lang.KillSuccess] = "Killed entity at <color=#fd4>{0}</color> matching monument(s) and removed from profile <color=#fd4>{1}</color>.",
+                [Lang.KillSuccess] = "Killed <color=#fd4>{0}</color> at <color=#fd4>{1}</color> matching monument(s) and removed from profile <color=#fd4>{2}</color>.",
                 [Lang.MoveNothingToDo] = "That entity is already at the saved position.",
                 [Lang.MoveSuccess] = "Updated entity position at <color=#fd4>{0}</color> matching monument(s) and saved to profile <color=#fd4>{1}</color>.",
+
+                [Lang.AddonTypeUnknown] = "Addon",
                 [Lang.AddonTypeSpawnPoint] = "Spawn point",
+
+                [Lang.SpawnGroupCreateSyntax] = "Syntax: <color=#fd4>{0} create <name></color>",
+                [Lang.SpawnGroupCreateSucces] = "Successfully created spawn group <color=#fd4>{0}</color>.",
+                [Lang.SpawnGroupSetSuccess] = "Successfully updated spawn group <color=#fd4>{0}</color> with option <color=#fd4>{1}</color>: <color=#fd4>{2}</color>.",
+                [Lang.SpawnGroupAddSyntax] = "Syntax: <color=#fd4>{0} add <entity> <weight></color>",
+                [Lang.SpawnGroupAddSuccess] = "Successfully added entity <color=#fd4>{0}</color> with weight <color=#fd4>{1}</color> to spawn group <color=#fd4>{2}</color>.",
+                [Lang.SpawnGroupRemoveSyntax] = "Syntax: <color=#fd4>{0} remove <entity>/color>",
+                [Lang.SpawnGroupRemoveMultipleMatches] = "Multiple entities in spawn group <color=#fd4>{0}</color> found matching: <color=#fd4>{1}</color>. Please be more specific.",
+                [Lang.SpawnGroupRemoveNoMatch] = "No entity found in spawn group <color=#fd4>{0}</color> matching <color=#fd4>{1}</color>",
+                [Lang.SpawnGroupRemoveSuccess] = "Successfully removed entity <color=#fd4>{0}</color> from spawn group <color=#fd4>{1}</color>.",
+
+                [Lang.SpawnGroupNotFound] = "No spawn group found with name: <color=#fd4>{0}</color>",
+                [Lang.SpawnGroupMultipeMatches] = "Multiple spawn groupds found matching name: <color=#fd4>{0}</color>",
+                [Lang.SpawnPointCreateSyntax] = "Syntax: <color=#fd4>{0} create <group_name></color>",
+                [Lang.SpawnPointCreateSuccess] = "Successfully added spawn point to spawn group <color=#fd4>{0}</color>.",
+                [Lang.SpawnPointSetSyntax] = "Syntax: <color=#fd4>{0} set <option> <value></color>",
+                [Lang.SpawnPointSetSuccess] = "Successfully updated spawn point with option <color=#fd4>{0}</color>: <color=#fd4>{1}</color>.",
+
+                [Lang.SpawnGroupHelpHeader] = "<size=18>Monument Addons Spawn Group Commands</size>",
+                [Lang.SpawnGroupHelpCreate] = "<color=#fd4>{0} create <name></color> - Create a spawn group with a spawn point",
+                [Lang.SpawnGroupHelpSet] = "<color=#fd4>{0} set <option> <value></color> - Set a property of a spawn group",
+                [Lang.SpawnGroupHelpAdd] = "<color=#fd4>{0} add <entity> <weight></color> - Add an entity prefab to a spawn group",
+                [Lang.SpawnGroupHelpRemove] = "<color=#fd4>{0} remove <entity> <weight></color> - Remove an entity prefab from a spawn group",
+
+                [Lang.SpawnPointHelpHeader] = "<size=18>Monument Addons Spawn Point Commands</size>",
+                [Lang.SpawnPointHelpCreate] = "<color=#fd4>{0} create <group_name></color> - Create a spawn point",
+                [Lang.SpawnPointHelpSet] = "<color=#fd4>{0} set <option> <value></color> - Set a property of a spawn point",
 
                 [Lang.ShowSuccess] = "Showing nearby Monument Addons for <color=#fd4>{0}</color>.",
                 [Lang.ShowLabelMonument] = "Monument: {0} (x{1})",

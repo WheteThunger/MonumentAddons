@@ -54,14 +54,35 @@ This does several things.
   - Debug information is also automatically displayed for at least 60 seconds when using other commands.
   - When specifying a profile name, entities belonging to other profiles will have gray text.
 
-The following commands only work on entities spawned by this plugin. The effect of these commands automatically applies to all copies of the entity at matching monuments, and also applies updates the data files.
+The following commands only work on objects managed by this plugin. The effect of these commands automatically applies to all copies of the object at matching monuments, and also updates the data files.
 
-- `makill` -- Kills the entity that you are aiming at.
+- `makill` -- Removes the entity or spawn point that you are aiming at.
 - `masave` -- Saves the current position and rotation of the entity you are aiming at. This is useful if you moved the entity with a plugin such as Edit Tool or Uber Tool. This is not necessary if you are repositioning entities with [Telekinesis](https://umod.org/plugins/telekinesis) since that will be automatically detected.
 - `maskin <skin id>` -- Updates the skin of the entity you are aiming at.
 - `masetid <id>` -- Updates the RC identifier of the CCTV camera you are aiming at.
   - Note: Each CCTV's RC identifier will have a numeric suffix like `1`, `2`, `3` and so on. This is done because each CCTV must have a unique identifier.
 - `masetdir` -- Updates the direction of the CCTV you are aiming at, so that it points toward you.
+
+### Spawn points and spawn groups
+
+Spawn groups:
+- `maspawngroup create <name>` -- Creates a spawn group with a spawn point where you are looking.
+- `maspawngroup set <option> <value>` -- Sets a property of the spawn group you are looking at.
+  - `Name`: string
+  - `MaxPopulation`: number
+  - `RespawnDelayMin`: number
+  - `RespawnDelayMax`: number
+- `maspawngroup add <entity> <weight>` -- Adds the specified entity prefab to the spawn group of the spawn point you are looking at.
+- `maspawngroup remove <entity>` -- Removes the specified entity prefab from the spawn group of the spawn point you are looking at.
+
+Spawn points:
+- `maspawnpoint create <group_name>` -- Creates a spawn point where you are looking, for the specified spawn group.
+- `maspawnpoint set <option> <value>` -- Sets a property of the spawn group you are looking at.
+  - `Exclusive`: true/false
+  - `DropToGround`: true/false
+  - `CheckSpace`: true/false
+  - `RandomRotation` : true/false
+  - `RandomRadius`: number
 
 ### Profiles
 
