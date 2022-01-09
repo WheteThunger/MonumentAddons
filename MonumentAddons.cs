@@ -2776,11 +2776,6 @@ namespace Oxide.Plugins
                 var combatEntity = Entity as BaseCombatEntity;
                 if (combatEntity != null)
                 {
-                    if (ShouldBeImmortal())
-                    {
-                        combatEntity.baseProtection = _pluginInstance._immortalProtection;
-                    }
-
                     combatEntity.pickup.enabled = false;
                 }
 
@@ -2818,6 +2813,16 @@ namespace Oxide.Plugins
                 // Disable saving after spawn to make sure children that are spawned late also have saving disabled.
                 // For example, the Lift class spawns a sub entity.
                 EnableSavingResursive(Entity, false);
+
+                var combatEntity = Entity as BaseCombatEntity;
+                if (combatEntity != null)
+                {
+                    if (ShouldBeImmortal())
+                    {
+                        // Must set after spawn for building blocks.
+                        combatEntity.baseProtection = _pluginInstance._immortalProtection;
+                    }
+                }
 
                 if (Entity is NPCVendingMachine && EntityData.Skin != 0)
                     UpdateSkin();
