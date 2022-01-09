@@ -1,4 +1,5 @@
 ﻿using Newtonsoft.Json;
+using Newtonsoft.Json.Converters;
 using Newtonsoft.Json.Linq;
 using Newtonsoft.Json.Serialization;
 using Oxide.Core;
@@ -2787,6 +2788,21 @@ namespace Oxide.Plugins
                 if (stabilityEntity != null)
                 {
                     stabilityEntity.grounded = true;
+
+                    var buildingBlock = Entity as BuildingBlock;
+                    if (buildingBlock != null)
+                    {
+                        buildingBlock.blockDefinition = PrefabAttribute.server.Find<Construction>(buildingBlock.prefabID);
+                        if (buildingBlock.blockDefinition != null)
+                        {
+                            var buildingGrade = EntityData.BuildingBlock?.Grade ?? buildingBlock.blockDefinition.defaultGrade.gradeBase.type;
+                            buildingBlock.SetGrade(buildingGrade);
+
+                            var maxHealth = buildingBlock.currentGrade.maxHealth;
+                            buildingBlock.InitializeHealth(maxHealth, maxHealth);
+                            buildingBlock.ResetLifeStateOnSpawn = false;
+                        }
+                    }
                 }
 
                 var ioEntity = Entity as IOEntity;
@@ -4187,6 +4203,14 @@ namespace Oxide.Plugins
 
         #region Entity Data
 
+        private class BuildingBlockInfo
+        {
+            [JsonProperty("Grade")]
+            [JsonConverter(typeof(StringEnumConverter))]
+            [DefaultValue(BuildingGrade.Enum.None)]
+            public BuildingGrade.Enum Grade = BuildingGrade.Enum.None;
+        }
+
         private class CCTVInfo
         {
             [JsonProperty("RCIdentifier", DefaultValueHandling = DefaultValueHandling.Ignore)]
@@ -4233,6 +4257,9 @@ namespace Oxide.Plugins
             [JsonProperty("Scale", DefaultValueHandling = DefaultValueHandling.Ignore)]
             [DefaultValue(1f)]
             public float Scale = 1;
+
+            [JsonProperty("BuildingBlock", DefaultValueHandling = DefaultValueHandling.Ignore)]
+            public BuildingBlockInfo BuildingBlock;
 
             [JsonProperty("CCTV", DefaultValueHandling = DefaultValueHandling.Ignore)]
             public CCTVInfo CCTV;
