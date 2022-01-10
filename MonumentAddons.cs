@@ -154,7 +154,11 @@ namespace Oxide.Plugins
             if (component == null)
                 return;
 
-            var controller = component.Adapter.Controller as SignEntityController;
+            var adapter = component.Adapter as SignEntityAdapter;
+            if (adapter == null)
+                return;
+
+            var controller = adapter.Controller as SignEntityController;
             if (controller == null)
                 return;
 
@@ -2054,6 +2058,16 @@ namespace Oxide.Plugins
             }
         }
 
+        private static IEnumerator WaitWhileWithTimeout(Func<bool> predicate, float timeoutSeconds)
+        {
+            var timeoutAt = UnityEngine.Time.time + timeoutSeconds;
+
+            while (predicate() && UnityEngine.Time.time < timeoutAt)
+            {
+                yield return CoroutineEx.waitForEndOfFrame;
+            }
+        }
+
         private static bool TryParseEnum<TEnum>(string arg, out TEnum enumValue) where TEnum : struct
         {
             foreach (var value in Enum.GetValues(typeof(TEnum)))
@@ -2422,7 +2436,7 @@ namespace Oxide.Plugins
 
         private class MonumentEntityComponent : FacepunchBehaviour
         {
-            public static void AddToEntity(BaseEntity entity, EntityAdapterBase adapter, BaseMonument monument) =>
+            public static void AddToEntity(BaseEntity entity, IEntityAdapter adapter, BaseMonument monument) =>
                 entity.gameObject.AddComponent<MonumentEntityComponent>().Init(adapter, monument);
 
             public static MonumentEntityComponent GetForEntity(BaseEntity entity) =>
@@ -2431,7 +2445,7 @@ namespace Oxide.Plugins
             public static MonumentEntityComponent GetForEntity(uint id) =>
                 BaseNetworkable.serverEntities.Find(id)?.GetComponent<MonumentEntityComponent>();
 
-            public EntityAdapterBase Adapter;
+            public IEntityAdapter Adapter;
             private BaseEntity _entity;
 
             private void Awake()
@@ -2440,7 +2454,7 @@ namespace Oxide.Plugins
                 _pluginInstance?._entityTracker.RegisterEntity(_entity);
             }
 
-            public void Init(EntityAdapterBase adapter, BaseMonument monument)
+            public void Init(IEntityAdapter adapter, BaseMonument monument)
             {
                 Adapter = adapter;
             }
@@ -2768,12 +2782,20 @@ namespace Oxide.Plugins
 
         #region Adapter/Controller - Base
 
+        private interface IEntityAdapter
+        {
+            void OnEntityKilled(BaseEntity entity);
+        }
+
         // Represents a single entity, spawn group, or spawn point at a single monument.
         private abstract class BaseAdapter
         {
             public BaseIdentifiableData Data { get; private set; }
             public BaseController Controller { get; private set; }
             public BaseMonument Monument { get; private set; }
+
+            // Subclasses can override this to wait more than one frame for spawn/kill operations.
+            public IEnumerator WaitInstruction { get; protected set; }
 
             public BaseAdapter(BaseIdentifiableData data, BaseController controller, BaseMonument monument)
             {
@@ -2791,9 +2813,8 @@ namespace Oxide.Plugins
         {
             public BaseTransformData TransformData { get; private set; }
 
-            protected Transform _transform;
-            public virtual Vector3 Position => _transform.position;
-            public virtual Quaternion Rotation => _transform.rotation;
+            public abstract Vector3 Position { get; }
+            public abstract Quaternion Rotation { get; }
 
             public Vector3 LocalPosition => Monument.InverseTransformPoint(Position);
             public Quaternion LocalRotation => Quaternion.Inverse(Monument.Rotation) * Rotation;
@@ -2884,9 +2905,9 @@ namespace Oxide.Plugins
                 foreach (var monument in monumentList)
                 {
                     _pluginInstance.TrackStart();
-                    SpawnAtMonument(monument);
+                    var adapter = SpawnAtMonument(monument);
                     _pluginInstance.TrackEnd();
-                    yield return CoroutineEx.waitForEndOfFrame;
+                    yield return adapter.WaitInstruction;
                 }
             }
 
@@ -2897,7 +2918,7 @@ namespace Oxide.Plugins
                     _pluginInstance?.TrackStart();
                     adapter.Kill();
                     _pluginInstance?.TrackEnd();
-                    yield return CoroutineEx.waitForEndOfFrame;
+                    yield return adapter.WaitInstruction;
                 }
             }
 
@@ -2918,7 +2939,7 @@ namespace Oxide.Plugins
 
         #region Entity Adapter/Controller - Base
 
-        private abstract class EntityAdapterBase : BaseTransformAdapter
+        private abstract class EntityAdapterBase : BaseTransformAdapter, IEntityAdapter
         {
             public EntityData EntityData { get; private set; }
             public virtual bool IsDestroyed { get; }
@@ -3013,6 +3034,10 @@ namespace Oxide.Plugins
         {
             public BaseEntity Entity { get; private set; }
             public override bool IsDestroyed => Entity == null || Entity.IsDestroyed;
+            public override Vector3 Position => _transform.position;
+            public override Quaternion Rotation => _transform.rotation;
+
+            private Transform _transform;
 
             public SingleEntityAdapter(EntityControllerBase controller, EntityData entityData, BaseMonument monument) : base(controller, monument, entityData) {}
 
@@ -3753,7 +3778,10 @@ namespace Oxide.Plugins
         {
             public SpawnPointData SpawnPointData { get; private set; }
             public CustomSpawnPoint SpawnPoint { get; private set; }
+            public override Vector3 Position => _transform.position;
+            public override Quaternion Rotation => _transform.rotation;
 
+            private Transform _transform;
             private SpawnGroupAdapter _spawnGroupAdapter;
 
             public SpawnPointAdapter(SpawnPointData spawnPointData, SpawnGroupAdapter spawnGroupAdapter, BaseController controller, BaseMonument monument) : base(spawnPointData, controller, monument)
