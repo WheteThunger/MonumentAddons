@@ -4442,6 +4442,9 @@ namespace Oxide.Plugins
                 if (adapter is SpawnPointAdapter)
                     return new Color(1, 0.5f, 0);
 
+                if (adapter is PasteAdapter)
+                    return Color.cyan;
+
                 return Color.magenta;
             }
 
@@ -4454,8 +4457,8 @@ namespace Oxide.Plugins
 
                 _sb.Clear();
                 _sb.AppendLine($"<size={HeaderSize}>{_pluginInstance.GetMessage(player, Lang.ShowHeaderEntity, entityData.ShortPrefabName)}</size>");
-                _sb.AppendLine(_pluginInstance.GetMessage(player, Lang.ShowLabelMonument, adapter.Monument.AliasOrShortName, entityController.Adapters.Count));
                 _sb.AppendLine(_pluginInstance.GetMessage(player, Lang.ShowLabelProfile, profileController.Profile.Name));
+                _sb.AppendLine(_pluginInstance.GetMessage(player, Lang.ShowLabelMonument, adapter.Monument.AliasOrShortName, entityController.Adapters.Count));
 
                 if (entityData.Skin != 0)
                     _sb.AppendLine(_pluginInstance.GetMessage(player, Lang.ShowLabelSkin, entityData.Skin));
@@ -4574,6 +4577,21 @@ namespace Oxide.Plugins
                 Ddraw.Text(player, adapter.Position, _sb.ToString(), color, DisplayIntervalDuration);
             }
 
+            private void ShowPasteInfo(BasePlayer player, PasteAdapter adapter, PlayerInfo playerInfo)
+            {
+                var pasteData = adapter.PasteData;
+                var entityController = adapter.Controller;
+                var profileController = entityController.ProfileController;
+                var color = DetermineColor(adapter, playerInfo, profileController);
+
+                _sb.Clear();
+                _sb.AppendLine($"<size={HeaderSize}>{_pluginInstance.GetMessage(player, Lang.ShowHeaderPaste, pasteData.Filename)}</size>");
+                _sb.AppendLine(_pluginInstance.GetMessage(player, Lang.ShowLabelProfile, profileController.Profile.Name));
+                _sb.AppendLine(_pluginInstance.GetMessage(player, Lang.ShowLabelMonument, adapter.Monument.AliasOrShortName, entityController.Adapters.Count));
+
+                Ddraw.Text(player, adapter.Position, _sb.ToString(), color, DisplayIntervalDuration);
+            }
+
             private void ShowNearbyAdapters(BasePlayer player, Vector3 playerPosition, PlayerInfo playerInfo)
             {
                 if (!player.IsConnected)
@@ -4596,7 +4614,9 @@ namespace Oxide.Plugins
                     if (entityAdapter != null)
                     {
                         if ((playerPosition - entityAdapter.Position).sqrMagnitude <= DisplayDistanceSquared)
+                        {
                             ShowEntityInfo(player, entityAdapter, playerInfo);
+                        }
 
                         continue;
                     }
@@ -4624,6 +4644,19 @@ namespace Oxide.Plugins
                                 ShowSpawnPointInfo(player, spawnPointAdapter, spawnGroupAdapter, playerInfo, showGroupInfo: spawnPointAdapter == closestSpawnPointAdapter);
                             }
                         }
+
+                        continue;
+                    }
+
+                    var pasteAdapter = adapter as PasteAdapter;
+                    if (pasteAdapter != null)
+                    {
+                        if ((playerPosition - pasteAdapter.Position).sqrMagnitude <= DisplayDistanceSquared)
+                        {
+                            ShowPasteInfo(player, pasteAdapter, playerInfo);
+                        }
+
+                        continue;
                     }
                 }
 
@@ -6163,6 +6196,7 @@ namespace Oxide.Plugins
             public const string ShowHeaderEntity = "Show.Header.Entity";
             public const string ShowHeaderSpawnGroup = "Show.Header.SpawnGroup";
             public const string ShowHeaderSpawnPoint = "Show.Header.SpawnPoint";
+            public const string ShowHeaderPaste = "Show.Header.Paste";
             public const string ShowLabelMonument = "Show.Label.Monument";
             public const string ShowLabelProfile = "Show.Label.Profile";
             public const string ShowLabelSkin = "Show.Label.Skin";
@@ -6325,6 +6359,7 @@ namespace Oxide.Plugins
                 [Lang.ShowHeaderEntity] = "Entity: {0}",
                 [Lang.ShowHeaderSpawnGroup] = "Spawn Group: {0}",
                 [Lang.ShowHeaderSpawnPoint] = "Spawn Point ({0})",
+                [Lang.ShowHeaderPaste] = "Paste: {0}",
 
                 [Lang.ShowLabelFlags] = "Flags: {0}",
                 [Lang.ShowLabelSpawnPointExclusive] = "Exclusive",
