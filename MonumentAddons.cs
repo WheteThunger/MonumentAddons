@@ -25,7 +25,7 @@ namespace Oxide.Plugins
         #region Fields
 
         [PluginReference]
-        private Plugin EntityScaleManager, MonumentFinder, SignArtist;
+        private Plugin CopyPaste, EntityScaleManager, MonumentFinder, SignArtist;
 
         private static MonumentAddons _pluginInstance;
         private static Configuration _pluginConfig;
@@ -329,6 +329,54 @@ namespace Oxide.Plugins
                     continue;
 
                 SignArtist.Call(apiName, null, signage as ISignage, imageInfo.Url, imageInfo.Raw, textureIndex);
+            }
+        }
+
+        private static class PasteUtils
+        {
+            private static readonly string[] CopyPasteArgs = new string[]
+            {
+                "stability", "false",
+            };
+
+            private static VersionNumber _requiredVersion = new VersionNumber(4, 2, 0);
+
+            public static bool IsCopyPasteCompatible()
+            {
+                var copyPaste = _pluginInstance?.CopyPaste;
+                return copyPaste != null && copyPaste.Version >= _requiredVersion;
+            }
+
+            public static bool DoesPasteExist(string filename)
+            {
+                return Interface.Oxide.DataFileSystem.ExistsDatafile("copypaste/" + filename);
+            }
+
+            public static Action PasteWithCancelCallback(PasteData pasteData, Vector3 position, float yRotation, Action<BaseEntity> onEntityPasted, Action onPasteCompleted)
+            {
+                var copyPaste = _pluginInstance?.CopyPaste;
+
+                if (copyPaste == null)
+                {
+                    return null;
+                }
+
+                var result = copyPaste.Call("TryPasteFromVector3Cancellable", position, yRotation, pasteData.Filename, CopyPasteArgs, onPasteCompleted, onEntityPasted);
+                if (!(result is ValueTuple<object, Action>))
+                {
+                    // throw new PasteException($"CopyPaste returned an unexpected response: {pasteResult}. Is CopyPaste up-to-date?");
+                    _pluginInstance?.LogError($"CopyPaste returned an unexpected response for paste \"{pasteData.Filename}\": {result}. Is CopyPaste up-to-date?");
+                    return null;
+                }
+
+                var pasteResult = (ValueTuple<object, Action>)result;
+                if (!true.Equals(pasteResult.Item1))
+                {
+                    _pluginInstance?.LogError($"CopyPaste returned an unexpected response for paste \"{pasteData.Filename}\": {pasteResult.Item1}.");
+                    return null;
+                }
+
+                return pasteResult.Item2;
             }
         }
 
@@ -1524,6 +1572,66 @@ namespace Oxide.Plugins
             ReplyToPlayer(player, sb.ToString());
         }
 
+        [Command("mapaste")]
+        private void CommandPaste(IPlayer player, string cmd, string[] args)
+        {
+            if (player.IsServer || !VerifyHasPermission(player))
+                return;
+
+            if (args.Length < 1)
+            {
+                ReplyToPlayer(player, Lang.PasteSyntax);
+                return;
+            }
+
+            if (!PasteUtils.IsCopyPasteCompatible())
+            {
+                ReplyToPlayer(player, Lang.PasteNotCompatible);
+                return;
+            }
+
+            ProfileController profileController;
+            Vector3 position;
+            BaseMonument monument;
+            if (!VerifyMonumentFinderLoaded(player)
+                || !VerifyProfileSelected(player, out profileController)
+                || !VerifyHitPosition(player, out position)
+                || !VerifyAtMonument(player, position, out monument))
+                return;
+
+            var pasteName = args[0];
+
+            if (!PasteUtils.DoesPasteExist(pasteName))
+            {
+                ReplyToPlayer(player, Lang.PasteNotFound, pasteName);
+                return;
+            }
+
+            var basePlayer = player.Object as BasePlayer;
+
+            Vector3 localPosition;
+            Vector3 localRotationAngles;
+            DetermineLocalTransformData(position, basePlayer, monument, out localPosition, out localRotationAngles, flipRotation: false);
+
+            var pasteData = new PasteData
+            {
+                Id = Guid.NewGuid(),
+                Position = localPosition,
+                RotationAngles = localRotationAngles,
+                OnTerrain = IsOnTerrain(position),
+                Filename = pasteName,
+            };
+
+            var matchingMonuments = GetMonumentsByAliasOrShortName(monument.AliasOrShortName);
+
+            profileController.Profile.AddData(monument.AliasOrShortName, pasteData);
+            profileController.SpawnNewData(pasteData, matchingMonuments);
+
+            _entityDisplayManager.ShowAllRepeatedly(basePlayer);
+
+            ReplyToPlayer(player, Lang.PasteSuccess, pasteName, monument.AliasOrShortName, matchingMonuments.Count, profileController.Profile.Name);
+        }
+
         #endregion
 
         #region Utilities
@@ -1942,13 +2050,18 @@ namespace Oxide.Plugins
             return baseName.Replace(".prefab", "");
         }
 
-        private static void DetermineLocalTransformData(Vector3 position, BasePlayer basePlayer, BaseMonument monument, out Vector3 localPosition, out Vector3 localRotationAngles)
+        private static void DetermineLocalTransformData(Vector3 position, BasePlayer basePlayer, BaseMonument monument, out Vector3 localPosition, out Vector3 localRotationAngles, bool flipRotation = true)
         {
             localPosition = monument.InverseTransformPoint(position);
 
             var localRotationAngle = basePlayer.HasParent()
-                ? basePlayer.viewAngles.y - 180
-                : basePlayer.viewAngles.y - monument.Rotation.eulerAngles.y + 180;
+                ? basePlayer.viewAngles.y
+                : basePlayer.viewAngles.y - monument.Rotation.eulerAngles.y;
+
+            if (flipRotation)
+            {
+                localRotationAngle += 180;
+            }
 
             localRotationAngles = new Vector3(0, (localRotationAngle + 360) % 360, 0);
         }
@@ -2301,6 +2414,65 @@ namespace Oxide.Plugins
                     return;
 
                 vehicleVendor.spawnerRef.Set(vehicleSpawner);
+            }
+        }
+
+        private static class EntitySetupUtils
+        {
+            public static bool ShouldBeImmortal(BaseEntity entity)
+            {
+                var samSite = entity as SamSite;
+                if (samSite != null && samSite.staticRespawn)
+                    return false;
+
+                return true;
+            }
+
+            public static void PreSpawnShared(BaseEntity entity)
+            {
+                var combatEntity = entity as BaseCombatEntity;
+                if (combatEntity != null)
+                {
+                    combatEntity.pickup.enabled = false;
+                }
+
+                var stabilityEntity = entity as StabilityEntity;
+                if (stabilityEntity != null)
+                {
+                    stabilityEntity.grounded = true;
+                }
+
+                DestroyProblemComponents(entity);
+            }
+
+            public static void PostSpawnShared(BaseEntity entity)
+            {
+                // Disable saving after spawn to make sure children that are spawned late also have saving disabled.
+                // For example, the Lift class spawns a sub entity.
+                EnableSavingResursive(entity, false);
+
+                var combatEntity = entity as BaseCombatEntity;
+                if (combatEntity != null)
+                {
+                    if (ShouldBeImmortal(entity))
+                    {
+                        // Must set after spawn for building blocks.
+                        combatEntity.baseProtection = _pluginInstance._immortalProtection;
+                    }
+                }
+
+                var decayEntity = entity as DecayEntity;
+                if (decayEntity != null)
+                {
+                    decayEntity.decay = null;
+
+                    var buildingBlock = entity as BuildingBlock;
+                    if (buildingBlock != null && buildingBlock.HasFlag(BuildingBlock.BlockFlags.CanDemolish))
+                    {
+                        // Must be set after spawn for some reason.
+                        buildingBlock.StopBeingDemolishable();
+                    }
+                }
             }
         }
 
@@ -2881,6 +3053,17 @@ namespace Oxide.Plugins
                 return adapter;
             }
 
+            public virtual IEnumerator SpawnAtMonumentsRoutine(IEnumerable<BaseMonument> monumentList)
+            {
+                foreach (var monument in monumentList)
+                {
+                    _pluginInstance.TrackStart();
+                    var adapter = SpawnAtMonument(monument);
+                    _pluginInstance.TrackEnd();
+                    yield return adapter.WaitInstruction;
+                }
+            }
+
             public bool TryDestroyAndRemove(out string monumentAliasOrShortName)
             {
                 var profile = ProfileController.Profile;
@@ -2898,17 +3081,6 @@ namespace Oxide.Plugins
             {
                 string monumentAliasOrShortName;
                 return TryDestroyAndRemove(out monumentAliasOrShortName);
-            }
-
-            public IEnumerator SpawnAtMonumentsRoutine(IEnumerable<BaseMonument> monumentList)
-            {
-                foreach (var monument in monumentList)
-                {
-                    _pluginInstance.TrackStart();
-                    var adapter = SpawnAtMonument(monument);
-                    _pluginInstance.TrackEnd();
-                    yield return adapter.WaitInstruction;
-                }
             }
 
             public IEnumerator DestroyRoutine()
@@ -3117,30 +3289,20 @@ namespace Oxide.Plugins
                 if (EntityData.Skin != 0)
                     Entity.skinID = EntityData.Skin;
 
-                var combatEntity = Entity as BaseCombatEntity;
-                if (combatEntity != null)
-                {
-                    combatEntity.pickup.enabled = false;
-                }
+                EntitySetupUtils.PreSpawnShared(Entity);
 
-                var stabilityEntity = Entity as StabilityEntity;
-                if (stabilityEntity != null)
+                var buildingBlock = Entity as BuildingBlock;
+                if (buildingBlock != null)
                 {
-                    stabilityEntity.grounded = true;
-
-                    var buildingBlock = Entity as BuildingBlock;
-                    if (buildingBlock != null)
+                    buildingBlock.blockDefinition = PrefabAttribute.server.Find<Construction>(buildingBlock.prefabID);
+                    if (buildingBlock.blockDefinition != null)
                     {
-                        buildingBlock.blockDefinition = PrefabAttribute.server.Find<Construction>(buildingBlock.prefabID);
-                        if (buildingBlock.blockDefinition != null)
-                        {
-                            var buildingGrade = EntityData.BuildingBlock?.Grade ?? buildingBlock.blockDefinition.defaultGrade.gradeBase.type;
-                            buildingBlock.SetGrade(buildingGrade);
+                        var buildingGrade = EntityData.BuildingBlock?.Grade ?? buildingBlock.blockDefinition.defaultGrade.gradeBase.type;
+                        buildingBlock.SetGrade(buildingGrade);
 
-                            var maxHealth = buildingBlock.currentGrade.maxHealth;
-                            buildingBlock.InitializeHealth(maxHealth, maxHealth);
-                            buildingBlock.ResetLifeStateOnSpawn = false;
-                        }
+                        var maxHealth = buildingBlock.currentGrade.maxHealth;
+                        buildingBlock.InitializeHealth(maxHealth, maxHealth);
+                        buildingBlock.ResetLifeStateOnSpawn = false;
                     }
                 }
 
@@ -3154,19 +3316,7 @@ namespace Oxide.Plugins
 
             protected virtual void OnEntitySpawned()
             {
-                // Disable saving after spawn to make sure children that are spawned late also have saving disabled.
-                // For example, the Lift class spawns a sub entity.
-                EnableSavingResursive(Entity, false);
-
-                var combatEntity = Entity as BaseCombatEntity;
-                if (combatEntity != null)
-                {
-                    if (ShouldBeImmortal())
-                    {
-                        // Must set after spawn for building blocks.
-                        combatEntity.baseProtection = _pluginInstance._immortalProtection;
-                    }
-                }
+                EntitySetupUtils.PostSpawnShared(Entity);
 
                 if (Entity is NPCVendingMachine && EntityData.Skin != 0)
                     UpdateSkin();
@@ -3190,19 +3340,6 @@ namespace Oxide.Plugins
 
                     // Disallow adding or removing water.
                     paddlingPool.SetFlag(BaseEntity.Flags.Busy, true);
-                }
-
-                var decayEntity = Entity as DecayEntity;
-                if (decayEntity != null)
-                {
-                    decayEntity.decay = null;
-
-                    var buildingBlock = Entity as BuildingBlock;
-                    if (buildingBlock != null && buildingBlock.HasFlag(BuildingBlock.BlockFlags.CanDemolish))
-                    {
-                        // Must be set after spawn for some reason.
-                        buildingBlock.StopBeingDemolishable();
-                    }
                 }
 
                 var vehicleSpawner = Entity as VehicleSpawner;
@@ -4022,7 +4159,135 @@ namespace Oxide.Plugins
 
         #endregion
 
-        #region Entity Controller Factories
+        #region Paste Adapter/Controller
+
+        private class PasteAdapter : BaseTransformAdapter, IEntityAdapter
+        {
+            private const float CopyPasteMagicRotationNumber = 57.2958f;
+
+            public PasteData PasteData { get; private set; }
+            public override Vector3 Position => _position;
+            public override Quaternion Rotation => _rotation;
+
+            private Vector3 _position;
+            private Quaternion _rotation;
+            private bool _isWorking;
+            private Action _cancelPaste;
+            private List<BaseEntity> _pastedEntities = new List<BaseEntity>();
+
+            public PasteAdapter(PasteData pasteData, BaseController controller, BaseMonument monument) : base(pasteData, controller, monument)
+            {
+                PasteData = pasteData;
+            }
+
+            public override void Spawn()
+            {
+                // Simply cache the position and rotation since they are not expected to change.
+                // Parenting pastes to dynamic monuments is not currently supported.
+                _position = IntendedPosition;
+                _rotation = IntendedRotation;
+
+                _cancelPaste = PasteUtils.PasteWithCancelCallback(PasteData, _position, _rotation.eulerAngles.y / CopyPasteMagicRotationNumber, OnEntityPasted, OnPasteComplete);
+
+                if (_cancelPaste != null)
+                {
+                    _isWorking = true;
+                    WaitInstruction = new WaitWhile(() => _isWorking);
+                }
+            }
+
+            public override void Kill()
+            {
+                _cancelPaste?.Invoke();
+
+                _isWorking = true;
+                CoroutineManager.StartGlobalCoroutine(KillRoutine());
+                WaitInstruction = WaitWhileWithTimeout(() => _isWorking, 5);
+            }
+
+            public void OnEntityKilled(BaseEntity entity)
+            {
+                _pastedEntities.Remove(entity);
+
+                if (_pastedEntities.Count == 0)
+                {
+                    // Cancel the paste in case it is still in-progress, to avoid an orphaned adapter.
+                    _cancelPaste?.Invoke();
+
+                    Controller.OnAdapterKilled(this);
+                }
+            }
+
+            private IEnumerator KillRoutine()
+            {
+                var pastedEntities = _pastedEntities.ToArray();
+
+                // Remove the entities in reverse order. Hopefully this makes the top of the building get removed first.
+                for (var i = pastedEntities.Length - 1; i >= 0; i--)
+                {
+                    var entity = pastedEntities[i];
+                    if (entity != null && !entity.IsDestroyed)
+                    {
+                        _pluginInstance?.TrackStart();
+                        entity.Kill();
+                        _pluginInstance?.TrackEnd();
+                        yield return null;
+                    }
+                }
+
+                _isWorking = false;
+            }
+
+            private void OnEntityPasted(BaseEntity entity)
+            {
+                EntitySetupUtils.PreSpawnShared(entity);
+                EntitySetupUtils.PostSpawnShared(entity);
+
+                MonumentEntityComponent.AddToEntity(entity, this, Monument);
+                _pastedEntities.Add(entity);
+            }
+
+            private void OnPasteComplete()
+            {
+                _isWorking = false;
+            }
+        }
+
+        private class PasteController : BaseController
+        {
+            public PasteData PasteData { get; private set; }
+            public IEnumerable<PasteAdapter> PasteAdapters { get; private set; }
+
+            public PasteController(ProfileController profileController, PasteData pasteData) : base(profileController, pasteData)
+            {
+                PasteData = pasteData;
+                PasteAdapters = Adapters.Cast<PasteAdapter>();
+            }
+
+            public override BaseAdapter CreateAdapter(BaseMonument monument) =>
+                new PasteAdapter(PasteData, this, monument);
+
+            public override IEnumerator SpawnAtMonumentsRoutine(IEnumerable<BaseMonument> monumentList)
+            {
+                if (!PasteUtils.IsCopyPasteCompatible())
+                {
+                    _pluginInstance?.LogError($"Unable to paste \"{PasteData.Filename}\" for profile \"{Profile.Name}\" because CopyPaste is not loaded or its version is incompatible.");
+                    yield break;
+                }
+
+                if (!PasteUtils.DoesPasteExist(PasteData.Filename))
+                {
+                    _pluginInstance?.LogError($"Unable to paste \"{PasteData.Filename}\" for profile \"{Profile.Name}\" because the file does not exist.");
+                    yield break;
+                }
+
+                yield return base.SpawnAtMonumentsRoutine(monumentList);
+            }
+        }
+
+        #endregion
+
+        #region Controller Factories
 
         private abstract class EntityControllerFactoryBase
         {
@@ -4073,6 +4338,12 @@ namespace Oxide.Plugins
                 if (spawnGroupData != null)
                 {
                     return new SpawnGroupController(profileController, spawnGroupData);
+                }
+
+                var pasteData = data as PasteData;
+                if (pasteData != null)
+                {
+                    return new PasteController(profileController, pasteData);
                 }
 
                 var entityData = data as EntityData;
@@ -5075,6 +5346,16 @@ namespace Oxide.Plugins
 
         #endregion
 
+        #region Paste Data
+
+        private class PasteData : BaseTransformData
+        {
+            [JsonProperty("Filename")]
+            public string Filename;
+        }
+
+        #endregion
+
         #region Profile Data
 
         private class MonumentData
@@ -5085,14 +5366,20 @@ namespace Oxide.Plugins
             [JsonProperty("SpawnGroups")]
             public List<SpawnGroupData> SpawnGroups = new List<SpawnGroupData>();
 
+            [JsonProperty("Pastes")]
+            public List<PasteData> Pastes = new List<PasteData>();
+
             [JsonIgnore]
-            public int NumSpawnables => Entities.Count + SpawnGroups.Count;
+            public int NumSpawnables => Entities.Count
+                + SpawnGroups.Count
+                + Pastes.Count;
 
             public ICollection<BaseIdentifiableData> GetSpawnables()
             {
                 var list = new List<BaseIdentifiableData>(NumSpawnables);
                 list.AddRange(Entities);
                 list.AddRange(SpawnGroups);
+                list.AddRange(Pastes);
                 return list;
             }
 
@@ -5112,6 +5399,13 @@ namespace Oxide.Plugins
                     return;
                 }
 
+                var pasteData = data as PasteData;
+                if (pasteData != null)
+                {
+                    Pastes.Add(pasteData);
+                    return;
+                }
+
                 _pluginInstance?.LogError($"AddData not implemented for type: {data.GetType()}");
             }
 
@@ -5127,6 +5421,12 @@ namespace Oxide.Plugins
                 if (spawnGroupData != null)
                 {
                     return SpawnGroups.Remove(spawnGroupData);
+                }
+
+                var pasteData = data as PasteData;
+                if (pasteData != null)
+                {
+                    return Pastes.Remove(pasteData);
                 }
 
                 _pluginInstance.LogError($"RemoveData not implemented for type: {data.GetType()}");
@@ -5784,11 +6084,21 @@ namespace Oxide.Plugins
         {
             var entityData = data as EntityData;
             if (entityData != null)
+            {
                 return entityData.ShortPrefabName;
+            }
 
             var spawnPointData = data as SpawnPointData;
             if (spawnPointData != null)
+            {
                 return GetMessage(player, Lang.AddonTypeSpawnPoint);
+            }
+
+            var pasteData = data as PasteData;
+            if (pasteData != null)
+            {
+                return pasteData.Filename;
+            }
 
             return GetMessage(player, Lang.AddonTypeUnknown);
         }
@@ -5814,6 +6124,11 @@ namespace Oxide.Plugins
             public const string KillSuccess = "Kill.Success3";
             public const string MoveNothingToDo = "Move.NothingToDo";
             public const string MoveSuccess = "Move.Success";
+
+            public const string PasteNotCompatible = "Paste.NotCompatible";
+            public const string PasteSyntax = "Paste.Syntax";
+            public const string PasteNotFound = "Paste.NotFound";
+            public const string PasteSuccess = "Paste.Success";
 
             public const string AddonTypeUnknown = "AddonType.Unknown";
             public const string AddonTypeSpawnPoint = "AddonType.SpawnPoint";
@@ -5964,6 +6279,11 @@ namespace Oxide.Plugins
                 [Lang.KillSuccess] = "Killed <color=#fd4>{0}</color> at <color=#fd4>{1}</color> matching monument(s) and removed from profile <color=#fd4>{2}</color>.",
                 [Lang.MoveNothingToDo] = "That entity is already at the saved position.",
                 [Lang.MoveSuccess] = "Updated entity position at <color=#fd4>{0}</color> matching monument(s) and saved to profile <color=#fd4>{1}</color>.",
+
+                [Lang.PasteNotCompatible] = "CopyPaste is not loaded or its version is incompatible.",
+                [Lang.PasteSyntax] = "Syntax: <color=#fd4>mapaste <file></color>",
+                [Lang.PasteNotFound] = "File <color=#fd4>{0}</color> does not exist.",
+                [Lang.PasteSuccess] = "Pasted <color=#fd4>{0}</color> at <color=#fd4>{1}</color> (x<color=#fd4>{2}</color>) and saved to profile <color=#fd4>{3}</color>.",
 
                 [Lang.AddonTypeUnknown] = "Addon",
                 [Lang.AddonTypeSpawnPoint] = "Spawn point",
