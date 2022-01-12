@@ -616,11 +616,9 @@ namespace Oxide.Plugins
 
         private void AddProfileDescription(StringBuilder sb, IPlayer player, ProfileController profileController)
         {
-            foreach (var monumentEntry in profileController.Profile.GetEntityAggregates())
+            foreach (var summaryEntry in GetProfileSummary(player, profileController.Profile))
             {
-                var aliasOrShortName = monumentEntry.Key;
-                foreach (var countEntry in monumentEntry.Value)
-                    sb.AppendLine(GetMessage(player, Lang.ProfileDescribeItem, GetShortName(countEntry.Key), countEntry.Value, aliasOrShortName));
+                sb.AppendLine(GetMessage(player, Lang.ProfileDescribeItem, summaryEntry.AddonType, summaryEntry.AddonName, summaryEntry.Count, summaryEntry.MonumentName));
             }
         }
 
@@ -5391,6 +5389,84 @@ namespace Oxide.Plugins
 
         #region Profile Data
 
+        private class ProfileSummaryEntry
+        {
+            public string MonumentName;
+            public string AddonType;
+            public string AddonName;
+            public int Count;
+        }
+
+        private List<ProfileSummaryEntry> GetProfileSummary(IPlayer player, Profile profile)
+        {
+            var summary = new List<ProfileSummaryEntry>();
+
+            var addonTypeEntity = GetMessage(player, Lang.AddonTypeEntity);
+            var addonTypePaste = GetMessage(player, Lang.AddonTypePaste);
+            var addonTypeSpawnPoint = GetMessage(player, Lang.AddonTypeSpawnPoint);
+
+            foreach (var monumentEntry in profile.MonumentDataMap)
+            {
+                var monumentName = monumentEntry.Key;
+                var monumentData = monumentEntry.Value;
+
+                var entryMap = new Dictionary<string, ProfileSummaryEntry>();
+
+                foreach (var entityData in monumentData.Entities)
+                {
+                    ProfileSummaryEntry summaryEntry;
+                    if (!entryMap.TryGetValue(entityData.ShortPrefabName, out summaryEntry))
+                    {
+                        summaryEntry = new ProfileSummaryEntry
+                        {
+                            MonumentName = monumentName,
+                            AddonType = addonTypeEntity,
+                            AddonName = entityData.ShortPrefabName,
+                        };
+                        entryMap[entityData.ShortPrefabName] = summaryEntry;
+                    }
+
+                    summaryEntry.Count++;
+                }
+
+                foreach (var spawnGroupData in monumentData.SpawnGroups)
+                {
+                    if (spawnGroupData.SpawnPoints.Count == 0)
+                        continue;
+
+                    // Add directly to the summary since different spawn groups could have the same name.
+                    summary.Add(new ProfileSummaryEntry
+                    {
+                        MonumentName = monumentName,
+                        AddonType = addonTypeSpawnPoint,
+                        AddonName = spawnGroupData.Name,
+                        Count = spawnGroupData.SpawnPoints.Count,
+                    });
+                }
+
+                foreach (var pasteData in monumentData.Pastes)
+                {
+                    ProfileSummaryEntry summaryEntry;
+                    if (!entryMap.TryGetValue(pasteData.Filename, out summaryEntry))
+                    {
+                        summaryEntry = new ProfileSummaryEntry
+                        {
+                            MonumentName = monumentName,
+                            AddonType = addonTypePaste,
+                            AddonName = pasteData.Filename,
+                        };
+                        entryMap[pasteData.Filename] = summaryEntry;
+                    }
+
+                    summaryEntry.Count++;
+                }
+
+                summary.AddRange(entryMap.Values);
+            }
+
+            return summary;
+        }
+
         private class MonumentData
         {
             [JsonProperty("Entities")]
@@ -6164,7 +6240,9 @@ namespace Oxide.Plugins
             public const string PasteSuccess = "Paste.Success";
 
             public const string AddonTypeUnknown = "AddonType.Unknown";
+            public const string AddonTypeEntity = "AddonType.Entity";
             public const string AddonTypeSpawnPoint = "AddonType.SpawnPoint";
+            public const string AddonTypePaste = "AddonType.Paste";
 
             public const string SpawnGroupCreateSyntax = "SpawnGroup.Create.Syntax";
             public const string SpawnGroupCreateSucces = "SpawnGroup.Create.Success";
@@ -6250,7 +6328,7 @@ namespace Oxide.Plugins
             public const string ProfileNotFound = "Profile.Error.NotFound";
             public const string ProfileEmpty = "Profile.Empty";
             public const string ProfileDescribeHeader = "Profile.Describe.Header";
-            public const string ProfileDescribeItem = "Profile.Describe.Item";
+            public const string ProfileDescribeItem = "Profile.Describe.Item2";
             public const string ProfileSelectSyntax = "Profile.Select.Syntax";
             public const string ProfileSelectSuccess = "Profile.Select.Success2";
             public const string ProfileSelectEnableSuccess = "Profile.Select.Enable.Success";
@@ -6320,7 +6398,9 @@ namespace Oxide.Plugins
                 [Lang.PasteSuccess] = "Pasted <color=#fd4>{0}</color> at <color=#fd4>{1}</color> (x<color=#fd4>{2}</color>) and saved to profile <color=#fd4>{3}</color>.",
 
                 [Lang.AddonTypeUnknown] = "Addon",
+                [Lang.AddonTypeEntity] = "Entity",
                 [Lang.AddonTypeSpawnPoint] = "Spawn point",
+                [Lang.AddonTypePaste] = "Paste",
 
                 [Lang.SpawnGroupCreateSyntax] = "Syntax: <color=#fd4>{0} create <name></color>",
                 [Lang.SpawnGroupCreateSucces] = "Successfully created spawn group <color=#fd4>{0}</color>.",
@@ -6408,7 +6488,7 @@ namespace Oxide.Plugins
                 [Lang.ProfileNotFound] = "Error: Profile <color=#fd4>{0}</color> not found.",
                 [Lang.ProfileEmpty] = "Profile <color=#fd4>{0}</color> is empty.",
                 [Lang.ProfileDescribeHeader] = "Describing profile <color=#fd4>{0}</color>.",
-                [Lang.ProfileDescribeItem] = "<color=#fd4>{0}</color> x{1} @ {2}",
+                [Lang.ProfileDescribeItem] = "{0}: <color=#fd4>{1}</color> x{2} @ {3}",
                 [Lang.ProfileSelectSyntax] = "Syntax: <color=#fd4>maprofile select <name></color>",
                 [Lang.ProfileSelectSuccess] = "Successfully <color=#6cf>SELECTED</color> profile <color=#fd4>{0}</color>.",
                 [Lang.ProfileSelectEnableSuccess] = "Successfully <color=#6cf>SELECTED</color> and <color=#6e6>ENABLED</color> profile <color=#fd4>{0}</color>.",
