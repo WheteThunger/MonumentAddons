@@ -4742,13 +4742,13 @@ namespace Oxide.Plugins
                 }
             }
 
-            public void Load(ReferenceTypeWrapper<int> entityCounter = null)
+            public void Load(ProfileCounts profileCounts = null)
             {
                 if (ProfileState == ProfileState.Loading || ProfileState == ProfileState.Loaded)
                     return;
 
                 ProfileState = ProfileState.Loading;
-                StartCoroutine(LoadRoutine(entityCounter));
+                StartCoroutine(LoadRoutine(profileCounts));
             }
 
             public void PreUnload()
@@ -4851,7 +4851,7 @@ namespace Oxide.Plugins
                 return controller;
             }
 
-            private IEnumerator LoadRoutine(ReferenceTypeWrapper<int> entityCounter)
+            private IEnumerator LoadRoutine(ProfileCounts profileCounts)
             {
                 foreach (var entry in Profile.MonumentDataMap.ToArray())
                 {
@@ -4864,8 +4864,12 @@ namespace Oxide.Plugins
                     if (matchingMonuments == null)
                         continue;
 
-                    if (entityCounter != null)
-                        entityCounter.Value += matchingMonuments.Count * monumentData.Entities.Count;
+                    if (profileCounts != null)
+                    {
+                        profileCounts.EntityCount += matchingMonuments.Count * monumentData.Entities.Count;
+                        profileCounts.SpawnPointCount += matchingMonuments.Count * monumentData.NumSpawnPoints;
+                        profileCounts.PasteCount += matchingMonuments.Count * monumentData.Pastes.Count;
+                    }
 
                     foreach (var data in monumentData.GetSpawnables())
                         yield return SpawnAtMonumentsRoutine(this, data, matchingMonuments);
@@ -4953,15 +4957,11 @@ namespace Oxide.Plugins
             }
         }
 
-        // This works around coroutines not allowing ref/out parameters.
-        private class ReferenceTypeWrapper<T>
+        private class ProfileCounts
         {
-            public T Value;
-
-            public ReferenceTypeWrapper(T value = default(T))
-            {
-                Value = value;
-            }
+            public int EntityCount;
+            public int SpawnPointCount;
+            public int PasteCount;
         }
 
         private struct ProfileInfo
@@ -5017,15 +5017,29 @@ namespace Oxide.Plugins
                         continue;
                     }
 
-                    var entityCounter = new ReferenceTypeWrapper<int>();
+                    var profileCounts = new ProfileCounts();
 
-                    controller.Load(entityCounter);
+                    controller.Load(profileCounts);
                     yield return controller.WaitUntilLoaded;
 
                     var profile = controller.Profile;
                     var byAuthor = !string.IsNullOrWhiteSpace(profile.Author) ? $" by {profile.Author}" : string.Empty;
 
-                    _pluginInstance.Puts($"Loaded profile {profile.Name}{byAuthor} ({entityCounter.Value} entities spawned).");
+                    var spawnablesSummaryList = new List<string>();
+                    if (profileCounts.EntityCount > 0)
+                        spawnablesSummaryList.Add($"{profileCounts.EntityCount} entities");
+
+                    if (profileCounts.SpawnPointCount > 0)
+                        spawnablesSummaryList.Add($"{profileCounts.SpawnPointCount} spawn points");
+
+                    if (profileCounts.PasteCount > 0)
+                        spawnablesSummaryList.Add($"{profileCounts.PasteCount} pastes");
+
+                    var spawnablesSummary = spawnablesSummaryList.Count > 0
+                        ? string.Join(", ", spawnablesSummaryList)
+                        : "Empty";
+
+                    _pluginInstance.Puts($"Loaded profile {profile.Name}{byAuthor} ({spawnablesSummary}).");
                 }
             }
 
@@ -5482,6 +5496,20 @@ namespace Oxide.Plugins
             public int NumSpawnables => Entities.Count
                 + SpawnGroups.Count
                 + Pastes.Count;
+
+            [JsonIgnore]
+            public int NumSpawnPoints
+            {
+                get
+                {
+                    var count = 0;
+                    foreach (var spawnGroup in SpawnGroups)
+                    {
+                        count += spawnGroup.SpawnPoints.Count;
+                    }
+                    return count;
+                }
+            }
 
             public ICollection<BaseIdentifiableData> GetSpawnables()
             {
