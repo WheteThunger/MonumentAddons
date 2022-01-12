@@ -1153,20 +1153,22 @@ namespace Oxide.Plugins
                         return;
                     }
 
+                    var spawnGroupName = args[1];
+
                     ProfileController profileController;
                     Vector3 position;
                     BaseMonument monument;
                     if (!VerifyMonumentFinderLoaded(player)
                         || !VerifyProfileSelected(player, out profileController)
                         || !VerifyHitPosition(player, out position)
-                        || !VerifyAtMonument(player, position, out monument))
+                        || !VerifyAtMonument(player, position, out monument)
+                        || !VerifySpawnGroupNameAvailable(player, profileController.Profile, monument, spawnGroupName))
                         return;
 
                     Vector3 localPosition;
                     Vector3 localRotationAngles;
                     DetermineLocalTransformData(position, basePlayer, monument, out localPosition, out localRotationAngles);
 
-                    var spawnGroupName = args[1];
                     var spawnGroupData = new SpawnGroupData
                     {
                         Id = Guid.NewGuid(),
@@ -1209,8 +1211,9 @@ namespace Oxide.Plugins
                         return;
                     }
 
+                    SpawnPointAdapter spawnPointAdapter;
                     SpawnGroupController spawnGroupController;
-                    if (!VerifyLookingAtAdapter(player, out spawnGroupController, Lang.ErrorNoSpawnPointFound))
+                    if (!VerifyLookingAtAdapter(player, out spawnPointAdapter, out spawnGroupController, Lang.ErrorNoSpawnPointFound))
                         return;
 
                     var spawnGroupData = spawnGroupController.SpawnGroupData;
@@ -1220,6 +1223,9 @@ namespace Oxide.Plugins
                     {
                         case SpawnGroupOption.Name:
                         {
+                            if (!VerifySpawnGroupNameAvailable(player, spawnGroupController.Profile, spawnPointAdapter.Monument, args[2], spawnGroupController))
+                                return;
+
                             spawnGroupData.Name = args[2];
                             break;
                         }
@@ -1828,7 +1834,7 @@ namespace Oxide.Plugins
 
         private bool VerifySpawnGroupFound(IPlayer player, string partialGroupName, BaseMonument closestMonument, out SpawnGroupController spawnGroupController)
         {
-            var matches = FindSpawnGroups(partialGroupName, closestMonument.AliasOrShortName).ToList();
+            var matches = FindSpawnGroups(partialGroupName, closestMonument.AliasOrShortName, partialMatch: true).ToList();
 
             spawnGroupController = matches.FirstOrDefault();
 
@@ -1907,6 +1913,20 @@ namespace Oxide.Plugins
             }
 
             return VerifyProfileExists(player, args[1], out controller);
+        }
+
+        private bool VerifySpawnGroupNameAvailable(IPlayer player, Profile profile, BaseMonument monument, string spawnGroupName, SpawnGroupController spawnGroupController = null)
+        {
+            var matches = FindSpawnGroups(spawnGroupName, monument.AliasOrShortName, profile).ToList();
+            if (matches.Count == 0)
+                return true;
+
+            // Allow renaming a spawn group with different case.
+            if (spawnGroupController != null && matches.Count == 1 && matches[0] == spawnGroupController)
+                return true;
+
+            ReplyToPlayer(player, Lang.SpawnGroupCreateNameInUse, spawnGroupName, monument.AliasOrShortName, profile.Name);
+            return false;
         }
 
         #endregion
@@ -2000,12 +2020,24 @@ namespace Oxide.Plugins
             return FindAdapter<TAdapter, BaseController>(basePlayer);
         }
 
-        private IEnumerable<SpawnGroupController> FindSpawnGroups(string partialGroupName, string monumentAliasOrShortName)
+        private IEnumerable<SpawnGroupController> FindSpawnGroups(string partialGroupName, string monumentAliasOrShortName, Profile profile = null, bool partialMatch = false)
         {
             foreach (var spawnGroupController in _profileManager.GetEnabledControllers<SpawnGroupController>())
             {
-                if (spawnGroupController.SpawnGroupData.Name.IndexOf(partialGroupName, StringComparison.InvariantCultureIgnoreCase) == -1)
+                if (profile != null && spawnGroupController.Profile != profile)
                     continue;
+
+                if (partialMatch)
+                {
+                    if (spawnGroupController.SpawnGroupData.Name.IndexOf(partialGroupName, StringComparison.InvariantCultureIgnoreCase) == -1)
+                    {
+                        continue;
+                    }
+                }
+                else if (!spawnGroupController.SpawnGroupData.Name.Equals(partialGroupName, StringComparison.InvariantCultureIgnoreCase))
+                {
+                    continue;
+                }
 
                 // Can only select a spawn group for the same monument.
                 // This a slightly hacky way to check this, since data and controllers aren't directly aware of monuments.
@@ -6273,6 +6305,7 @@ namespace Oxide.Plugins
             public const string AddonTypePaste = "AddonType.Paste";
 
             public const string SpawnGroupCreateSyntax = "SpawnGroup.Create.Syntax";
+            public const string SpawnGroupCreateNameInUse = "SpawnGroup.Create.NameInUse";
             public const string SpawnGroupCreateSucces = "SpawnGroup.Create.Success";
             public const string SpawnGroupSetSuccess = "SpawnGroup.Set.Success";
             public const string SpawnGroupAddSyntax = "SpawnGroup.Add.Syntax";
@@ -6431,6 +6464,7 @@ namespace Oxide.Plugins
                 [Lang.AddonTypePaste] = "Paste",
 
                 [Lang.SpawnGroupCreateSyntax] = "Syntax: <color=#fd4>{0} create <name></color>",
+                [Lang.SpawnGroupCreateNameInUse] = "There is already a spawn group named <color=#fd4>{0}</color> at monument <color=#fd4>{1}</color> in profile <color=#fd4>{2}</color>. Please use a different name.",
                 [Lang.SpawnGroupCreateSucces] = "Successfully created spawn group <color=#fd4>{0}</color>.",
                 [Lang.SpawnGroupSetSuccess] = "Successfully updated spawn group <color=#fd4>{0}</color> with option <color=#fd4>{1}</color>: <color=#fd4>{2}</color>.",
                 [Lang.SpawnGroupAddSyntax] = "Syntax: <color=#fd4>{0} add <entity> <weight></color>",
