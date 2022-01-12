@@ -5483,13 +5483,13 @@ namespace Oxide.Plugins
 
         private class MonumentData
         {
-            [JsonProperty("Entities")]
+            [JsonProperty("Entities", DefaultValueHandling = DefaultValueHandling.Ignore)]
             public List<EntityData> Entities = new List<EntityData>();
 
-            [JsonProperty("SpawnGroups")]
+            [JsonProperty("SpawnGroups", DefaultValueHandling = DefaultValueHandling.Ignore)]
             public List<SpawnGroupData> SpawnGroups = new List<SpawnGroupData>();
 
-            [JsonProperty("Pastes")]
+            [JsonProperty("Pastes", DefaultValueHandling = DefaultValueHandling.Ignore)]
             public List<PasteData> Pastes = new List<PasteData>();
 
             [JsonIgnore]
