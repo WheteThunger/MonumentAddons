@@ -2740,7 +2740,7 @@ namespace Oxide.Plugins
                     return;
 
                 // Vehicle has moved from its spawn point, so unregister it and re-enable saving.
-                var vehicle = GetComponent<BaseVehicle>();
+                var vehicle = GetComponent<BaseEntity>();
                 if (vehicle != null && !vehicle.IsDestroyed)
                 {
                     EnableSavingResursive(vehicle, true);
