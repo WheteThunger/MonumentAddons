@@ -2953,7 +2953,7 @@ namespace Oxide.Plugins
                     {
                         npcPlayer.VirtualInfoZone = virtualInfoZone;
 
-                        var humanNpc = npcPlayer as HumanNPC;
+                        var humanNpc = npcPlayer as global::HumanNPC;
                         if (humanNpc != null)
                         {
                             virtualInfoZone.RegisterSleepableEntity(humanNpc.Brain);
