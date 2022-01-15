@@ -1,0 +1,336 @@
+{
+  "Name": "OutpostExtended",
+  "Author": "WhiteThunder/0x89A",
+  "SchemaVersion": 2.0,
+  "MonumentData": {
+    "compound": {
+      "Entities": [
+        {
+          "PrefabName": "assets/prefabs/deployable/card table/cardtable.static_configa.prefab",
+          "Position": {
+            "x": 1.8,
+            "y": 10.3,
+            "z": -13.6
+          },
+          "RotationAngles": {
+            "x": 0.0,
+            "y": 270.0,
+            "z": 0.0
+          },
+          "Id": "7bd4d3d0-03bb-438f-ae23-36a8f723f986"
+        },
+        {
+          "PrefabName": "assets/prefabs/deployable/card table/cardtable.static_configb.prefab",
+          "Position": {
+            "x": -5.9,
+            "y": 10.3,
+            "z": -12.8
+          },
+          "RotationAngles": {
+            "x": 0.0,
+            "y": 137.6,
+            "z": 0.0
+          },
+          "Id": "27d3e4f2-0202-4bb3-b7b2-137be65c2cd0"
+        },
+        {
+          "PrefabName": "assets/prefabs/misc/casino/slotmachine/slotmachine.prefab",
+          "Position": {
+            "x": -3.4,
+            "y": 10.3,
+            "z": -19.2
+          },
+          "Id": "e364fe3b-de72-4888-b1c4-6fa2653779a1"
+        },
+        {
+          "PrefabName": "assets/prefabs/misc/casino/slotmachine/slotmachine.prefab",
+          "Position": {
+            "x": -4.3,
+            "y": 10.3,
+            "z": -19.2
+          },
+          "Id": "3dbf870d-79a5-4710-91af-15523bdd6a0b"
+        },
+        {
+          "PrefabName": "assets/prefabs/misc/casino/slotmachine/slotmachine.prefab",
+          "Position": {
+            "x": -5.2,
+            "y": 10.3,
+            "z": -19.2
+          },
+          "Id": "d40c17b6-27a6-4596-857f-bb3a7508c8ba"
+        },
+        {
+          "PrefabName": "assets/prefabs/misc/casino/slotmachine/slotmachine.prefab",
+          "Position": {
+            "x": -6.1,
+            "y": 10.3,
+            "z": -19.2
+          },
+          "Id": "71fbd07e-85d3-4e07-a87f-41eebef17329"
+        },
+        {
+          "PrefabName": "assets/prefabs/misc/casino/slotmachine/slotmachine.prefab",
+          "Position": {
+            "x": -7.0,
+            "y": 10.3,
+            "z": -19.2
+          },
+          "Id": "929ae743-858b-4d59-ab21-831dda814be8"
+        },
+        {
+          "PrefabName": "assets/prefabs/deployable/sofa/sofa.deployed.prefab",
+          "Position": {
+            "x": 5.4,
+            "y": 4.4,
+            "z": 13.1
+          },
+          "RotationAngles": {
+            "x": 0.0,
+            "y": 140.6,
+            "z": 0.0
+          },
+          "Id": "3953231e-598b-4842-9cf8-6916c54f4377"
+        },
+        {
+          "PrefabName": "assets/prefabs/deployable/sofa/sofa.deployed.prefab",
+          "Position": {
+            "x": 8.2,
+            "y": 4.4,
+            "z": 13.6
+          },
+          "RotationAngles": {
+            "x": 0.0,
+            "y": 178.4,
+            "z": 0.0
+          },
+          "Id": "faee3a53-6f0c-475e-a876-9b262a91b8c4"
+        },
+        {
+          "PrefabName": "assets/prefabs/deployable/sofa/sofa.deployed.prefab",
+          "Position": {
+            "x": 10.8,
+            "y": 4.4,
+            "z": 12.3
+          },
+          "RotationAngles": {
+            "x": 0.0,
+            "y": 219.9,
+            "z": 0.0
+          },
+          "Id": "82ab8a6f-1d67-4e00-ac09-cd1505f61306"
+        },
+        {
+          "PrefabName": "assets/prefabs/misc/casino/bigwheel/big_wheel.prefab",
+          "Position": {
+            "x": 8.2,
+            "y": 6.1,
+            "z": 9.5
+          },
+          "RotationAngles": {
+            "x": 0.0,
+            "y": 270.0,
+            "z": 270.0
+          },
+          "Id": "8c6bd9e1-e21c-4d14-8ec4-d362be134577"
+        },
+        {
+          "PrefabName": "assets/prefabs/misc/casino/bigwheel/bigwheelbettingterminal.prefab",
+          "Position": {
+            "x": 11.2,
+            "y": 4.4,
+            "z": 11.1
+          },
+          "RotationAngles": {
+            "x": 0.0,
+            "y": 309.9,
+            "z": 0.0
+          },
+          "Id": "426bab9f-7a2d-4bcd-8415-c961ea657714"
+        },
+        {
+          "PrefabName": "assets/prefabs/misc/casino/bigwheel/bigwheelbettingterminal.prefab",
+          "Position": {
+            "x": 9.5,
+            "y": 4.4,
+            "z": 12.6
+          },
+          "RotationAngles": {
+            "x": 0.0,
+            "y": 129.9,
+            "z": 0.0
+          },
+          "Id": "348bb7b0-1be7-44a0-b5ed-3efe69bdee06"
+        },
+        {
+          "PrefabName": "assets/prefabs/misc/casino/bigwheel/bigwheelbettingterminal.prefab",
+          "Position": {
+            "x": 9.3,
+            "y": 4.4,
+            "z": 13.0
+          },
+          "RotationAngles": {
+            "x": 0.0,
+            "y": 268.4,
+            "z": 0.0
+          },
+          "Id": "fdae925f-74bf-46d8-803d-00891ab41023"
+        },
+        {
+          "PrefabName": "assets/prefabs/misc/casino/bigwheel/bigwheelbettingterminal.prefab",
+          "Position": {
+            "x": 7.0,
+            "y": 4.4,
+            "z": 13.0
+          },
+          "RotationAngles": {
+            "x": 0.0,
+            "y": 88.4,
+            "z": 0.0
+          },
+          "Id": "ecff4aaa-a3fa-4c7a-9a00-0e1acafe9fe8"
+        },
+        {
+          "PrefabName": "assets/prefabs/misc/casino/bigwheel/bigwheelbettingterminal.prefab",
+          "Position": {
+            "x": 6.7,
+            "y": 4.4,
+            "z": 13.3
+          },
+          "RotationAngles": {
+            "x": 0.0,
+            "y": 230.6,
+            "z": 0.0
+          },
+          "Id": "979eb3b6-f856-448d-b543-f14d9592434a"
+        },
+        {
+          "PrefabName": "assets/prefabs/misc/casino/bigwheel/bigwheelbettingterminal.prefab",
+          "Position": {
+            "x": 4.8,
+            "y": 4.4,
+            "z": 11.9
+          },
+          "RotationAngles": {
+            "x": 0.0,
+            "y": 50.6,
+            "z": 0.0
+          },
+          "Id": "882d1bfc-2bae-40e1-ae4b-cb70cde4dd17"
+        },
+        {
+          "PrefabName": "assets/prefabs/building core/foundation.steps/foundation.steps.prefab",
+          "Position": {
+            "x": 9.0,
+            "y": 1.45,
+            "z": 22.4
+          },
+          "RotationAngles": {
+            "x": 0.0,
+            "y": 90.0,
+            "z": 0.0
+          },
+          "Id": "4e9a1c45-227a-4aee-b97d-9b2280102a8a"
+        },
+        {
+          "PrefabName": "assets/prefabs/building core/foundation.steps/foundation.steps.prefab",
+          "Position": {
+            "x": 7.5,
+            "y": 1.45,
+            "z": 22.4
+          },
+          "RotationAngles": {
+            "x": 0.0,
+            "y": 90.0,
+            "z": 0.0
+          },
+          "Id": "b3fd875b-95ef-4bdb-94b8-5c40d065c56c"
+        },
+        {
+          "PrefabName": "assets/prefabs/building core/foundation.steps/foundation.steps.prefab",
+          "Position": {
+            "x": 9.0,
+            "y": 2.95,
+            "z": 19.4
+          },
+          "RotationAngles": {
+            "x": 0.0,
+            "y": 90.0,
+            "z": 0.0
+          },
+          "Id": "845b1500-26e2-4376-9372-edadd530a16d"
+        },
+        {
+          "PrefabName": "assets/prefabs/building core/foundation.steps/foundation.steps.prefab",
+          "Position": {
+            "x": 7.50,
+            "y": 2.95,
+            "z": 19.4
+          },
+          "RotationAngles": {
+            "x": 0.0,
+            "y": 90.0,
+            "z": 0.0
+          },
+          "Id": "eb14e772-a713-4488-9772-1d44a74a3bc1"
+        },
+        {
+          "PrefabName": "assets/prefabs/building core/foundation.steps/foundation.steps.prefab",
+          "Position": {
+            "x": 9.0,
+            "y": 4.255,
+            "z": 17.45
+          },
+          "RotationAngles": {
+            "x": 0.0,
+            "y": 90.0,
+            "z": -25.0
+          },
+          "Id": "8ea80cb6-f1b6-4bf2-af45-397203553a4c"
+        },
+        {
+          "PrefabName": "assets/prefabs/building core/foundation.steps/foundation.steps.prefab",
+          "Position": {
+            "x": 7.5,
+            "y": 4.255,
+            "z": 17.45
+          },
+          "RotationAngles": {
+            "x": 0.0,
+            "y": 90.0,
+            "z": -25.0
+          },
+          "Id": "df00c95a-ca28-4b5b-8af2-18eec2568aed"
+        },
+        {
+          "PrefabName": "assets/prefabs/building/ladder.wall.wood/ladder.wooden.wall.prefab",
+          "Position": {
+            "x": 29.0,
+            "y": 7.4,
+            "z": 5.7
+          },
+          "RotationAngles": {
+            "x": 0.0,
+            "y": 270.0,
+            "z": 0.0
+          },
+          "Id": "a37f30cb-1075-4a51-a314-f700739d22be"
+        },
+        {
+          "PrefabName": "assets/prefabs/building/ladder.wall.wood/ladder.wooden.wall.prefab",
+          "Position": {
+            "x": 23.7,
+            "y": 7.9,
+            "z": 0.0
+          },
+          "RotationAngles": {
+            "x": 0.0,
+            "y": 90.0,
+            "z": 0.0
+          },
+          "Id": "e6b457cd-57eb-4383-bdbe-4de02c5fc8ea"
+        }
+      ]
+    }
+  }
+}
