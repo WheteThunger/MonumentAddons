@@ -16,6 +16,11 @@ using System.Linq;
 using System.Text;
 using UnityEngine;
 
+using CustomSpawnCallback = System.Func<UnityEngine.Vector3, UnityEngine.Quaternion, Newtonsoft.Json.Linq.JObject, UnityEngine.Component>;
+using CustomKillCallback = System.Action<UnityEngine.Component>;
+using CustomUpdateCallback = System.Action<UnityEngine.Component, object>;
+using CustomSetDataCallback = System.Action<UnityEngine.Component, object>;
+
 namespace Oxide.Plugins
 {
     [Info("Monument Addons", "WhiteThunder", "0.10.0")]
@@ -55,6 +60,7 @@ namespace Oxide.Plugins
         private readonly AdapterDisplayManager _entityDisplayManager = new AdapterDisplayManager();
         private readonly AdapterListenerManager _adapterListenerManager = new AdapterListenerManager();
         private readonly ControllerFactory _entityControllerFactoryResolver = new ControllerFactory();
+        private readonly CustomAddonRegistry _customAddonRegistry = new CustomAddonRegistry();
 
         private ItemDefinition _waterDefinition;
         private ProtectionProperties _immortalProtection;
@@ -117,6 +123,16 @@ namespace Oxide.Plugins
             {
                 StartupRoutine();
             }
+        }
+
+        private void OnPluginUnloaded(Plugin plugin)
+        {
+            if (plugin.Name == Name)
+            {
+                return;
+            }
+
+            _customAddonRegistry.UnregisterAllForPlugin(plugin);
         }
 
         private void OnEntitySpawned(CargoShip cargoShip)
@@ -1634,6 +1650,40 @@ namespace Oxide.Plugins
             _entityDisplayManager.ShowAllRepeatedly(basePlayer);
 
             ReplyToPlayer(player, Lang.PasteSuccess, pasteName, monument.AliasOrShortName, matchingMonuments.Count, profileController.Profile.Name);
+        }
+
+        #endregion
+
+        #region API
+
+        private Dictionary<string, object> API_RegisterCustomAddon(Plugin plugin, string addonName, Dictionary<string, object> addonSpec)
+        {
+            LogWarning($"API_RegisterCustomAddon is experimental and may be changed or removed in future updates.");
+
+            var addonDefinition = CustomAddonDefinition.FromDictionary(addonName, plugin, addonSpec);
+
+            if (addonDefinition.Spawn == null)
+            {
+                LogError($"Unable to register custom addon \"{addonName}\" for plugin {plugin.Name} due to missing Spawn method.");
+                return null;
+            }
+
+            if (addonDefinition.Kill == null)
+            {
+                LogError($"Unable to register custom addon \"{addonName}\" for plugin {plugin.Name} due to missing Kill method.");
+                return null;
+            }
+
+            Plugin otherPlugin;
+            if (_customAddonRegistry.IsRegistered(addonName, out otherPlugin))
+            {
+                LogError($"Unable to register custom addon \"{addonName}\" for plugin {plugin.Name} because it's already been registered by plugin {otherPlugin.Name}.");
+                return null;
+            }
+
+            _customAddonRegistry.RegisterAddon(addonDefinition);
+
+            return addonDefinition.ToApiResult();
         }
 
         #endregion
@@ -4317,6 +4367,258 @@ namespace Oxide.Plugins
 
         #endregion
 
+        #region Custom Adapter/Controller
+
+        private class CustomAddonDefinition
+        {
+            public static CustomAddonDefinition FromDictionary(string addonName, Plugin plugin, Dictionary<string, object> addonSpec)
+            {
+                return new CustomAddonDefinition
+                {
+                    AddonName = addonName,
+                    OwnerPlugin = plugin,
+                    Spawn = addonSpec["Spawn"] as CustomSpawnCallback,
+                    Kill = addonSpec["Kill"] as CustomKillCallback,
+                    Update = addonSpec["Update"] as CustomUpdateCallback,
+                };
+            }
+
+            public string AddonName;
+            public Plugin OwnerPlugin;
+            public CustomSpawnCallback Spawn;
+            public CustomKillCallback Kill;
+            public CustomUpdateCallback Update;
+
+            public List<CustomAddonAdapter> AdapterUsers = new List<CustomAddonAdapter>();
+
+            public Dictionary<string, object> ToApiResult()
+            {
+                return new Dictionary<string, object>
+                {
+                    ["SetData"] = new CustomSetDataCallback(
+                        (component, data) =>
+                        {
+                            if (Update == null)
+                            {
+                                _pluginInstance?.LogError($"Unable to set data for custom addon \"{AddonName}\" due to missing Update method.");
+                                return;
+                            }
+
+                            var matchingAdapter = AdapterUsers.FirstOrDefault(adapter => adapter.Component == component);
+                            if (matchingAdapter == null)
+                            {
+                                _pluginInstance?.LogError($"Unable to set data for custom addon \"{AddonName}\" because it has no spawned instances.");
+                                return;
+                            }
+
+                            var controller = matchingAdapter.Controller as CustomAddonController;
+                            controller.CustomAddonData.SetData(data);
+                            controller.Profile.Save();
+
+                            foreach (var adapter in controller.Adapters)
+                            {
+                                Update((adapter as CustomAddonAdapter).Component, data);
+                            }
+                        }
+                    ),
+                };
+            }
+        }
+
+        private class CustomAddonRegistry
+        {
+            private Dictionary<string, CustomAddonDefinition> _customAddonsByName = new Dictionary<string, CustomAddonDefinition>();
+            private Dictionary<string, List<CustomAddonDefinition>> _customAddonsByPlugin = new Dictionary<string, List<CustomAddonDefinition>>();
+
+            public bool IsRegistered(string addonName, out Plugin otherPlugin)
+            {
+                otherPlugin = null;
+                CustomAddonDefinition existingAddon;
+                if (_customAddonsByName.TryGetValue(addonName, out existingAddon))
+                {
+                    otherPlugin = existingAddon.OwnerPlugin;
+                    return true;
+                }
+                return false;
+            }
+
+            public void RegisterAddon(CustomAddonDefinition addonDefinition)
+            {
+                _customAddonsByName[addonDefinition.AddonName] = addonDefinition;
+
+                var addonsForPlugin = GetAddonsForPlugin(addonDefinition.OwnerPlugin);
+                if (addonsForPlugin == null)
+                {
+                    addonsForPlugin = new List<CustomAddonDefinition>();
+                    _customAddonsByPlugin[addonDefinition.OwnerPlugin.Name] = addonsForPlugin;
+                }
+                addonsForPlugin.Add(addonDefinition);
+
+                if (_pluginInstance._serverInitialized)
+                {
+                    foreach (var profileController in _pluginInstance._profileManager.GetEnabledProfileControllers())
+                    {
+                        foreach (var monumentEntry in profileController.Profile.MonumentDataMap)
+                        {
+                            var monumentName = monumentEntry.Key;
+                            var monumentData = monumentEntry.Value;
+
+                            foreach (var customAddonData in monumentData.CustomAddons)
+                            {
+                                if (customAddonData.AddonName == addonDefinition.AddonName)
+                                {
+                                    // Delay spawning to allow previous despawns to complete if reloading the plugin that defines the addon.
+                                    profileController.SpawnNewData(customAddonData, _pluginInstance.GetMonumentsByAliasOrShortName(monumentName), delay: true);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            public void UnregisterAllForPlugin(Plugin plugin)
+            {
+                if (_customAddonsByName.Count == 0)
+                {
+                    return;
+                }
+
+                var addonsForPlugin = GetAddonsForPlugin(plugin);
+                if (addonsForPlugin == null)
+                {
+                    return;
+                }
+
+                var controllerList = new HashSet<CustomAddonController>();
+
+                foreach (var addonDefinition in addonsForPlugin)
+                {
+                    foreach (var adapter in addonDefinition.AdapterUsers)
+                    {
+                        controllerList.Add(adapter.Controller as CustomAddonController);
+                    }
+
+                    _customAddonsByName.Remove(addonDefinition.AddonName);
+                }
+
+                CoroutineManager.StartGlobalCoroutine(DestroyControllersRoutine(controllerList));
+
+                _customAddonsByPlugin.Remove(plugin.Name);
+            }
+
+            public CustomAddonDefinition GetAddon(string addonName)
+            {
+                CustomAddonDefinition addonDefinition;
+                return _customAddonsByName.TryGetValue(addonName, out addonDefinition)
+                    ? addonDefinition
+                    : null;
+            }
+
+            private List<CustomAddonDefinition> GetAddonsForPlugin(Plugin plugin)
+            {
+                List<CustomAddonDefinition> addonsForPlugin;
+                return _customAddonsByPlugin.TryGetValue(plugin.Name, out addonsForPlugin)
+                    ? addonsForPlugin
+                    : null;
+            }
+
+            private IEnumerator DestroyControllersRoutine(ICollection<CustomAddonController> controllerList)
+            {
+                foreach (var controller in controllerList)
+                {
+                    yield return controller.DestroyRoutine();
+                }
+            }
+        }
+
+        private class CustomAddonAdapter : BaseTransformAdapter, IEntityAdapter
+        {
+            private class CustomAddonComponent : MonoBehaviour
+            {
+                public CustomAddonAdapter Adapter;
+
+                private void OnDestroy() => Adapter.OnAddonDestroyed();
+            }
+
+            public CustomAddonData CustomAddonData { get; private set; }
+            public UnityEngine.Component Component { get; private set; }
+
+            public override Vector3 Position => Component.transform.position;
+            public override Quaternion Rotation => Component.transform.rotation;
+
+            private CustomAddonDefinition _addonDefinition;
+            private bool _wasKilled;
+
+            public CustomAddonAdapter(CustomAddonData customAddonData, BaseController controller, BaseMonument monument, CustomAddonDefinition addonDefinition) : base(customAddonData, controller, monument)
+            {
+                CustomAddonData = customAddonData;
+                _addonDefinition = addonDefinition;
+            }
+
+            public override void Spawn()
+            {
+                Component = _addonDefinition.Spawn(IntendedPosition, IntendedRotation, CustomAddonData.GetSerializedData());
+                _addonDefinition.AdapterUsers.Add(this);
+
+                var entity = Component as BaseEntity;
+                if (entity != null)
+                {
+                    MonumentEntityComponent.AddToEntity(entity, this, Monument);
+                }
+                else
+                {
+                    Component.gameObject.AddComponent<CustomAddonComponent>().Adapter = this;
+                }
+            }
+
+            public override void Kill()
+            {
+                if (_wasKilled)
+                {
+                    return;
+                }
+
+                _wasKilled = true;
+                _addonDefinition.Kill(Component);
+            }
+
+            public void OnEntityKilled(BaseEntity entity)
+            {
+                // In case it's a multi-part addon, call Kill() to ensure the whole addon is removed.
+                Kill();
+
+                _addonDefinition.AdapterUsers.Remove(this);
+                Controller.OnAdapterKilled(this);
+            }
+
+            public void OnAddonDestroyed()
+            {
+                // In case it's a multi-part addon, call Kill() to ensure the whole addon is removed.
+                Kill();
+
+                _addonDefinition.AdapterUsers.Remove(this);
+                Controller.OnAdapterKilled(this);
+            }
+        }
+
+        private class CustomAddonController : BaseController
+        {
+            public CustomAddonData CustomAddonData { get; private set; }
+
+            private CustomAddonDefinition _addonDefinition;
+
+            public CustomAddonController(ProfileController profileController, CustomAddonData customAddonData, CustomAddonDefinition addonDefinition) : base(profileController, customAddonData)
+            {
+                CustomAddonData = customAddonData;
+                _addonDefinition = addonDefinition;
+            }
+
+            public override BaseAdapter CreateAdapter(BaseMonument monument) =>
+                new CustomAddonAdapter(CustomAddonData, this, monument, _addonDefinition);
+        }
+
+        #endregion
+
         #region Controller Factories
 
         private abstract class EntityControllerFactoryBase
@@ -4374,6 +4676,15 @@ namespace Oxide.Plugins
                 if (pasteData != null)
                 {
                     return new PasteController(profileController, pasteData);
+                }
+
+                var customAddonData = data as CustomAddonData;
+                if (customAddonData != null)
+                {
+                    var addonDefinition = _pluginInstance._customAddonRegistry.GetAddon(customAddonData.AddonName);
+                    return addonDefinition != null
+                        ? new CustomAddonController(profileController, customAddonData, addonDefinition)
+                        : null;
                 }
 
                 var entityData = data as EntityData;
@@ -4878,7 +5189,10 @@ namespace Oxide.Plugins
                 if (controller == null)
                 {
                     controller = ControllerFactory.Instance.CreateController(this, data);
-                    _controllersByData[data] = controller;
+                    if (controller != null)
+                    {
+                        _controllersByData[data] = controller;
+                    }
                 }
                 return controller;
             }
@@ -4950,7 +5264,7 @@ namespace Oxide.Plugins
                         break;
 
                     _pluginInstance.TrackStart();
-                    EnsureController(entityData).SpawnAtMonument(monument);
+                    EnsureController(entityData)?.SpawnAtMonument(monument);
                     _pluginInstance.TrackEnd();
                     yield return CoroutineEx.waitForEndOfFrame;
                 }
@@ -4971,6 +5285,9 @@ namespace Oxide.Plugins
 
                 controller = EnsureController(data);
                 _pluginInstance.TrackEnd();
+
+                if (controller == null)
+                    yield break;
 
                 yield return controller.SpawnAtMonumentsRoutine(monumentList);
             }
@@ -5172,13 +5489,13 @@ namespace Oxide.Plugins
                 return controller;
             }
 
-            public IEnumerable<T> GetEnabledAdapters<T>() where T : BaseAdapter
+            public IEnumerable<ProfileController> GetEnabledProfileControllers()
             {
-                foreach (var profileControler in GetEnabledProfileControllers())
+                foreach (var profileControler in _profileControllers)
                 {
-                    foreach (var adapter in profileControler.GetAdapters<T>())
+                    if (profileControler.IsEnabled)
                     {
-                        yield return adapter;
+                        yield return profileControler;
                     }
                 }
             }
@@ -5194,23 +5511,23 @@ namespace Oxide.Plugins
                 }
             }
 
+            public IEnumerable<T> GetEnabledAdapters<T>() where T : BaseAdapter
+            {
+                foreach (var profileControler in GetEnabledProfileControllers())
+                {
+                    foreach (var adapter in profileControler.GetAdapters<T>())
+                    {
+                        yield return adapter;
+                    }
+                }
+            }
+
             private IEnumerator UnloadAllProfilesRoutine()
             {
                 foreach (var controller in _profileControllers)
                 {
                     controller.Unload();
                     yield return controller.WaitUntilUnloaded;
-                }
-            }
-
-            private IEnumerable<ProfileController> GetEnabledProfileControllers()
-            {
-                foreach (var profileControler in _profileControllers)
-                {
-                    if (profileControler.IsEnabled)
-                    {
-                        yield return profileControler;
-                    }
                 }
             }
         }
@@ -5433,6 +5750,34 @@ namespace Oxide.Plugins
 
         #endregion
 
+        #region Custom Addon Data
+
+        private class CustomAddonData : BaseTransformData
+        {
+            [JsonProperty("AddonName")]
+            public string AddonName;
+
+            [JsonProperty("PluginData", DefaultValueHandling = DefaultValueHandling.Ignore)]
+            private object PluginData;
+
+            public JObject GetSerializedData()
+            {
+                return PluginData as JObject;
+            }
+
+            public void SetData(object data)
+            {
+                var jObject = data as JObject;
+                if (jObject == null)
+                {
+                    jObject = JObject.FromObject(data);
+                }
+                PluginData = jObject;
+            }
+        }
+
+        #endregion
+
         #region Profile Data
 
         private class ProfileSummaryEntry
@@ -5524,10 +5869,14 @@ namespace Oxide.Plugins
             [JsonProperty("Pastes", DefaultValueHandling = DefaultValueHandling.Ignore)]
             public List<PasteData> Pastes = new List<PasteData>();
 
+            [JsonProperty("CustomAddons", DefaultValueHandling = DefaultValueHandling.Ignore)]
+            public List<CustomAddonData> CustomAddons = new List<CustomAddonData>();
+
             [JsonIgnore]
             public int NumSpawnables => Entities.Count
                 + SpawnGroups.Count
-                + Pastes.Count;
+                + Pastes.Count
+                + CustomAddons.Count;
 
             [JsonIgnore]
             public int NumSpawnPoints
@@ -5549,6 +5898,7 @@ namespace Oxide.Plugins
                 list.AddRange(Entities);
                 list.AddRange(SpawnGroups);
                 list.AddRange(Pastes);
+                list.AddRange(CustomAddons);
                 return list;
             }
 
