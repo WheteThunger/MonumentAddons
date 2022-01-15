@@ -2592,7 +2592,7 @@ namespace Oxide.Plugins
                 if (_coroutineComponent == null)
                     return;
 
-                UnityEngine.Object.Destroy(_coroutineComponent?.gameObject);
+                UnityEngine.Object.DestroyImmediate(_coroutineComponent?.gameObject);
             }
         }
 
