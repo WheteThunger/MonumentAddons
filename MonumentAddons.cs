@@ -3002,12 +3002,30 @@ namespace Oxide.Plugins
                     if (virtualInfoZone != null)
                     {
                         npcPlayer.VirtualInfoZone = virtualInfoZone;
+                    }
 
-                        var humanNpc = npcPlayer as global::HumanNPC;
-                        if (humanNpc != null)
+                    var humanNpc = npcPlayer as global::HumanNPC;
+                    if (humanNpc != null)
+                    {
+                        virtualInfoZone?.RegisterSleepableEntity(humanNpc.Brain);
+
+                        var agent = npcPlayer.NavAgent;
+                        agent.agentTypeID = -1372625422;
+                        agent.areaMask = 1;
+                        agent.autoTraverseOffMeshLink = true;
+                        agent.autoRepath = true;
+
+                        var brain = humanNpc.Brain;
+                        humanNpc.Invoke(() =>
                         {
-                            virtualInfoZone.RegisterSleepableEntity(humanNpc.Brain);
-                        }
+                            var navigator = brain.Navigator;
+                            if (navigator == null)
+                                return;
+
+                            navigator.DefaultArea = "Walkable";
+                            navigator.Init(humanNpc, agent);
+                            navigator.PlaceOnNavMesh();
+                        }, 0);
                     }
                 }
             }
