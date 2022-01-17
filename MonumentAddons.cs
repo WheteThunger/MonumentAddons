@@ -5888,17 +5888,25 @@ namespace Oxide.Plugins
 
         private class MonumentData
         {
-            [JsonProperty("Entities", DefaultValueHandling = DefaultValueHandling.Ignore)]
+            [JsonProperty("Entities")]
             public List<EntityData> Entities = new List<EntityData>();
 
-            [JsonProperty("SpawnGroups", DefaultValueHandling = DefaultValueHandling.Ignore)]
+            public bool ShouldSerializeEntities() => Entities.Count > 0;
+
+            [JsonProperty("SpawnGroups")]
             public List<SpawnGroupData> SpawnGroups = new List<SpawnGroupData>();
 
-            [JsonProperty("Pastes", DefaultValueHandling = DefaultValueHandling.Ignore)]
+            public bool ShouldSerializeSpawnGroups() => SpawnGroups.Count > 0;
+
+            [JsonProperty("Pastes")]
             public List<PasteData> Pastes = new List<PasteData>();
 
-            [JsonProperty("CustomAddons", DefaultValueHandling = DefaultValueHandling.Ignore)]
+            public bool ShouldSerializePastes() => Pastes.Count > 0;
+
+            [JsonProperty("CustomAddons")]
             public List<CustomAddonData> CustomAddons = new List<CustomAddonData>();
+
+            public bool ShouldSerializeCustomAddons() => CustomAddons.Count > 0;
 
             [JsonIgnore]
             public int NumSpawnables => Entities.Count
