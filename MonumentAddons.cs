@@ -427,12 +427,13 @@ namespace Oxide.Plugins
             string prefabName;
             Vector3 position;
             BaseMonument monument;
+            CustomAddonDefinition addonDefinition;
 
             if (player.IsServer
                 || !VerifyHasPermission(player)
                 || !VerifyMonumentFinderLoaded(player)
                 || !VerifyProfileSelected(player, out profileController)
-                || !VerifyValidPrefabOrDeployable(player, args, out prefabName)
+                || !VerifyValidPrefabOrDeployable(player, args, out prefabName, out addonDefinition)
                 || !VerifyHitPosition(player, out position)
                 || !VerifyAtMonument(player, position, out monument))
                 return;
@@ -441,37 +442,57 @@ namespace Oxide.Plugins
 
             Vector3 localPosition;
             Vector3 localRotationAngles;
-            DetermineLocalTransformData(position, basePlayer, monument, out localPosition, out localRotationAngles);
+            bool isOnTerrain;
+            DetermineLocalTransformData(position, basePlayer, monument, out localPosition, out localRotationAngles, out isOnTerrain);
 
-            var shortPrefabName = GetShortName(prefabName);
+            BaseIdentifiableData addonData = null;
 
-            if (shortPrefabName == "big_wheel")
+            if (prefabName != null)
             {
-                localRotationAngles.y -= 90;
-                localRotationAngles.z = 270;
-            }
-            else if (shortPrefabName == "boatspawner")
-            {
-                if (position.y == TerrainMeta.WaterMap.GetHeight(position))
+                // Found a valid prefab name.
+                var shortPrefabName = GetShortName(prefabName);
+
+                if (shortPrefabName == "big_wheel")
                 {
-                    // Set the boatspawner to -1.5 like the vanilla ones.
-                    localPosition.y -= 1.5f;
+                    localRotationAngles.y -= 90;
+                    localRotationAngles.z = 270;
                 }
-            }
+                else if (shortPrefabName == "boatspawner")
+                {
+                    if (position.y == TerrainMeta.WaterMap.GetHeight(position))
+                    {
+                        // Set the boatspawner to -1.5 like the vanilla ones.
+                        localPosition.y -= 1.5f;
+                    }
+                }
 
-            var entityData = new EntityData
+                addonData = new EntityData
+                {
+                    Id = Guid.NewGuid(),
+                    PrefabName = prefabName,
+                    Position = localPosition,
+                    RotationAngles = localRotationAngles,
+                    OnTerrain = isOnTerrain,
+                };
+
+            }
+            else
             {
-                Id = Guid.NewGuid(),
-                PrefabName = prefabName,
-                Position = localPosition,
-                RotationAngles = localRotationAngles,
-                OnTerrain = IsOnTerrain(position),
-            };
+                // Found a custom addon definition.
+                addonData = new CustomAddonData
+                {
+                    Id = Guid.NewGuid(),
+                    AddonName = addonDefinition.AddonName,
+                    Position = localPosition,
+                    RotationAngles = localRotationAngles,
+                    OnTerrain = isOnTerrain,
+                };
+            }
 
             var matchingMonuments = GetMonumentsByAliasOrShortName(monument.AliasOrShortName);
 
-            profileController.Profile.AddData(monument.AliasOrShortName, entityData);
-            profileController.SpawnNewData(entityData, matchingMonuments);
+            profileController.Profile.AddData(monument.AliasOrShortName, addonData);
+            profileController.SpawnNewData(addonData, matchingMonuments);
 
             _entityDisplayManager.ShowAllRepeatedly(basePlayer);
             ReplyToPlayer(player, Lang.SpawnSuccess, matchingMonuments.Count, profileController.Profile.Name, monument.AliasOrShortName);
@@ -1183,7 +1204,8 @@ namespace Oxide.Plugins
 
                     Vector3 localPosition;
                     Vector3 localRotationAngles;
-                    DetermineLocalTransformData(position, basePlayer, monument, out localPosition, out localRotationAngles);
+                    bool isOnTerrain;
+                    DetermineLocalTransformData(position, basePlayer, monument, out localPosition, out localRotationAngles, out isOnTerrain);
 
                     var spawnGroupData = new SpawnGroupData
                     {
@@ -1196,7 +1218,7 @@ namespace Oxide.Plugins
                                 Id = Guid.NewGuid(),
                                 Position = localPosition,
                                 RotationAngles = localRotationAngles,
-                                OnTerrain = IsOnTerrain(position),
+                                OnTerrain = isOnTerrain,
                             },
                         },
                     };
@@ -1466,14 +1488,15 @@ namespace Oxide.Plugins
 
                     Vector3 localPosition;
                     Vector3 localRotationAngles;
-                    DetermineLocalTransformData(position, basePlayer, monument, out localPosition, out localRotationAngles);
+                    bool isOnTerrain;
+                    DetermineLocalTransformData(position, basePlayer, monument, out localPosition, out localRotationAngles, out isOnTerrain);
 
                     var spawnPointData = new SpawnPointData
                     {
                         Id = Guid.NewGuid(),
                         Position = localPosition,
                         RotationAngles = localRotationAngles,
-                        OnTerrain = IsOnTerrain(position),
+                        OnTerrain = isOnTerrain,
                     };
 
                     spawnGroupController.SpawnGroupData.SpawnPoints.Add(spawnPointData);
@@ -1631,14 +1654,15 @@ namespace Oxide.Plugins
 
             Vector3 localPosition;
             Vector3 localRotationAngles;
-            DetermineLocalTransformData(position, basePlayer, monument, out localPosition, out localRotationAngles, flipRotation: false);
+            bool isOnTerrain;
+            DetermineLocalTransformData(position, basePlayer, monument, out localPosition, out localRotationAngles, out isOnTerrain, flipRotation: false);
 
             var pasteData = new PasteData
             {
                 Id = Guid.NewGuid(),
                 Position = localPosition,
                 RotationAngles = localRotationAngles,
-                OnTerrain = IsOnTerrain(position),
+                OnTerrain = isOnTerrain,
                 Filename = pasteName,
             };
 
@@ -1776,39 +1800,103 @@ namespace Oxide.Plugins
             return true;
         }
 
-        private bool VerifyValidPrefab(IPlayer player, string desiredPrefabName, out string prefabPath)
+        private bool VerifyValidPrefab(IPlayer player, string prefabArg, out string prefabPath)
         {
             prefabPath = null;
 
-            var matches = FindPrefabMatches(desiredPrefabName);
-            if (matches.Length == 0)
+            var matches = new List<string>();
+
+            if (AddExactPrefabMatches(prefabArg, matches) == 1)
             {
-                ReplyToPlayer(player, Lang.SpawnErrorEntityNotFound, desiredPrefabName);
-                return false;
-            }
-            else if (matches.Length == 1)
-            {
-                prefabPath = matches[0];
+                prefabPath = matches.First();
                 return true;
             }
 
-            // Multiple matches were found
+            if (matches.Count == 0 && AddPartialPrefabMatches(prefabArg, matches) == 1)
+            {
+                prefabPath = matches.First();
+                return true;
+            }
+
+            if (matches.Count == 0)
+            {
+                ReplyToPlayer(player, Lang.SpawnErrorEntityNotFound, prefabArg);
+                return false;
+            }
+
+            // Multiple matches were found, so print them all to the player.
             var replyMessage = GetMessage(player, Lang.SpawnErrorMultipleMatches);
             foreach (var match in matches)
+            {
                 replyMessage += $"\n{GetShortName(match)}";
+            }
 
             player.Reply(replyMessage);
             return false;
         }
 
-        private bool VerifyValidPrefabOrDeployable(IPlayer player, string[] args, out string prefabPath)
+        private bool VerifyValidPrefabOrCustomAddon(IPlayer player, string prefabArg, out string prefabPath, out CustomAddonDefinition addonDefinition)
         {
-            // An explicit entity name takes precedence.
-            // Ignore "True" argument because that simply means the player used a key bind.
-            if (args.Length > 0 && args[0] != "True" && !string.IsNullOrWhiteSpace(args[0]))
+            prefabPath = null;
+            addonDefinition = null;
+
+            var prefabMatches = new List<string>();
+            var customAddonMatches = new List<CustomAddonDefinition>();
+
+            var matchCount = AddExactPrefabMatches(prefabArg, prefabMatches)
+                + AddExactCustomAddonMatches(prefabArg, customAddonMatches);
+
+            if (matchCount == 0)
             {
-                return VerifyValidPrefab(player, args[0], out prefabPath);
+                matchCount = AddPartialPrefabMatches(prefabArg, prefabMatches)
+                    + AddPartialAddonMatches(prefabArg, customAddonMatches);
             }
+
+            if (matchCount == 1)
+            {
+                if (prefabMatches.Count == 1)
+                {
+                    prefabPath = prefabMatches.First();
+                }
+                else
+                {
+                    addonDefinition = customAddonMatches.First();
+                }
+                return true;
+            }
+
+            if (matchCount == 0)
+            {
+                ReplyToPlayer(player, Lang.SpawnErrorEntityOrAddonNotFound, prefabArg);
+                return false;
+            }
+
+            // Multiple matches were found, so print them all to the player.
+            var replyMessage = GetMessage(player, Lang.SpawnErrorMultipleMatches);
+            foreach (var match in prefabMatches)
+            {
+                replyMessage += $"\n{GetShortName(match)}";
+            }
+            foreach (var match in customAddonMatches)
+            {
+                replyMessage += $"\n{match.AddonName}";
+            }
+
+            player.Reply(replyMessage);
+            return false;
+        }
+
+        private bool VerifyValidPrefabOrDeployable(IPlayer player, string[] args, out string prefabPath, out CustomAddonDefinition addonDefinition)
+        {
+            var prefabArg = args.FirstOrDefault();
+
+            // Ignore "True" argument because that simply means the player used a key bind.
+            if (!string.IsNullOrWhiteSpace(prefabArg) && prefabArg != "True")
+            {
+                return VerifyValidPrefabOrCustomAddon(player, prefabArg, out prefabPath, out addonDefinition);
+            }
+
+            addonDefinition = null;
 
             var basePlayer = player.Object as BasePlayer;
             var deployablePrefab = DeterminePrefabFromPlayerActiveDeployable(basePlayer);
@@ -2130,7 +2218,7 @@ namespace Oxide.Plugins
             return baseName.Replace(".prefab", "");
         }
 
-        private static void DetermineLocalTransformData(Vector3 position, BasePlayer basePlayer, BaseMonument monument, out Vector3 localPosition, out Vector3 localRotationAngles, bool flipRotation = true)
+        private static void DetermineLocalTransformData(Vector3 position, BasePlayer basePlayer, BaseMonument monument, out Vector3 localPosition, out Vector3 localRotationAngles, out bool isOnTerrain, bool flipRotation = true)
         {
             localPosition = monument.InverseTransformPoint(position);
 
@@ -2144,28 +2232,13 @@ namespace Oxide.Plugins
             }
 
             localRotationAngles = new Vector3(0, (localRotationAngle + 360) % 360, 0);
+            isOnTerrain = IsOnTerrain(position);
         }
 
         private static void DestroyProblemComponents(BaseEntity entity)
         {
             UnityEngine.Object.DestroyImmediate(entity.GetComponent<DestroyOnGroundMissing>());
             UnityEngine.Object.DestroyImmediate(entity.GetComponent<GroundWatch>());
-        }
-
-        private static string[] FindPrefabMatches(string partialName)
-        {
-            var matches = new List<string>();
-
-            foreach (var path in GameManifest.Current.entities)
-            {
-                if (string.Compare(GetShortName(path), partialName, StringComparison.OrdinalIgnoreCase) == 0)
-                    return new string[] { path.ToLower() };
-
-                if (GetShortName(path).Contains(partialName, CompareOptions.IgnoreCase))
-                    matches.Add(path.ToLower());
-            }
-
-            return matches.ToArray();
         }
 
         private static bool OnCargoShip(BasePlayer player, Vector3 position, out BaseMonument cargoShipMonument)
@@ -2381,6 +2454,58 @@ namespace Oxide.Plugins
             adapter.EntityData.OnTerrain = IsOnTerrain(adapter.Position);
             controller.Profile.Save();
             controller.UpdatePosition();
+        }
+
+        private int AddExactPrefabMatches(string partialName, List<string> matches)
+        {
+            foreach (var path in GameManifest.Current.entities)
+            {
+                if (string.Compare(GetShortName(path), partialName, StringComparison.OrdinalIgnoreCase) == 0)
+                {
+                    matches.Add(path.ToLower());
+                }
+            }
+
+            return matches.Count;
+        }
+
+        private int AddPartialPrefabMatches(string partialName, List<string> matches)
+        {
+            foreach (var path in GameManifest.Current.entities)
+            {
+                if (GetShortName(path).Contains(partialName, CompareOptions.IgnoreCase))
+                {
+                    matches.Add(path.ToLower());
+                }
+            }
+
+            return matches.Count;
+        }
+
+        private int AddExactCustomAddonMatches(string partialName, List<CustomAddonDefinition> matches)
+        {
+            foreach (var addonDefinition in _customAddonManager.GetAllAddons())
+            {
+                if (string.Compare(addonDefinition.AddonName, partialName, StringComparison.OrdinalIgnoreCase) == 0)
+                {
+                    matches.Add(addonDefinition);
+                }
+            }
+
+            return matches.Count;
+        }
+
+        private int AddPartialAddonMatches(string partialName, List<CustomAddonDefinition> matches)
+        {
+            foreach (var addonDefinition in _customAddonManager.GetAllAddons())
+            {
+                if (addonDefinition.AddonName.Contains(partialName, CompareOptions.IgnoreCase))
+                {
+                    matches.Add(addonDefinition);
+                }
+            }
+
+            return matches.Count;
         }
 
         private string DeterminePrefabFromPlayerActiveDeployable(BasePlayer basePlayer)
@@ -4458,6 +4583,8 @@ namespace Oxide.Plugins
             private Dictionary<string, CustomAddonDefinition> _customAddonsByName = new Dictionary<string, CustomAddonDefinition>();
             private Dictionary<string, List<CustomAddonDefinition>> _customAddonsByPlugin = new Dictionary<string, List<CustomAddonDefinition>>();
 
+            public IEnumerable<CustomAddonDefinition> GetAllAddons() => _customAddonsByName.Values;
+
             public bool IsRegistered(string addonName, out Plugin otherPlugin)
             {
                 otherPlugin = null;
@@ -5961,6 +6088,13 @@ namespace Oxide.Plugins
                     return;
                 }
 
+                var customAddonData = data as CustomAddonData;
+                if (customAddonData != null)
+                {
+                    CustomAddons.Add(customAddonData);
+                    return;
+                }
+
                 _pluginInstance?.LogError($"AddData not implemented for type: {data.GetType()}");
             }
 
@@ -5982,6 +6116,12 @@ namespace Oxide.Plugins
                 if (pasteData != null)
                 {
                     return Pastes.Remove(pasteData);
+                }
+
+                var customAddonData = data as CustomAddonData;
+                if (customAddonData != null)
+                {
+                    return CustomAddons.Remove(customAddonData);
                 }
 
                 _pluginInstance.LogError($"RemoveData not implemented for type: {data.GetType()}");
@@ -6672,7 +6812,8 @@ namespace Oxide.Plugins
 
             public const string SpawnErrorSyntax = "Spawn.Error.Syntax";
             public const string SpawnErrorNoProfileSelected = "Spawn.Error.NoProfileSelected";
-            public const string SpawnErrorEntityNotFound = "Spawn.Error.EntityNotFound";
+            public const string SpawnErrorEntityNotFound = "Spawn.Error.EntityNotFound2";
+            public const string SpawnErrorEntityOrAddonNotFound = "Spawn.Error.EntityOrCustomNotFound";
             public const string SpawnErrorMultipleMatches = "Spawn.Error.MultipleMatches";
             public const string SpawnErrorNoTarget = "Spawn.Error.NoTarget";
             public const string SpawnSuccess = "Spawn.Success2";
@@ -6831,7 +6972,8 @@ namespace Oxide.Plugins
 
                 [Lang.SpawnErrorSyntax] = "Syntax: <color=#fd4>maspawn <entity></color>",
                 [Lang.SpawnErrorNoProfileSelected] = "Error: No profile selected. Run <color=#fd4>maprofile help</color> for help.",
-                [Lang.SpawnErrorEntityNotFound] = "Error: Entity <color=#fd4>{0}</color> not found.",
+                [Lang.SpawnErrorEntityNotFound] = "Error: No entity found matching name <color=#fd4>{0}</color>.",
+                [Lang.SpawnErrorEntityOrAddonNotFound] = "Error: No entity or custom addon found matching name <color=#fd4>{0}</color>.",
                 [Lang.SpawnErrorMultipleMatches] = "Multiple matches:\n",
                 [Lang.SpawnErrorNoTarget] = "Error: No valid spawn position found.",
                 [Lang.SpawnSuccess] = "Spawned entity at <color=#fd4>{0}</color> matching monument(s) and saved to <color=#fd4>{1}</color> profile for monument <color=#fd4>{2}</color>.",
