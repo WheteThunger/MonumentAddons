@@ -63,30 +63,6 @@ The following commands only work on objects managed by this plugin. The effect o
   - Note: Each CCTV's RC identifier will have a numeric suffix like `1`, `2`, `3` and so on. This is done because each CCTV must have a unique identifier.
 - `masetdir` -- Updates the direction of the CCTV you are aiming at, so that it points toward you.
 
-### Spawn points and spawn groups
-
-Spawn groups:
-- `maspawngroup create <name>` -- Creates a spawn group with a spawn point where you are looking.
-- `maspawngroup set <option> <value>` -- Sets a property of the spawn group you are looking at.
-  - `Name`: string
-  - `MaxPopulation`: number
-  - `SpawnPerTickMin`: number
-  - `SpawnPerTickMax`: number
-  - `RespawnDelayMin`: number
-  - `RespawnDelayMax`: number
-  - `PreventDuplicates`: true/false
-- `maspawngroup add <entity> <weight>` -- Adds the specified entity prefab to the spawn group of the spawn point you are looking at.
-- `maspawngroup remove <entity>` -- Removes the specified entity prefab from the spawn group of the spawn point you are looking at.
-
-Spawn points:
-- `maspawnpoint create <group_name>` -- Creates a spawn point where you are looking, for the specified spawn group.
-- `maspawnpoint set <option> <value>` -- Sets a property of the spawn group you are looking at.
-  - `Exclusive`: true/false
-  - `DropToGround`: true/false
-  - `CheckSpace`: true/false
-  - `RandomRotation` : true/false
-  - `RandomRadius`: number
-
 ### Profiles
 
 Profiles allow you to organize entities into groups. Each profile can be independently enabled or reloaded. Each profile uses a separate data file, so you can easily share profiles with others.
