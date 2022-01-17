@@ -4391,14 +4391,24 @@ namespace Oxide.Plugins
         {
             public static CustomAddonDefinition FromDictionary(string addonName, Plugin plugin, Dictionary<string, object> addonSpec)
             {
-                return new CustomAddonDefinition
+                var addonDefinition = new CustomAddonDefinition
                 {
                     AddonName = addonName,
                     OwnerPlugin = plugin,
-                    Spawn = addonSpec["Spawn"] as CustomSpawnCallback,
-                    Kill = addonSpec["Kill"] as CustomKillCallback,
-                    Update = addonSpec["Update"] as CustomUpdateCallback,
                 };
+
+                object spawnCallback, killCallback, updateCallback;
+
+                if (addonSpec.TryGetValue("Spawn", out spawnCallback))
+                    addonDefinition.Spawn = spawnCallback as CustomSpawnCallback;
+
+                if (addonSpec.TryGetValue("Kill", out killCallback))
+                    addonDefinition.Kill = killCallback as CustomKillCallback;
+
+                if (addonSpec.TryGetValue("Update", out updateCallback))
+                    addonDefinition.Update = updateCallback as CustomUpdateCallback;
+
+                return addonDefinition;
             }
 
             public string AddonName;
