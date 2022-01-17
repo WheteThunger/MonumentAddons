@@ -60,7 +60,7 @@ namespace Oxide.Plugins
         private readonly AdapterDisplayManager _entityDisplayManager = new AdapterDisplayManager();
         private readonly AdapterListenerManager _adapterListenerManager = new AdapterListenerManager();
         private readonly ControllerFactory _entityControllerFactoryResolver = new ControllerFactory();
-        private readonly CustomAddonRegistry _customAddonRegistry = new CustomAddonRegistry();
+        private readonly CustomAddonManager _customAddonManager = new CustomAddonManager();
 
         private ItemDefinition _waterDefinition;
         private ProtectionProperties _immortalProtection;
@@ -132,7 +132,7 @@ namespace Oxide.Plugins
                 return;
             }
 
-            _customAddonRegistry.UnregisterAllForPlugin(plugin);
+            _customAddonManager.UnregisterAllForPlugin(plugin);
         }
 
         private void OnEntitySpawned(CargoShip cargoShip)
@@ -1675,13 +1675,13 @@ namespace Oxide.Plugins
             }
 
             Plugin otherPlugin;
-            if (_customAddonRegistry.IsRegistered(addonName, out otherPlugin))
+            if (_customAddonManager.IsRegistered(addonName, out otherPlugin))
             {
                 LogError($"Unable to register custom addon \"{addonName}\" for plugin {plugin.Name} because it's already been registered by plugin {otherPlugin.Name}.");
                 return null;
             }
 
-            _customAddonRegistry.RegisterAddon(addonDefinition);
+            _customAddonManager.RegisterAddon(addonDefinition);
 
             return addonDefinition.ToApiResult();
         }
@@ -4453,7 +4453,7 @@ namespace Oxide.Plugins
             }
         }
 
-        private class CustomAddonRegistry
+        private class CustomAddonManager
         {
             private Dictionary<string, CustomAddonDefinition> _customAddonsByName = new Dictionary<string, CustomAddonDefinition>();
             private Dictionary<string, List<CustomAddonDefinition>> _customAddonsByPlugin = new Dictionary<string, List<CustomAddonDefinition>>();
@@ -4709,7 +4709,7 @@ namespace Oxide.Plugins
                 var customAddonData = data as CustomAddonData;
                 if (customAddonData != null)
                 {
-                    var addonDefinition = _pluginInstance._customAddonRegistry.GetAddon(customAddonData.AddonName);
+                    var addonDefinition = _pluginInstance._customAddonManager.GetAddon(customAddonData.AddonName);
                     return addonDefinition != null
                         ? new CustomAddonController(profileController, customAddonData, addonDefinition)
                         : null;
