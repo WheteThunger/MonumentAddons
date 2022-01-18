@@ -971,7 +971,7 @@ namespace Oxide.Plugins
                         return;
 
                     newProfile.AddData(monumentAliasOrShortName, data);
-                    newProfileController.SpawnNewData(data, GetMonumentsByAliasOrShortName(monumentAliasOrShortName), delay: true);
+                    newProfileController.SpawnNewData(data, GetMonumentsByAliasOrShortName(monumentAliasOrShortName));
 
                     ReplyToPlayer(player, Lang.ProfileMoveToSuccess, addonName, oldProfile.Name, newProfile.Name);
                     if (!player.IsServer)
@@ -2316,14 +2316,6 @@ namespace Oxide.Plugins
                 EnableSavingResursive(child, enableSaving);
         }
 
-        private static IEnumerator WaitForFrames(int frames)
-        {
-            for (var elapsed = 0; elapsed < frames; elapsed++)
-            {
-                yield return CoroutineEx.waitForEndOfFrame;
-            }
-        }
-
         private static IEnumerator WaitWhileWithTimeout(Func<bool> predicate, float timeoutSeconds)
         {
             var timeoutAt = UnityEngine.Time.time + timeoutSeconds;
@@ -2940,6 +2932,12 @@ namespace Oxide.Plugins
                 _spawnPointData = spawnPointData;
             }
 
+            public void PreUnload()
+            {
+                KillSpawnInstances();
+                gameObject.SetActive(false);
+            }
+
             private void Awake()
             {
                 _transform = transform;
@@ -2993,6 +2991,11 @@ namespace Oxide.Plugins
 
             public override bool IsAvailableTo(GameObjectRef prefabRef)
             {
+                if (!base.IsAvailableTo(prefabRef))
+                {
+                    return false;
+                }
+
                 if (_spawnPointData.Exclusive && _instances.Count > 0)
                 {
                     return false;
@@ -3008,6 +3011,12 @@ namespace Oxide.Plugins
 
             public void OnDestroy()
             {
+                KillSpawnInstances();
+                _adapter.OnSpawnPointKilled(this);
+            }
+
+            private void KillSpawnInstances()
+            {
                 for (var i = _instances.Count - 1; i >= 0; i--)
                 {
                     var entity = _instances[i].GetComponent<BaseEntity>();
@@ -3016,8 +3025,6 @@ namespace Oxide.Plugins
                         entity.Kill();
                     }
                 }
-
-                _adapter.OnSpawnPointKilled(this);
             }
 
             private bool IsVehicle(BaseEntity entity)
@@ -3201,6 +3208,9 @@ namespace Oxide.Plugins
 
             public abstract void Spawn();
             public abstract void Kill();
+
+            // Called immediately for all adapters when the controller needs to be killed.
+            public virtual void PreUnload() {}
         }
 
         // Represents a single entity or spawn point at a single monument.
@@ -3247,6 +3257,8 @@ namespace Oxide.Plugins
 
             public Profile Profile => ProfileController.Profile;
 
+            private bool _wasKilled;
+
             public BaseController(ProfileController profileController, BaseIdentifiableData data)
             {
                 ProfileController = profileController;
@@ -3255,8 +3267,8 @@ namespace Oxide.Plugins
 
             public abstract BaseAdapter CreateAdapter(BaseMonument monument);
 
-            public virtual void PreUnload() {}
             public virtual void OnAdapterSpawned(BaseAdapter adapter) {}
+
             public virtual void OnAdapterKilled(BaseAdapter adapter)
             {
                 Adapters.Remove(adapter);
@@ -3280,10 +3292,23 @@ namespace Oxide.Plugins
             {
                 foreach (var monument in monumentList)
                 {
+                    if (_wasKilled)
+                    {
+                        yield break;
+                    }
+
                     _pluginInstance.TrackStart();
                     var adapter = SpawnAtMonument(monument);
                     _pluginInstance.TrackEnd();
                     yield return adapter.WaitInstruction;
+                }
+            }
+
+            public void PreUnload()
+            {
+                foreach (var adapter in Adapters)
+                {
+                    adapter.PreUnload();
                 }
             }
 
@@ -3319,6 +3344,9 @@ namespace Oxide.Plugins
 
             protected void Destroy()
             {
+                // Stop the controller from spawning more adapters.
+                _wasKilled = true;
+
                 PreUnload();
 
                 if (Adapters.Count > 0)
@@ -3856,6 +3884,9 @@ namespace Oxide.Plugins
                 _pluginInstance?.TrackEnd();
             }
 
+            // Ensure the RC identifiers are freed up as soon as possible to avoid conflicts when reloading.
+            public override void PreUnload() => SetIdentifier(string.Empty);
+
             public void UpdateIdentifier()
             {
                 if (_savedIdentifier == null)
@@ -3895,8 +3926,6 @@ namespace Oxide.Plugins
 
                 _cachedIdentifier = newIdentifier;
             }
-
-            public void ResetIdentifier() => SetIdentifier(string.Empty);
 
             public void UpdateDirection()
             {
@@ -3965,18 +3994,9 @@ namespace Oxide.Plugins
             public override BaseAdapter CreateAdapter(BaseMonument monument) =>
                 new CCTVEntityAdapter(this, EntityData, monument, _nextId++);
 
-            // Ensure the RC identifiers are freed up as soon as possible to avoid conflicts when reloading.
-            public override void PreUnload() => ResetIdentifier();
-
             public void UpdateIdentifier()
             {
                 ProfileController.StartCoroutine(UpdateIdentifierRoutine());
-            }
-
-            public void ResetIdentifier()
-            {
-                foreach (var adapter in Adapters)
-                    (adapter as CCTVEntityAdapter).ResetIdentifier();
             }
 
             public void UpdateDirection()
@@ -4171,6 +4191,11 @@ namespace Oxide.Plugins
                 UnityEngine.Object.Destroy(SpawnPoint?.gameObject);
             }
 
+            public override void PreUnload()
+            {
+                SpawnPoint.PreUnload();
+            }
+
             public void OnSpawnPointKilled(CustomSpawnPoint spawnPoint)
             {
                 _spawnGroupAdapter.OnSpawnPointAdapterKilled(this);
@@ -4221,6 +4246,14 @@ namespace Oxide.Plugins
             public override void Kill()
             {
                 UnityEngine.Object.Destroy(SpawnGroup?.gameObject);
+            }
+
+            public override void PreUnload()
+            {
+                foreach (var adapter in Adapters)
+                {
+                    adapter.PreUnload();
+                }
             }
 
             public void OnSpawnPointAdapterKilled(SpawnPointAdapter spawnPointAdapter)
@@ -4622,8 +4655,7 @@ namespace Oxide.Plugins
                             {
                                 if (customAddonData.AddonName == addonDefinition.AddonName)
                                 {
-                                    // Delay spawning to allow previous despawns to complete if reloading the plugin that defines the addon.
-                                    profileController.SpawnNewData(customAddonData, _pluginInstance.GetMonumentsByAliasOrShortName(monumentName), delay: true);
+                                    profileController.SpawnNewData(customAddonData, _pluginInstance.GetMonumentsByAliasOrShortName(monumentName));
                                 }
                             }
                         }
@@ -4654,6 +4686,11 @@ namespace Oxide.Plugins
                     }
 
                     _customAddonsByName.Remove(addonDefinition.AddonName);
+                }
+
+                foreach (var controller in controllerList)
+                {
+                    controller.PreUnload();
                 }
 
                 CoroutineManager.StartGlobalCoroutine(DestroyControllersRoutine(controllerList));
@@ -5181,6 +5218,27 @@ namespace Oxide.Plugins
 
         private enum ProfileState { Loading, Loaded, Unloading, Unloaded }
 
+        private struct SpawnQueueItem
+        {
+            public BaseIdentifiableData Data;
+            public BaseMonument Monument;
+            public ICollection<BaseMonument> MonumentList;
+
+            public SpawnQueueItem(BaseIdentifiableData data, ICollection<BaseMonument> monumentList)
+            {
+                Data = data;
+                Monument = null;
+                MonumentList = monumentList;
+            }
+
+            public SpawnQueueItem(BaseIdentifiableData data, BaseMonument monument)
+            {
+                Data = data;
+                Monument = monument;
+                MonumentList = null;
+            }
+        }
+
         private class ProfileController
         {
             public Profile Profile { get; private set; }
@@ -5190,6 +5248,7 @@ namespace Oxide.Plugins
 
             private CoroutineManager _coroutineManager = new CoroutineManager();
             private Dictionary<BaseIdentifiableData, BaseController> _controllersByData = new Dictionary<BaseIdentifiableData, BaseController>();
+            private Queue<SpawnQueueItem> _spawnQueue = new Queue<SpawnQueueItem>();
 
             public bool IsEnabled =>
                 _pluginData.IsProfileEnabled(Profile.Name);
@@ -5276,21 +5335,20 @@ namespace Oxide.Plugins
 
             public IEnumerator PartialLoadForLateMonument(ICollection<BaseIdentifiableData> dataList, BaseMonument monument)
             {
-                if (ProfileState == ProfileState.Loading)
-                    yield break;
+                foreach (var data in dataList)
+                {
+                    Enqueue(new SpawnQueueItem(data, monument));
+                }
 
-                ProfileState = ProfileState.Loading;
-                StartCoroutine(PartialLoadForLateMonumentRoutine(dataList, monument));
                 yield return WaitUntilLoaded;
             }
 
-            public void SpawnNewData(BaseIdentifiableData data, ICollection<BaseMonument> monuments, bool delay = false)
+            public void SpawnNewData(BaseIdentifiableData data, ICollection<BaseMonument> monumentList)
             {
                 if (ProfileState == ProfileState.Unloading || ProfileState == ProfileState.Unloaded)
                     return;
 
-                ProfileState = ProfileState.Loading;
-                StartCoroutine(PartialLoadForLateDataRoutine(data, monuments, delay));
+                Enqueue(new SpawnQueueItem(data, monumentList));
             }
 
             public void Rename(string newName)
@@ -5352,9 +5410,21 @@ namespace Oxide.Plugins
                 return controller;
             }
 
-            private IEnumerator LoadRoutine(ProfileCounts profileCounts)
+            private void Enqueue(SpawnQueueItem queueItem)
             {
-                foreach (var entry in Profile.MonumentDataMap.ToArray())
+                _spawnQueue.Enqueue(queueItem);
+
+                // If there are more items in the queue, we can assume there's already a coroutine processing them.
+                if (_spawnQueue.Count == 1)
+                {
+                    ProfileState = ProfileState.Loading;
+                    StartCoroutine(ProcessSpawnQueue());
+                }
+            }
+
+            private void EnqueueAll(ProfileCounts profileCounts)
+            {
+                foreach (var entry in Profile.MonumentDataMap)
                 {
                     var monumentData = entry.Value;
                     if (monumentData.NumSpawnables == 0)
@@ -5372,11 +5442,54 @@ namespace Oxide.Plugins
                         profileCounts.PasteCount += matchingMonuments.Count * monumentData.Pastes.Count;
                     }
 
-                    foreach (var data in monumentData.GetSpawnables())
-                        yield return SpawnAtMonumentsRoutine(this, data, matchingMonuments);
+                    foreach (var data in monumentData.GetSpawnablesLazy())
+                    {
+                        Enqueue(new SpawnQueueItem(data, matchingMonuments));
+                    }
+                }
+            }
+
+            private IEnumerator ProcessSpawnQueue()
+            {
+                // Wait one frame to ensure the queue has time to be populated.
+                yield return null;
+
+                SpawnQueueItem queueItem;
+                while (_spawnQueue.TryDequeue(out queueItem))
+                {
+                    _pluginInstance?.TrackStart();
+                    var controller = EnsureController(queueItem.Data);
+                    _pluginInstance?.TrackEnd();
+
+                    if (controller == null)
+                    {
+                        // The controller factory may not have been implemented for this data type,
+                        // or the custom addon owner plugin may not be loaded.
+                        continue;
+                    }
+
+                    if (queueItem.Monument != null)
+                    {
+                        // Check for null in case the monument is dynamic and was destroyed (e.g., cargo ship).
+                        if (queueItem.Monument.IsValid)
+                        {
+                            controller.SpawnAtMonument(queueItem.Monument);
+                            yield return null;
+                        }
+                    }
+                    else
+                    {
+                        yield return controller.SpawnAtMonumentsRoutine(queueItem.MonumentList);
+                    }
                 }
 
                 ProfileState = ProfileState.Loaded;
+            }
+
+            private IEnumerator LoadRoutine(ProfileCounts profileCounts)
+            {
+                EnqueueAll(profileCounts);
+                yield return WaitUntilLoaded;
             }
 
             private IEnumerator UnloadRoutine()
@@ -5407,56 +5520,6 @@ namespace Oxide.Plugins
 
                 Profile.MonumentDataMap.Clear();
                 Profile.Save();
-                ProfileState = ProfileState.Loaded;
-            }
-
-            private IEnumerator PartialLoadForLateMonumentRoutine(ICollection<BaseIdentifiableData> dataList, BaseMonument monument)
-            {
-                foreach (var entityData in dataList)
-                {
-                    // Check for null in case the cargo ship was destroyed.
-                    if (!monument.IsValid)
-                        break;
-
-                    _pluginInstance.TrackStart();
-                    EnsureController(entityData)?.SpawnAtMonument(monument);
-                    _pluginInstance.TrackEnd();
-                    yield return CoroutineEx.waitForEndOfFrame;
-                }
-
-                ProfileState = ProfileState.Loaded;
-            }
-
-            private IEnumerator SpawnAtMonumentsRoutine(ProfileController profileController, BaseIdentifiableData data, IEnumerable<BaseMonument> monumentList)
-            {
-                _pluginInstance.TrackStart();
-                var controller = GetController(data);
-                if (controller != null)
-                {
-                    // If the controller already exists, the entity was added while the plugin was still spawning entities.
-                    _pluginInstance.TrackEnd();
-                    yield break;
-                }
-
-                controller = EnsureController(data);
-                _pluginInstance.TrackEnd();
-
-                if (controller == null)
-                    yield break;
-
-                yield return controller.SpawnAtMonumentsRoutine(monumentList);
-            }
-
-            private IEnumerator PartialLoadForLateDataRoutine(BaseIdentifiableData data, ICollection<BaseMonument> monumentList, bool delay)
-            {
-                if (delay)
-                {
-                    // Since the previous profile will despawn one object per frame, wait exactly that long before respawning.
-                    // One reason to do this is to make sure spawn points that check for space don't find the previous entity in the way.
-                    yield return WaitForFrames(monumentList.Count);
-                }
-
-                yield return SpawnAtMonumentsRoutine(this, data, monumentList);
                 ProfileState = ProfileState.Loaded;
             }
         }
@@ -6055,13 +6118,28 @@ namespace Oxide.Plugins
                 }
             }
 
+            public IEnumerable<BaseIdentifiableData> GetSpawnablesLazy()
+            {
+                foreach (var entityData in Entities)
+                    yield return entityData;
+
+                foreach (var spawnGroupData in SpawnGroups)
+                    yield return spawnGroupData;
+
+                foreach (var pasteData in Pastes)
+                    yield return pasteData;
+
+                foreach (var customAddonData in CustomAddons)
+                    yield return customAddonData;
+            }
+
             public ICollection<BaseIdentifiableData> GetSpawnables()
             {
                 var list = new List<BaseIdentifiableData>(NumSpawnables);
-                list.AddRange(Entities);
-                list.AddRange(SpawnGroups);
-                list.AddRange(Pastes);
-                list.AddRange(CustomAddons);
+                foreach (var spawnable in GetSpawnablesLazy())
+                {
+                    list.Add(spawnable);
+                }
                 return list;
             }
 
