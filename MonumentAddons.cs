@@ -545,7 +545,7 @@ namespace Oxide.Plugins
             }
             else
             {
-                controller.TryDestroyAndRemove();
+                controller.TryKillAndRemove();
             }
 
             var basePlayer = player.Object as BasePlayer;
@@ -967,7 +967,7 @@ namespace Oxide.Plugins
                     }
 
                     string monumentAliasOrShortName;
-                    if (!controller.TryDestroyAndRemove(out monumentAliasOrShortName))
+                    if (!controller.TryKillAndRemove(out monumentAliasOrShortName))
                         return;
 
                     newProfile.AddData(monumentAliasOrShortName, data);
@@ -3309,7 +3309,7 @@ namespace Oxide.Plugins
                 }
             }
 
-            public bool TryDestroyAndRemove(out string monumentAliasOrShortName)
+            public bool TryKillAndRemove(out string monumentAliasOrShortName)
             {
                 var profile = ProfileController.Profile;
                 if (!profile.RemoveData(Data, out monumentAliasOrShortName))
@@ -3318,17 +3318,17 @@ namespace Oxide.Plugins
                     return false;
                 }
 
-                Destroy();
+                Kill();
                 return true;
             }
 
-            public bool TryDestroyAndRemove()
+            public bool TryKillAndRemove()
             {
                 string monumentAliasOrShortName;
-                return TryDestroyAndRemove(out monumentAliasOrShortName);
+                return TryKillAndRemove(out monumentAliasOrShortName);
             }
 
-            public IEnumerator DestroyRoutine()
+            public IEnumerator KillRoutine()
             {
                 foreach (var adapter in Adapters.ToArray())
                 {
@@ -3339,7 +3339,7 @@ namespace Oxide.Plugins
                 }
             }
 
-            protected void Destroy()
+            protected void Kill()
             {
                 // Stop the controller from spawning more adapters.
                 _wasKilled = true;
@@ -3348,7 +3348,7 @@ namespace Oxide.Plugins
 
                 if (Adapters.Count > 0)
                 {
-                    CoroutineManager.StartGlobalCoroutine(DestroyRoutine());
+                    CoroutineManager.StartGlobalCoroutine(KillRoutine());
                 }
 
                 ProfileController.OnControllerKilled(this);
@@ -4714,7 +4714,7 @@ namespace Oxide.Plugins
             {
                 foreach (var controller in controllerList)
                 {
-                    yield return controller.DestroyRoutine();
+                    yield return controller.KillRoutine();
                 }
             }
         }
@@ -5492,7 +5492,7 @@ namespace Oxide.Plugins
             {
                 foreach (var controller in _controllersByData.Values.ToArray())
                 {
-                    yield return controller.DestroyRoutine();
+                    yield return controller.KillRoutine();
                 }
 
                 ProfileState = ProfileState.Unloaded;
