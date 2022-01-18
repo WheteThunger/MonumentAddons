@@ -18,7 +18,8 @@ using UnityEngine;
 
 using CustomSpawnCallback = System.Func<UnityEngine.Vector3, UnityEngine.Quaternion, Newtonsoft.Json.Linq.JObject, UnityEngine.Component>;
 using CustomKillCallback = System.Action<UnityEngine.Component>;
-using CustomUpdateCallback = System.Action<UnityEngine.Component, object>;
+using CustomUpdateCallback = System.Action<UnityEngine.Component, Newtonsoft.Json.Linq.JObject>;
+using CustomAddDisplayInfoCallback = System.Action<UnityEngine.Component, Newtonsoft.Json.Linq.JObject, System.Text.StringBuilder>;
 using CustomSetDataCallback = System.Action<UnityEngine.Component, object>;
 
 namespace Oxide.Plugins
@@ -4551,7 +4552,7 @@ namespace Oxide.Plugins
                     OwnerPlugin = plugin,
                 };
 
-                object spawnCallback, killCallback, updateCallback;
+                object spawnCallback, killCallback, updateCallback, addDataCallback;
 
                 if (addonSpec.TryGetValue("Spawn", out spawnCallback))
                     addonDefinition.Spawn = spawnCallback as CustomSpawnCallback;
@@ -4562,6 +4563,9 @@ namespace Oxide.Plugins
                 if (addonSpec.TryGetValue("Update", out updateCallback))
                     addonDefinition.Update = updateCallback as CustomUpdateCallback;
 
+                if (addonSpec.TryGetValue("AddDisplayInfo", out addDataCallback))
+                    addonDefinition.AddDisplayInfo = addDataCallback as CustomAddDisplayInfoCallback;
+
                 return addonDefinition;
             }
 
@@ -4570,6 +4574,7 @@ namespace Oxide.Plugins
             public CustomSpawnCallback Spawn;
             public CustomKillCallback Kill;
             public CustomUpdateCallback Update;
+            public CustomAddDisplayInfoCallback AddDisplayInfo;
 
             public List<CustomAddonAdapter> AdapterUsers = new List<CustomAddonAdapter>();
 
@@ -4599,7 +4604,7 @@ namespace Oxide.Plugins
 
                             foreach (var adapter in controller.Adapters)
                             {
-                                Update((adapter as CustomAddonAdapter).Component, data);
+                                Update((adapter as CustomAddonAdapter).Component, controller.CustomAddonData.GetSerializedData());
                             }
                         }
                     ),
@@ -4729,24 +4734,24 @@ namespace Oxide.Plugins
             }
 
             public CustomAddonData CustomAddonData { get; private set; }
+            public CustomAddonDefinition AddonDefinition { get; private set; }
             public UnityEngine.Component Component { get; private set; }
 
             public override Vector3 Position => Component.transform.position;
             public override Quaternion Rotation => Component.transform.rotation;
 
-            private CustomAddonDefinition _addonDefinition;
             private bool _wasKilled;
 
             public CustomAddonAdapter(CustomAddonData customAddonData, BaseController controller, BaseMonument monument, CustomAddonDefinition addonDefinition) : base(customAddonData, controller, monument)
             {
                 CustomAddonData = customAddonData;
-                _addonDefinition = addonDefinition;
+                AddonDefinition = addonDefinition;
             }
 
             public override void Spawn()
             {
-                Component = _addonDefinition.Spawn(IntendedPosition, IntendedRotation, CustomAddonData.GetSerializedData());
-                _addonDefinition.AdapterUsers.Add(this);
+                Component = AddonDefinition.Spawn(IntendedPosition, IntendedRotation, CustomAddonData.GetSerializedData());
+                AddonDefinition.AdapterUsers.Add(this);
 
                 var entity = Component as BaseEntity;
                 if (entity != null)
@@ -4767,7 +4772,7 @@ namespace Oxide.Plugins
                 }
 
                 _wasKilled = true;
-                _addonDefinition.Kill(Component);
+                AddonDefinition.Kill(Component);
             }
 
             public void OnEntityKilled(BaseEntity entity)
@@ -4775,7 +4780,7 @@ namespace Oxide.Plugins
                 // In case it's a multi-part addon, call Kill() to ensure the whole addon is removed.
                 Kill();
 
-                _addonDefinition.AdapterUsers.Remove(this);
+                AddonDefinition.AdapterUsers.Remove(this);
                 Controller.OnAdapterKilled(this);
             }
 
@@ -4784,7 +4789,7 @@ namespace Oxide.Plugins
                 // In case it's a multi-part addon, call Kill() to ensure the whole addon is removed.
                 Kill();
 
-                _addonDefinition.AdapterUsers.Remove(this);
+                AddonDefinition.AdapterUsers.Remove(this);
                 Controller.OnAdapterKilled(this);
             }
         }
@@ -4974,6 +4979,9 @@ namespace Oxide.Plugins
                 if (adapter is PasteAdapter)
                     return Color.cyan;
 
+                if (adapter is CustomAddonAdapter)
+                    return Color.green;
+
                 return Color.magenta;
             }
 
@@ -5121,6 +5129,26 @@ namespace Oxide.Plugins
                 Ddraw.Text(player, adapter.Position, _sb.ToString(), color, DisplayIntervalDuration);
             }
 
+            private void ShowCustomAddonInfo(BasePlayer player, CustomAddonAdapter adapter, PlayerInfo playerInfo)
+            {
+                var customAddonData = adapter.CustomAddonData;
+                var entityController = adapter.Controller;
+                var profileController = entityController.ProfileController;
+                var color = DetermineColor(adapter, playerInfo, profileController);
+
+                var addonDefinition = adapter.AddonDefinition;
+
+                _sb.Clear();
+                _sb.AppendLine($"<size={HeaderSize}>{_pluginInstance.GetMessage(player, Lang.ShowHeaderCustom, customAddonData.AddonName)}</size>");
+                _sb.AppendLine(_pluginInstance.GetMessage(player, Lang.ShowLabelPlugin, addonDefinition.OwnerPlugin.Name));
+                _sb.AppendLine(_pluginInstance.GetMessage(player, Lang.ShowLabelProfile, profileController.Profile.Name));
+                _sb.AppendLine(_pluginInstance.GetMessage(player, Lang.ShowLabelMonument, adapter.Monument.AliasOrShortName, entityController.Adapters.Count));
+
+                addonDefinition.AddDisplayInfo?.Invoke(adapter.Component, customAddonData.GetSerializedData(), _sb);
+
+                Ddraw.Text(player, adapter.Position, _sb.ToString(), color, DisplayIntervalDuration);
+            }
+
             private void ShowNearbyAdapters(BasePlayer player, Vector3 playerPosition, PlayerInfo playerInfo)
             {
                 if (!player.IsConnected)
@@ -5183,6 +5211,17 @@ namespace Oxide.Plugins
                         if ((playerPosition - pasteAdapter.Position).sqrMagnitude <= DisplayDistanceSquared)
                         {
                             ShowPasteInfo(player, pasteAdapter, playerInfo);
+                        }
+
+                        continue;
+                    }
+
+                    var customAddonAdapter = adapter as CustomAddonAdapter;
+                    if (customAddonAdapter != null)
+                    {
+                        if ((playerPosition - customAddonAdapter.Position).sqrMagnitude <= DisplayDistanceSquared)
+                        {
+                            ShowCustomAddonInfo(player, customAddonAdapter, playerInfo);
                         }
 
                         continue;
@@ -6937,8 +6976,10 @@ namespace Oxide.Plugins
             public const string ShowHeaderSpawnGroup = "Show.Header.SpawnGroup";
             public const string ShowHeaderSpawnPoint = "Show.Header.SpawnPoint";
             public const string ShowHeaderPaste = "Show.Header.Paste";
-            public const string ShowLabelMonument = "Show.Label.Monument";
+            public const string ShowHeaderCustom = "Show.Header.Custom";
+            public const string ShowLabelPlugin = "Show.Label.Plugin";
             public const string ShowLabelProfile = "Show.Label.Profile";
+            public const string ShowLabelMonument = "Show.Label.Monument";
             public const string ShowLabelSkin = "Show.Label.Skin";
             public const string ShowLabelScale = "Show.Label.Scale";
             public const string ShowLabelRCIdentifier = "Show.Label.RCIdentifier";
@@ -7094,8 +7135,9 @@ namespace Oxide.Plugins
                 [Lang.SpawnPointHelpSet] = "<color=#fd4>{0} set <option> <value></color> - Set a property of a spawn point",
 
                 [Lang.ShowSuccess] = "Showing nearby Monument Addons for <color=#fd4>{0}</color>.",
-                [Lang.ShowLabelMonument] = "Monument: {0} (x{1})",
+                [Lang.ShowLabelPlugin] = "Plugin: {0}",
                 [Lang.ShowLabelProfile] = "Profile: {0}",
+                [Lang.ShowLabelMonument] = "Monument: {0} (x{1})",
                 [Lang.ShowLabelSkin] = "Skin: {0}",
                 [Lang.ShowLabelScale] = "Scale: {0}",
                 [Lang.ShowLabelRCIdentifier] = "RC Identifier: {0}",
@@ -7104,6 +7146,7 @@ namespace Oxide.Plugins
                 [Lang.ShowHeaderSpawnGroup] = "Spawn Group: {0}",
                 [Lang.ShowHeaderSpawnPoint] = "Spawn Point ({0})",
                 [Lang.ShowHeaderPaste] = "Paste: {0}",
+                [Lang.ShowHeaderCustom] = "Custom Addon: {0}",
 
                 [Lang.ShowLabelFlags] = "Flags: {0}",
                 [Lang.ShowLabelSpawnPointExclusive] = "Exclusive",

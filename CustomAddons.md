@@ -28,6 +28,11 @@ The `addonDefinition` dictionary should have the following keys:
   - Type: `System.Action<UnityEngine.Component, JObject>`
     - `UnityEngine.Component` -- The object that you returned in the `"Spawn"` method.
     - `JObject` -- The partially serialized representation of the data that you previously set on the addon instance.
+- `"AddDisplayInfo"` -- An optional method that Monument Addons can call to add display info about each instance of the addon. This will be used to show debug text at the addon location.
+  - Type: `System.Action<UnityEngine.Component, JObject, StringBuilder>`
+    - `UnityEngine.Component` -- The object that you returned in the `"Spawn"` method.
+    - `JObject` -- The partially serialized representation of the data that you previously set on the addon instance.
+    - `StringBuilder` -- A StringBuilder to add lines of text to. Ideally you have are using the Oxide Lang API to localize this text.
 
 If the addon was successfully registered, the resulting `Dictionary<string, object>` will have the following keys.
 - `"SetData"` -- A method that your plugin can call to apply new data to each instance of the addon. When this method is invoked, Monument Addons will cally your `"Update"` callback for each instance of the addon. If users of your plugin need the ability to customize each addon instance, this
@@ -35,9 +40,10 @@ If the addon was successfully registered, the resulting `Dictionary<string, obje
 
 ## Best practices
 
+- Make sure your plugin supports spawning multiple instances per data object. This is necessary because Monument Addons will attempt to spawn the addon at all instances of the monument.
 - Disable saving on all entities you spawn. Monument Addons kills addons asynchronously, so it may not have time to kill them during a server reboot, therefore disabling saving prevents the entities from being double spawned on reboot.
-- In the `"Kill"` callback, verify that the objects haven't already been destroyed, in case they were killed outside of the context of Monument Addons.
-- Make entities you spawn invincible by updating protection properties, disabling stability, etc. This is important because Monument Addons does not currently respawn custom addons that have been destroyed.
+- In the `"Kill"` callback, verify that the objects haven't already been destroyed, in case they were killed outside of the context of Monument Addons such as via `ent kill`.
+- Make entities you spawn invincible by updating protection properties, disabling stability, etc. This is important because Monument Addons does not currently respawn custom addons that have been destroyed (unless the plugin or profile is reloaded).
 
 ## Example
 
@@ -48,12 +54,13 @@ If the addon was successfully registered, the resulting `Dictionary<string, obje
 using SpawnAddonCallback = System.Func<UnityEngine.Vector3, UnityEngine.Quaternion, Newtonsoft.Json.Linq.JObject, UnityEngine.Component>;
 using KillAddonCallback = System.Action<UnityEngine.Component>;
 using UpdateAddonCallback = System.Action<UnityEngine.Component, Newtonsoft.Json.Linq.JObject>;
+using AddDisplayInfoCallback = System.Action<UnityEngine.Component, Newtonsoft.Json.Linq.JObject, System.Text.StringBuilder>;
 using SetAddonDataCallback = System.Action<UnityEngine.Component, object>;
 
 [PluginReference]
 Plugin MonumentAddons;
 
-Action<UnityEngine.Component, object> _setAddonData;
+SetAddonDataCallback _setAddonData;
 
 void OnPluginLoaded(Plugin plugin)
 {
@@ -76,8 +83,19 @@ void RegisterCustomAddon()
             ["Update"] = new UpdateAddonCallback((component, data) =>
             {
                 var entity = component as SamSite;
-                var addonData = data as AddonData;
-                entity.SetHealth(addonData.Health);
+                var addonData = data.ToObject<AddonData>();
+                if (addonData != null)
+                {
+                    entity.SetHealth(addonData.Health);
+                }
+            }),
+            ["AddDisplayInfo"] = new AddDisplayInfoCallback((component, data, sb) =>
+            {
+                var addonData = data?.ToObject<AddonData>();
+                if (addonData != null)
+                {
+                    sb.AppendLine($"Health: {addonData.Health}");
+                }
             }),
         }
     ) as Dictionary<string, object>;
