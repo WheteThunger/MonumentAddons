@@ -137,7 +137,7 @@ namespace Oxide.Plugins
 
         private void OnEntitySpawned(CargoShip cargoShip)
         {
-            var cargoShipMonument = new MobileMonument(cargoShip);
+            var cargoShipMonument = new DynamicMonument(cargoShip, isMobile: true);
             _coroutineManager.StartCoroutine(_profileManager.PartialLoadForLateMonumentRoutine(cargoShipMonument));
         }
 
@@ -2249,7 +2249,7 @@ namespace Oxide.Plugins
             if (cargoShip == null)
                 return false;
 
-            cargoShipMonument = new MobileMonument(cargoShip);
+            cargoShipMonument = new DynamicMonument(cargoShip, isMobile: true);
 
             if (!cargoShipMonument.IsInBounds(position))
                 return false;
@@ -2365,7 +2365,7 @@ namespace Oxide.Plugins
                 {
                     var cargoShip = entity as CargoShip;
                     if (cargoShip != null)
-                        cargoShipList.Add(new MobileMonument(cargoShip));
+                        cargoShipList.Add(new DynamicMonument(cargoShip, isMobile: true));
                 }
                 return cargoShipList.Count > 0 ? cargoShipList : null;
             }
@@ -2776,13 +2776,15 @@ namespace Oxide.Plugins
         private class DynamicMonument : BaseMonument
         {
             public BaseEntity RootEntity { get; private set; }
+            public bool IsMobile { get; private set; }
             public override bool IsValid => base.IsValid && !RootEntity.IsDestroyed;
 
             protected OBB BoundingBox => RootEntity.WorldSpaceBounds();
 
-            public DynamicMonument(BaseEntity entity) : base(entity)
+            public DynamicMonument(BaseEntity entity, bool isMobile) : base(entity)
             {
                 RootEntity = entity;
+                IsMobile = isMobile;
             }
 
             public override Vector3 ClosestPointOnBounds(Vector3 position) =>
@@ -2790,11 +2792,6 @@ namespace Oxide.Plugins
 
             public override bool IsInBounds(Vector3 position) =>
                 BoundingBox.Contains(position);
-        }
-
-        private class MobileMonument : DynamicMonument
-        {
-            public MobileMonument(BaseEntity entity) : base(entity) {}
         }
 
         #endregion
@@ -3389,8 +3386,7 @@ namespace Oxide.Plugins
                 {
                     entity.SetParent(dynamicMonument.RootEntity, worldPositionStays: true);
 
-                    var mobileMonument = Monument as MobileMonument;
-                    if (mobileMonument != null)
+                    if (dynamicMonument.IsMobile)
                     {
                         var mountable = entity as BaseMountable;
                         if (mountable != null)
@@ -3622,11 +3618,11 @@ namespace Oxide.Plugins
 
             private List<CCTV_RC> GetNearbyStaticCameras()
             {
-                var mobileMonument = Monument as MobileMonument;
-                if (mobileMonument != null && mobileMonument.RootEntity == Entity.GetParentEntity())
+                var dynamicMonument = Monument as DynamicMonument;
+                if (dynamicMonument != null && dynamicMonument.RootEntity == Entity.GetParentEntity())
                 {
                     var cargoCameraList = new List<CCTV_RC>();
-                    foreach (var child in mobileMonument.RootEntity.children)
+                    foreach (var child in dynamicMonument.RootEntity.children)
                     {
                         var cctv = child as CCTV_RC;
                         if (cctv != null && cctv.isStatic)
@@ -3955,11 +3951,11 @@ namespace Oxide.Plugins
 
             private List<ComputerStation> GetNearbyStaticComputerStations()
             {
-                var mobileMonument = Monument as MobileMonument;
-                if (mobileMonument != null && mobileMonument.RootEntity == Entity.GetParentEntity())
+                var dynamicMonument = Monument as DynamicMonument;
+                if (dynamicMonument != null && dynamicMonument.RootEntity == Entity.GetParentEntity())
                 {
                     var cargoComputerStationList = new List<ComputerStation>();
-                    foreach (var child in mobileMonument.RootEntity.children)
+                    foreach (var child in dynamicMonument.RootEntity.children)
                     {
                         var computerStation = child as ComputerStation;
                         if (computerStation != null && computerStation.isStatic)
