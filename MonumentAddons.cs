@@ -3878,6 +3878,12 @@ namespace Oxide.Plugins
                 if (vehicle != null && !vehicle.IsDestroyed)
                 {
                     EnableSavingResursive(vehicle, true);
+
+                    var workcart = vehicle as TrainEngine;
+                    if (workcart != null && !workcart.IsInvoking(workcart.DecayTick))
+                    {
+                        workcart.InvokeRandomized(workcart.DecayTick, UnityEngine.Random.Range(20f, 40f), workcart.decayTickSpacing, workcart.decayTickSpacing * 0.1f);
+                    }
                 }
 
                 Destroy(GetComponent<SpawnPointInstance>());
@@ -4047,6 +4053,13 @@ namespace Oxide.Plugins
                 if (horse != null)
                 {
                     horse.lastInputTime = float.MaxValue;
+                    return;
+                }
+
+                var workcart = vehicle as TrainEngine;
+                if (workcart != null)
+                {
+                    workcart.CancelInvoke(workcart.DecayTick);
                     return;
                 }
             }
