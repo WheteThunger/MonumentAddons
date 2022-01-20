@@ -4938,7 +4938,12 @@ namespace Oxide.Plugins
             {
                 var playerInfo = GetOrCreatePlayerInfo(player);
 
-                ShowNearbyAdapters(player, player.transform.position, playerInfo);
+                // Only show initial debug info if there is no pending timer.
+                // This is done to avoid the text looking broken when the number of lines change and overlaps.
+                if (playerInfo.Timer == null || playerInfo.Timer.Destroyed)
+                {
+                    ShowNearbyAdapters(player, player.transform.position, playerInfo);
+                }
 
                 if (playerInfo.Timer != null && !playerInfo.Timer.Destroyed)
                 {
