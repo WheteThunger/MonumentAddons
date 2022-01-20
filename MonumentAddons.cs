@@ -1350,8 +1350,8 @@ namespace Oxide.Plugins
 
                 case "add":
                 {
-                    int weight;
-                    if (args.Length < 3 || !int.TryParse(args[2], out weight))
+                    var weight = 100;
+                    if (args.Length < 2 || args.Length >= 3 && !int.TryParse(args[2], out weight))
                     {
                         ReplyToPlayer(player, Lang.SpawnGroupAddSyntax, cmd);
                         return;
