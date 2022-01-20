@@ -2875,311 +2875,6 @@ namespace Oxide.Plugins
 
         #endregion
 
-        #region Spawn Group Components
-
-        private class SpawnedVehicleComponent : FacepunchBehaviour
-        {
-            private const float MaxDistanceSquared = 1;
-
-            private Vector3 _originalPosition;
-            private Transform _transform;
-
-            private void Awake()
-            {
-                _transform = transform;
-                _originalPosition = _transform.position;
-
-                InvokeRandomized(CheckPositionTracked, 10, 10, 1);
-            }
-
-            private void CheckPositionTracked()
-            {
-                _pluginInstance?.TrackStart();
-                CheckPosition();
-                _pluginInstance?.TrackEnd();
-            }
-
-            private void CheckPosition()
-            {
-                if ((_transform.position - _originalPosition).sqrMagnitude < MaxDistanceSquared)
-                    return;
-
-                // Vehicle has moved from its spawn point, so unregister it and re-enable saving.
-                var vehicle = GetComponent<BaseEntity>();
-                if (vehicle != null && !vehicle.IsDestroyed)
-                {
-                    EnableSavingResursive(vehicle, true);
-                }
-
-                Destroy(GetComponent<SpawnPointInstance>());
-                Destroy(this);
-            }
-        }
-
-        private class CustomSpawnPoint : BaseSpawnPoint
-        {
-            private SpawnPointAdapter _adapter;
-            private SpawnPointData _spawnPointData;
-            private Transform _transform;
-            private BaseEntity _parentEntity;
-            private List<SpawnPointInstance> _instances = new List<SpawnPointInstance>();
-
-            public void Init(SpawnPointAdapter adapter, SpawnPointData spawnPointData)
-            {
-                _adapter = adapter;
-                _spawnPointData = spawnPointData;
-            }
-
-            public void PreUnload()
-            {
-                KillSpawnInstances();
-                gameObject.SetActive(false);
-            }
-
-            private void Awake()
-            {
-                _transform = transform;
-                _parentEntity = _transform.parent?.ToBaseEntity();
-            }
-
-            public override void GetLocation(out Vector3 position, out Quaternion rotation)
-            {
-                position = _transform.position;
-                rotation = _transform.rotation;
-
-                if (_spawnPointData.RandomRadius > 0)
-                {
-                    Vector2 vector = UnityEngine.Random.insideUnitCircle * _spawnPointData.RandomRadius;
-                    position += new Vector3(vector.x, 0f, vector.y);
-                }
-
-                if (_spawnPointData.RandomRotation)
-                {
-                    rotation *= Quaternion.Euler(0f, UnityEngine.Random.Range(0f, 360f), 0f);
-                }
-
-                if (_spawnPointData.DropToGround)
-                {
-                    DropToGround(ref position, ref rotation);
-                }
-            }
-
-            public override void ObjectSpawned(SpawnPointInstance instance)
-            {
-                _instances.Add(instance);
-
-                var entity = instance.GetComponent<BaseEntity>();
-
-                if (!entity.HasParent() && _parentEntity != null && !_parentEntity.IsDestroyed)
-                {
-                    entity.SetParent(_parentEntity, worldPositionStays: true);
-                }
-
-                if (IsVehicle(entity))
-                {
-                    instance.gameObject.AddComponent<SpawnedVehicleComponent>();
-                    entity.Invoke(() => DisableVehicleDecay(entity), 5);
-                }
-            }
-
-            public override void ObjectRetired(SpawnPointInstance instance)
-            {
-                _instances.Remove(instance);
-            }
-
-            public override bool IsAvailableTo(GameObjectRef prefabRef)
-            {
-                if (!base.IsAvailableTo(prefabRef))
-                {
-                    return false;
-                }
-
-                if (_spawnPointData.Exclusive && _instances.Count > 0)
-                {
-                    return false;
-                }
-
-                if (_spawnPointData.CheckSpace)
-                {
-                    return SingletonComponent<SpawnHandler>.Instance.CheckBounds(prefabRef.Get(), _transform.position, _transform.rotation, Vector3.one);
-                }
-
-                return true;
-            }
-
-            public void OnDestroy()
-            {
-                KillSpawnInstances();
-                _adapter.OnSpawnPointKilled(this);
-            }
-
-            private void KillSpawnInstances()
-            {
-                for (var i = _instances.Count - 1; i >= 0; i--)
-                {
-                    var entity = _instances[i].GetComponent<BaseEntity>();
-                    if (entity != null && !entity.IsDestroyed)
-                    {
-                        entity.Kill();
-                    }
-                }
-            }
-
-            private bool IsVehicle(BaseEntity entity)
-            {
-                return entity is HotAirBalloon || entity is BaseVehicle;
-            }
-
-            private void DisableVehicleDecay(BaseEntity vehicle)
-            {
-                var kayak = vehicle as Kayak;
-                if (kayak != null)
-                {
-                    kayak.timeSinceLastUsed = float.MinValue;
-                    return;
-                }
-
-                var boat = vehicle as MotorRowboat;
-                if (boat != null)
-                {
-                    boat.timeSinceLastUsedFuel = float.MinValue;
-                    return;
-                }
-
-                var sub = vehicle as BaseSubmarine;
-                if (sub != null)
-                {
-                    sub.timeSinceLastUsed = float.MinValue;
-                    return;
-                }
-
-                var hab = vehicle as HotAirBalloon;
-                if (hab != null)
-                {
-                    hab.lastBlastTime = float.MaxValue;
-                    return;
-                }
-
-                var heli = vehicle as MiniCopter;
-                if (heli != null)
-                {
-                    heli.lastEngineOnTime = float.MaxValue;
-                    return;
-                }
-
-                var car = vehicle as ModularCar;
-                if (car != null)
-                {
-                    car.lastEngineOnTime = float.MaxValue;
-                    return;
-                }
-
-                var horse = vehicle as RidableHorse;
-                if (horse != null)
-                {
-                    horse.lastInputTime = float.MaxValue;
-                    return;
-                }
-            }
-        }
-
-        private class CustomSpawnGroup : SpawnGroup
-        {
-            private static AIInformationZone FindVirtualInfoZone(Vector3 position)
-            {
-                foreach (var zone in AIInformationZone.zones)
-                {
-                    if (zone.Virtual && zone.PointInside(position))
-                        return zone;
-                }
-
-                return null;
-            }
-
-            private SpawnGroupAdapter _spawnGroupAdapter;
-            private AIInformationZone _cachedInfoZone;
-            private bool _didLookForInfoZone;
-
-            public void Init(SpawnGroupAdapter spawnGroupAdapter)
-            {
-                _spawnGroupAdapter = spawnGroupAdapter;
-            }
-
-            public void UpdateSpawnClock()
-            {
-                spawnClock = new LocalClock();
-                spawnClock.Add(GetSpawnDelta(), GetSpawnVariance(), Spawn);
-            }
-
-            public float GetTimeToNextSpawn()
-            {
-                if (spawnClock.events.Count == 0)
-                    return float.PositiveInfinity;
-
-                return spawnClock.events.First().time - UnityEngine.Time.time;
-            }
-
-            protected override void PostSpawnProcess(BaseEntity entity, BaseSpawnPoint spawnPoint)
-            {
-                base.PostSpawnProcess(entity, spawnPoint);
-
-                EnableSavingResursive(entity, false);
-
-                var npcPlayer = entity as NPCPlayer;
-                if (npcPlayer != null)
-                {
-                    var virtualInfoZone = GetVirtualInfoZone();
-                    if (virtualInfoZone != null)
-                    {
-                        npcPlayer.VirtualInfoZone = virtualInfoZone;
-                    }
-
-                    var humanNpc = npcPlayer as global::HumanNPC;
-                    if (humanNpc != null)
-                    {
-                        virtualInfoZone?.RegisterSleepableEntity(humanNpc.Brain);
-
-                        var agent = npcPlayer.NavAgent;
-                        agent.agentTypeID = -1372625422;
-                        agent.areaMask = 1;
-                        agent.autoTraverseOffMeshLink = true;
-                        agent.autoRepath = true;
-
-                        var brain = humanNpc.Brain;
-                        humanNpc.Invoke(() =>
-                        {
-                            var navigator = brain.Navigator;
-                            if (navigator == null)
-                                return;
-
-                            navigator.DefaultArea = "Walkable";
-                            navigator.Init(humanNpc, agent);
-                            navigator.PlaceOnNavMesh();
-                        }, 0);
-                    }
-                }
-            }
-
-            private AIInformationZone GetVirtualInfoZone()
-            {
-                if (!_didLookForInfoZone)
-                {
-                    _cachedInfoZone = FindVirtualInfoZone(transform.position);
-                    _didLookForInfoZone = true;
-                }
-
-                return _cachedInfoZone;
-            }
-
-            private void OnDestroy()
-            {
-                SingletonComponent<SpawnHandler>.Instance.SpawnGroups.Remove(this);
-                _spawnGroupAdapter.OnSpawnGroupKilled(this);
-            }
-        }
-
-        #endregion
-
         #region Adapter/Controller - Base
 
         private interface IEntityAdapter
@@ -4150,6 +3845,307 @@ namespace Oxide.Plugins
         #endregion
 
         #region SpawnGroup Adapter/Controller
+
+        private class SpawnedVehicleComponent : FacepunchBehaviour
+        {
+            private const float MaxDistanceSquared = 1;
+
+            private Vector3 _originalPosition;
+            private Transform _transform;
+
+            private void Awake()
+            {
+                _transform = transform;
+                _originalPosition = _transform.position;
+
+                InvokeRandomized(CheckPositionTracked, 10, 10, 1);
+            }
+
+            private void CheckPositionTracked()
+            {
+                _pluginInstance?.TrackStart();
+                CheckPosition();
+                _pluginInstance?.TrackEnd();
+            }
+
+            private void CheckPosition()
+            {
+                if ((_transform.position - _originalPosition).sqrMagnitude < MaxDistanceSquared)
+                    return;
+
+                // Vehicle has moved from its spawn point, so unregister it and re-enable saving.
+                var vehicle = GetComponent<BaseEntity>();
+                if (vehicle != null && !vehicle.IsDestroyed)
+                {
+                    EnableSavingResursive(vehicle, true);
+                }
+
+                Destroy(GetComponent<SpawnPointInstance>());
+                Destroy(this);
+            }
+        }
+
+        private class CustomSpawnPoint : BaseSpawnPoint
+        {
+            private SpawnPointAdapter _adapter;
+            private SpawnPointData _spawnPointData;
+            private Transform _transform;
+            private BaseEntity _parentEntity;
+            private List<SpawnPointInstance> _instances = new List<SpawnPointInstance>();
+
+            public void Init(SpawnPointAdapter adapter, SpawnPointData spawnPointData)
+            {
+                _adapter = adapter;
+                _spawnPointData = spawnPointData;
+            }
+
+            public void PreUnload()
+            {
+                KillSpawnInstances();
+                gameObject.SetActive(false);
+            }
+
+            private void Awake()
+            {
+                _transform = transform;
+                _parentEntity = _transform.parent?.ToBaseEntity();
+            }
+
+            public override void GetLocation(out Vector3 position, out Quaternion rotation)
+            {
+                position = _transform.position;
+                rotation = _transform.rotation;
+
+                if (_spawnPointData.RandomRadius > 0)
+                {
+                    Vector2 vector = UnityEngine.Random.insideUnitCircle * _spawnPointData.RandomRadius;
+                    position += new Vector3(vector.x, 0f, vector.y);
+                }
+
+                if (_spawnPointData.RandomRotation)
+                {
+                    rotation *= Quaternion.Euler(0f, UnityEngine.Random.Range(0f, 360f), 0f);
+                }
+
+                if (_spawnPointData.DropToGround)
+                {
+                    DropToGround(ref position, ref rotation);
+                }
+            }
+
+            public override void ObjectSpawned(SpawnPointInstance instance)
+            {
+                _instances.Add(instance);
+
+                var entity = instance.GetComponent<BaseEntity>();
+
+                if (!entity.HasParent() && _parentEntity != null && !_parentEntity.IsDestroyed)
+                {
+                    entity.SetParent(_parentEntity, worldPositionStays: true);
+                }
+
+                if (IsVehicle(entity))
+                {
+                    instance.gameObject.AddComponent<SpawnedVehicleComponent>();
+                    entity.Invoke(() => DisableVehicleDecay(entity), 5);
+                }
+            }
+
+            public override void ObjectRetired(SpawnPointInstance instance)
+            {
+                _instances.Remove(instance);
+            }
+
+            public override bool IsAvailableTo(GameObjectRef prefabRef)
+            {
+                if (!base.IsAvailableTo(prefabRef))
+                {
+                    return false;
+                }
+
+                if (_spawnPointData.Exclusive && _instances.Count > 0)
+                {
+                    return false;
+                }
+
+                if (_spawnPointData.CheckSpace)
+                {
+                    return SingletonComponent<SpawnHandler>.Instance.CheckBounds(prefabRef.Get(), _transform.position, _transform.rotation, Vector3.one);
+                }
+
+                return true;
+            }
+
+            public void OnDestroy()
+            {
+                KillSpawnInstances();
+                _adapter.OnSpawnPointKilled(this);
+            }
+
+            private void KillSpawnInstances()
+            {
+                for (var i = _instances.Count - 1; i >= 0; i--)
+                {
+                    var entity = _instances[i].GetComponent<BaseEntity>();
+                    if (entity != null && !entity.IsDestroyed)
+                    {
+                        entity.Kill();
+                    }
+                }
+            }
+
+            private bool IsVehicle(BaseEntity entity)
+            {
+                return entity is HotAirBalloon || entity is BaseVehicle;
+            }
+
+            private void DisableVehicleDecay(BaseEntity vehicle)
+            {
+                var kayak = vehicle as Kayak;
+                if (kayak != null)
+                {
+                    kayak.timeSinceLastUsed = float.MinValue;
+                    return;
+                }
+
+                var boat = vehicle as MotorRowboat;
+                if (boat != null)
+                {
+                    boat.timeSinceLastUsedFuel = float.MinValue;
+                    return;
+                }
+
+                var sub = vehicle as BaseSubmarine;
+                if (sub != null)
+                {
+                    sub.timeSinceLastUsed = float.MinValue;
+                    return;
+                }
+
+                var hab = vehicle as HotAirBalloon;
+                if (hab != null)
+                {
+                    hab.lastBlastTime = float.MaxValue;
+                    return;
+                }
+
+                var heli = vehicle as MiniCopter;
+                if (heli != null)
+                {
+                    heli.lastEngineOnTime = float.MaxValue;
+                    return;
+                }
+
+                var car = vehicle as ModularCar;
+                if (car != null)
+                {
+                    car.lastEngineOnTime = float.MaxValue;
+                    return;
+                }
+
+                var horse = vehicle as RidableHorse;
+                if (horse != null)
+                {
+                    horse.lastInputTime = float.MaxValue;
+                    return;
+                }
+            }
+        }
+
+        private class CustomSpawnGroup : SpawnGroup
+        {
+            private static AIInformationZone FindVirtualInfoZone(Vector3 position)
+            {
+                foreach (var zone in AIInformationZone.zones)
+                {
+                    if (zone.Virtual && zone.PointInside(position))
+                        return zone;
+                }
+
+                return null;
+            }
+
+            private SpawnGroupAdapter _spawnGroupAdapter;
+            private AIInformationZone _cachedInfoZone;
+            private bool _didLookForInfoZone;
+
+            public void Init(SpawnGroupAdapter spawnGroupAdapter)
+            {
+                _spawnGroupAdapter = spawnGroupAdapter;
+            }
+
+            public void UpdateSpawnClock()
+            {
+                spawnClock = new LocalClock();
+                spawnClock.Add(GetSpawnDelta(), GetSpawnVariance(), Spawn);
+            }
+
+            public float GetTimeToNextSpawn()
+            {
+                if (spawnClock.events.Count == 0)
+                    return float.PositiveInfinity;
+
+                return spawnClock.events.First().time - UnityEngine.Time.time;
+            }
+
+            protected override void PostSpawnProcess(BaseEntity entity, BaseSpawnPoint spawnPoint)
+            {
+                base.PostSpawnProcess(entity, spawnPoint);
+
+                EnableSavingResursive(entity, false);
+
+                var npcPlayer = entity as NPCPlayer;
+                if (npcPlayer != null)
+                {
+                    var virtualInfoZone = GetVirtualInfoZone();
+                    if (virtualInfoZone != null)
+                    {
+                        npcPlayer.VirtualInfoZone = virtualInfoZone;
+                    }
+
+                    var humanNpc = npcPlayer as global::HumanNPC;
+                    if (humanNpc != null)
+                    {
+                        virtualInfoZone?.RegisterSleepableEntity(humanNpc.Brain);
+
+                        var agent = npcPlayer.NavAgent;
+                        agent.agentTypeID = -1372625422;
+                        agent.areaMask = 1;
+                        agent.autoTraverseOffMeshLink = true;
+                        agent.autoRepath = true;
+
+                        var brain = humanNpc.Brain;
+                        humanNpc.Invoke(() =>
+                        {
+                            var navigator = brain.Navigator;
+                            if (navigator == null)
+                                return;
+
+                            navigator.DefaultArea = "Walkable";
+                            navigator.Init(humanNpc, agent);
+                            navigator.PlaceOnNavMesh();
+                        }, 0);
+                    }
+                }
+            }
+
+            private AIInformationZone GetVirtualInfoZone()
+            {
+                if (!_didLookForInfoZone)
+                {
+                    _cachedInfoZone = FindVirtualInfoZone(transform.position);
+                    _didLookForInfoZone = true;
+                }
+
+                return _cachedInfoZone;
+            }
+
+            private void OnDestroy()
+            {
+                SingletonComponent<SpawnHandler>.Instance.SpawnGroups.Remove(this);
+                _spawnGroupAdapter.OnSpawnGroupKilled(this);
+            }
+        }
 
         private class SpawnPointAdapter : BaseTransformAdapter
         {
