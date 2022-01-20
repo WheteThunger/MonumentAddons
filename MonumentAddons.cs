@@ -1424,6 +1424,7 @@ namespace Oxide.Plugins
                     var prefabMatch = matchingPrefabs[0];
 
                     spawnGroupData.Prefabs.Remove(prefabMatch);
+                    spawnGroupController.KillSpawnedInstances(prefabMatch.PrefabName);
                     spawnGroupController.UpdateSpawnGroups();
                     spawnGroupController.Profile.Save();
 
@@ -3907,7 +3908,7 @@ namespace Oxide.Plugins
 
             public void PreUnload()
             {
-                KillSpawnInstances();
+                KillSpawnedInstances();
                 gameObject.SetActive(false);
             }
 
@@ -3984,16 +3985,16 @@ namespace Oxide.Plugins
 
             public void OnDestroy()
             {
-                KillSpawnInstances();
+                KillSpawnedInstances();
                 _adapter.OnSpawnPointKilled(this);
             }
 
-            private void KillSpawnInstances()
+            public void KillSpawnedInstances(string prefabName = null)
             {
                 for (var i = _instances.Count - 1; i >= 0; i--)
                 {
                     var entity = _instances[i].GetComponent<BaseEntity>();
-                    if (entity != null && !entity.IsDestroyed)
+                    if ((prefabName == null || entity.PrefabName == prefabName) && entity != null && !entity.IsDestroyed)
                     {
                         entity.Kill();
                     }
@@ -4206,6 +4207,11 @@ namespace Oxide.Plugins
             {
                 _spawnGroupAdapter.OnSpawnPointAdapterKilled(this);
             }
+
+            public void KillSpawnedInstances(string prefabName)
+            {
+                SpawnPoint.KillSpawnedInstances(prefabName);
+            }
         }
 
         private class SpawnGroupAdapter : BaseAdapter
@@ -4353,6 +4359,12 @@ namespace Oxide.Plugins
                 UpdateSpawnPointReferences();
             }
 
+            public void KillSpawnedInstances(string prefabName)
+            {
+                foreach (var spawnPointAdapter in Adapters)
+                    spawnPointAdapter.KillSpawnedInstances(prefabName);
+            }
+
             public void AddSpawnPoint(SpawnPointData spawnPointData)
             {
                 var spawnPointAdapter = new SpawnPointAdapter(spawnPointData, this, Controller, Monument);
@@ -4416,6 +4428,12 @@ namespace Oxide.Plugins
             {
                 foreach (var spawnGroupAdapter in SpawnGroupAdapters)
                     spawnGroupAdapter.UpdateSpawnGroup();
+            }
+
+            public void KillSpawnedInstances(string prefabName)
+            {
+                foreach (var spawnGroupAdapter in SpawnGroupAdapters)
+                    spawnGroupAdapter.KillSpawnedInstances(prefabName);
             }
         }
 
