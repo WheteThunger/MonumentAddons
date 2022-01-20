@@ -6048,6 +6048,7 @@ namespace Oxide.Plugins
             var addonTypeEntity = GetMessage(player, Lang.AddonTypeEntity);
             var addonTypePaste = GetMessage(player, Lang.AddonTypePaste);
             var addonTypeSpawnPoint = GetMessage(player, Lang.AddonTypeSpawnPoint);
+            var addonTypeCustom = GetMessage(player, Lang.AddonTypeCustom);
 
             foreach (var monumentEntry in profile.MonumentDataMap)
             {
@@ -6100,6 +6101,23 @@ namespace Oxide.Plugins
                             AddonName = pasteData.Filename,
                         };
                         entryMap[pasteData.Filename] = summaryEntry;
+                    }
+
+                    summaryEntry.Count++;
+                }
+
+                foreach (var customAddonData in monumentData.CustomAddons)
+                {
+                    ProfileSummaryEntry summaryEntry;
+                    if (!entryMap.TryGetValue(customAddonData.AddonName, out summaryEntry))
+                    {
+                        summaryEntry = new ProfileSummaryEntry
+                        {
+                            MonumentName = monumentName,
+                            AddonType = addonTypeCustom,
+                            AddonName = customAddonData.AddonName,
+                        };
+                        entryMap[customAddonData.AddonName] = summaryEntry;
                     }
 
                     summaryEntry.Count++;
@@ -6943,6 +6961,7 @@ namespace Oxide.Plugins
             public const string AddonTypeEntity = "AddonType.Entity";
             public const string AddonTypeSpawnPoint = "AddonType.SpawnPoint";
             public const string AddonTypePaste = "AddonType.Paste";
+            public const string AddonTypeCustom = "AddonType.Custom";
 
             public const string SpawnGroupCreateSyntax = "SpawnGroup.Create.Syntax";
             public const string SpawnGroupCreateNameInUse = "SpawnGroup.Create.NameInUse";
@@ -7105,6 +7124,7 @@ namespace Oxide.Plugins
                 [Lang.AddonTypeEntity] = "Entity",
                 [Lang.AddonTypeSpawnPoint] = "Spawn point",
                 [Lang.AddonTypePaste] = "Paste",
+                [Lang.AddonTypeCustom] = "Custom",
 
                 [Lang.SpawnGroupCreateSyntax] = "Syntax: <color=#fd4>{0} create <name></color>",
                 [Lang.SpawnGroupCreateNameInUse] = "There is already a spawn group named <color=#fd4>{0}</color> at monument <color=#fd4>{1}</color> in profile <color=#fd4>{2}</color>. Please use a different name.",
