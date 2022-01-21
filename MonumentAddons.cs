@@ -3185,9 +3185,9 @@ namespace Oxide.Plugins
                 Entity = CreateEntity(EntityData.PrefabName, IntendedPosition, IntendedRotation);
                 _transform = Entity.transform;
 
-                OnEntitySpawn();
+                PreEntitySpawn();
                 Entity.Spawn();
-                OnEntitySpawned();
+                PostEntitySpawn();
             }
 
             public override void Kill()
@@ -3251,7 +3251,7 @@ namespace Oxide.Plugins
                 Entity.SendNetworkUpdate();
             }
 
-            protected virtual void OnEntitySpawn()
+            protected virtual void PreEntitySpawn()
             {
                 if (EntityData.Skin != 0)
                     Entity.skinID = EntityData.Skin;
@@ -3281,7 +3281,7 @@ namespace Oxide.Plugins
                 }
             }
 
-            protected virtual void OnEntitySpawned()
+            protected virtual void PostEntitySpawn()
             {
                 EntitySetupUtils.PostSpawnShared(Entity);
 
@@ -3470,9 +3470,9 @@ namespace Oxide.Plugins
                 _pluginInstance.SkinSign(Entity as ISignage, EntityData.SignArtistImages);
             }
 
-            protected override void OnEntitySpawn()
+            protected override void PreEntitySpawn()
             {
-                base.OnEntitySpawn();
+                base.PreEntitySpawn();
 
                 (Entity as Signage)?.EnsureInitialized();
 
@@ -3486,9 +3486,9 @@ namespace Oxide.Plugins
                 Entity.SetFlag(BaseEntity.Flags.Locked, true);
             }
 
-            protected override void OnEntitySpawned()
+            protected override void PostEntitySpawn()
             {
-                base.OnEntitySpawned();
+                base.PostEntitySpawn();
 
                 // This must be done after spawning to allow the animation to work.
                 var neonSign = Entity as NeonSign;
@@ -3558,17 +3558,17 @@ namespace Oxide.Plugins
                 _idSuffix = idSuffix;
             }
 
-            protected override void OnEntitySpawn()
+            protected override void PreEntitySpawn()
             {
-                base.OnEntitySpawn();
+                base.PreEntitySpawn();
 
                 UpdateIdentifier();
                 UpdateDirection();
             }
 
-            protected override void OnEntitySpawned()
+            protected override void PostEntitySpawn()
             {
-                base.OnEntitySpawned();
+                base.PostEntitySpawn();
 
                 if (_cachedIdentifier != null)
                 {
