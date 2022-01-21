@@ -863,7 +863,7 @@ namespace Oxide.Plugins
                     }
                     catch (JsonReaderException ex)
                     {
-                        player.Reply(ex.Message);
+                        player.Reply("{0}", string.Empty, ex.Message);
                         return;
                     }
 
@@ -2055,7 +2055,7 @@ namespace Oxide.Plugins
             catch (JsonReaderException ex)
             {
                 controller = null;
-                player.Reply(ex.Message);
+                player.Reply("{0}", string.Empty, ex.Message);
                 return false;
             }
 
