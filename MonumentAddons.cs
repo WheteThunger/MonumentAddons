@@ -1434,6 +1434,29 @@ namespace Oxide.Plugins
                     break;
                 }
 
+                case "spawn":
+                case "tick":
+                {
+                    SpawnGroupController spawnGroupController;
+                    if (!VerifyLookingAtAdapter(player, out spawnGroupController, Lang.ErrorNoSpawnPointFound))
+                        return;
+
+                    spawnGroupController.SpawnTick();
+                    _entityDisplayManager.ShowAllRepeatedly(basePlayer);
+                    break;
+                }
+
+                case "respawn":
+                {
+                    SpawnGroupController spawnGroupController;
+                    if (!VerifyLookingAtAdapter(player, out spawnGroupController, Lang.ErrorNoSpawnPointFound))
+                        return;
+
+                    spawnGroupController.Respawn();
+                    _entityDisplayManager.ShowAllRepeatedly(basePlayer);
+                    break;
+                }
+
                 default:
                 {
                     SubCommandSpawnGroupHelp(player, cmd);
@@ -4368,6 +4391,11 @@ namespace Oxide.Plugins
                 UpdateSpawnPointReferences();
             }
 
+            public void SpawnTick()
+            {
+                SpawnGroup.Spawn();
+            }
+
             public void KillSpawnedInstances(string prefabName)
             {
                 foreach (var spawnPointAdapter in Adapters)
@@ -4439,10 +4467,37 @@ namespace Oxide.Plugins
                     spawnGroupAdapter.UpdateSpawnGroup();
             }
 
-            public void KillSpawnedInstances(string prefabName)
+            public void SpawnTick() =>
+                ProfileController.StartCoroutine(SpawnTickRoutine());
+
+            public void KillSpawnedInstances(string prefabName) =>
+                ProfileController.StartCoroutine(KillSpawnedInstancesRoutine(prefabName));
+
+            public void Respawn() =>
+                ProfileController.StartCoroutine(RespawnRoutine());
+
+            private IEnumerator SpawnTickRoutine()
             {
                 foreach (var spawnGroupAdapter in SpawnGroupAdapters)
+                {
+                    spawnGroupAdapter.SpawnTick();
+                    yield return null;
+                }
+            }
+
+            private IEnumerator KillSpawnedInstancesRoutine(string prefabName = null)
+            {
+                foreach (var spawnGroupAdapter in SpawnGroupAdapters)
+                {
                     spawnGroupAdapter.KillSpawnedInstances(prefabName);
+                    yield return null;
+                }
+            }
+
+            private IEnumerator RespawnRoutine()
+            {
+                yield return KillSpawnedInstancesRoutine();
+                yield return SpawnTickRoutine();
             }
         }
 
