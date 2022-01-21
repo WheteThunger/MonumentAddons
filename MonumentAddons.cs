@@ -4090,8 +4090,17 @@ namespace Oxide.Plugins
 
             public void UpdateSpawnClock()
             {
-                spawnClock = new LocalClock();
-                spawnClock.Add(GetSpawnDelta(), GetSpawnVariance(), Spawn);
+                if (spawnClock.events.Count > 0)
+                {
+                    var clockEvent = spawnClock.events[0];
+                    var timeUntilSpawn = clockEvent.time - UnityEngine.Time.time;
+
+                    if (timeUntilSpawn > _spawnGroupAdapter.SpawnGroupData.RespawnDelayMax)
+                    {
+                        clockEvent.time = UnityEngine.Time.time + _spawnGroupAdapter.SpawnGroupData.RespawnDelayMax;
+                        spawnClock.events[0] = clockEvent;
+                    }
+                }
             }
 
             public float GetTimeToNextSpawn()
