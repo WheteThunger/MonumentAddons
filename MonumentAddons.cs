@@ -4478,7 +4478,7 @@ namespace Oxide.Plugins
 
             private IEnumerator SpawnTickRoutine()
             {
-                foreach (var spawnGroupAdapter in SpawnGroupAdapters)
+                foreach (var spawnGroupAdapter in SpawnGroupAdapters.ToArray())
                 {
                     spawnGroupAdapter.SpawnTick();
                     yield return null;
@@ -4487,7 +4487,7 @@ namespace Oxide.Plugins
 
             private IEnumerator KillSpawnedInstancesRoutine(string prefabName = null)
             {
-                foreach (var spawnGroupAdapter in SpawnGroupAdapters)
+                foreach (var spawnGroupAdapter in SpawnGroupAdapters.ToArray())
                 {
                     spawnGroupAdapter.KillSpawnedInstances(prefabName);
                     yield return null;
