@@ -5060,6 +5060,13 @@ namespace Oxide.Plugins
 
                 playerInfo.Timer = _pluginInstance.timer.Repeat(DisplayIntervalDuration - 0.2f, repetitions, () =>
                 {
+                    if (player == null || player.IsDestroyed || !player.IsConnected)
+                    {
+                        playerInfo.Timer.Destroy();
+                        _playerInfo.Remove(player.userID);
+                        return;
+                    }
+
                     ShowNearbyAdapters(player, player.transform.position, playerInfo);
                 });
             }
@@ -5247,13 +5254,6 @@ namespace Oxide.Plugins
 
             private void ShowNearbyAdapters(BasePlayer player, Vector3 playerPosition, PlayerInfo playerInfo)
             {
-                if (!player.IsConnected)
-                {
-                    playerInfo.Timer.Destroy();
-                    _playerInfo.Remove(player.userID);
-                    return;
-                }
-
                 var isAdmin = player.IsAdmin;
                 if (!isAdmin)
                 {
