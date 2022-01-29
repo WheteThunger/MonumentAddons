@@ -3019,10 +3019,18 @@ namespace Oxide.Plugins
                     decayEntity.decay = null;
 
                     var buildingBlock = entity as BuildingBlock;
-                    if (buildingBlock != null && buildingBlock.HasFlag(BuildingBlock.BlockFlags.CanDemolish))
+                    if (buildingBlock != null)
                     {
-                        // Must be set after spawn for some reason.
-                        buildingBlock.StopBeingDemolishable();
+                        // Must be done after spawn for some reason.
+                        if (buildingBlock.HasFlag(BuildingBlock.BlockFlags.CanRotate)
+                            || buildingBlock.HasFlag(BuildingBlock.BlockFlags.CanDemolish))
+                        {
+                            buildingBlock.SetFlag(BuildingBlock.BlockFlags.CanRotate, false, recursive: false, networkupdate: false);
+                            buildingBlock.SetFlag(BuildingBlock.BlockFlags.CanDemolish, false, recursive: false, networkupdate: false);
+                            buildingBlock.CancelInvoke(buildingBlock.StopBeingRotatable);
+                            buildingBlock.CancelInvoke(buildingBlock.StopBeingDemolishable);
+                            buildingBlock.SendNetworkUpdate_Flags();
+                        }
                     }
                 }
             }
