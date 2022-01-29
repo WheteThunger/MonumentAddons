@@ -167,7 +167,7 @@ namespace Oxide.Plugins
         {
             if (_entityTracker.IsMonumentEntity(signage as BaseEntity) && !HasAdminPermission(player))
             {
-                ChatMessage(player, Lang.ErrorNoPermission);
+                ChatMessage(player, LangEntry.ErrorNoPermission);
                 return false;
             }
 
@@ -272,7 +272,7 @@ namespace Oxide.Plugins
             if (player != null)
             {
                 _entityDisplayManager.ShowAllRepeatedly(player);
-                ChatMessage(player, Lang.MoveSuccess, controller.Adapters.Count, controller.Profile.Name);
+                ChatMessage(player, LangEntry.MoveSuccess, controller.Adapters.Count, controller.Profile.Name);
             }
         }
 
@@ -508,7 +508,7 @@ namespace Oxide.Plugins
             profileController.SpawnNewData(addonData, matchingMonuments);
 
             _entityDisplayManager.ShowAllRepeatedly(basePlayer);
-            ReplyToPlayer(player, Lang.SpawnSuccess, matchingMonuments.Count, profileController.Profile.Name, monument.AliasOrShortName);
+            ReplyToPlayer(player, LangEntry.SpawnSuccess, matchingMonuments.Count, profileController.Profile.Name, monument.AliasOrShortName);
         }
 
         [Command("masave")]
@@ -519,17 +519,17 @@ namespace Oxide.Plugins
 
             SingleEntityAdapter adapter;
             SingleEntityController controller;
-            if (!VerifyLookingAtAdapter(player, out adapter, out controller, Lang.ErrorNoSuitableAddonFound))
+            if (!VerifyLookingAtAdapter(player, out adapter, out controller, LangEntry.ErrorNoSuitableAddonFound))
                 return;
 
             if (adapter.IsAtIntendedPosition)
             {
-                ReplyToPlayer(player, Lang.MoveNothingToDo);
+                ReplyToPlayer(player, LangEntry.MoveNothingToDo);
                 return;
             }
 
             HandleAdapterMoved(adapter, controller);
-            ReplyToPlayer(player, Lang.MoveSuccess, controller.Adapters.Count, controller.Profile.Name);
+            ReplyToPlayer(player, LangEntry.MoveSuccess, controller.Adapters.Count, controller.Profile.Name);
 
             var basePlayer = player.Object as BasePlayer;
             _entityDisplayManager.ShowAllRepeatedly(basePlayer);
@@ -543,7 +543,7 @@ namespace Oxide.Plugins
 
             BaseController controller;
             BaseTransformAdapter adapter;
-            if (!VerifyLookingAtAdapter(player, out adapter, out controller, Lang.ErrorNoSuitableAddonFound))
+            if (!VerifyLookingAtAdapter(player, out adapter, out controller, LangEntry.ErrorNoSuitableAddonFound))
                 return;
 
             var numAdapters = controller.Adapters.Count;
@@ -563,7 +563,7 @@ namespace Oxide.Plugins
 
             var basePlayer = player.Object as BasePlayer;
             _entityDisplayManager.ShowAllRepeatedly(basePlayer);
-            ReplyToPlayer(player, Lang.KillSuccess, GetAddonName(player, adapter.Data), numAdapters, controller.Profile.Name);
+            ReplyToPlayer(player, LangEntry.KillSuccess, GetAddonName(player, adapter.Data), numAdapters, controller.Profile.Name);
         }
 
         [Command("masetid")]
@@ -574,12 +574,12 @@ namespace Oxide.Plugins
 
             if (args.Length < 1 || !ComputerStation.IsValidIdentifier(args[0]))
             {
-                ReplyToPlayer(player, Lang.CCTVSetIdSyntax, cmd);
+                ReplyToPlayer(player, LangEntry.CCTVSetIdSyntax, cmd);
                 return;
             }
 
             CCTVEntityController controller;
-            if (!VerifyLookingAtAdapter(player, out controller, Lang.ErrorNoSuitableAddonFound))
+            if (!VerifyLookingAtAdapter(player, out controller, LangEntry.ErrorNoSuitableAddonFound))
                 return;
 
             if (controller.EntityData.CCTV == null)
@@ -591,7 +591,7 @@ namespace Oxide.Plugins
 
             var basePlayer = player.Object as BasePlayer;
             _entityDisplayManager.ShowAllRepeatedly(basePlayer);
-            ReplyToPlayer(player, Lang.CCTVSetIdSuccess, args[0], controller.Adapters.Count, controller.Profile.Name);
+            ReplyToPlayer(player, LangEntry.CCTVSetIdSuccess, args[0], controller.Adapters.Count, controller.Profile.Name);
         }
 
         [Command("masetdir")]
@@ -602,7 +602,7 @@ namespace Oxide.Plugins
 
             CCTVEntityAdapter adapter;
             CCTVEntityController controller;
-            if (!VerifyLookingAtAdapter(player, out adapter, out controller, Lang.ErrorNoSuitableAddonFound))
+            if (!VerifyLookingAtAdapter(player, out adapter, out controller, LangEntry.ErrorNoSuitableAddonFound))
                 return;
 
             var cctv = adapter.Entity as CCTV_RC;
@@ -621,7 +621,7 @@ namespace Oxide.Plugins
             controller.UpdateDirection();
 
             _entityDisplayManager.ShowAllRepeatedly(basePlayer);
-            ReplyToPlayer(player, Lang.CCTVSetDirectionSuccess, controller.Adapters.Count, controller.Profile.Name);
+            ReplyToPlayer(player, LangEntry.CCTVSetDirectionSuccess, controller.Adapters.Count, controller.Profile.Name);
         }
 
         [Command("maskin")]
@@ -632,26 +632,26 @@ namespace Oxide.Plugins
 
             SingleEntityAdapter adapter;
             SingleEntityController controller;
-            if (!VerifyLookingAtAdapter(player, out adapter, out controller, Lang.ErrorNoSuitableAddonFound))
+            if (!VerifyLookingAtAdapter(player, out adapter, out controller, LangEntry.ErrorNoSuitableAddonFound))
                 return;
 
             if (args.Length == 0)
             {
-                ReplyToPlayer(player, Lang.SkinGet, adapter.Entity.skinID, cmd);
+                ReplyToPlayer(player, LangEntry.SkinGet, adapter.Entity.skinID, cmd);
                 return;
             }
 
             ulong skinId;
             if (!ulong.TryParse(args[0], out skinId))
             {
-                ReplyToPlayer(player, Lang.SkinSetSyntax, cmd);
+                ReplyToPlayer(player, LangEntry.SkinSetSyntax, cmd);
                 return;
             }
 
             string alternativeShortName;
             if (IsRedirectSkin(skinId, out alternativeShortName))
             {
-                ReplyToPlayer(player, Lang.SkinErrorRedirect, skinId, alternativeShortName);
+                ReplyToPlayer(player, LangEntry.SkinErrorRedirect, skinId, alternativeShortName);
                 return;
             }
 
@@ -661,14 +661,14 @@ namespace Oxide.Plugins
 
             var basePlayer = player.Object as BasePlayer;
             _entityDisplayManager.ShowAllRepeatedly(basePlayer);
-            ReplyToPlayer(player, Lang.SkinSetSuccess, skinId, controller.Adapters.Count, controller.Profile.Name);
+            ReplyToPlayer(player, LangEntry.SkinSetSuccess, skinId, controller.Adapters.Count, controller.Profile.Name);
         }
 
         private void AddProfileDescription(StringBuilder sb, IPlayer player, ProfileController profileController)
         {
             foreach (var summaryEntry in GetProfileSummary(player, profileController.Profile))
             {
-                sb.AppendLine(GetMessage(player, Lang.ProfileDescribeItem, summaryEntry.AddonType, summaryEntry.AddonName, summaryEntry.Count, summaryEntry.MonumentName));
+                sb.AppendLine(GetMessage(player, LangEntry.ProfileDescribeItem, summaryEntry.AddonType, summaryEntry.AddonName, summaryEntry.Count, summaryEntry.MonumentName));
             }
         }
 
@@ -696,7 +696,7 @@ namespace Oxide.Plugins
                     var profileList = ProfileInfo.GetList(_profileManager);
                     if (profileList.Length == 0)
                     {
-                        ReplyToPlayer(player, Lang.ProfileListEmpty);
+                        ReplyToPlayer(player, LangEntry.ProfileListEmpty);
                         return;
                     }
 
@@ -710,14 +710,14 @@ namespace Oxide.Plugins
                         .ToArray();
 
                     var sb = new StringBuilder();
-                    sb.AppendLine(GetMessage(player, Lang.ProfileListHeader));
+                    sb.AppendLine(GetMessage(player, LangEntry.ProfileListHeader));
                     foreach (var profile in profileList)
                     {
                         var messageName = profile.Enabled && profile.Name == playerProfileName
-                            ? Lang.ProfileListItemSelected
+                            ? LangEntry.ProfileListItemSelected
                             : profile.Enabled
-                            ? Lang.ProfileListItemEnabled
-                            : Lang.ProfileListItemDisabled;
+                            ? LangEntry.ProfileListItemEnabled
+                            : LangEntry.ProfileListItemDisabled;
 
                         sb.AppendLine(GetMessage(player, messageName, profile.Name, GetAuthorSuffix(player, profile.Profile?.Author)));
                     }
@@ -728,17 +728,17 @@ namespace Oxide.Plugins
                 case "describe":
                 {
                     ProfileController controller;
-                    if (!VerifyProfile(player, args, out controller, Lang.ProfileDescribeSyntax))
+                    if (!VerifyProfile(player, args, out controller, LangEntry.ProfileDescribeSyntax))
                         return;
 
                     if (controller.Profile.IsEmpty())
                     {
-                        ReplyToPlayer(player, Lang.ProfileEmpty, controller.Profile.Name);
+                        ReplyToPlayer(player, LangEntry.ProfileEmpty, controller.Profile.Name);
                         return;
                     }
 
                     var sb = new StringBuilder();
-                    sb.AppendLine(GetMessage(player, Lang.ProfileDescribeHeader, controller.Profile.Name));
+                    sb.AppendLine(GetMessage(player, LangEntry.ProfileDescribeHeader, controller.Profile.Name));
                     AddProfileDescription(sb, player, controller);
 
                     player.Reply(sb.ToString());
@@ -758,12 +758,12 @@ namespace Oxide.Plugins
 
                     if (args.Length <= 1)
                     {
-                        ReplyToPlayer(player, Lang.ProfileSelectSyntax);
+                        ReplyToPlayer(player, LangEntry.ProfileSelectSyntax);
                         return;
                     }
 
                     ProfileController controller;
-                    if (!VerifyProfile(player, args, out controller, Lang.ProfileSelectSyntax))
+                    if (!VerifyProfile(player, args, out controller, LangEntry.ProfileSelectSyntax))
                         return;
 
                     _pluginData.SetProfileSelected(player.Id, controller.Profile.Name);
@@ -778,7 +778,7 @@ namespace Oxide.Plugins
                         controller.Enable();
                     }
 
-                    ReplyToPlayer(player, wasEnabled ? Lang.ProfileSelectSuccess : Lang.ProfileSelectEnableSuccess, controller.Profile.Name);
+                    ReplyToPlayer(player, wasEnabled ? LangEntry.ProfileSelectSuccess : LangEntry.ProfileSelectEnableSuccess, controller.Profile.Name);
                     _entityDisplayManager.SetPlayerProfile(basePlayer, controller);
                     _entityDisplayManager.ShowAllRepeatedly(basePlayer);
                     break;
@@ -788,14 +788,14 @@ namespace Oxide.Plugins
                 {
                     if (args.Length < 2)
                     {
-                        ReplyToPlayer(player, Lang.ProfileCreateSyntax);
+                        ReplyToPlayer(player, LangEntry.ProfileCreateSyntax);
                         return;
                     }
 
                     var newName = DynamicConfigFile.SanitizeName(args[1]);
                     if (string.IsNullOrWhiteSpace(newName))
                     {
-                        ReplyToPlayer(player, Lang.ProfileCreateSyntax);
+                        ReplyToPlayer(player, LangEntry.ProfileCreateSyntax);
                         return;
                     }
 
@@ -809,7 +809,7 @@ namespace Oxide.Plugins
 
                     _pluginData.SetProfileEnabled(newName);
 
-                    ReplyToPlayer(player, Lang.ProfileCreateSuccess, controller.Profile.Name);
+                    ReplyToPlayer(player, LangEntry.ProfileCreateSuccess, controller.Profile.Name);
                     break;
                 }
 
@@ -817,7 +817,7 @@ namespace Oxide.Plugins
                 {
                     if (args.Length < 2)
                     {
-                        ReplyToPlayer(player, Lang.ProfileRenameSyntax);
+                        ReplyToPlayer(player, LangEntry.ProfileRenameSyntax);
                         return;
                     }
 
@@ -827,7 +827,7 @@ namespace Oxide.Plugins
                         controller = player.IsServer ? null : _profileManager.GetPlayerProfileController(player.Id);
                         if (controller == null)
                         {
-                            ReplyToPlayer(player, Lang.ProfileRenameSyntax);
+                            ReplyToPlayer(player, LangEntry.ProfileRenameSyntax);
                             return;
                         }
                     }
@@ -837,7 +837,7 @@ namespace Oxide.Plugins
                     string newName = DynamicConfigFile.SanitizeName(args.Length == 2 ? args[1] : args[2]);
                     if (string.IsNullOrWhiteSpace(newName))
                     {
-                        ReplyToPlayer(player, Lang.ProfileRenameSyntax);
+                        ReplyToPlayer(player, LangEntry.ProfileRenameSyntax);
                         return;
                     }
 
@@ -848,7 +848,7 @@ namespace Oxide.Plugins
                     var actualOldName = controller.Profile.Name;
 
                     controller.Rename(newName);
-                    ReplyToPlayer(player, Lang.ProfileRenameSuccess, actualOldName, controller.Profile.Name);
+                    ReplyToPlayer(player, LangEntry.ProfileRenameSuccess, actualOldName, controller.Profile.Name);
                     if (!player.IsServer)
                     {
                         _entityDisplayManager.ShowAllRepeatedly(basePlayer);
@@ -859,12 +859,12 @@ namespace Oxide.Plugins
                 case "reload":
                 {
                     ProfileController controller;
-                    if (!VerifyProfile(player, args, out controller, Lang.ProfileReloadSyntax))
+                    if (!VerifyProfile(player, args, out controller, LangEntry.ProfileReloadSyntax))
                         return;
 
                     if (!controller.IsEnabled)
                     {
-                        ReplyToPlayer(player, Lang.ProfileNotEnabled, controller.Profile.Name);
+                        ReplyToPlayer(player, LangEntry.ProfileNotEnabled, controller.Profile.Name);
                         return;
                     }
 
@@ -880,7 +880,7 @@ namespace Oxide.Plugins
                     }
 
                     controller.Reload(newProfileData);
-                    ReplyToPlayer(player, Lang.ProfileReloadSuccess, controller.Profile.Name);
+                    ReplyToPlayer(player, LangEntry.ProfileReloadSuccess, controller.Profile.Name);
                     if (!player.IsServer)
                     {
                         _entityDisplayManager.SetPlayerProfile(basePlayer, controller);
@@ -893,7 +893,7 @@ namespace Oxide.Plugins
                 {
                     if (args.Length < 2)
                     {
-                        ReplyToPlayer(player, Lang.ProfileEnableSyntax);
+                        ReplyToPlayer(player, LangEntry.ProfileEnableSyntax);
                         return;
                     }
 
@@ -904,12 +904,12 @@ namespace Oxide.Plugins
                     var profileName = controller.Profile.Name;
                     if (controller.IsEnabled)
                     {
-                        ReplyToPlayer(player, Lang.ProfileAlreadyEnabled, profileName);
+                        ReplyToPlayer(player, LangEntry.ProfileAlreadyEnabled, profileName);
                         return;
                     }
 
                     controller.Enable();
-                    ReplyToPlayer(player, Lang.ProfileEnableSuccess, profileName);
+                    ReplyToPlayer(player, LangEntry.ProfileEnableSuccess, profileName);
                     if (!player.IsServer)
                     {
                         _entityDisplayManager.SetPlayerProfile(basePlayer, controller);
@@ -921,20 +921,20 @@ namespace Oxide.Plugins
                 case "disable":
                 {
                     ProfileController controller;
-                    if (!VerifyProfile(player, args, out controller, Lang.ProfileDisableSyntax))
+                    if (!VerifyProfile(player, args, out controller, LangEntry.ProfileDisableSyntax))
                         return;
 
                     var profileName = controller.Profile.Name;
                     if (!controller.IsEnabled)
                     {
-                        ReplyToPlayer(player, Lang.ProfileAlreadyDisabled, profileName);
+                        ReplyToPlayer(player, LangEntry.ProfileAlreadyDisabled, profileName);
                         return;
                     }
 
                     controller.Disable();
                     _pluginData.SetProfileDisabled(profileName);
                     _pluginData.Save();
-                    ReplyToPlayer(player, Lang.ProfileDisableSuccess, profileName);
+                    ReplyToPlayer(player, LangEntry.ProfileDisableSuccess, profileName);
                     break;
                 }
 
@@ -942,29 +942,29 @@ namespace Oxide.Plugins
                 {
                     if (args.Length <= 1)
                     {
-                        ReplyToPlayer(player, Lang.ProfileClearSyntax);
+                        ReplyToPlayer(player, LangEntry.ProfileClearSyntax);
                         return;
                     }
 
                     ProfileController controller;
-                    if (!VerifyProfile(player, args, out controller, Lang.ProfileClearSyntax))
+                    if (!VerifyProfile(player, args, out controller, LangEntry.ProfileClearSyntax))
                         return;
 
                     if (!controller.Profile.IsEmpty())
                         controller.Clear();
 
-                    ReplyToPlayer(player, Lang.ProfileClearSuccess, controller.Profile.Name);
+                    ReplyToPlayer(player, LangEntry.ProfileClearSuccess, controller.Profile.Name);
                     break;
                 }
 
                 case "moveto":
                 {
                     BaseController controller;
-                    if (!VerifyLookingAtAdapter(player, out controller, Lang.ErrorNoSuitableAddonFound))
+                    if (!VerifyLookingAtAdapter(player, out controller, LangEntry.ErrorNoSuitableAddonFound))
                         return;
 
                     ProfileController newProfileController;
-                    if (!VerifyProfile(player, args, out newProfileController, Lang.ProfileMoveToSyntax))
+                    if (!VerifyProfile(player, args, out newProfileController, LangEntry.ProfileMoveToSyntax))
                         return;
 
                     var newProfile = newProfileController.Profile;
@@ -975,7 +975,7 @@ namespace Oxide.Plugins
 
                     if (newProfileController == controller.ProfileController)
                     {
-                        ReplyToPlayer(player, Lang.ProfileMoveToAlreadyPresent, addonName, oldProfile.Name);
+                        ReplyToPlayer(player, LangEntry.ProfileMoveToAlreadyPresent, addonName, oldProfile.Name);
                         return;
                     }
 
@@ -986,7 +986,7 @@ namespace Oxide.Plugins
                     newProfile.AddData(monumentAliasOrShortName, data);
                     newProfileController.SpawnNewData(data, GetMonumentsByAliasOrShortName(monumentAliasOrShortName));
 
-                    ReplyToPlayer(player, Lang.ProfileMoveToSuccess, addonName, oldProfile.Name, newProfile.Name);
+                    ReplyToPlayer(player, LangEntry.ProfileMoveToSuccess, addonName, oldProfile.Name, newProfile.Name);
                     if (!player.IsServer)
                     {
                         _entityDisplayManager.SetPlayerProfile(basePlayer, newProfileController);
@@ -999,7 +999,7 @@ namespace Oxide.Plugins
                 {
                     if (args.Length < 2)
                     {
-                        ReplyToPlayer(player, Lang.ProfileInstallSyntax);
+                        ReplyToPlayer(player, LangEntry.ProfileInstallSyntax);
                         return;
                     }
 
@@ -1018,19 +1018,19 @@ namespace Oxide.Plugins
         private void SubCommandProfileHelp(IPlayer player)
         {
             var sb = new StringBuilder();
-            sb.AppendLine(GetMessage(player, Lang.ProfileHelpHeader));
-            sb.AppendLine(GetMessage(player, Lang.ProfileHelpList));
-            sb.AppendLine(GetMessage(player, Lang.ProfileHelpDescribe));
-            sb.AppendLine(GetMessage(player, Lang.ProfileHelpEnable));
-            sb.AppendLine(GetMessage(player, Lang.ProfileHelpDisable));
-            sb.AppendLine(GetMessage(player, Lang.ProfileHelpReload));
-            sb.AppendLine(GetMessage(player, Lang.ProfileHelpSelect));
-            sb.AppendLine(GetMessage(player, Lang.ProfileHelpCreate));
-            sb.AppendLine(GetMessage(player, Lang.ProfileHelpRename));
-            sb.AppendLine(GetMessage(player, Lang.ProfileHelpClear));
-            sb.AppendLine(GetMessage(player, Lang.ProfileHelpMoveTo));
-            sb.AppendLine(GetMessage(player, Lang.ProfileHelpInstall));
-            ReplyToPlayer(player, sb.ToString());
+            sb.AppendLine(GetMessage(player, LangEntry.ProfileHelpHeader));
+            sb.AppendLine(GetMessage(player, LangEntry.ProfileHelpList));
+            sb.AppendLine(GetMessage(player, LangEntry.ProfileHelpDescribe));
+            sb.AppendLine(GetMessage(player, LangEntry.ProfileHelpEnable));
+            sb.AppendLine(GetMessage(player, LangEntry.ProfileHelpDisable));
+            sb.AppendLine(GetMessage(player, LangEntry.ProfileHelpReload));
+            sb.AppendLine(GetMessage(player, LangEntry.ProfileHelpSelect));
+            sb.AppendLine(GetMessage(player, LangEntry.ProfileHelpCreate));
+            sb.AppendLine(GetMessage(player, LangEntry.ProfileHelpRename));
+            sb.AppendLine(GetMessage(player, LangEntry.ProfileHelpClear));
+            sb.AppendLine(GetMessage(player, LangEntry.ProfileHelpMoveTo));
+            sb.AppendLine(GetMessage(player, LangEntry.ProfileHelpInstall));
+            player.Reply(sb.ToString());
         }
 
         [Command("mainstall")]
@@ -1038,7 +1038,7 @@ namespace Oxide.Plugins
         {
             if (args.Length < 1)
             {
-                ReplyToPlayer(player, Lang.ProfileInstallShorthandSyntax);
+                ReplyToPlayer(player, LangEntry.ProfileInstallShorthandSyntax);
                 return;
             }
 
@@ -1059,7 +1059,7 @@ namespace Oxide.Plugins
                 }
                 else
                 {
-                    ReplyToPlayer(player, Lang.ProfileUrlInvalid, url);
+                    ReplyToPlayer(player, LangEntry.ProfileUrlInvalid, url);
                     return;
                 }
             }
@@ -1078,7 +1078,7 @@ namespace Oxide.Plugins
                         if (string.IsNullOrEmpty(urlDerivedProfileName))
                         {
                             LogError($"Unable to determine profile name from url: \"{url}\". Please ask the URL owner to supply a \"Name\" in the file.");
-                            ReplyToPlayer(player, Lang.ProfileInstallError, url);
+                            ReplyToPlayer(player, LangEntry.ProfileInstallError, url);
                             return;
                         }
 
@@ -1088,14 +1088,14 @@ namespace Oxide.Plugins
                     if (profile.Name.EndsWith(Profile.OriginalSuffix))
                     {
                         LogError($"Profile \"{profile.Name}\" should not end with \"{Profile.OriginalSuffix}\".");
-                        ReplyToPlayer(player, Lang.ProfileInstallError, url);
+                        ReplyToPlayer(player, LangEntry.ProfileInstallError, url);
                         return;
                     }
 
                     var profileController = _profileManager.GetProfileController(profile.Name);
                     if (profileController != null && !profileController.Profile.IsEmpty())
                     {
-                        ReplyToPlayer(player, Lang.ProfileAlreadyExistsNotEmpty, profile.Name);
+                        ReplyToPlayer(player, LangEntry.ProfileAlreadyExistsNotEmpty, profile.Name);
                         return;
                     }
 
@@ -1108,7 +1108,7 @@ namespace Oxide.Plugins
                     if (profileController == null)
                     {
                         LogError($"Profile \"{profile.Name}\" could not be found on disk after download from url: \"{url}\"");
-                        ReplyToPlayer(player, Lang.ProfileInstallError, url);
+                        ReplyToPlayer(player, LangEntry.ProfileInstallError, url);
                         return;
                     }
 
@@ -1118,7 +1118,7 @@ namespace Oxide.Plugins
                         profileController.Enable();
 
                     var sb = new StringBuilder();
-                    sb.AppendLine(GetMessage(player, Lang.ProfileInstallSuccess, profile.Name, GetAuthorSuffix(player, profile.Author)));
+                    sb.AppendLine(GetMessage(player, LangEntry.ProfileInstallSuccess, profile.Name, GetAuthorSuffix(player, profile.Author)));
                     AddProfileDescription(sb, player, profileController);
                     player.Reply(sb.ToString());
 
@@ -1166,7 +1166,7 @@ namespace Oxide.Plugins
                 profileController = _profileManager.GetProfileController(profileName);
                 if (profileController == null)
                 {
-                    ReplyToPlayer(player, Lang.ProfileNotFound, profileName);
+                    ReplyToPlayer(player, LangEntry.ProfileNotFound, profileName);
                     return;
                 }
             }
@@ -1176,7 +1176,7 @@ namespace Oxide.Plugins
             _entityDisplayManager.SetPlayerProfile(basePlayer, profileController);
             _entityDisplayManager.ShowAllRepeatedly(basePlayer, duration);
 
-            ReplyToPlayer(player, Lang.ShowSuccess, FormatTime(duration));
+            ReplyToPlayer(player, LangEntry.ShowSuccess, FormatTime(duration));
         }
 
         [Command("maspawngroup", "masg")]
@@ -1199,7 +1199,7 @@ namespace Oxide.Plugins
                 {
                     if (args.Length < 2)
                     {
-                        ReplyToPlayer(player, Lang.SpawnGroupCreateSyntax, cmd);
+                        ReplyToPlayer(player, LangEntry.SpawnGroupCreateSyntax, cmd);
                         return;
                     }
 
@@ -1243,7 +1243,7 @@ namespace Oxide.Plugins
 
                     _entityDisplayManager.ShowAllRepeatedly(basePlayer);
 
-                    ReplyToPlayer(player, Lang.SpawnGroupCreateSucces, spawnGroupName);
+                    ReplyToPlayer(player, LangEntry.SpawnGroupCreateSucces, spawnGroupName);
                     break;
                 }
 
@@ -1251,20 +1251,20 @@ namespace Oxide.Plugins
                 {
                     if (args.Length < 3)
                     {
-                        ReplyToPlayer(player, Lang.ErrorSetSyntax, cmd);
+                        ReplyToPlayer(player, LangEntry.ErrorSetSyntax, cmd);
                         return;
                     }
 
                     SpawnGroupOption spawnGroupOption;
                     if (!TryParseEnum(args[1], out spawnGroupOption))
                     {
-                        ReplyToPlayer(player, Lang.ErrorSetUnknownOption, args[1]);
+                        ReplyToPlayer(player, LangEntry.ErrorSetUnknownOption, args[1]);
                         return;
                     }
 
                     SpawnPointAdapter spawnPointAdapter;
                     SpawnGroupController spawnGroupController;
-                    if (!VerifyLookingAtAdapter(player, out spawnPointAdapter, out spawnGroupController, Lang.ErrorNoSpawnPointFound))
+                    if (!VerifyLookingAtAdapter(player, out spawnPointAdapter, out spawnGroupController, LangEntry.ErrorNoSpawnPointFound))
                         return;
 
                     var spawnGroupData = spawnGroupController.SpawnGroupData;
@@ -1284,7 +1284,7 @@ namespace Oxide.Plugins
                         case SpawnGroupOption.MaxPopulation:
                         {
                             int maxPopulation;
-                            if (!VerifyValidInt(player, args[2], out maxPopulation, Lang.ErrorSetSyntax, cmd, SpawnGroupOption.MaxPopulation))
+                            if (!VerifyValidInt(player, args[2], out maxPopulation, LangEntry.ErrorSetSyntax, cmd, SpawnGroupOption.MaxPopulation))
                                 return;
 
                             spawnGroupData.MaxPopulation = maxPopulation;
@@ -1294,7 +1294,7 @@ namespace Oxide.Plugins
                         case SpawnGroupOption.RespawnDelayMin:
                         {
                             float respawnDelayMin;
-                            if (!VerifyValidFloat(player, args[2], out respawnDelayMin, Lang.ErrorSetSyntax, cmd, SpawnGroupOption.RespawnDelayMin))
+                            if (!VerifyValidFloat(player, args[2], out respawnDelayMin, LangEntry.ErrorSetSyntax, cmd, SpawnGroupOption.RespawnDelayMin))
                                 return;
 
                             spawnGroupData.RespawnDelayMin = respawnDelayMin;
@@ -1306,7 +1306,7 @@ namespace Oxide.Plugins
                         case SpawnGroupOption.RespawnDelayMax:
                         {
                             float respawnDelayMax;
-                            if (!VerifyValidFloat(player, args[2], out respawnDelayMax, Lang.ErrorSetSyntax, cmd, SpawnGroupOption.RespawnDelayMax))
+                            if (!VerifyValidFloat(player, args[2], out respawnDelayMax, LangEntry.ErrorSetSyntax, cmd, SpawnGroupOption.RespawnDelayMax))
                                 return;
 
                             spawnGroupData.RespawnDelayMax = respawnDelayMax;
@@ -1318,7 +1318,7 @@ namespace Oxide.Plugins
                         case SpawnGroupOption.SpawnPerTickMin:
                         {
                             int spawnPerTickMin;
-                            if (!VerifyValidInt(player, args[2], out spawnPerTickMin, Lang.ErrorSetSyntax, cmd, SpawnGroupOption.SpawnPerTickMin))
+                            if (!VerifyValidInt(player, args[2], out spawnPerTickMin, LangEntry.ErrorSetSyntax, cmd, SpawnGroupOption.SpawnPerTickMin))
                                 return;
 
                             spawnGroupData.SpawnPerTickMin = spawnPerTickMin;
@@ -1330,7 +1330,7 @@ namespace Oxide.Plugins
                         case SpawnGroupOption.SpawnPerTickMax:
                         {
                             int spawnPerTickMax;
-                            if (!VerifyValidInt(player, args[2], out spawnPerTickMax, Lang.ErrorSetSyntax, cmd, SpawnGroupOption.SpawnPerTickMax))
+                            if (!VerifyValidInt(player, args[2], out spawnPerTickMax, LangEntry.ErrorSetSyntax, cmd, SpawnGroupOption.SpawnPerTickMax))
                                 return;
 
                             spawnGroupData.SpawnPerTickMax = spawnPerTickMax;
@@ -1342,7 +1342,7 @@ namespace Oxide.Plugins
                         case SpawnGroupOption.PreventDuplicates:
                         {
                             bool preventDuplicates;
-                            if (!VerifyValidBool(player, args[2], out preventDuplicates, Lang.ErrorSetSyntax, cmd, SpawnGroupOption.PreventDuplicates))
+                            if (!VerifyValidBool(player, args[2], out preventDuplicates, LangEntry.ErrorSetSyntax, cmd, SpawnGroupOption.PreventDuplicates))
                                 return;
 
                             spawnGroupData.PreventDuplicates = preventDuplicates;
@@ -1356,7 +1356,7 @@ namespace Oxide.Plugins
 
                     _entityDisplayManager.ShowAllRepeatedly(basePlayer);
 
-                    ReplyToPlayer(player, Lang.SpawnGroupSetSuccess, spawnGroupData.Name, spawnGroupOption, setValue);
+                    ReplyToPlayer(player, LangEntry.SpawnGroupSetSuccess, spawnGroupData.Name, spawnGroupOption, setValue);
                     break;
                 }
 
@@ -1365,7 +1365,7 @@ namespace Oxide.Plugins
                     var weight = 100;
                     if (args.Length < 2 || args.Length >= 3 && !int.TryParse(args[2], out weight))
                     {
-                        ReplyToPlayer(player, Lang.SpawnGroupAddSyntax, cmd);
+                        ReplyToPlayer(player, LangEntry.SpawnGroupAddSyntax, cmd);
                         return;
                     }
 
@@ -1374,7 +1374,7 @@ namespace Oxide.Plugins
                         return;
 
                     SpawnGroupController spawnGroupController;
-                    if (!VerifyLookingAtAdapter(player, out spawnGroupController, Lang.ErrorNoSpawnPointFound))
+                    if (!VerifyLookingAtAdapter(player, out spawnGroupController, LangEntry.ErrorNoSpawnPointFound))
                         return;
 
                     var spawnGroupData = spawnGroupController.SpawnGroupData;
@@ -1398,7 +1398,7 @@ namespace Oxide.Plugins
 
                     _entityDisplayManager.ShowAllRepeatedly(basePlayer);
 
-                    ReplyToPlayer(player, Lang.SpawnGroupAddSuccess, prefabData.ShortPrefabName, weight, spawnGroupData.Name);
+                    ReplyToPlayer(player, LangEntry.SpawnGroupAddSuccess, prefabData.ShortPrefabName, weight, spawnGroupData.Name);
                     break;
                 }
 
@@ -1406,12 +1406,12 @@ namespace Oxide.Plugins
                 {
                     if (args.Length < 2)
                     {
-                        ReplyToPlayer(player, Lang.SpawnGroupRemoveSyntax, cmd);
+                        ReplyToPlayer(player, LangEntry.SpawnGroupRemoveSyntax, cmd);
                         return;
                     }
 
                     SpawnGroupController spawnGroupController;
-                    if (!VerifyLookingAtAdapter(player, out spawnGroupController, Lang.ErrorNoSpawnPointFound))
+                    if (!VerifyLookingAtAdapter(player, out spawnGroupController, LangEntry.ErrorNoSpawnPointFound))
                         return;
 
                     string desiredPrefab = args[1];
@@ -1421,14 +1421,14 @@ namespace Oxide.Plugins
                     var matchingPrefabs = spawnGroupData.FindPrefabMatches(desiredPrefab);
                     if (matchingPrefabs.Count == 0)
                     {
-                        ReplyToPlayer(player, Lang.SpawnGroupRemoveNoMatch, spawnGroupData.Name, desiredPrefab);
+                        ReplyToPlayer(player, LangEntry.SpawnGroupRemoveNoMatch, spawnGroupData.Name, desiredPrefab);
                         _entityDisplayManager.ShowAllRepeatedly(basePlayer);
                         return;
                     }
 
                     if (matchingPrefabs.Count > 1)
                     {
-                        ReplyToPlayer(player, Lang.SpawnGroupRemoveMultipleMatches, spawnGroupData.Name, desiredPrefab);
+                        ReplyToPlayer(player, LangEntry.SpawnGroupRemoveMultipleMatches, spawnGroupData.Name, desiredPrefab);
                         _entityDisplayManager.ShowAllRepeatedly(basePlayer);
                         return;
                     }
@@ -1442,7 +1442,7 @@ namespace Oxide.Plugins
 
                     _entityDisplayManager.ShowAllRepeatedly(basePlayer);
 
-                    ReplyToPlayer(player, Lang.SpawnGroupRemoveSuccess, prefabMatch.ShortPrefabName, spawnGroupData.Name);
+                    ReplyToPlayer(player, LangEntry.SpawnGroupRemoveSuccess, prefabMatch.ShortPrefabName, spawnGroupData.Name);
                     break;
                 }
 
@@ -1450,7 +1450,7 @@ namespace Oxide.Plugins
                 case "tick":
                 {
                     SpawnGroupController spawnGroupController;
-                    if (!VerifyLookingAtAdapter(player, out spawnGroupController, Lang.ErrorNoSpawnPointFound))
+                    if (!VerifyLookingAtAdapter(player, out spawnGroupController, LangEntry.ErrorNoSpawnPointFound))
                         return;
 
                     spawnGroupController.SpawnTick();
@@ -1461,7 +1461,7 @@ namespace Oxide.Plugins
                 case "respawn":
                 {
                     SpawnGroupController spawnGroupController;
-                    if (!VerifyLookingAtAdapter(player, out spawnGroupController, Lang.ErrorNoSpawnPointFound))
+                    if (!VerifyLookingAtAdapter(player, out spawnGroupController, LangEntry.ErrorNoSpawnPointFound))
                         return;
 
                     spawnGroupController.Respawn();
@@ -1480,12 +1480,12 @@ namespace Oxide.Plugins
         private void SubCommandSpawnGroupHelp(IPlayer player, string cmd)
         {
             var sb = new StringBuilder();
-            sb.AppendLine(GetMessage(player, Lang.SpawnGroupHelpHeader, cmd));
-            sb.AppendLine(GetMessage(player, Lang.SpawnGroupHelpCreate, cmd));
-            sb.AppendLine(GetMessage(player, Lang.SpawnGroupHelpSet, cmd));
-            sb.AppendLine(GetMessage(player, Lang.SpawnGroupHelpAdd, cmd));
-            sb.AppendLine(GetMessage(player, Lang.SpawnGroupHelpRemove, cmd));
-            ReplyToPlayer(player, sb.ToString());
+            sb.AppendLine(GetMessage(player, LangEntry.SpawnGroupHelpHeader, cmd));
+            sb.AppendLine(GetMessage(player, LangEntry.SpawnGroupHelpCreate, cmd));
+            sb.AppendLine(GetMessage(player, LangEntry.SpawnGroupHelpSet, cmd));
+            sb.AppendLine(GetMessage(player, LangEntry.SpawnGroupHelpAdd, cmd));
+            sb.AppendLine(GetMessage(player, LangEntry.SpawnGroupHelpRemove, cmd));
+            player.Reply(sb.ToString());
         }
 
         [Command("maspawnpoint", "masp")]
@@ -1508,7 +1508,7 @@ namespace Oxide.Plugins
                 {
                     if (args.Length < 2)
                     {
-                        ReplyToPlayer(player, Lang.SpawnPointCreateSyntax, cmd);
+                        ReplyToPlayer(player, LangEntry.SpawnPointCreateSyntax, cmd);
                         return;
                     }
 
@@ -1542,7 +1542,7 @@ namespace Oxide.Plugins
 
                     _entityDisplayManager.ShowAllRepeatedly(basePlayer);
 
-                    ReplyToPlayer(player, Lang.SpawnPointCreateSuccess, spawnGroupController.SpawnGroupData.Name);
+                    ReplyToPlayer(player, LangEntry.SpawnPointCreateSuccess, spawnGroupController.SpawnGroupData.Name);
                     break;
                 }
 
@@ -1550,20 +1550,20 @@ namespace Oxide.Plugins
                 {
                     if (args.Length < 3)
                     {
-                        ReplyToPlayer(player, Lang.SpawnPointSetSyntax, cmd);
+                        ReplyToPlayer(player, LangEntry.SpawnPointSetSyntax, cmd);
                         return;
                     }
 
                     SpawnPointOption spawnPointOption;
                     if (!TryParseEnum(args[1], out spawnPointOption))
                     {
-                        ReplyToPlayer(player, Lang.ErrorSetUnknownOption, args[1]);
+                        ReplyToPlayer(player, LangEntry.ErrorSetUnknownOption, args[1]);
                         return;
                     }
 
                     SpawnPointAdapter spawnPointAdapter;
                     SpawnGroupController spawnGroupController;
-                    if (!VerifyLookingAtAdapter(player, out spawnPointAdapter, out spawnGroupController, Lang.ErrorNoSpawnPointFound))
+                    if (!VerifyLookingAtAdapter(player, out spawnPointAdapter, out spawnGroupController, LangEntry.ErrorNoSpawnPointFound))
                         return;
 
                     var spawnPointData = spawnPointAdapter.SpawnPointData;
@@ -1574,7 +1574,7 @@ namespace Oxide.Plugins
                         case SpawnPointOption.Exclusive:
                         {
                             bool exclusive;
-                            if (!VerifyValidBool(player, args[2], out exclusive, Lang.SpawnGroupSetSuccess, Lang.ErrorSetSyntax, cmd, SpawnPointOption.Exclusive))
+                            if (!VerifyValidBool(player, args[2], out exclusive, LangEntry.SpawnGroupSetSuccess, LangEntry.ErrorSetSyntax, cmd, SpawnPointOption.Exclusive))
                                 return;
 
                             spawnPointData.Exclusive = exclusive;
@@ -1585,7 +1585,7 @@ namespace Oxide.Plugins
                         case SpawnPointOption.DropToGround:
                         {
                             bool dropToGround;
-                            if (!VerifyValidBool(player, args[2], out dropToGround, Lang.ErrorSetSyntax, cmd, SpawnPointOption.DropToGround))
+                            if (!VerifyValidBool(player, args[2], out dropToGround, LangEntry.ErrorSetSyntax, cmd, SpawnPointOption.DropToGround))
                                 return;
 
                             spawnPointData.DropToGround = dropToGround;
@@ -1596,7 +1596,7 @@ namespace Oxide.Plugins
                         case SpawnPointOption.CheckSpace:
                         {
                             bool checkSpace;
-                            if (!VerifyValidBool(player, args[2], out checkSpace, Lang.ErrorSetSyntax, cmd, SpawnPointOption.CheckSpace))
+                            if (!VerifyValidBool(player, args[2], out checkSpace, LangEntry.ErrorSetSyntax, cmd, SpawnPointOption.CheckSpace))
                                 return;
 
                             spawnPointData.CheckSpace = checkSpace;
@@ -1607,7 +1607,7 @@ namespace Oxide.Plugins
                         case SpawnPointOption.RandomRotation:
                         {
                             bool randomRotation;
-                            if (!VerifyValidBool(player, args[2], out randomRotation, Lang.ErrorSetSyntax, cmd, SpawnPointOption.RandomRotation))
+                            if (!VerifyValidBool(player, args[2], out randomRotation, LangEntry.ErrorSetSyntax, cmd, SpawnPointOption.RandomRotation))
                                 return;
 
                             spawnPointData.RandomRotation = randomRotation;
@@ -1618,7 +1618,7 @@ namespace Oxide.Plugins
                         case SpawnPointOption.RandomRadius:
                         {
                             float radius;
-                            if (!VerifyValidFloat(player, args[2], out radius, Lang.ErrorSetSyntax, cmd, SpawnPointOption.RandomRadius))
+                            if (!VerifyValidFloat(player, args[2], out radius, LangEntry.ErrorSetSyntax, cmd, SpawnPointOption.RandomRadius))
                                 return;
 
                             spawnPointData.RandomRadius = radius;
@@ -1631,7 +1631,7 @@ namespace Oxide.Plugins
 
                     _entityDisplayManager.ShowAllRepeatedly(basePlayer);
 
-                    ReplyToPlayer(player, Lang.SpawnPointSetSuccess, spawnPointOption, setValue);
+                    ReplyToPlayer(player, LangEntry.SpawnPointSetSuccess, spawnPointOption, setValue);
                     break;
                 }
 
@@ -1646,10 +1646,10 @@ namespace Oxide.Plugins
         private void SubCommandSpawnPointHelp(IPlayer player, string cmd)
         {
             var sb = new StringBuilder();
-            sb.AppendLine(GetMessage(player, Lang.SpawnPointHelpHeader, cmd));
-            sb.AppendLine(GetMessage(player, Lang.SpawnPointHelpCreate, cmd));
-            sb.AppendLine(GetMessage(player, Lang.SpawnPointHelpSet, cmd));
-            ReplyToPlayer(player, sb.ToString());
+            sb.AppendLine(GetMessage(player, LangEntry.SpawnPointHelpHeader, cmd));
+            sb.AppendLine(GetMessage(player, LangEntry.SpawnPointHelpCreate, cmd));
+            sb.AppendLine(GetMessage(player, LangEntry.SpawnPointHelpSet, cmd));
+            player.Reply(sb.ToString());
         }
 
         [Command("mapaste")]
@@ -1660,13 +1660,13 @@ namespace Oxide.Plugins
 
             if (args.Length < 1)
             {
-                ReplyToPlayer(player, Lang.PasteSyntax);
+                ReplyToPlayer(player, LangEntry.PasteSyntax);
                 return;
             }
 
             if (!PasteUtils.IsCopyPasteCompatible())
             {
-                ReplyToPlayer(player, Lang.PasteNotCompatible);
+                ReplyToPlayer(player, LangEntry.PasteNotCompatible);
                 return;
             }
 
@@ -1683,7 +1683,7 @@ namespace Oxide.Plugins
 
             if (!PasteUtils.DoesPasteExist(pasteName))
             {
-                ReplyToPlayer(player, Lang.PasteNotFound, pasteName);
+                ReplyToPlayer(player, LangEntry.PasteNotFound, pasteName);
                 return;
             }
 
@@ -1710,45 +1710,45 @@ namespace Oxide.Plugins
 
             _entityDisplayManager.ShowAllRepeatedly(basePlayer);
 
-            ReplyToPlayer(player, Lang.PasteSuccess, pasteName, monument.AliasOrShortName, matchingMonuments.Count, profileController.Profile.Name);
+            ReplyToPlayer(player, LangEntry.PasteSuccess, pasteName, monument.AliasOrShortName, matchingMonuments.Count, profileController.Profile.Name);
         }
 
         private void AddSpawnGroupInfo(IPlayer player, StringBuilder sb, SpawnGroup spawnGroup, int spawnPointCount)
         {
-            sb.AppendLine($"<size={AdapterDisplayManager.HeaderSize}>{GetMessage(player, Lang.ShowHeaderVanillaSpawnGroup, spawnGroup.name)}</size>");
-            sb.AppendLine(GetMessage(player, Lang.ShowLabelSpawnPoints, spawnPointCount));
+            sb.AppendLine($"<size={AdapterDisplayManager.HeaderSize}>{GetMessage(player, LangEntry.ShowHeaderVanillaSpawnGroup, spawnGroup.name)}</size>");
+            sb.AppendLine(GetMessage(player, LangEntry.ShowLabelSpawnPoints, spawnPointCount));
 
             if ((int)spawnGroup.Tier != -1)
             {
-                sb.AppendLine(GetMessage(player, Lang.ShowLabelTiers, string.Join(", ", GetTierList(spawnGroup.Tier))));
+                sb.AppendLine(GetMessage(player, LangEntry.ShowLabelTiers, string.Join(", ", GetTierList(spawnGroup.Tier))));
             }
 
             if (spawnGroup.wantsInitialSpawn)
             {
                 if (spawnGroup.temporary)
                 {
-                    sb.AppendLine(GetMessage(player, Lang.ShowLabelSpawnWhenParentSpawns));
+                    sb.AppendLine(GetMessage(player, LangEntry.ShowLabelSpawnWhenParentSpawns));
                 }
                 else if (spawnGroup.forceInitialSpawn)
                 {
-                    sb.AppendLine(GetMessage(player, Lang.ShowLabelSpawnOnServerStart));
+                    sb.AppendLine(GetMessage(player, LangEntry.ShowLabelSpawnOnServerStart));
                 }
                 else
                 {
-                    sb.AppendLine(GetMessage(player, Lang.ShowLabelSpawnOnMapWipe));
+                    sb.AppendLine(GetMessage(player, LangEntry.ShowLabelSpawnOnMapWipe));
                 }
             }
 
             if (spawnGroup.preventDuplicates && spawnGroup.prefabs.Count > 1)
             {
-                sb.AppendLine(GetMessage(player, Lang.ShowLabelPreventDuplicates));
+                sb.AppendLine(GetMessage(player, LangEntry.ShowLabelPreventDuplicates));
             }
 
-            sb.AppendLine(GetMessage(player, Lang.ShowLabelPopulation, spawnGroup.currentPopulation, spawnGroup.maxPopulation));
-            sb.AppendLine(GetMessage(player, Lang.ShowLabelRespawnPerTick, spawnGroup.numToSpawnPerTickMin, spawnGroup.numToSpawnPerTickMax));
+            sb.AppendLine(GetMessage(player, LangEntry.ShowLabelPopulation, spawnGroup.currentPopulation, spawnGroup.maxPopulation));
+            sb.AppendLine(GetMessage(player, LangEntry.ShowLabelRespawnPerTick, spawnGroup.numToSpawnPerTickMin, spawnGroup.numToSpawnPerTickMax));
             if (spawnGroup.respawnDelayMin != float.PositiveInfinity)
             {
-                sb.AppendLine(GetMessage(player, Lang.ShowLabelRespawnDelay, FormatTime(spawnGroup.respawnDelayMin), FormatTime(spawnGroup.respawnDelayMax)));
+                sb.AppendLine(GetMessage(player, LangEntry.ShowLabelRespawnDelay, FormatTime(spawnGroup.respawnDelayMin), FormatTime(spawnGroup.respawnDelayMax)));
             }
 
             var nextSpawnTime = GetTimeToNextSpawn(spawnGroup);
@@ -1756,24 +1756,24 @@ namespace Oxide.Plugins
             {
                 sb.AppendLine(GetMessage(
                     player,
-                    Lang.ShowLabelNextSpawn,
+                    LangEntry.ShowLabelNextSpawn,
                     nextSpawnTime <= 0
-                        ? GetMessage(player, Lang.ShowLabelNextSpawnQueued)
+                        ? GetMessage(player, LangEntry.ShowLabelNextSpawnQueued)
                         : FormatTime(Mathf.CeilToInt(nextSpawnTime))
                 ));
             }
 
             if (spawnGroup.prefabs.Count > 0)
             {
-                sb.AppendLine(_pluginInstance.GetMessage(player, Lang.ShowLabelEntities));
+                sb.AppendLine(_pluginInstance.GetMessage(player, LangEntry.ShowLabelEntities));
                 foreach (var prefabEntry in spawnGroup.prefabs)
                 {
-                    sb.AppendLine(_pluginInstance.GetMessage(player, Lang.ShowLabelEntityDetail, prefabEntry.prefab.resourcePath, prefabEntry.weight));
+                    sb.AppendLine(_pluginInstance.GetMessage(player, LangEntry.ShowLabelEntityDetail, prefabEntry.prefab.resourcePath, prefabEntry.weight));
                 }
             }
             else
             {
-                sb.AppendLine(_pluginInstance.GetMessage(player, Lang.ShowLabelNoEntities));
+                sb.AppendLine(_pluginInstance.GetMessage(player, LangEntry.ShowLabelNoEntities));
             }
         }
 
@@ -1808,7 +1808,7 @@ namespace Oxide.Plugins
             var spawnerList = parentObject.GetComponentsInChildren<ISpawnGroup>();
             if (spawnerList.Length == 0)
             {
-                ReplyToPlayer(player, Lang.ShowVanillaNoSpawnPoints, parentObject.name);
+                ReplyToPlayer(player, LangEntry.ShowVanillaNoSpawnPoints, parentObject.name);
                 return;
             }
 
@@ -1864,41 +1864,41 @@ namespace Oxide.Plugins
 
                     foreach (var spawnPoint in spawnPointList)
                     {
-                        sb.AppendLine($"<size={AdapterDisplayManager.HeaderSize}>{GetMessage(player, Lang.ShowHeaderVanillaSpawnPoint, spawnGroup.name)}</size>");
+                        sb.AppendLine($"<size={AdapterDisplayManager.HeaderSize}>{GetMessage(player, LangEntry.ShowHeaderVanillaSpawnPoint, spawnGroup.name)}</size>");
 
                         var booleanProperties = new List<string>();
 
                         var genericSpawnPoint = spawnPoint as GenericSpawnPoint;
                         if (genericSpawnPoint != null)
                         {
-                            booleanProperties.Add(_pluginInstance.GetMessage(player, Lang.ShowLabelSpawnPointExclusive));
+                            booleanProperties.Add(_pluginInstance.GetMessage(player, LangEntry.ShowLabelSpawnPointExclusive));
 
                             if (genericSpawnPoint.randomRot)
                             {
-                                booleanProperties.Add(_pluginInstance.GetMessage(player, Lang.ShowLabelSpawnPointRandomRotation));
+                                booleanProperties.Add(_pluginInstance.GetMessage(player, LangEntry.ShowLabelSpawnPointRandomRotation));
                             }
 
                             if (genericSpawnPoint.dropToGround)
                             {
-                                booleanProperties.Add(_pluginInstance.GetMessage(player, Lang.ShowLabelSpawnPointDropsToGround));
+                                booleanProperties.Add(_pluginInstance.GetMessage(player, LangEntry.ShowLabelSpawnPointDropsToGround));
                             }
                         }
 
                         var spaceCheckingSpawnPoint = spawnPoint as SpaceCheckingSpawnPoint;
                         if (spaceCheckingSpawnPoint != null)
                         {
-                            booleanProperties.Add(_pluginInstance.GetMessage(player, Lang.ShowLabelSpawnPointChecksSpace));
+                            booleanProperties.Add(_pluginInstance.GetMessage(player, LangEntry.ShowLabelSpawnPointChecksSpace));
                         }
 
                         if (booleanProperties.Count > 0)
                         {
-                            sb.AppendLine(_pluginInstance.GetMessage(player, Lang.ShowLabelFlags, string.Join(" | ", booleanProperties)));
+                            sb.AppendLine(_pluginInstance.GetMessage(player, LangEntry.ShowLabelFlags, string.Join(" | ", booleanProperties)));
                         }
 
                         var radialSpawnPoint = spawnPoint as RadialSpawnPoint;
                         if (radialSpawnPoint != null)
                         {
-                            sb.AppendLine(GetMessage(player, Lang.ShowLabelSpawnPointRandomRadius, radialSpawnPoint.radius));
+                            sb.AppendLine(GetMessage(player, LangEntry.ShowLabelSpawnPointRandomRadius, radialSpawnPoint.radius));
                         }
 
                         if (spawnPoint == closestSpawnPoint)
@@ -1935,18 +1935,18 @@ namespace Oxide.Plugins
                         _selectedColorIndex = 0;
                     }
 
-                    sb.AppendLine($"<size={AdapterDisplayManager.HeaderSize}>{GetMessage(player, Lang.ShowHeaderVanillaIndividualSpawnPoint, individualSpawner.name)}</size>");
-                    sb.AppendLine(GetMessage(player, Lang.ShowLabelFlags, $"{GetMessage(player, Lang.ShowLabelSpawnPointExclusive)} | {GetMessage(player, Lang.ShowLabelSpawnPointChecksSpace)}"));
+                    sb.AppendLine($"<size={AdapterDisplayManager.HeaderSize}>{GetMessage(player, LangEntry.ShowHeaderVanillaIndividualSpawnPoint, individualSpawner.name)}</size>");
+                    sb.AppendLine(GetMessage(player, LangEntry.ShowLabelFlags, $"{GetMessage(player, LangEntry.ShowLabelSpawnPointExclusive)} | {GetMessage(player, LangEntry.ShowLabelSpawnPointChecksSpace)}"));
 
                     if (individualSpawner.oneTimeSpawner)
                     {
-                        sb.AppendLine(GetMessage(player, Lang.ShowLabelSpawnOnMapWipe));
+                        sb.AppendLine(GetMessage(player, LangEntry.ShowLabelSpawnOnMapWipe));
                     }
                     else
                     {
                         if (individualSpawner.respawnDelayMin != float.PositiveInfinity)
                         {
-                            sb.AppendLine(GetMessage(player, Lang.ShowLabelRespawnDelay, FormatTime(individualSpawner.respawnDelayMin), FormatTime(individualSpawner.respawnDelayMax)));
+                            sb.AppendLine(GetMessage(player, LangEntry.ShowLabelRespawnDelay, FormatTime(individualSpawner.respawnDelayMin), FormatTime(individualSpawner.respawnDelayMax)));
                         }
 
                         var nextSpawnTime = GetTimeToNextSpawn(individualSpawner);
@@ -1954,15 +1954,15 @@ namespace Oxide.Plugins
                         {
                             sb.AppendLine(GetMessage(
                                 player,
-                                Lang.ShowLabelNextSpawn,
+                                LangEntry.ShowLabelNextSpawn,
                                 nextSpawnTime <= 0
-                                    ? GetMessage(player, Lang.ShowLabelNextSpawnQueued)
+                                    ? GetMessage(player, LangEntry.ShowLabelNextSpawnQueued)
                                     : FormatTime(Mathf.CeilToInt(nextSpawnTime))
                             ));
                         }
                     }
 
-                    sb.AppendLine(GetMessage(player, Lang.ShowHeaderEntity, individualSpawner.entityPrefab.resourcePath));
+                    sb.AppendLine(GetMessage(player, LangEntry.ShowHeaderEntity, individualSpawner.entityPrefab.resourcePath));
 
                     var spawnPointPosition = individualSpawner.transform.position;
                     Ddraw.Sphere(basePlayer, spawnPointPosition, 0.5f, color, ShowVanillaDuration);
@@ -2019,34 +2019,34 @@ namespace Oxide.Plugins
             if (player.HasPermission(perm))
                 return true;
 
-            ReplyToPlayer(player, Lang.ErrorNoPermission);
+            ReplyToPlayer(player, LangEntry.ErrorNoPermission);
             return false;
         }
 
-        private bool VerifyValidInt(IPlayer player, string arg, out int value, string errorMessageName, params object[] args)
+        private bool VerifyValidInt(IPlayer player, string arg, out int value, LangEntry errorLangEntry, params object[] args)
         {
             if (int.TryParse(arg, out value))
                 return true;
 
-            ReplyToPlayer(player, errorMessageName, args);
+            ReplyToPlayer(player, errorLangEntry, args);
             return false;
         }
 
-        private bool VerifyValidFloat(IPlayer player, string arg, out float value, string errorMessageName, params object[] args)
+        private bool VerifyValidFloat(IPlayer player, string arg, out float value, LangEntry errorLangEntry, params object[] args)
         {
             if (float.TryParse(arg, out value))
                 return true;
 
-            ReplyToPlayer(player, errorMessageName, args);
+            ReplyToPlayer(player, errorLangEntry, args);
             return false;
         }
 
-        private bool VerifyValidBool(IPlayer player, string arg, out bool value, string errorMessageName, params object[] args)
+        private bool VerifyValidBool(IPlayer player, string arg, out bool value, LangEntry errorLangEntry, params object[] args)
         {
             if (BooleanParser.TryParse(arg, out value))
                 return true;
 
-            ReplyToPlayer(player, errorMessageName, args);
+            ReplyToPlayer(player, errorLangEntry, args);
             return false;
         }
 
@@ -2055,7 +2055,7 @@ namespace Oxide.Plugins
             if (MonumentFinder != null)
                 return true;
 
-            ReplyToPlayer(player, Lang.ErrorMonumentFinderNotLoaded);
+            ReplyToPlayer(player, LangEntry.ErrorMonumentFinderNotLoaded);
             return false;
         }
 
@@ -2065,7 +2065,7 @@ namespace Oxide.Plugins
             if (profileController != null)
                 return true;
 
-            ReplyToPlayer(player, Lang.SpawnErrorNoProfileSelected);
+            ReplyToPlayer(player, LangEntry.SpawnErrorNoProfileSelected);
             return false;
         }
 
@@ -2074,7 +2074,7 @@ namespace Oxide.Plugins
             if (TryGetHitPosition(player.Object as BasePlayer, out position))
                 return true;
 
-            ReplyToPlayer(player, Lang.ErrorNoSurface);
+            ReplyToPlayer(player, LangEntry.ErrorNoSurface);
             return false;
         }
 
@@ -2083,7 +2083,7 @@ namespace Oxide.Plugins
             closestMonument = GetClosestMonument(player.Object as BasePlayer, position);
             if (closestMonument == null)
             {
-                ReplyToPlayer(player, Lang.ErrorNoMonuments);
+                ReplyToPlayer(player, LangEntry.ErrorNoMonuments);
                 return false;
             }
 
@@ -2091,7 +2091,7 @@ namespace Oxide.Plugins
             {
                 var closestPoint = closestMonument.ClosestPointOnBounds(position);
                 var distance = (position - closestPoint).magnitude;
-                ReplyToPlayer(player, Lang.ErrorNotAtMonument, closestMonument.AliasOrShortName, distance.ToString("f1"));
+                ReplyToPlayer(player, LangEntry.ErrorNotAtMonument, closestMonument.AliasOrShortName, distance.ToString("f1"));
                 return false;
             }
 
@@ -2118,12 +2118,12 @@ namespace Oxide.Plugins
 
             if (matches.Count == 0)
             {
-                ReplyToPlayer(player, Lang.SpawnErrorEntityNotFound, prefabArg);
+                ReplyToPlayer(player, LangEntry.SpawnErrorEntityNotFound, prefabArg);
                 return false;
             }
 
             // Multiple matches were found, so print them all to the player.
-            var replyMessage = GetMessage(player, Lang.SpawnErrorMultipleMatches);
+            var replyMessage = GetMessage(player, LangEntry.SpawnErrorMultipleMatches);
             foreach (var match in matches)
             {
                 replyMessage += $"\n{GetShortName(match)}";
@@ -2165,12 +2165,12 @@ namespace Oxide.Plugins
 
             if (matchCount == 0)
             {
-                ReplyToPlayer(player, Lang.SpawnErrorEntityOrAddonNotFound, prefabArg);
+                ReplyToPlayer(player, LangEntry.SpawnErrorEntityOrAddonNotFound, prefabArg);
                 return false;
             }
 
             // Multiple matches were found, so print them all to the player.
-            var replyMessage = GetMessage(player, Lang.SpawnErrorMultipleMatches);
+            var replyMessage = GetMessage(player, LangEntry.SpawnErrorMultipleMatches);
             foreach (var match in prefabMatches)
             {
                 replyMessage += $"\n{GetShortName(match)}";
@@ -2205,11 +2205,11 @@ namespace Oxide.Plugins
             }
 
             prefabPath = null;
-            ReplyToPlayer(player, Lang.SpawnErrorSyntax);
+            ReplyToPlayer(player, LangEntry.SpawnErrorSyntax);
             return false;
         }
 
-        private bool VerifyLookingAtAdapter<TAdapter, TController>(IPlayer player, out AdapterFindResult<TAdapter, TController> findResult, string errorMessageName)
+        private bool VerifyLookingAtAdapter<TAdapter, TController>(IPlayer player, out AdapterFindResult<TAdapter, TController> findResult, LangEntry errorLangEntry)
             where TAdapter : BaseTransformAdapter
             where TController : BaseController
         {
@@ -2235,35 +2235,35 @@ namespace Oxide.Plugins
             if (hitResult.Entity != null && hitResult.Component == null)
             {
                 // Found an entity via direct hit, but it does not belong to Monument Addons.
-                ReplyToPlayer(player, Lang.ErrorEntityNotEligible);
+                ReplyToPlayer(player, LangEntry.ErrorEntityNotEligible);
             }
             else
             {
                 // Maybe found an entity, but it did not match the adapter/controller type.
-                ReplyToPlayer(player, errorMessageName);
+                ReplyToPlayer(player, errorLangEntry);
             }
 
             findResult = default(AdapterFindResult<TAdapter, TController>);
             return false;
         }
 
-        private bool VerifyLookingAtAdapter<TAdapter, TController>(IPlayer player, out TAdapter adapter, out TController controller, string errorMessageName)
+        private bool VerifyLookingAtAdapter<TAdapter, TController>(IPlayer player, out TAdapter adapter, out TController controller, LangEntry errorLangEntry)
             where TAdapter : BaseTransformAdapter
             where TController : BaseController
         {
             AdapterFindResult<TAdapter, TController> findResult;
-            var result = VerifyLookingAtAdapter(player, out findResult, errorMessageName);
+            var result = VerifyLookingAtAdapter(player, out findResult, errorLangEntry);
             adapter = findResult.Adapter;
             controller = findResult.Controller;
             return result;
         }
 
         // Convenient method that does not require an adapter type.
-        private bool VerifyLookingAtAdapter<TController>(IPlayer player, out TController controller, string errorMessageName)
+        private bool VerifyLookingAtAdapter<TController>(IPlayer player, out TController controller, LangEntry errorLangEntry)
             where TController : BaseController
         {
             AdapterFindResult<BaseTransformAdapter, TController> findResult;
-            var result = VerifyLookingAtAdapter(player, out findResult, errorMessageName);
+            var result = VerifyLookingAtAdapter(player, out findResult, errorLangEntry);
             controller = findResult.Controller;
             return result;
         }
@@ -2281,7 +2281,7 @@ namespace Oxide.Plugins
 
             if (matches.Count == 0)
             {
-                ReplyToPlayer(player, Lang.SpawnGroupNotFound, partialGroupName);
+                ReplyToPlayer(player, LangEntry.SpawnGroupNotFound, partialGroupName);
                 return false;
             }
 
@@ -2304,7 +2304,7 @@ namespace Oxide.Plugins
                 return true;
             }
 
-            ReplyToPlayer(player, Lang.SpawnGroupMultipeMatches, partialGroupName);
+            ReplyToPlayer(player, LangEntry.SpawnGroupMultipeMatches, partialGroupName);
             return false;
         }
 
@@ -2313,7 +2313,7 @@ namespace Oxide.Plugins
             if (!_profileManager.ProfileExists(profileName))
                 return true;
 
-            ReplyToPlayer(player, Lang.ProfileAlreadyExists, profileName);
+            ReplyToPlayer(player, LangEntry.ProfileAlreadyExists, profileName);
             return false;
         }
 
@@ -2332,11 +2332,11 @@ namespace Oxide.Plugins
                 return false;
             }
 
-            ReplyToPlayer(player, Lang.ProfileNotFound, profileName);
+            ReplyToPlayer(player, LangEntry.ProfileNotFound, profileName);
             return false;
         }
 
-        private bool VerifyProfile(IPlayer player, string[] args, out ProfileController controller, string syntaxMessageName)
+        private bool VerifyProfile(IPlayer player, string[] args, out ProfileController controller, LangEntry syntaxLangEntry)
         {
             if (args.Length <= 1)
             {
@@ -2344,7 +2344,7 @@ namespace Oxide.Plugins
                 if (controller != null)
                     return true;
 
-                ReplyToPlayer(player, syntaxMessageName);
+                ReplyToPlayer(player, syntaxLangEntry);
                 return false;
             }
 
@@ -2361,7 +2361,7 @@ namespace Oxide.Plugins
             if (spawnGroupController != null && matches.Count == 1 && matches[0] == spawnGroupController)
                 return true;
 
-            ReplyToPlayer(player, Lang.SpawnGroupCreateNameInUse, spawnGroupName, monument.AliasOrShortName, profile.Name);
+            ReplyToPlayer(player, LangEntry.SpawnGroupCreateNameInUse, spawnGroupName, monument.AliasOrShortName, profile.Name);
             return false;
         }
 
@@ -2744,7 +2744,7 @@ namespace Oxide.Plugins
 
                     if (statusCode != 200)
                     {
-                        errorCallback(GetMessage(player, Lang.ProfileDownloadError, url, statusCode));
+                        errorCallback(GetMessage(player, LangEntry.ProfileDownloadError, url, statusCode));
                         return;
                     }
 
@@ -2755,7 +2755,7 @@ namespace Oxide.Plugins
                     }
                     catch (Exception ex)
                     {
-                        errorCallback(GetMessage(player, Lang.ProfileParseError, url, ex.Message));
+                        errorCallback(GetMessage(player, LangEntry.ProfileParseError, url, ex.Message));
                         return;
                     }
 
@@ -5390,16 +5390,16 @@ namespace Oxide.Plugins
 
             private void AddCommonInfo(BasePlayer player, ProfileController profileController, BaseController controller, BaseAdapter adapter)
             {
-                _sb.AppendLine(_pluginInstance.GetMessage(player, Lang.ShowLabelProfile, profileController.Profile.Name));
+                _sb.AppendLine(_pluginInstance.GetMessage(player, LangEntry.ShowLabelProfile, profileController.Profile.Name));
 
                 var vanillaMonument = adapter.Monument.Object as MonumentInfo;
                 if (vanillaMonument != null)
                 {
-                    _sb.AppendLine(_pluginInstance.GetMessage(player, Lang.ShowLabelMonumentWithTier, adapter.Monument.AliasOrShortName, controller.Adapters.Count, vanillaMonument.Tier));
+                    _sb.AppendLine(_pluginInstance.GetMessage(player, LangEntry.ShowLabelMonumentWithTier, adapter.Monument.AliasOrShortName, controller.Adapters.Count, vanillaMonument.Tier));
                 }
                 else
                 {
-                    _sb.AppendLine(_pluginInstance.GetMessage(player, Lang.ShowLabelMonument, adapter.Monument.AliasOrShortName, controller.Adapters.Count));
+                    _sb.AppendLine(_pluginInstance.GetMessage(player, LangEntry.ShowLabelMonument, adapter.Monument.AliasOrShortName, controller.Adapters.Count));
                 }
             }
 
@@ -5411,14 +5411,14 @@ namespace Oxide.Plugins
                 var color = DetermineColor(adapter, playerInfo, profileController);
 
                 _sb.Clear();
-                _sb.AppendLine($"<size={HeaderSize}>{_pluginInstance.GetMessage(player, Lang.ShowHeaderEntity, entityData.ShortPrefabName)}</size>");
+                _sb.AppendLine($"<size={HeaderSize}>{_pluginInstance.GetMessage(player, LangEntry.ShowHeaderEntity, entityData.ShortPrefabName)}</size>");
                 AddCommonInfo(player, profileController, controller, adapter);
 
                 if (entityData.Skin != 0)
-                    _sb.AppendLine(_pluginInstance.GetMessage(player, Lang.ShowLabelSkin, entityData.Skin));
+                _sb.AppendLine(_pluginInstance.GetMessage(player, LangEntry.ShowLabelSkin, entityData.Skin));
 
                 if (entityData.Scale != 1)
-                    _sb.AppendLine(_pluginInstance.GetMessage(player, Lang.ShowLabelScale, entityData.Scale));
+                 _sb.AppendLine(_pluginInstance.GetMessage(player, LangEntry.ShowLabelScale, entityData.Scale));
 
                 var singleEntityAdapter = adapter as SingleEntityAdapter;
                 if (singleEntityAdapter != null)
@@ -5439,7 +5439,7 @@ namespace Oxide.Plugins
                 {
                     var identifier = (adapter as CCTVEntityAdapter)?.GetIdentifier();
                     if (identifier != null)
-                        _sb.AppendLine(_pluginInstance.GetMessage(player, Lang.ShowLabelRCIdentifier, identifier));
+                    _sb.AppendLine(_pluginInstance.GetMessage(player, LangEntry.ShowLabelRCIdentifier, identifier));
                 }
 
                 Ddraw.Text(player, adapter.Position, _sb.ToString(), color, DisplayIntervalDuration);
@@ -5455,69 +5455,69 @@ namespace Oxide.Plugins
                 var spawnGroupData = spawnGroupAdapter.SpawnGroupData;
 
                 _sb.Clear();
-                _sb.AppendLine($"<size={HeaderSize}>{_pluginInstance.GetMessage(player, Lang.ShowHeaderSpawnPoint, spawnGroupData.Name)}</size>");
+                _sb.AppendLine($"<size={HeaderSize}>{_pluginInstance.GetMessage(player, LangEntry.ShowHeaderSpawnPoint, spawnGroupData.Name)}</size>");
                 AddCommonInfo(player, profileController, controller, adapter);
 
                 var booleanProperties = new List<string>();
 
                 if (spawnPointData.Exclusive)
-                    booleanProperties.Add(_pluginInstance.GetMessage(player, Lang.ShowLabelSpawnPointExclusive));
+                    booleanProperties.Add(_pluginInstance.GetMessage(player, LangEntry.ShowLabelSpawnPointExclusive));
 
                 if (spawnPointData.RandomRotation)
-                    booleanProperties.Add(_pluginInstance.GetMessage(player, Lang.ShowLabelSpawnPointRandomRotation));
+                    booleanProperties.Add(_pluginInstance.GetMessage(player, LangEntry.ShowLabelSpawnPointRandomRotation));
 
                 if (spawnPointData.DropToGround)
-                    booleanProperties.Add(_pluginInstance.GetMessage(player, Lang.ShowLabelSpawnPointDropsToGround));
+                    booleanProperties.Add(_pluginInstance.GetMessage(player, LangEntry.ShowLabelSpawnPointDropsToGround));
 
                 if (spawnPointData.CheckSpace)
-                    booleanProperties.Add(_pluginInstance.GetMessage(player, Lang.ShowLabelSpawnPointChecksSpace));
+                    booleanProperties.Add(_pluginInstance.GetMessage(player, LangEntry.ShowLabelSpawnPointChecksSpace));
 
                 if (booleanProperties.Count > 0)
-                    _sb.AppendLine(_pluginInstance.GetMessage(player, Lang.ShowLabelFlags, string.Join(" | ", booleanProperties)));
+                     _sb.AppendLine(_pluginInstance.GetMessage(player, LangEntry.ShowLabelFlags, string.Join(" | ", booleanProperties)));
 
                 if (spawnPointData.RandomRadius > 0)
-                    _sb.AppendLine(_pluginInstance.GetMessage(player, Lang.ShowLabelSpawnPointRandomRadius, spawnPointData.RandomRadius));
+                    _sb.AppendLine(_pluginInstance.GetMessage(player, LangEntry.ShowLabelSpawnPointRandomRadius, spawnPointData.RandomRadius));
 
                 if (showGroupInfo)
                 {
                     _sb.AppendLine(Divider);
-                    _sb.AppendLine($"<size=25>{_pluginInstance.GetMessage(player, Lang.ShowHeaderSpawnGroup, spawnGroupData.Name)}</size>");
+                    _sb.AppendLine($"<size=25>{_pluginInstance.GetMessage(player, LangEntry.ShowHeaderSpawnGroup, spawnGroupData.Name)}</size>");
 
-                    _sb.AppendLine(_pluginInstance.GetMessage(player, Lang.ShowLabelSpawnPoints, spawnGroupData.SpawnPoints.Count));
+                    _sb.AppendLine(_pluginInstance.GetMessage(player, LangEntry.ShowLabelSpawnPoints, spawnGroupData.SpawnPoints.Count));
 
                     var groupBooleanProperties = new List<string>();
 
                     if (spawnGroupData.PreventDuplicates)
-                        groupBooleanProperties.Add(_pluginInstance.GetMessage(player, Lang.ShowLabelPreventDuplicates));
+                        groupBooleanProperties.Add(_pluginInstance.GetMessage(player, LangEntry.ShowLabelPreventDuplicates));
 
                     if (groupBooleanProperties.Count > 0)
-                        _sb.AppendLine(_pluginInstance.GetMessage(player, Lang.ShowLabelFlags, string.Join(" | ", groupBooleanProperties)));
+                        _sb.AppendLine(_pluginInstance.GetMessage(player, LangEntry.ShowLabelFlags, string.Join(" | ", groupBooleanProperties)));
 
-                    _sb.AppendLine(_pluginInstance.GetMessage(player, Lang.ShowLabelPopulation, spawnGroupAdapter.SpawnGroup.currentPopulation, spawnGroupData.MaxPopulation));
-                    _sb.AppendLine(_pluginInstance.GetMessage(player, Lang.ShowLabelRespawnPerTick, spawnGroupData.SpawnPerTickMin, spawnGroupData.SpawnPerTickMax));
-                    _sb.AppendLine(_pluginInstance.GetMessage(player, Lang.ShowLabelRespawnDelay, FormatTime(spawnGroupData.RespawnDelayMin), FormatTime(spawnGroupData.RespawnDelayMax)));
+                    _sb.AppendLine(_pluginInstance.GetMessage(player, LangEntry.ShowLabelPopulation, spawnGroupAdapter.SpawnGroup.currentPopulation, spawnGroupData.MaxPopulation));
+                    _sb.AppendLine(_pluginInstance.GetMessage(player, LangEntry.ShowLabelRespawnPerTick, spawnGroupData.SpawnPerTickMin, spawnGroupData.SpawnPerTickMax));
+                    _sb.AppendLine(_pluginInstance.GetMessage(player, LangEntry.ShowLabelRespawnDelay, FormatTime(spawnGroupData.RespawnDelayMin), FormatTime(spawnGroupData.RespawnDelayMax)));
 
                     var nextSpawnTime = GetTimeToNextSpawn(spawnGroupAdapter.SpawnGroup);
 
                     _sb.AppendLine(_pluginInstance.GetMessage(
                         player,
-                        Lang.ShowLabelNextSpawn,
+                        LangEntry.ShowLabelNextSpawn,
                         nextSpawnTime <= 0
-                            ? _pluginInstance.GetMessage(player, Lang.ShowLabelNextSpawnQueued)
+                            ? _pluginInstance.GetMessage(player, LangEntry.ShowLabelNextSpawnQueued)
                             : FormatTime(Mathf.CeilToInt(nextSpawnTime))
                     ));
 
                     if (spawnGroupData.Prefabs.Count > 0)
                     {
-                        _sb.AppendLine(_pluginInstance.GetMessage(player, Lang.ShowLabelEntities));
+                        _sb.AppendLine(_pluginInstance.GetMessage(player, LangEntry.ShowLabelEntities));
                         foreach (var prefabEntry in spawnGroupData.Prefabs)
                         {
-                            _sb.AppendLine(_pluginInstance.GetMessage(player, Lang.ShowLabelEntityDetail, prefabEntry.PrefabName, prefabEntry.Weight));
+                            _sb.AppendLine(_pluginInstance.GetMessage(player, LangEntry.ShowLabelEntityDetail, prefabEntry.PrefabName, prefabEntry.Weight));
                         }
                     }
                     else
                     {
-                        _sb.AppendLine(_pluginInstance.GetMessage(player, Lang.ShowLabelNoEntities));
+                        _sb.AppendLine(_pluginInstance.GetMessage(player, LangEntry.ShowLabelNoEntities));
                     }
 
                     foreach (var otherAdapter in spawnGroupAdapter.Adapters)
@@ -5538,7 +5538,7 @@ namespace Oxide.Plugins
                 var color = DetermineColor(adapter, playerInfo, profileController);
 
                 _sb.Clear();
-                _sb.AppendLine($"<size={HeaderSize}>{_pluginInstance.GetMessage(player, Lang.ShowHeaderPaste, pasteData.Filename)}</size>");
+                _sb.AppendLine($"<size={HeaderSize}>{_pluginInstance.GetMessage(player, LangEntry.ShowHeaderPaste, pasteData.Filename)}</size>");
                 AddCommonInfo(player, profileController, controller, adapter);
 
                 Ddraw.Text(player, adapter.Position, _sb.ToString(), color, DisplayIntervalDuration);
@@ -5554,8 +5554,8 @@ namespace Oxide.Plugins
                 var addonDefinition = adapter.AddonDefinition;
 
                 _sb.Clear();
-                _sb.AppendLine($"<size={HeaderSize}>{_pluginInstance.GetMessage(player, Lang.ShowHeaderCustom, customAddonData.AddonName)}</size>");
-                _sb.AppendLine(_pluginInstance.GetMessage(player, Lang.ShowLabelPlugin, addonDefinition.OwnerPlugin.Name));
+                _sb.AppendLine($"<size={HeaderSize}>{_pluginInstance.GetMessage(player, LangEntry.ShowHeaderCustom, customAddonData.AddonName)}</size>");
+                _sb.AppendLine(_pluginInstance.GetMessage(player, LangEntry.ShowLabelPlugin, addonDefinition.OwnerPlugin.Name));
                 AddCommonInfo(player, profileController, controller, adapter);
 
                 addonDefinition.AddDisplayInfo?.Invoke(adapter.Component, customAddonData.GetSerializedData(), _sb);
@@ -6452,10 +6452,10 @@ namespace Oxide.Plugins
         {
             var summary = new List<ProfileSummaryEntry>();
 
-            var addonTypeEntity = GetMessage(player, Lang.AddonTypeEntity);
-            var addonTypePaste = GetMessage(player, Lang.AddonTypePaste);
-            var addonTypeSpawnPoint = GetMessage(player, Lang.AddonTypeSpawnPoint);
-            var addonTypeCustom = GetMessage(player, Lang.AddonTypeCustom);
+            var addonTypeEntity = GetMessage(player, LangEntry.AddonTypeEntity);
+            var addonTypePaste = GetMessage(player, LangEntry.AddonTypePaste);
+            var addonTypeSpawnPoint = GetMessage(player, LangEntry.AddonTypeSpawnPoint);
+            var addonTypeCustom = GetMessage(player, LangEntry.AddonTypeCustom);
 
             foreach (var monumentEntry in profile.MonumentDataMap)
             {
@@ -7288,28 +7288,28 @@ namespace Oxide.Plugins
 
         #region Localization
 
-        private string GetMessage(string playerId, string messageName, params object[] args)
+        private string GetMessage(string playerId, LangEntry langEntry, params object[] args)
         {
-            var message = lang.GetMessage(messageName, this, playerId);
+            var message = lang.GetMessage(langEntry.Name, this, playerId);
             return args.Length > 0 ? string.Format(message, args) : message;
         }
 
-        private string GetMessage(IPlayer player, string messageName, params object[] args) =>
-            GetMessage(player.Id, messageName, args);
+        private string GetMessage(IPlayer player, LangEntry langEntry, params object[] args) =>
+            GetMessage(player.Id, langEntry, args);
 
-        private string GetMessage(BasePlayer player, string messageName, params object[] args) =>
-            GetMessage(player.UserIDString, messageName, args);
+        private string GetMessage(BasePlayer player, LangEntry langEntry, params object[] args) =>
+            GetMessage(player.UserIDString, langEntry, args);
 
-        private void ReplyToPlayer(IPlayer player, string messageName, params object[] args) =>
-            player.Reply(string.Format(GetMessage(player, messageName), args));
+        private void ReplyToPlayer(IPlayer player, LangEntry langEntry, params object[] args) =>
+            player.Reply(string.Format(GetMessage(player, langEntry), args));
 
-        private void ChatMessage(BasePlayer player, string messageName, params object[] args) =>
-            player.ChatMessage(string.Format(GetMessage(player.UserIDString, messageName), args));
+        private void ChatMessage(BasePlayer player, LangEntry langEntry, params object[] args) =>
+            player.ChatMessage(string.Format(GetMessage(player.UserIDString, langEntry), args));
 
         private string GetAuthorSuffix(IPlayer player, string author)
         {
             return !string.IsNullOrWhiteSpace(author)
-                ? GetMessage(player, Lang.ProfileByAuthor, author)
+                ? GetMessage(player, LangEntry.ProfileByAuthor, author)
                 : string.Empty;
         }
 
@@ -7324,7 +7324,7 @@ namespace Oxide.Plugins
             var spawnPointData = data as SpawnPointData;
             if (spawnPointData != null)
             {
-                return GetMessage(player, Lang.AddonTypeSpawnPoint);
+                return GetMessage(player, LangEntry.AddonTypeSpawnPoint);
             }
 
             var pasteData = data as PasteData;
@@ -7333,355 +7333,205 @@ namespace Oxide.Plugins
                 return pasteData.Filename;
             }
 
-            return GetMessage(player, Lang.AddonTypeUnknown);
+            return GetMessage(player, LangEntry.AddonTypeUnknown);
         }
 
-        private class Lang
+        private class LangEntry
         {
-            public const string ErrorNoPermission = "Error.NoPermission";
-            public const string ErrorMonumentFinderNotLoaded = "Error.MonumentFinderNotLoaded";
-            public const string ErrorNoMonuments = "Error.NoMonuments";
-            public const string ErrorNotAtMonument = "Error.NotAtMonument";
-            public const string ErrorNoSuitableAddonFound = "Error.NoSuitableAddonFound";
-            public const string ErrorEntityNotEligible = "Error.EntityNotEligible";
-            public const string ErrorNoSpawnPointFound = "Error.NoSpawnPointFound";
-            public const string ErrorSetSyntax = "Error.Set.Syntax";
-            public const string ErrorSetUnknownOption = "Error.Set.UnknownOption";
-            public const string ErrorNoSurface = "Error.NoSurface";
+            public static List<LangEntry> AllLangEntries = new List<LangEntry>();
 
-            public const string SpawnErrorSyntax = "Spawn.Error.Syntax";
-            public const string SpawnErrorNoProfileSelected = "Spawn.Error.NoProfileSelected";
-            public const string SpawnErrorEntityNotFound = "Spawn.Error.EntityNotFound2";
-            public const string SpawnErrorEntityOrAddonNotFound = "Spawn.Error.EntityOrCustomNotFound";
-            public const string SpawnErrorMultipleMatches = "Spawn.Error.MultipleMatches";
-            public const string SpawnSuccess = "Spawn.Success2";
-            public const string KillSuccess = "Kill.Success3";
-            public const string MoveNothingToDo = "Move.NothingToDo";
-            public const string MoveSuccess = "Move.Success";
+            public static readonly LangEntry ErrorNoPermission = new LangEntry("Error.NoPermission", "You don't have permission to do that.");
+            public static readonly LangEntry ErrorMonumentFinderNotLoaded = new LangEntry("Error.MonumentFinderNotLoaded", "Error: Monument Finder is not loaded.");
+            public static readonly LangEntry ErrorNoMonuments = new LangEntry("Error.NoMonuments", "Error: No monuments found.");
+            public static readonly LangEntry ErrorNotAtMonument = new LangEntry("Error.NotAtMonument", "Error: Not at a monument. Nearest is <color=#fd4>{0}</color> with distance <color=#fd4>{1}</color>");
+            public static readonly LangEntry ErrorNoSuitableAddonFound = new LangEntry("Error.NoSuitableAddonFound", "Error: No suitable addon found.");
+            public static readonly LangEntry ErrorEntityNotEligible = new LangEntry("Error.EntityNotEligible", "Error: That entity is not managed by Monument Addons.");
+            public static readonly LangEntry ErrorNoSpawnPointFound = new LangEntry("Error.NoSpawnPointFound", "Error: No spawn point found.");
+            public static readonly LangEntry ErrorSetSyntax = new LangEntry("Error.Set.Syntax", "Syntax: <color=#fd4>{0} set {1} <value></color>");
+            public static readonly LangEntry ErrorSetUnknownOption = new LangEntry("Error.Set.UnknownOption", "Unrecognized option: <color=#fd4>{0}</color>");
 
-            public const string PasteNotCompatible = "Paste.NotCompatible";
-            public const string PasteSyntax = "Paste.Syntax";
-            public const string PasteNotFound = "Paste.NotFound";
-            public const string PasteSuccess = "Paste.Success";
+            public static readonly LangEntry SpawnErrorSyntax = new LangEntry("Spawn.Error.Syntax", "Syntax: <color=#fd4>maspawn <entity></color>");
+            public static readonly LangEntry SpawnErrorNoProfileSelected = new LangEntry("Spawn.Error.NoProfileSelected", "Error: No profile selected. Run <color=#fd4>maprofile help</color> for help.");
+            public static readonly LangEntry SpawnErrorEntityNotFound = new LangEntry("Spawn.Error.EntityNotFound2", "Error: No entity found matching name <color=#fd4>{0}</color>.");
+            public static readonly LangEntry SpawnErrorEntityOrAddonNotFound = new LangEntry("Spawn.Error.EntityOrCustomNotFound", "Error: No entity or custom addon found matching name <color=#fd4>{0}</color>.");
+            public static readonly LangEntry SpawnErrorMultipleMatches = new LangEntry("Spawn.Error.MultipleMatches", "Multiple matches:\n");
+            public static readonly LangEntry ErrorNoSurface = new LangEntry("Error.NoSurface", "Error: No valid surface found.");
+            public static readonly LangEntry SpawnSuccess = new LangEntry("Spawn.Success2", "Spawned entity at <color=#fd4>{0}</color> matching monument(s) and saved to <color=#fd4>{1}</color> profile for monument <color=#fd4>{2}</color>.");
+            public static readonly LangEntry KillSuccess = new LangEntry("Kill.Success3", "Killed <color=#fd4>{0}</color> at <color=#fd4>{1}</color> matching monument(s) and removed from profile <color=#fd4>{2}</color>.");
+            public static readonly LangEntry MoveNothingToDo = new LangEntry("Move.NothingToDo", "That entity is already at the saved position.");
+            public static readonly LangEntry MoveSuccess = new LangEntry("Move.Success", "Updated entity position at <color=#fd4>{0}</color> matching monument(s) and saved to profile <color=#fd4>{1}</color>.");
 
-            public const string AddonTypeUnknown = "AddonType.Unknown";
-            public const string AddonTypeEntity = "AddonType.Entity";
-            public const string AddonTypeSpawnPoint = "AddonType.SpawnPoint";
-            public const string AddonTypePaste = "AddonType.Paste";
-            public const string AddonTypeCustom = "AddonType.Custom";
+            public static readonly LangEntry PasteNotCompatible = new LangEntry("Paste.NotCompatible", "CopyPaste is not loaded or its version is incompatible.");
+            public static readonly LangEntry PasteSyntax = new LangEntry("Paste.Syntax", "Syntax: <color=#fd4>mapaste <file></color>");
+            public static readonly LangEntry PasteNotFound = new LangEntry("Paste.NotFound", "File <color=#fd4>{0}</color> does not exist.");
+            public static readonly LangEntry PasteSuccess = new LangEntry("Paste.Success", "Pasted <color=#fd4>{0}</color> at <color=#fd4>{1}</color> (x<color=#fd4>{2}</color>) and saved to profile <color=#fd4>{3}</color>.");
 
-            public const string SpawnGroupCreateSyntax = "SpawnGroup.Create.Syntax";
-            public const string SpawnGroupCreateNameInUse = "SpawnGroup.Create.NameInUse";
-            public const string SpawnGroupCreateSucces = "SpawnGroup.Create.Success";
-            public const string SpawnGroupSetSuccess = "SpawnGroup.Set.Success";
-            public const string SpawnGroupAddSyntax = "SpawnGroup.Add.Syntax";
-            public const string SpawnGroupAddSuccess = "SpawnGroup.Add.Success";
-            public const string SpawnGroupRemoveSyntax = "SpawnGroup.Remove.Syntax";
-            public const string SpawnGroupRemoveMultipleMatches = "SpawnGroup.Remove.MultipleMatches";
-            public const string SpawnGroupRemoveNoMatch = "SpawnGroup.Remove.NoMatch";
-            public const string SpawnGroupRemoveSuccess = "SpawnGroup.Remove.Success";
+            public static readonly LangEntry AddonTypeUnknown = new LangEntry("AddonType.Unknown", "Addon");
+            public static readonly LangEntry AddonTypeEntity = new LangEntry("AddonType.Entity", "Entity");
+            public static readonly LangEntry AddonTypeSpawnPoint = new LangEntry("AddonType.SpawnPoint", "Spawn point");
+            public static readonly LangEntry AddonTypePaste = new LangEntry("AddonType.Paste", "Paste");
+            public static readonly LangEntry AddonTypeCustom = new LangEntry("AddonType.Custom", "Custom");
 
-            public const string SpawnGroupNotFound = "SpawnGroup.NotFound";
-            public const string SpawnGroupMultipeMatches = "SpawnGroup.MultipeMatches";
-            public const string SpawnPointCreateSyntax = "SpawnPoint.Create.Syntax";
-            public const string SpawnPointCreateSuccess = "SpawnPoint.Create.Success";
-            public const string SpawnPointSetSyntax = "SpawnPoint.Set.Syntax";
-            public const string SpawnPointSetSuccess = "SpawnPoint.Set.Success";
+            public static readonly LangEntry SpawnGroupCreateSyntax = new LangEntry("SpawnGroup.Create.Syntax", "Syntax: <color=#fd4>{0} create <name></color>");
+            public static readonly LangEntry SpawnGroupCreateNameInUse = new LangEntry("SpawnGroup.Create.NameInUse", "There is already a spawn group named <color=#fd4>{0}</color> at monument <color=#fd4>{1}</color> in profile <color=#fd4>{2}</color>. Please use a different name.");
+            public static readonly LangEntry SpawnGroupCreateSucces = new LangEntry("SpawnGroup.Create.Success", "Successfully created spawn group <color=#fd4>{0}</color>.");
+            public static readonly LangEntry SpawnGroupSetSuccess = new LangEntry("SpawnGroup.Set.Success", "Successfully updated spawn group <color=#fd4>{0}</color> with option <color=#fd4>{1}</color>: <color=#fd4>{2}</color>.");
+            public static readonly LangEntry SpawnGroupAddSyntax = new LangEntry("SpawnGroup.Add.Syntax", "Syntax: <color=#fd4>{0} add <entity> <weight></color>");
+            public static readonly LangEntry SpawnGroupAddSuccess = new LangEntry("SpawnGroup.Add.Success", "Successfully added entity <color=#fd4>{0}</color> with weight <color=#fd4>{1}</color> to spawn group <color=#fd4>{2}</color>.");
+            public static readonly LangEntry SpawnGroupRemoveSyntax = new LangEntry("SpawnGroup.Remove.Syntax", "Syntax: <color=#fd4>{0} remove <entity>/color>");
+            public static readonly LangEntry SpawnGroupRemoveMultipleMatches = new LangEntry("SpawnGroup.Remove.MultipleMatches", "Multiple entities in spawn group <color=#fd4>{0}</color> found matching: <color=#fd4>{1}</color>. Please be more specific.");
+            public static readonly LangEntry SpawnGroupRemoveNoMatch = new LangEntry("SpawnGroup.Remove.NoMatch", "No entity found in spawn group <color=#fd4>{0}</color> matching <color=#fd4>{1}</color>");
+            public static readonly LangEntry SpawnGroupRemoveSuccess = new LangEntry("SpawnGroup.Remove.Success", "Successfully removed entity <color=#fd4>{0}</color> from spawn group <color=#fd4>{1}</color>.");
 
-            public const string SpawnGroupHelpHeader = "SpawnGroup.Help.Header";
-            public const string SpawnGroupHelpCreate = "SpawnGroup.Help.Create";
-            public const string SpawnGroupHelpSet = "SpawnGroup.Help.Set";
-            public const string SpawnGroupHelpAdd = "SpawnGroup.Help.Add";
-            public const string SpawnGroupHelpRemove = "SpawnGroup.Help.Remove";
-            public const string SpawnPointHelpHeader = "SpawnPoint.Help.Header";
-            public const string SpawnPointHelpCreate = "SpawnPoint.Help.Create";
-            public const string SpawnPointHelpSet = "SpawnPoint.Help.Set";
+            public static readonly LangEntry SpawnGroupNotFound = new LangEntry("SpawnGroup.NotFound", "No spawn group found with name: <color=#fd4>{0}</color>");
+            public static readonly LangEntry SpawnGroupMultipeMatches = new LangEntry("SpawnGroup.MultipeMatches", "Multiple spawn groupds found matching name: <color=#fd4>{0}</color>");
+            public static readonly LangEntry SpawnPointCreateSyntax = new LangEntry("SpawnPoint.Create.Syntax", "Syntax: <color=#fd4>{0} create <group_name></color>");
+            public static readonly LangEntry SpawnPointCreateSuccess = new LangEntry("SpawnPoint.Create.Success", "Successfully added spawn point to spawn group <color=#fd4>{0}</color>.");
+            public static readonly LangEntry SpawnPointSetSyntax = new LangEntry("SpawnPoint.Set.Syntax", "Syntax: <color=#fd4>{0} set <option> <value></color>");
+            public static readonly LangEntry SpawnPointSetSuccess = new LangEntry("SpawnPoint.Set.Success", "Successfully updated spawn point with option <color=#fd4>{0}</color>: <color=#fd4>{1}</color>.");
 
-            public const string ShowVanillaNoSpawnPoints = "Show.Vanilla.NoSpawnPoints";
+            public static readonly LangEntry SpawnGroupHelpHeader = new LangEntry("SpawnGroup.Help.Header", "<size=18>Monument Addons Spawn Group Commands</size>");
+            public static readonly LangEntry SpawnGroupHelpCreate = new LangEntry("SpawnGroup.Help.Create", "<color=#fd4>{0} create <name></color> - Create a spawn group with a spawn point");
+            public static readonly LangEntry SpawnGroupHelpSet = new LangEntry("SpawnGroup.Help.Set", "<color=#fd4>{0} set <option> <value></color> - Set a property of a spawn group");
+            public static readonly LangEntry SpawnGroupHelpAdd = new LangEntry("SpawnGroup.Help.Add", "<color=#fd4>{0} add <entity> <weight></color> - Add an entity prefab to a spawn group");
+            public static readonly LangEntry SpawnGroupHelpRemove = new LangEntry("SpawnGroup.Help.Remove", "<color=#fd4>{0} remove <entity> <weight></color> - Remove an entity prefab from a spawn group");
 
-            public const string ShowSuccess = "Show.Success";
-            public const string ShowHeaderEntity = "Show.Header.Entity";
-            public const string ShowHeaderSpawnGroup = "Show.Header.SpawnGroup";
-            public const string ShowHeaderVanillaSpawnGroup = "Show.Header.Vanilla.SpawnGroup";
-            public const string ShowHeaderSpawnPoint = "Show.Header.SpawnPoint";
-            public const string ShowHeaderVanillaSpawnPoint = "Show.Header.Vanilla.SpawnPoint";
-            public const string ShowHeaderVanillaIndividualSpawnPoint = "Show.Header.Vanilla.IndividualSpawnPoint";
-            public const string ShowHeaderPaste = "Show.Header.Paste";
-            public const string ShowHeaderCustom = "Show.Header.Custom";
-            public const string ShowLabelPlugin = "Show.Label.Plugin";
-            public const string ShowLabelProfile = "Show.Label.Profile";
-            public const string ShowLabelMonument = "Show.Label.Monument";
-            public const string ShowLabelMonumentWithTier = "Show.Label.MonumentWithTier";
-            public const string ShowLabelSkin = "Show.Label.Skin";
-            public const string ShowLabelScale = "Show.Label.Scale";
-            public const string ShowLabelRCIdentifier = "Show.Label.RCIdentifier";
+            public static readonly LangEntry SpawnPointHelpHeader = new LangEntry("SpawnPoint.Help.Header", "<size=18>Monument Addons Spawn Point Commands</size>");
+            public static readonly LangEntry SpawnPointHelpCreate = new LangEntry("SpawnPoint.Help.Create", "<color=#fd4>{0} create <group_name></color> - Create a spawn point");
+            public static readonly LangEntry SpawnPointHelpSet = new LangEntry("SpawnPoint.Help.Set", "<color=#fd4>{0} set <option> <value></color> - Set a property of a spawn point");
 
-            public const string ShowLabelFlags = "Show.Label.SpawnPoint.Flags";
-            public const string ShowLabelSpawnPointExclusive = "Show.Label.SpawnPoint.Exclusive";
-            public const string ShowLabelSpawnPointRandomRotation = "Show.Label.SpawnPoint.RandomRotation";
-            public const string ShowLabelSpawnPointDropsToGround = "Show.Label.SpawnPoint.DropsToGround";
-            public const string ShowLabelSpawnPointChecksSpace = "Show.Label.SpawnPoint.ChecksSpace";
-            public const string ShowLabelSpawnPointRandomRadius = "Show.Label.SpawnPoint.RandomRadius";
+            public static readonly LangEntry ShowVanillaNoSpawnPoints = new LangEntry("Show.Vanilla.NoSpawnPoints", "No spawn points found in <color=#fd4>{0}</color>.");
 
-            public const string ShowLabelSpawnPoints = "Show.Label.Points";
-            public const string ShowLabelPreventDuplicates = "Show.Label.PreventDuplicates";
+            public static readonly LangEntry ShowSuccess = new LangEntry("Show.Success", "Showing nearby Monument Addons for <color=#fd4>{0}</color>.");
+            public static readonly LangEntry ShowLabelPlugin = new LangEntry("Show.Label.Plugin", "Plugin: {0}");
+            public static readonly LangEntry ShowLabelProfile = new LangEntry("Show.Label.Profile", "Profile: {0}");
+            public static readonly LangEntry ShowLabelMonument = new LangEntry("Show.Label.Monument", "Monument: {0} (x{1})");
+            public static readonly LangEntry ShowLabelMonumentWithTier = new LangEntry("Show.Label.MonumentWithTier", "Monument: {0} (x{1}, Tier: {2})");
+            public static readonly LangEntry ShowLabelSkin = new LangEntry("Show.Label.Skin", "Skin: {0}");
+            public static readonly LangEntry ShowLabelScale = new LangEntry("Show.Label.Scale", "Scale: {0}");
+            public static readonly LangEntry ShowLabelRCIdentifier = new LangEntry("Show.Label.RCIdentifier", "RC Identifier: {0}");
 
-            public const string ShowLabelTiers = "Show.Label.Tiers";
-            public const string ShowLabelPopulation = "Show.Label.Population";
-            public const string ShowLabelRespawnPerTick = "Show.Label.RespawnPerTick";
-            public const string ShowLabelRespawnDelay = "Show.Label.RespawnDelay";
-            public const string ShowLabelNextSpawn = "Show.Label.NextSpawn";
-            public const string ShowLabelNextSpawnQueued = "Show.Label.NextSpawn.Queued";
-            public const string ShowLabelEntities = "Show.Label.Entities";
-            public const string ShowLabelEntityDetail = "Show.Label.Entities.Detail";
-            public const string ShowLabelNoEntities = "Show.Label.NoEntities";
-            public const string ShowLabelSpawnWhenParentSpawns = "Show.Label.SpawnWhenParentSpawns";
-            public const string ShowLabelSpawnOnServerStart = "Show.Label.SpawnOnServerStart";
-            public const string ShowLabelSpawnOnMapWipe = "Show.Lable.SpawnOnMapWipe";
+            public static readonly LangEntry ShowHeaderEntity = new LangEntry("Show.Header.Entity", "Entity: {0}");
+            public static readonly LangEntry ShowHeaderSpawnGroup = new LangEntry("Show.Header.SpawnGroup", "Spawn Group: {0}");
+            public static readonly LangEntry ShowHeaderVanillaSpawnGroup = new LangEntry("Show.Header.Vanilla.SpawnGroup", "Vanilla Spawn Group: {0}");
+            public static readonly LangEntry ShowHeaderSpawnPoint = new LangEntry("Show.Header.SpawnPoint", "Spawn Point ({0})");
+            public static readonly LangEntry ShowHeaderVanillaSpawnPoint = new LangEntry("Show.Header.Vanilla.SpawnPoint", "Vanilla Spawn Point ({0})");
+            public static readonly LangEntry ShowHeaderVanillaIndividualSpawnPoint = new LangEntry("Show.Header.Vanilla.IndividualSpawnPoint", "Vanilla Individual Spawn Point: {0}");
+            public static readonly LangEntry ShowHeaderPaste = new LangEntry("Show.Header.Paste", "Paste: {0}");
+            public static readonly LangEntry ShowHeaderCustom = new LangEntry("Show.Header.Custom", "Custom Addon: {0}");
 
-            public const string SkinGet = "Skin.Get";
-            public const string SkinSetSyntax = "Skin.Set.Syntax";
-            public const string SkinSetSuccess = "Skin.Set.Success2";
-            public const string SkinErrorRedirect = "Skin.Error.Redirect";
+            public static readonly LangEntry ShowLabelFlags = new LangEntry("Show.Label.SpawnPoint.Flags", "Flags: {0}");
+            public static readonly LangEntry ShowLabelSpawnPointExclusive = new LangEntry("Show.Label.SpawnPoint.Exclusive", "Exclusive");
+            public static readonly LangEntry ShowLabelSpawnPointRandomRotation = new LangEntry("Show.Label.SpawnPoint.RandomRotation", "Random rotation");
+            public static readonly LangEntry ShowLabelSpawnPointDropsToGround = new LangEntry("Show.Label.SpawnPoint.DropsToGround", "Drops to ground");
+            public static readonly LangEntry ShowLabelSpawnPointChecksSpace = new LangEntry("Show.Label.SpawnPoint.ChecksSpace", "Checks space");
+            public static readonly LangEntry ShowLabelSpawnPointRandomRadius = new LangEntry("Show.Label.SpawnPoint.RandomRadius", "Random spawn radius: {0:f1}");
 
-            public const string CCTVSetIdSyntax = "CCTV.SetId.Error.Syntax";
-            public const string CCTVSetIdSuccess = "CCTV.SetId.Success2";
-            public const string CCTVSetDirectionSuccess = "CCTV.SetDirection.Success2";
+            public static readonly LangEntry ShowLabelSpawnPoints = new LangEntry("Show.Label.Points", "Spawn points: {0}");
+            public static readonly LangEntry ShowLabelTiers = new LangEntry("Show.Label.Tiers", "Tiers: {0}");
+            public static readonly LangEntry ShowLabelSpawnWhenParentSpawns = new LangEntry("Show.Label.SpawnWhenParentSpawns", "Spawn when parent spawns");
+            public static readonly LangEntry ShowLabelSpawnOnServerStart = new LangEntry("Show.Label.SpawnOnServerStart", "Spawn on server start");
+            public static readonly LangEntry ShowLabelSpawnOnMapWipe = new LangEntry("Show.Label.SpawnOnMapWipe", "Spawn on map wipe");
+            public static readonly LangEntry ShowLabelPreventDuplicates = new LangEntry("Show.Label.PreventDuplicates", "Prevent duplicates");
+            public static readonly LangEntry ShowLabelPopulation = new LangEntry("Show.Label.Population", "Population: {0} / {1}");
+            public static readonly LangEntry ShowLabelRespawnPerTick = new LangEntry("Show.Label.RespawnPerTick", "Spawn per tick: {0} - {1}");
+            public static readonly LangEntry ShowLabelRespawnDelay = new LangEntry("Show.Label.RespawnDelay", "Respawn delay: {0} - {1}");
+            public static readonly LangEntry ShowLabelNextSpawn = new LangEntry("Show.Label.NextSpawn", "Next spawn: {0}");
+            public static readonly LangEntry ShowLabelNextSpawnQueued = new LangEntry("Show.Label.NextSpawn.Queued", "Queued");
+            public static readonly LangEntry ShowLabelEntities = new LangEntry("Show.Label.Entities", "Entities:");
+            public static readonly LangEntry ShowLabelEntityDetail = new LangEntry("Show.Label.Entities.Detail", "{0} | weight: {1}");
+            public static readonly LangEntry ShowLabelNoEntities = new LangEntry("Show.Label.NoEntities", "No entities configured. Run /maspawngroup add <entity> <weight>");
 
-            public const string ProfileListEmpty = "Profile.List.Empty";
-            public const string ProfileListHeader = "Profile.List.Header";
-            public const string ProfileListItemEnabled = "Profile.List.Item.Enabled2";
-            public const string ProfileListItemDisabled = "Profile.List.Item.Disabled2";
-            public const string ProfileListItemSelected = "Profile.List.Item.Selected2";
-            public const string ProfileByAuthor = "Profile.ByAuthor";
+            public static readonly LangEntry SkinGet = new LangEntry("Skin.Get", "Skin ID: <color=#fd4>{0}</color>. Run <color=#fd4>{1} <skin id></color> to change it.");
+            public static readonly LangEntry SkinSetSyntax = new LangEntry("Skin.Set.Syntax", "Syntax: <color=#fd4>{0} <skin id></color>");
+            public static readonly LangEntry SkinSetSuccess = new LangEntry("Skin.Set.Success2", "Updated skin ID to <color=#fd4>{0}</color> at <color=#fd4>{1}</color> matching monument(s) and saved to profile <color=#fd4>{2}</color>.");
+            public static readonly LangEntry SkinErrorRedirect = new LangEntry("Skin.Error.Redirect", "Error: Skin <color=#fd4>{0}</color> is a redirect skin and cannot be set directly. Instead, spawn the entity as <color=#fd4>{1}</color>.");
 
-            public const string ProfileInstallSyntax = "Profile.Install.Syntax";
-            public const string ProfileInstallShorthandSyntax = "Profile.Install.Shorthand.Syntax";
-            public const string ProfileUrlInvalid = "Profile.Url.Invalid";
-            public const string ProfileAlreadyExistsNotEmpty = "Profile.Error.AlreadyExists.NotEmpty";
-            public const string ProfileInstallSuccess = "Profile.Install.Success2";
-            public const string ProfileInstallError = "Profile.Install.Error";
-            public const string ProfileDownloadError = "Profile.Download.Error";
-            public const string ProfileParseError = "Profile.Parse.Error";
+            public static readonly LangEntry CCTVSetIdSyntax = new LangEntry("CCTV.SetId.Error.Syntax", "Syntax: <color=#fd4>{0} <id></color>");
+            public static readonly LangEntry CCTVSetIdSuccess = new LangEntry("CCTV.SetId.Success2", "Updated CCTV id to <color=#fd4>{0}</color> at <color=#fd4>{1}</color> matching monument(s) and saved to profile <color=#fd4>{2}</color>.");
+            public static readonly LangEntry CCTVSetDirectionSuccess = new LangEntry("CCTV.SetDirection.Success2", "Updated CCTV direction at <color=#fd4>{0}</color> matching monument(s) and saved to profile <color=#fd4>{1}</color>.");
 
-            public const string ProfileDescribeSyntax = "Profile.Describe.Syntax";
-            public const string ProfileNotFound = "Profile.Error.NotFound";
-            public const string ProfileEmpty = "Profile.Empty";
-            public const string ProfileDescribeHeader = "Profile.Describe.Header";
-            public const string ProfileDescribeItem = "Profile.Describe.Item2";
-            public const string ProfileSelectSyntax = "Profile.Select.Syntax";
-            public const string ProfileSelectSuccess = "Profile.Select.Success2";
-            public const string ProfileSelectEnableSuccess = "Profile.Select.Enable.Success";
+            public static readonly LangEntry ProfileListEmpty = new LangEntry("Profile.List.Empty", "You have no profiles. Create one with <color=#fd4>maprofile create <name></maprofile>");
+            public static readonly LangEntry ProfileListHeader = new LangEntry("Profile.List.Header", "<size=18>Monument Addons Profiles</size>");
+            public static readonly LangEntry ProfileListItemEnabled = new LangEntry("Profile.List.Item.Enabled2", "<color=#fd4>{0}</color>{1} - <color=#6e6>ENABLED</color>");
+            public static readonly LangEntry ProfileListItemDisabled = new LangEntry("Profile.List.Item.Disabled2", "<color=#fd4>{0}</color>{1} - <color=#ccc>DISABLED</color>");
+            public static readonly LangEntry ProfileListItemSelected = new LangEntry("Profile.List.Item.Selected2", "<color=#fd4>{0}</color>{1} - <color=#6cf>SELECTED</color>");
+            public static readonly LangEntry ProfileByAuthor = new LangEntry("Profile.ByAuthor", " by {0}");
 
-            public const string ProfileEnableSyntax = "Profile.Enable.Syntax";
-            public const string ProfileAlreadyEnabled = "Profile.AlreadyEnabled";
-            public const string ProfileEnableSuccess = "Profile.Enable.Success";
-            public const string ProfileDisableSyntax = "Profile.Disable.Syntax";
-            public const string ProfileAlreadyDisabled = "Profile.AlreadyDisabled2";
-            public const string ProfileDisableSuccess = "Profile.Disable.Success2";
-            public const string ProfileReloadSyntax = "Profile.Reload.Syntax";
-            public const string ProfileNotEnabled = "Profile.NotEnabled";
-            public const string ProfileReloadSuccess = "Profile.Reload.Success";
+            public static readonly LangEntry ProfileInstallSyntax = new LangEntry("Profile.Install.Syntax", "Syntax: <color=#fd4>maprofile install <url></color>");
+            public static readonly LangEntry ProfileInstallShorthandSyntax = new LangEntry("Profile.Install.Shorthand.Syntax", "Syntax: <color=#fd4>mainstall <url></color>");
+            public static readonly LangEntry ProfileUrlInvalid = new LangEntry("Profile.Url.Invalid", "Invalid URL: {0}");
+            public static readonly LangEntry ProfileAlreadyExistsNotEmpty = new LangEntry("Profile.Error.AlreadyExists.NotEmpty", "Error: Profile <color=#fd4>{0}</color> already exists and is not empty.");
+            public static readonly LangEntry ProfileInstallSuccess = new LangEntry("Profile.Install.Success2", "Successfully installed and <color=#6e6>ENABLED</color> profile <color=#fd4>{0}</color>{1}.");
+            public static readonly LangEntry ProfileInstallError = new LangEntry("Profile.Install.Error", "Error installing profile from url {0}. See the error logs for more details.");
+            public static readonly LangEntry ProfileDownloadError = new LangEntry("Profile.Download.Error", "Error downloading profile from url {0}\nStatus code: {1}");
+            public static readonly LangEntry ProfileParseError = new LangEntry("Profile.Parse.Error", "Error parsing profile from url {0}\n{1}");
 
-            public const string ProfileCreateSyntax = "Profile.Create.Syntax";
-            public const string ProfileAlreadyExists = "Profile.Error.AlreadyExists";
-            public const string ProfileCreateSuccess = "Profile.Create.Success";
-            public const string ProfileRenameSyntax = "Profile.Rename.Syntax";
-            public const string ProfileRenameSuccess = "Profile.Rename.Success";
-            public const string ProfileClearSyntax = "Profile.Clear.Syntax";
-            public const string ProfileClearSuccess = "Profile.Clear.Success";
-            public const string ProfileMoveToSyntax = "Profile.MoveTo.Syntax";
-            public const string ProfileMoveToAlreadyPresent = "Profile.MoveTo.AlreadyPresent";
-            public const string ProfileMoveToSuccess = "Profile.MoveTo.Success";
+            public static readonly LangEntry ProfileDescribeSyntax = new LangEntry("Profile.Describe.Syntax", "Syntax: <color=#fd4>maprofile describe <name></color>");
+            public static readonly LangEntry ProfileNotFound = new LangEntry("Profile.Error.NotFound", "Error: Profile <color=#fd4>{0}</color> not found.");
+            public static readonly LangEntry ProfileEmpty = new LangEntry("Profile.Empty", "Profile <color=#fd4>{0}</color> is empty.");
+            public static readonly LangEntry ProfileDescribeHeader = new LangEntry("Profile.Describe.Header", "Describing profile <color=#fd4>{0}</color>.");
+            public static readonly LangEntry ProfileDescribeItem = new LangEntry("Profile.Describe.Item2", "{0}: <color=#fd4>{1}</color> x{2} @ {3}");
+            public static readonly LangEntry ProfileSelectSyntax = new LangEntry("Profile.Select.Syntax", "Syntax: <color=#fd4>maprofile select <name></color>");
+            public static readonly LangEntry ProfileSelectSuccess = new LangEntry("Profile.Select.Success2", "Successfully <color=#6cf>SELECTED</color> profile <color=#fd4>{0}</color>.");
+            public static readonly LangEntry ProfileSelectEnableSuccess = new LangEntry("Profile.Select.Enable.Success", "Successfully <color=#6cf>SELECTED</color> and <color=#6e6>ENABLED</color> profile <color=#fd4>{0}</color>.");
 
-            public const string ProfileHelpHeader = "Profile.Help.Header";
-            public const string ProfileHelpList = "Profile.Help.List";
-            public const string ProfileHelpDescribe = "Profile.Help.Describe";
-            public const string ProfileHelpEnable = "Profile.Help.Enable";
-            public const string ProfileHelpDisable = "Profile.Help.Disable";
-            public const string ProfileHelpReload = "Profile.Help.Reload";
-            public const string ProfileHelpSelect = "Profile.Help.Select";
-            public const string ProfileHelpCreate = "Profile.Help.Create";
-            public const string ProfileHelpRename = "Profile.Help.Rename";
-            public const string ProfileHelpClear = "Profile.Help.Clear";
-            public const string ProfileHelpMoveTo = "Profile.Help.MoveTo2";
-            public const string ProfileHelpInstall = "Profile.Help.Install";
+            public static readonly LangEntry ProfileEnableSyntax = new LangEntry("Profile.Enable.Syntax", "Syntax: <color=#fd4>maprofile enable <name></color>");
+            public static readonly LangEntry ProfileAlreadyEnabled = new LangEntry("Profile.AlreadyEnabled", "Profile <color=#fd4>{0}</color> is already <color=#6e6>ENABLED</color>.");
+            public static readonly LangEntry ProfileEnableSuccess = new LangEntry("Profile.Enable.Success", "Profile <color=#fd4>{0}</color> is now: <color=#6e6>ENABLED</color>.");
+            public static readonly LangEntry ProfileDisableSyntax = new LangEntry("Profile.Disable.Syntax", "Syntax: <color=#fd4>maprofile disable <name></color>");
+            public static readonly LangEntry ProfileAlreadyDisabled = new LangEntry("Profile.AlreadyDisabled2", "Profile <color=#fd4>{0}</color> is already <color=#ccc>DISABLED</color>.");
+            public static readonly LangEntry ProfileDisableSuccess = new LangEntry("Profile.Disable.Success2", "Profile <color=#fd4>{0}</color> is now: <color=#ccc>DISABLED</color>.");
+            public static readonly LangEntry ProfileReloadSyntax = new LangEntry("Profile.Reload.Syntax", "Syntax: <color=#fd4>maprofile reload <name></color>");
+            public static readonly LangEntry ProfileNotEnabled = new LangEntry("Profile.NotEnabled", "Error: Profile <color=#fd4>{0}</color> is not enabled.");
+            public static readonly LangEntry ProfileReloadSuccess = new LangEntry("Profile.Reload.Success", "Reloaded profile <color=#fd4>{0}</color>.");
+
+            public static readonly LangEntry ProfileCreateSyntax = new LangEntry("Profile.Create.Syntax", "Syntax: <color=#fd4>maprofile create <name></color>");
+            public static readonly LangEntry ProfileAlreadyExists = new LangEntry("Profile.Error.AlreadyExists", "Error: Profile <color=#fd4>{0}</color> already exists.");
+            public static readonly LangEntry ProfileCreateSuccess = new LangEntry("Profile.Create.Success", "Successfully created and <color=#6cf>SELECTED</color> profile <color=#fd4>{0}</color>.");
+            public static readonly LangEntry ProfileRenameSyntax = new LangEntry("Profile.Rename.Syntax", "Syntax: <color=#fd4>maprofile rename <old name> <new name></color>");
+            public static readonly LangEntry ProfileRenameSuccess = new LangEntry("Profile.Rename.Success", "Successfully renamed profile <color=#fd4>{0}</color> to <color=#fd4>{1}</color>. You must manually delete the old <color=#fd4>{0}</color> data file.");
+            public static readonly LangEntry ProfileClearSyntax = new LangEntry("Profile.Clear.Syntax", "Syntax: <color=#fd4>maprofile clear <name></color>");
+            public static readonly LangEntry ProfileClearSuccess = new LangEntry("Profile.Clear.Success", "Successfully cleared profile <color=#fd4>{0}</color>.");
+            public static readonly LangEntry ProfileMoveToSyntax = new LangEntry("Profile.MoveTo.Syntax", "Syntax: <color=#fd4>maprofile moveto <name></color>");
+            public static readonly LangEntry ProfileMoveToAlreadyPresent = new LangEntry("Profile.MoveTo.AlreadyPresent", "Error: <color=#fd4>{0}</color> is already part of profile <color=#fd4>{1}</color>.");
+            public static readonly LangEntry ProfileMoveToSuccess = new LangEntry("Profile.MoveTo.Success", "Successfully moved <color=#fd4>{0}</color> from profile <color=#fd4>{1}</color> to <color=#fd4>{2}</color>.");
+
+            public static readonly LangEntry ProfileHelpHeader = new LangEntry("Profile.Help.Header", "<size=18>Monument Addons Profile Commands</size>");
+            public static readonly LangEntry ProfileHelpList = new LangEntry("Profile.Help.List", "<color=#fd4>maprofile list</color> - List all profiles");
+            public static readonly LangEntry ProfileHelpDescribe = new LangEntry("Profile.Help.Describe", "<color=#fd4>maprofile describe <name></color> - Describe profile contents");
+            public static readonly LangEntry ProfileHelpEnable = new LangEntry("Profile.Help.Enable", "<color=#fd4>maprofile enable <name></color> - Enable a profile");
+            public static readonly LangEntry ProfileHelpDisable = new LangEntry("Profile.Help.Disable", "<color=#fd4>maprofile disable <name></color> - Disable a profile");
+            public static readonly LangEntry ProfileHelpReload = new LangEntry("Profile.Help.Reload", "<color=#fd4>maprofile reload <name></color> - Reload a profile from disk");
+            public static readonly LangEntry ProfileHelpSelect = new LangEntry("Profile.Help.Select", "<color=#fd4>maprofile select <name></color> - Select a profile");
+            public static readonly LangEntry ProfileHelpCreate = new LangEntry("Profile.Help.Create", "<color=#fd4>maprofile create <name></color> - Create a new profile");
+            public static readonly LangEntry ProfileHelpRename = new LangEntry("Profile.Help.Rename", "<color=#fd4>maprofile rename <name> <new name></color> - Rename a profile");
+            public static readonly LangEntry ProfileHelpClear = new LangEntry("Profile.Help.Clear", "<color=#fd4>maprofile clear <name></color> - Clears a profile");
+            public static readonly LangEntry ProfileHelpMoveTo = new LangEntry("Profile.Help.MoveTo2", "<color=#fd4>maprofile moveto <name></color> - Move an entity to a profile");
+            public static readonly LangEntry ProfileHelpInstall = new LangEntry("Profile.Help.Install", "<color=#fd4>maprofile install <url></color> - Install a profile from a URL");
+
+            public string Name;
+            public string English;
+
+            public LangEntry(string name, string english)
+            {
+                Name = name;
+                English = english;
+
+                AllLangEntries.Add(this);
+            }
         }
 
         protected override void LoadDefaultMessages()
         {
-            lang.RegisterMessages(new Dictionary<string, string>
+            var englishLangKeys = new Dictionary<string, string>();
+
+            foreach (var langEntry in LangEntry.AllLangEntries)
             {
-                [Lang.ErrorNoPermission] = "You don't have permission to do that.",
-                [Lang.ErrorMonumentFinderNotLoaded] = "Error: Monument Finder is not loaded.",
-                [Lang.ErrorNoMonuments] = "Error: No monuments found.",
-                [Lang.ErrorNotAtMonument] = "Error: Not at a monument. Nearest is <color=#fd4>{0}</color> with distance <color=#fd4>{1}</color>",
-                [Lang.ErrorNoSuitableAddonFound] = "Error: No suitable addon found.",
-                [Lang.ErrorEntityNotEligible] = "Error: That entity is not managed by Monument Addons.",
-                [Lang.ErrorNoSpawnPointFound] = "Error: No spawn point found.",
-                [Lang.ErrorSetSyntax] = "Syntax: <color=#fd4>{0} set {1} <value></color>",
-                [Lang.ErrorSetUnknownOption] = "Unrecognized option: <color=#fd4>{0}</color>",
+                englishLangKeys[langEntry.Name] = langEntry.English;
+            }
 
-                [Lang.SpawnErrorSyntax] = "Syntax: <color=#fd4>maspawn <entity></color>",
-                [Lang.SpawnErrorNoProfileSelected] = "Error: No profile selected. Run <color=#fd4>maprofile help</color> for help.",
-                [Lang.SpawnErrorEntityNotFound] = "Error: No entity found matching name <color=#fd4>{0}</color>.",
-                [Lang.SpawnErrorEntityOrAddonNotFound] = "Error: No entity or custom addon found matching name <color=#fd4>{0}</color>.",
-                [Lang.SpawnErrorMultipleMatches] = "Multiple matches:\n",
-                [Lang.ErrorNoSurface] = "Error: No valid surface found.",
-                [Lang.SpawnSuccess] = "Spawned entity at <color=#fd4>{0}</color> matching monument(s) and saved to <color=#fd4>{1}</color> profile for monument <color=#fd4>{2}</color>.",
-                [Lang.KillSuccess] = "Killed <color=#fd4>{0}</color> at <color=#fd4>{1}</color> matching monument(s) and removed from profile <color=#fd4>{2}</color>.",
-                [Lang.MoveNothingToDo] = "That entity is already at the saved position.",
-                [Lang.MoveSuccess] = "Updated entity position at <color=#fd4>{0}</color> matching monument(s) and saved to profile <color=#fd4>{1}</color>.",
-
-                [Lang.PasteNotCompatible] = "CopyPaste is not loaded or its version is incompatible.",
-                [Lang.PasteSyntax] = "Syntax: <color=#fd4>mapaste <file></color>",
-                [Lang.PasteNotFound] = "File <color=#fd4>{0}</color> does not exist.",
-                [Lang.PasteSuccess] = "Pasted <color=#fd4>{0}</color> at <color=#fd4>{1}</color> (x<color=#fd4>{2}</color>) and saved to profile <color=#fd4>{3}</color>.",
-
-                [Lang.AddonTypeUnknown] = "Addon",
-                [Lang.AddonTypeEntity] = "Entity",
-                [Lang.AddonTypeSpawnPoint] = "Spawn point",
-                [Lang.AddonTypePaste] = "Paste",
-                [Lang.AddonTypeCustom] = "Custom",
-
-                [Lang.SpawnGroupCreateSyntax] = "Syntax: <color=#fd4>{0} create <name></color>",
-                [Lang.SpawnGroupCreateNameInUse] = "There is already a spawn group named <color=#fd4>{0}</color> at monument <color=#fd4>{1}</color> in profile <color=#fd4>{2}</color>. Please use a different name.",
-                [Lang.SpawnGroupCreateSucces] = "Successfully created spawn group <color=#fd4>{0}</color>.",
-                [Lang.SpawnGroupSetSuccess] = "Successfully updated spawn group <color=#fd4>{0}</color> with option <color=#fd4>{1}</color>: <color=#fd4>{2}</color>.",
-                [Lang.SpawnGroupAddSyntax] = "Syntax: <color=#fd4>{0} add <entity> <weight></color>",
-                [Lang.SpawnGroupAddSuccess] = "Successfully added entity <color=#fd4>{0}</color> with weight <color=#fd4>{1}</color> to spawn group <color=#fd4>{2}</color>.",
-                [Lang.SpawnGroupRemoveSyntax] = "Syntax: <color=#fd4>{0} remove <entity>/color>",
-                [Lang.SpawnGroupRemoveMultipleMatches] = "Multiple entities in spawn group <color=#fd4>{0}</color> found matching: <color=#fd4>{1}</color>. Please be more specific.",
-                [Lang.SpawnGroupRemoveNoMatch] = "No entity found in spawn group <color=#fd4>{0}</color> matching <color=#fd4>{1}</color>",
-                [Lang.SpawnGroupRemoveSuccess] = "Successfully removed entity <color=#fd4>{0}</color> from spawn group <color=#fd4>{1}</color>.",
-
-                [Lang.SpawnGroupNotFound] = "No spawn group found with name: <color=#fd4>{0}</color>",
-                [Lang.SpawnGroupMultipeMatches] = "Multiple spawn groupds found matching name: <color=#fd4>{0}</color>",
-                [Lang.SpawnPointCreateSyntax] = "Syntax: <color=#fd4>{0} create <group_name></color>",
-                [Lang.SpawnPointCreateSuccess] = "Successfully added spawn point to spawn group <color=#fd4>{0}</color>.",
-                [Lang.SpawnPointSetSyntax] = "Syntax: <color=#fd4>{0} set <option> <value></color>",
-                [Lang.SpawnPointSetSuccess] = "Successfully updated spawn point with option <color=#fd4>{0}</color>: <color=#fd4>{1}</color>.",
-
-                [Lang.SpawnGroupHelpHeader] = "<size=18>Monument Addons Spawn Group Commands</size>",
-                [Lang.SpawnGroupHelpCreate] = "<color=#fd4>{0} create <name></color> - Create a spawn group with a spawn point",
-                [Lang.SpawnGroupHelpSet] = "<color=#fd4>{0} set <option> <value></color> - Set a property of a spawn group",
-                [Lang.SpawnGroupHelpAdd] = "<color=#fd4>{0} add <entity> <weight></color> - Add an entity prefab to a spawn group",
-                [Lang.SpawnGroupHelpRemove] = "<color=#fd4>{0} remove <entity> <weight></color> - Remove an entity prefab from a spawn group",
-
-                [Lang.SpawnPointHelpHeader] = "<size=18>Monument Addons Spawn Point Commands</size>",
-                [Lang.SpawnPointHelpCreate] = "<color=#fd4>{0} create <group_name></color> - Create a spawn point",
-                [Lang.SpawnPointHelpSet] = "<color=#fd4>{0} set <option> <value></color> - Set a property of a spawn point",
-
-                [Lang.ShowVanillaNoSpawnPoints] = "No spawn points found in <color=#fd4>{0}</color>.",
-
-                [Lang.ShowSuccess] = "Showing nearby Monument Addons for <color=#fd4>{0}</color>.",
-                [Lang.ShowLabelPlugin] = "Plugin: {0}",
-                [Lang.ShowLabelProfile] = "Profile: {0}",
-                [Lang.ShowLabelMonument] = "Monument: {0} (x{1})",
-                [Lang.ShowLabelMonumentWithTier] = "Monument: {0} (x{1}, Tier: {2})",
-                [Lang.ShowLabelSkin] = "Skin: {0}",
-                [Lang.ShowLabelScale] = "Scale: {0}",
-                [Lang.ShowLabelRCIdentifier] = "RC Identifier: {0}",
-
-                [Lang.ShowHeaderEntity] = "Entity: {0}",
-                [Lang.ShowHeaderSpawnGroup] = "Spawn Group: {0}",
-                [Lang.ShowHeaderVanillaSpawnGroup] = "Vanilla Spawn Group: {0}",
-                [Lang.ShowHeaderSpawnPoint] = "Spawn Point ({0})",
-                [Lang.ShowHeaderVanillaSpawnPoint] = "Vanilla Spawn Point ({0})",
-                [Lang.ShowHeaderVanillaIndividualSpawnPoint] = "Vanilla Individual Spawn Point: {0}",
-                [Lang.ShowHeaderPaste] = "Paste: {0}",
-                [Lang.ShowHeaderCustom] = "Custom Addon: {0}",
-
-                [Lang.ShowLabelFlags] = "Flags: {0}",
-                [Lang.ShowLabelSpawnPointExclusive] = "Exclusive",
-                [Lang.ShowLabelSpawnPointRandomRotation] = "Random rotation",
-                [Lang.ShowLabelSpawnPointDropsToGround] = "Drops to ground",
-                [Lang.ShowLabelSpawnPointChecksSpace] = "Checks space",
-                [Lang.ShowLabelSpawnPointRandomRadius] = "Random spawn radius: {0:f1}",
-
-                [Lang.ShowLabelSpawnPoints] = "Spawn points: {0}",
-                [Lang.ShowLabelTiers] = "Tiers: {0}",
-                [Lang.ShowLabelSpawnWhenParentSpawns] = "Spawn when parent spawns",
-                [Lang.ShowLabelSpawnOnServerStart] = "Spawn on server start",
-                [Lang.ShowLabelSpawnOnMapWipe] = "Spawn on map wipe",
-                [Lang.ShowLabelPreventDuplicates] = "Prevent duplicates",
-                [Lang.ShowLabelPopulation] = "Population: {0} / {1}",
-                [Lang.ShowLabelRespawnPerTick] = "Spawn per tick: {0} - {1}",
-                [Lang.ShowLabelRespawnDelay] = "Respawn delay: {0} - {1}",
-                [Lang.ShowLabelNextSpawn] = "Next spawn: {0}",
-                [Lang.ShowLabelNextSpawnQueued] = "Queued",
-                [Lang.ShowLabelEntities] = "Entities:",
-                [Lang.ShowLabelEntityDetail] = "{0} | weight: {1}",
-                [Lang.ShowLabelNoEntities] = "No entities configured. Run /maspawngroup add <entity> <weight>",
-
-                [Lang.SkinGet] = "Skin ID: <color=#fd4>{0}</color>. Run <color=#fd4>{1} <skin id></color> to change it.",
-                [Lang.SkinSetSyntax] = "Syntax: <color=#fd4>{0} <skin id></color>",
-                [Lang.SkinSetSuccess] = "Updated skin ID to <color=#fd4>{0}</color> at <color=#fd4>{1}</color> matching monument(s) and saved to profile <color=#fd4>{2}</color>.",
-                [Lang.SkinErrorRedirect] = "Error: Skin <color=#fd4>{0}</color> is a redirect skin and cannot be set directly. Instead, spawn the entity as <color=#fd4>{1}</color>.",
-
-                [Lang.CCTVSetIdSyntax] = "Syntax: <color=#fd4>{0} <id></color>",
-                [Lang.CCTVSetIdSuccess] = "Updated CCTV id to <color=#fd4>{0}</color> at <color=#fd4>{1}</color> matching monument(s) and saved to profile <color=#fd4>{2}</color>.",
-                [Lang.CCTVSetDirectionSuccess] = "Updated CCTV direction at <color=#fd4>{0}</color> matching monument(s) and saved to profile <color=#fd4>{1}</color>.",
-
-                [Lang.ProfileListEmpty] = "You have no profiles. Create one with <color=#fd4>maprofile create <name></maprofile>",
-                [Lang.ProfileListHeader] = "<size=18>Monument Addons Profiles</size>",
-                [Lang.ProfileListItemEnabled] = "<color=#fd4>{0}</color>{1} - <color=#6e6>ENABLED</color>",
-                [Lang.ProfileListItemDisabled] = "<color=#fd4>{0}</color>{1} - <color=#ccc>DISABLED</color>",
-                [Lang.ProfileListItemSelected] = "<color=#fd4>{0}</color>{1} - <color=#6cf>SELECTED</color>",
-                [Lang.ProfileByAuthor] = " by {0}",
-
-                [Lang.ProfileInstallSyntax] = "Syntax: <color=#fd4>maprofile install <url></color>",
-                [Lang.ProfileInstallShorthandSyntax] = "Syntax: <color=#fd4>mainstall <url></color>",
-                [Lang.ProfileUrlInvalid] = "Invalid URL: {0}",
-                [Lang.ProfileAlreadyExistsNotEmpty] = "Error: Profile <color=#fd4>{0}</color> already exists and is not empty.",
-                [Lang.ProfileInstallSuccess] = "Successfully installed and <color=#6e6>ENABLED</color> profile <color=#fd4>{0}</color>{1}.",
-                [Lang.ProfileInstallError] = "Error installing profile from url {0}. See the error logs for more details.",
-                [Lang.ProfileDownloadError] = "Error downloading profile from url {0}\nStatus code: {1}",
-                [Lang.ProfileParseError] = "Error parsing profile from url {0}\n{1}",
-
-                [Lang.ProfileDescribeSyntax] = "Syntax: <color=#fd4>maprofile describe <name></color>",
-                [Lang.ProfileNotFound] = "Error: Profile <color=#fd4>{0}</color> not found.",
-                [Lang.ProfileEmpty] = "Profile <color=#fd4>{0}</color> is empty.",
-                [Lang.ProfileDescribeHeader] = "Describing profile <color=#fd4>{0}</color>.",
-                [Lang.ProfileDescribeItem] = "{0}: <color=#fd4>{1}</color> x{2} @ {3}",
-                [Lang.ProfileSelectSyntax] = "Syntax: <color=#fd4>maprofile select <name></color>",
-                [Lang.ProfileSelectSuccess] = "Successfully <color=#6cf>SELECTED</color> profile <color=#fd4>{0}</color>.",
-                [Lang.ProfileSelectEnableSuccess] = "Successfully <color=#6cf>SELECTED</color> and <color=#6e6>ENABLED</color> profile <color=#fd4>{0}</color>.",
-
-                [Lang.ProfileEnableSyntax] = "Syntax: <color=#fd4>maprofile enable <name></color>",
-                [Lang.ProfileAlreadyEnabled] = "Profile <color=#fd4>{0}</color> is already <color=#6e6>ENABLED</color>.",
-                [Lang.ProfileEnableSuccess] = "Profile <color=#fd4>{0}</color> is now: <color=#6e6>ENABLED</color>.",
-                [Lang.ProfileDisableSyntax] = "Syntax: <color=#fd4>maprofile disable <name></color>",
-                [Lang.ProfileAlreadyDisabled] = "Profile <color=#fd4>{0}</color> is already <color=#ccc>DISABLED</color>.",
-                [Lang.ProfileDisableSuccess] = "Profile <color=#fd4>{0}</color> is now: <color=#ccc>DISABLED</color>.",
-                [Lang.ProfileReloadSyntax] = "Syntax: <color=#fd4>maprofile reload <name></color>",
-                [Lang.ProfileNotEnabled] = "Error: Profile <color=#fd4>{0}</color> is not enabled.",
-                [Lang.ProfileReloadSuccess] = "Reloaded profile <color=#fd4>{0}</color>.",
-
-                [Lang.ProfileCreateSyntax] = "Syntax: <color=#fd4>maprofile create <name></color>",
-                [Lang.ProfileAlreadyExists] = "Error: Profile <color=#fd4>{0}</color> already exists.",
-                [Lang.ProfileCreateSuccess] = "Successfully created and <color=#6cf>SELECTED</color> profile <color=#fd4>{0}</color>.",
-                [Lang.ProfileRenameSyntax] = "Syntax: <color=#fd4>maprofile rename <old name> <new name></color>",
-                [Lang.ProfileRenameSuccess] = "Successfully renamed profile <color=#fd4>{0}</color> to <color=#fd4>{1}</color>. You must manually delete the old <color=#fd4>{0}</color> data file.",
-                [Lang.ProfileClearSyntax] = "Syntax: <color=#fd4>maprofile clear <name></color>",
-                [Lang.ProfileClearSuccess] = "Successfully cleared profile <color=#fd4>{0}</color>.",
-                [Lang.ProfileMoveToSyntax] = "Syntax: <color=#fd4>maprofile moveto <name></color>",
-                [Lang.ProfileMoveToAlreadyPresent] = "Error: <color=#fd4>{0}</color> is already part of profile <color=#fd4>{1}</color>.",
-                [Lang.ProfileMoveToSuccess] = "Successfully moved <color=#fd4>{0}</color> from profile <color=#fd4>{1}</color> to <color=#fd4>{2}</color>.",
-
-                [Lang.ProfileHelpHeader] = "<size=18>Monument Addons Profile Commands</size>",
-                [Lang.ProfileHelpList] = "<color=#fd4>maprofile list</color> - List all profiles",
-                [Lang.ProfileHelpDescribe] = "<color=#fd4>maprofile describe <name></color> - Describe profile contents",
-                [Lang.ProfileHelpEnable] = "<color=#fd4>maprofile enable <name></color> - Enable a profile",
-                [Lang.ProfileHelpDisable] = "<color=#fd4>maprofile disable <name></color> - Disable a profile",
-                [Lang.ProfileHelpReload] = "<color=#fd4>maprofile reload <name></color> - Reload a profile from disk",
-                [Lang.ProfileHelpSelect] = "<color=#fd4>maprofile select <name></color> - Select a profile",
-                [Lang.ProfileHelpCreate] = "<color=#fd4>maprofile create <name></color> - Create a new profile",
-                [Lang.ProfileHelpRename] = "<color=#fd4>maprofile rename <name> <new name></color> - Rename a profile",
-                [Lang.ProfileHelpClear] = "<color=#fd4>maprofile clear <name></color> - Clears a profile",
-                [Lang.ProfileHelpMoveTo] = "<color=#fd4>maprofile moveto <name></color> - Move an entity to a profile",
-                [Lang.ProfileHelpInstall] = "<color=#fd4>maprofile install <url></color> - Install a profile from a URL"
-            }, this, "en");
+            lang.RegisterMessages(englishLangKeys, this, "en");
         }
 
         #endregion
