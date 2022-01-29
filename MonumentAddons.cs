@@ -5416,7 +5416,7 @@ namespace Oxide.Plugins
                 _sb.AppendLine(_pluginInstance.GetMessage(player.UserIDString, LangEntry.ShowLabelProfile, profileController.Profile.Name));
 
                 var vanillaMonument = adapter.Monument.Object as MonumentInfo;
-                if (vanillaMonument != null)
+                if (vanillaMonument != null && (int)vanillaMonument.Tier != -1)
                 {
                     _sb.AppendLine(_pluginInstance.GetMessage(player.UserIDString, LangEntry.ShowLabelMonumentWithTier, adapter.Monument.AliasOrShortName, controller.Adapters.Count, vanillaMonument.Tier));
                 }
