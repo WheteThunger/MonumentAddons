@@ -37,9 +37,10 @@ namespace Oxide.Plugins
         private static Configuration _pluginConfig;
         private static StoredData _pluginData;
 
-        private const float MaxRaycastDistance = 50;
+        private const float MaxRaycastDistance = 100;
         private const float TerrainProximityTolerance = 0.001f;
         private const float MaxFindDistanceSquared = 4;
+        private const float ShowVanillaDuration = 60;
 
         private const string PermissionAdmin = "monumentaddons.admin";
 
@@ -62,6 +63,17 @@ namespace Oxide.Plugins
         private readonly AdapterListenerManager _adapterListenerManager = new AdapterListenerManager();
         private readonly ControllerFactory _entityControllerFactoryResolver = new ControllerFactory();
         private readonly CustomAddonManager _customAddonManager = new CustomAddonManager();
+
+        private readonly Color[] _distinctColors = new Color[]
+        {
+            Color.HSVToRGB(0, 1, 1),
+            Color.HSVToRGB(0.1f, 1, 1),
+            Color.HSVToRGB(0.2f, 1, 1),
+            Color.HSVToRGB(0.35f, 1, 1),
+            Color.HSVToRGB(0.55f, 1, 1),
+            Color.HSVToRGB(0.8f, 1, 1),
+            new Color(1, 1, 1),
+        };
 
         private ItemDefinition _waterDefinition;
         private ProtectionProperties _immortalProtection;
@@ -1701,6 +1713,267 @@ namespace Oxide.Plugins
             ReplyToPlayer(player, Lang.PasteSuccess, pasteName, monument.AliasOrShortName, matchingMonuments.Count, profileController.Profile.Name);
         }
 
+        private void AddSpawnGroupInfo(IPlayer player, StringBuilder sb, SpawnGroup spawnGroup, int spawnPointCount)
+        {
+            sb.AppendLine($"<size={AdapterDisplayManager.HeaderSize}>{GetMessage(player, Lang.ShowHeaderVanillaSpawnGroup, spawnGroup.name)}</size>");
+            sb.AppendLine(GetMessage(player, Lang.ShowLabelSpawnPoints, spawnPointCount));
+
+            if ((int)spawnGroup.Tier != -1)
+            {
+                sb.AppendLine(GetMessage(player, Lang.ShowLabelTiers, string.Join(", ", GetTierList(spawnGroup.Tier))));
+            }
+
+            if (spawnGroup.wantsInitialSpawn)
+            {
+                if (spawnGroup.temporary)
+                {
+                    sb.AppendLine(GetMessage(player, Lang.ShowLabelSpawnWhenParentSpawns));
+                }
+                else if (spawnGroup.forceInitialSpawn)
+                {
+                    sb.AppendLine(GetMessage(player, Lang.ShowLabelSpawnOnServerStart));
+                }
+                else
+                {
+                    sb.AppendLine(GetMessage(player, Lang.ShowLabelSpawnOnMapWipe));
+                }
+            }
+
+            if (spawnGroup.preventDuplicates && spawnGroup.prefabs.Count > 1)
+            {
+                sb.AppendLine(GetMessage(player, Lang.ShowLabelPreventDuplicates));
+            }
+
+            sb.AppendLine(GetMessage(player, Lang.ShowLabelPopulation, spawnGroup.currentPopulation, spawnGroup.maxPopulation));
+            sb.AppendLine(GetMessage(player, Lang.ShowLabelRespawnPerTick, spawnGroup.numToSpawnPerTickMin, spawnGroup.numToSpawnPerTickMax));
+            if (spawnGroup.respawnDelayMin != float.PositiveInfinity)
+            {
+                sb.AppendLine(GetMessage(player, Lang.ShowLabelRespawnDelay, FormatTime(spawnGroup.respawnDelayMin), FormatTime(spawnGroup.respawnDelayMax)));
+            }
+
+            var nextSpawnTime = GetTimeToNextSpawn(spawnGroup);
+            if (nextSpawnTime != float.PositiveInfinity && SingletonComponent<SpawnHandler>.Instance.SpawnGroups.Contains(spawnGroup))
+            {
+                sb.AppendLine(GetMessage(
+                    player,
+                    Lang.ShowLabelNextSpawn,
+                    nextSpawnTime <= 0
+                        ? GetMessage(player, Lang.ShowLabelNextSpawnQueued)
+                        : FormatTime(Mathf.CeilToInt(nextSpawnTime))
+                ));
+            }
+
+            if (spawnGroup.prefabs.Count > 0)
+            {
+                sb.AppendLine(_pluginInstance.GetMessage(player, Lang.ShowLabelEntities));
+                foreach (var prefabEntry in spawnGroup.prefabs)
+                {
+                    sb.AppendLine(_pluginInstance.GetMessage(player, Lang.ShowLabelEntityDetail, prefabEntry.prefab.resourcePath, prefabEntry.weight));
+                }
+            }
+            else
+            {
+                sb.AppendLine(_pluginInstance.GetMessage(player, Lang.ShowLabelNoEntities));
+            }
+        }
+
+        [Command("mashowvanilla")]
+        private void CommandShowVanillaSpawns(IPlayer player, string cmd, string[] args)
+        {
+            if (player.IsServer || !VerifyHasPermission(player))
+                return;
+
+            var basePlayer = player.Object as BasePlayer;
+
+            MonoBehaviour parentObject = null;
+
+            RaycastHit hit;
+            if (TryRaycast(basePlayer, out hit))
+            {
+                parentObject = hit.GetEntity();
+            }
+
+            if (parentObject == null)
+            {
+                Vector3 position;
+                BaseMonument monument;
+                if (!VerifyMonumentFinderLoaded(player)
+                    || !VerifyHitPosition(player, out position)
+                    || !VerifyAtMonument(player, position, out monument))
+                    return;
+
+                parentObject = monument.Object;
+            }
+
+            var spawnerList = parentObject.GetComponentsInChildren<ISpawnGroup>();
+            if (spawnerList.Length == 0)
+            {
+                ReplyToPlayer(player, Lang.ShowVanillaNoSpawnPoints, parentObject.name);
+                return;
+            }
+
+            var _selectedColorIndex = 0;
+            var sb = new StringBuilder();
+
+            var playerPosition = basePlayer.transform.position;
+
+            foreach (var spawner in spawnerList)
+            {
+                var spawnGroup = spawner as SpawnGroup;
+                if (spawnGroup != null)
+                {
+                    var spawnPointList = spawnGroup.spawnPoints;
+                    if (spawnPointList == null || spawnPointList.Length == 0)
+                    {
+                        spawnPointList = spawnGroup.GetComponentsInChildren<BaseSpawnPoint>();
+                    }
+
+                    var color = _distinctColors[_selectedColorIndex++];
+                    if (_selectedColorIndex >= _distinctColors.Length)
+                    {
+                        _selectedColorIndex = 0;
+                    }
+
+                    var tierMask = (int)spawnGroup.Tier;
+
+                    if (spawnPointList.Length == 0)
+                    {
+                        AddSpawnGroupInfo(player, sb, spawnGroup, spawnPointList.Length);
+                        var spawnGroupPosition = spawnGroup.transform.position;
+
+                        Ddraw.Sphere(basePlayer, spawnGroupPosition, 0.5f, color, ShowVanillaDuration);
+                        Ddraw.Text(basePlayer, spawnGroupPosition + new Vector3(0, tierMask > 0 ? Mathf.Log(tierMask, 2): 0, 0), sb.ToString(), color, ShowVanillaDuration);
+                        sb.Clear();
+                        continue;
+                    }
+
+                    BaseSpawnPoint closestSpawnPoint = null;
+                    var closestDistanceSquared = float.MaxValue;
+
+                    foreach (var spawnPoint in spawnPointList)
+                    {
+                        var distanceSquared = (playerPosition - spawnPoint.transform.position).sqrMagnitude;
+                        if (distanceSquared < closestDistanceSquared)
+                        {
+                            closestSpawnPoint = spawnPoint;
+                            closestDistanceSquared = distanceSquared;
+                        }
+                    }
+
+                    var closestSpawnPointPosition = closestSpawnPoint.transform.position;
+
+                    foreach (var spawnPoint in spawnPointList)
+                    {
+                        sb.AppendLine($"<size={AdapterDisplayManager.HeaderSize}>{GetMessage(player, Lang.ShowHeaderVanillaSpawnPoint, spawnGroup.name)}</size>");
+
+                        var booleanProperties = new List<string>();
+
+                        var genericSpawnPoint = spawnPoint as GenericSpawnPoint;
+                        if (genericSpawnPoint != null)
+                        {
+                            booleanProperties.Add(_pluginInstance.GetMessage(player, Lang.ShowLabelSpawnPointExclusive));
+
+                            if (genericSpawnPoint.randomRot)
+                            {
+                                booleanProperties.Add(_pluginInstance.GetMessage(player, Lang.ShowLabelSpawnPointRandomRotation));
+                            }
+
+                            if (genericSpawnPoint.dropToGround)
+                            {
+                                booleanProperties.Add(_pluginInstance.GetMessage(player, Lang.ShowLabelSpawnPointDropsToGround));
+                            }
+                        }
+
+                        var spaceCheckingSpawnPoint = spawnPoint as SpaceCheckingSpawnPoint;
+                        if (spaceCheckingSpawnPoint != null)
+                        {
+                            booleanProperties.Add(_pluginInstance.GetMessage(player, Lang.ShowLabelSpawnPointChecksSpace));
+                        }
+
+                        if (booleanProperties.Count > 0)
+                        {
+                            sb.AppendLine(_pluginInstance.GetMessage(player, Lang.ShowLabelFlags, string.Join(" | ", booleanProperties)));
+                        }
+
+                        var radialSpawnPoint = spawnPoint as RadialSpawnPoint;
+                        if (radialSpawnPoint != null)
+                        {
+                            sb.AppendLine(GetMessage(player, Lang.ShowLabelSpawnPointRandomRadius, radialSpawnPoint.radius));
+                        }
+
+                        if (spawnPoint == closestSpawnPoint)
+                        {
+                            sb.AppendLine(AdapterDisplayManager.Divider);
+                            AddSpawnGroupInfo(player, sb, spawnGroup, spawnPointList.Length);
+                        }
+
+                        var spawnPointPosition = spawnPoint.transform.position;
+                        Ddraw.Sphere(basePlayer, spawnPointPosition, 0.5f, color, ShowVanillaDuration);
+
+                        if (spawnPoint == closestSpawnPoint)
+                        {
+                            Ddraw.Text(basePlayer, spawnPointPosition + new Vector3(0, tierMask > 0 ? Mathf.Log(tierMask, 2) : 0, 0), sb.ToString(), color, ShowVanillaDuration);
+                        }
+                        else
+                        {
+                            Ddraw.Arrow(basePlayer, closestSpawnPointPosition, spawnPointPosition, 0.25f, color, ShowVanillaDuration);
+                            Ddraw.Text(basePlayer, spawnPointPosition, sb.ToString(), color, ShowVanillaDuration);
+                        }
+
+                        sb.Clear();
+                    }
+
+                    continue;
+                }
+
+                var individualSpawner = spawner as IndividualSpawner;
+                if (individualSpawner != null)
+                {
+                    var color = _distinctColors[_selectedColorIndex++];
+                    if (_selectedColorIndex >= _distinctColors.Length)
+                    {
+                        _selectedColorIndex = 0;
+                    }
+
+                    sb.AppendLine($"<size={AdapterDisplayManager.HeaderSize}>{GetMessage(player, Lang.ShowHeaderVanillaIndividualSpawnPoint, individualSpawner.name)}</size>");
+                    sb.AppendLine(GetMessage(player, Lang.ShowLabelFlags, $"{GetMessage(player, Lang.ShowLabelSpawnPointExclusive)} | {GetMessage(player, Lang.ShowLabelSpawnPointChecksSpace)}"));
+
+                    if (individualSpawner.oneTimeSpawner)
+                    {
+                        sb.AppendLine(GetMessage(player, Lang.ShowLabelSpawnOnMapWipe));
+                    }
+                    else
+                    {
+                        if (individualSpawner.respawnDelayMin != float.PositiveInfinity)
+                        {
+                            sb.AppendLine(GetMessage(player, Lang.ShowLabelRespawnDelay, FormatTime(individualSpawner.respawnDelayMin), FormatTime(individualSpawner.respawnDelayMax)));
+                        }
+
+                        var nextSpawnTime = GetTimeToNextSpawn(individualSpawner);
+                        if (nextSpawnTime != float.PositiveInfinity)
+                        {
+                            sb.AppendLine(GetMessage(
+                                player,
+                                Lang.ShowLabelNextSpawn,
+                                nextSpawnTime <= 0
+                                    ? GetMessage(player, Lang.ShowLabelNextSpawnQueued)
+                                    : FormatTime(Mathf.CeilToInt(nextSpawnTime))
+                            ));
+                        }
+                    }
+
+                    sb.AppendLine(GetMessage(player, Lang.ShowHeaderEntity, individualSpawner.entityPrefab.resourcePath));
+
+                    var spawnPointPosition = individualSpawner.transform.position;
+                    Ddraw.Sphere(basePlayer, spawnPointPosition, 0.5f, color, ShowVanillaDuration);
+                    Ddraw.Text(basePlayer, spawnPointPosition, sb.ToString(), color, ShowVanillaDuration);
+
+                    sb.Clear();
+                    continue;
+                }
+            }
+        }
+
         #endregion
 
         #region API
@@ -1801,7 +2074,7 @@ namespace Oxide.Plugins
             if (TryGetHitPosition(player.Object as BasePlayer, out position))
                 return true;
 
-            ReplyToPlayer(player, Lang.SpawnErrorNoTarget);
+            ReplyToPlayer(player, Lang.ErrorNoSurface);
             return false;
         }
 
@@ -2364,6 +2637,40 @@ namespace Oxide.Plugins
 
             enumValue = default(TEnum);
             return false;
+        }
+
+        private static float GetTimeToNextSpawn(SpawnGroup spawnGroup)
+        {
+            var events = spawnGroup.spawnClock.events;
+
+            if (events.Count == 0 || float.IsNaN(events.First().time))
+                return float.PositiveInfinity;
+
+            return events.First().time - UnityEngine.Time.time;
+        }
+
+        private static float GetTimeToNextSpawn(IndividualSpawner spawner)
+        {
+            if (spawner.nextSpawnTime == -1)
+                return float.PositiveInfinity;
+
+            return spawner.nextSpawnTime - UnityEngine.Time.time;
+        }
+
+        private static List<MonumentTier> GetTierList(MonumentTier tier)
+        {
+            var tierList = new List<MonumentTier>();
+
+            if ((tier & MonumentTier.Tier0) != 0)
+                tierList.Add(MonumentTier.Tier0);
+
+            if ((tier & MonumentTier.Tier1) != 0)
+                tierList.Add(MonumentTier.Tier1);
+
+            if ((tier & MonumentTier.Tier2) != 0)
+                tierList.Add(MonumentTier.Tier2);
+
+            return tierList;
         }
 
         private bool HasAdminPermission(string userId) =>
@@ -4126,14 +4433,6 @@ namespace Oxide.Plugins
                 }
             }
 
-            public float GetTimeToNextSpawn()
-            {
-                if (spawnClock.events.Count == 0)
-                    return float.PositiveInfinity;
-
-                return spawnClock.events.First().time - UnityEngine.Time.time;
-            }
-
             protected override void PostSpawnProcess(BaseEntity entity, BaseSpawnPoint spawnPoint)
             {
                 base.PostSpawnProcess(entity, spawnPoint);
@@ -5005,9 +5304,10 @@ namespace Oxide.Plugins
         private class AdapterDisplayManager
         {
             public const int DefaultDisplayDuration = 60;
+            public const int HeaderSize = 25;
+            public static readonly string Divider = $"<size={HeaderSize}>------------------------------</size>";
+
             private const int DisplayIntervalDuration = 2;
-            private const int HeaderSize = 25;
-            private string Divider = $"<size={HeaderSize}>------------------------------</size>";
 
             private class PlayerInfo
             {
@@ -5088,17 +5388,31 @@ namespace Oxide.Plugins
                 return Color.magenta;
             }
 
+            private void AddCommonInfo(BasePlayer player, ProfileController profileController, BaseController controller, BaseAdapter adapter)
+            {
+                _sb.AppendLine(_pluginInstance.GetMessage(player, Lang.ShowLabelProfile, profileController.Profile.Name));
+
+                var vanillaMonument = adapter.Monument.Object as MonumentInfo;
+                if (vanillaMonument != null)
+                {
+                    _sb.AppendLine(_pluginInstance.GetMessage(player, Lang.ShowLabelMonumentWithTier, adapter.Monument.AliasOrShortName, controller.Adapters.Count, vanillaMonument.Tier));
+                }
+                else
+                {
+                    _sb.AppendLine(_pluginInstance.GetMessage(player, Lang.ShowLabelMonument, adapter.Monument.AliasOrShortName, controller.Adapters.Count));
+                }
+            }
+
             private void ShowEntityInfo(BasePlayer player, EntityAdapterBase adapter, PlayerInfo playerInfo)
             {
                 var entityData = adapter.EntityData;
-                var entityController = adapter.Controller;
-                var profileController = entityController.ProfileController;
+                var controller = adapter.Controller;
+                var profileController = controller.ProfileController;
                 var color = DetermineColor(adapter, playerInfo, profileController);
 
                 _sb.Clear();
                 _sb.AppendLine($"<size={HeaderSize}>{_pluginInstance.GetMessage(player, Lang.ShowHeaderEntity, entityData.ShortPrefabName)}</size>");
-                _sb.AppendLine(_pluginInstance.GetMessage(player, Lang.ShowLabelProfile, profileController.Profile.Name));
-                _sb.AppendLine(_pluginInstance.GetMessage(player, Lang.ShowLabelMonument, adapter.Monument.AliasOrShortName, entityController.Adapters.Count));
+                AddCommonInfo(player, profileController, controller, adapter);
 
                 if (entityData.Skin != 0)
                     _sb.AppendLine(_pluginInstance.GetMessage(player, Lang.ShowLabelSkin, entityData.Skin));
@@ -5134,16 +5448,15 @@ namespace Oxide.Plugins
             private void ShowSpawnPointInfo(BasePlayer player, SpawnPointAdapter adapter, SpawnGroupAdapter spawnGroupAdapter, PlayerInfo playerInfo, bool showGroupInfo)
             {
                 var spawnPointData = adapter.SpawnPointData;
-                var entityController = adapter.Controller;
-                var profileController = entityController.ProfileController;
+                var controller = adapter.Controller;
+                var profileController = controller.ProfileController;
                 var color = DetermineColor(adapter, playerInfo, profileController);
 
                 var spawnGroupData = spawnGroupAdapter.SpawnGroupData;
 
                 _sb.Clear();
                 _sb.AppendLine($"<size={HeaderSize}>{_pluginInstance.GetMessage(player, Lang.ShowHeaderSpawnPoint, spawnGroupData.Name)}</size>");
-                _sb.AppendLine(_pluginInstance.GetMessage(player, Lang.ShowLabelProfile, profileController.Profile.Name));
-                _sb.AppendLine(_pluginInstance.GetMessage(player, Lang.ShowLabelMonument, adapter.Monument.AliasOrShortName, entityController.Adapters.Count));
+                AddCommonInfo(player, profileController, controller, adapter);
 
                 var booleanProperties = new List<string>();
 
@@ -5170,41 +5483,41 @@ namespace Oxide.Plugins
                     _sb.AppendLine(Divider);
                     _sb.AppendLine($"<size=25>{_pluginInstance.GetMessage(player, Lang.ShowHeaderSpawnGroup, spawnGroupData.Name)}</size>");
 
-                    _sb.AppendLine(_pluginInstance.GetMessage(player, Lang.ShowLabelSpawnGroupPoints, spawnGroupData.SpawnPoints.Count));
+                    _sb.AppendLine(_pluginInstance.GetMessage(player, Lang.ShowLabelSpawnPoints, spawnGroupData.SpawnPoints.Count));
 
                     var groupBooleanProperties = new List<string>();
 
                     if (spawnGroupData.PreventDuplicates)
-                        groupBooleanProperties.Add(_pluginInstance.GetMessage(player, Lang.ShowLabelSpawnGroupPreventDuplicates));
+                        groupBooleanProperties.Add(_pluginInstance.GetMessage(player, Lang.ShowLabelPreventDuplicates));
 
                     if (groupBooleanProperties.Count > 0)
                         _sb.AppendLine(_pluginInstance.GetMessage(player, Lang.ShowLabelFlags, string.Join(" | ", groupBooleanProperties)));
 
-                    _sb.AppendLine(_pluginInstance.GetMessage(player, Lang.ShowLabelSpawnGroupPopulation, spawnGroupAdapter.SpawnGroup.currentPopulation, spawnGroupData.MaxPopulation));
-                    _sb.AppendLine(_pluginInstance.GetMessage(player, Lang.ShowLabelSpawnGroupRespawnPerTick, spawnGroupData.SpawnPerTickMin, spawnGroupData.SpawnPerTickMax));
-                    _sb.AppendLine(_pluginInstance.GetMessage(player, Lang.ShowLabelSpawnGroupRespawnDelay, FormatTime(spawnGroupData.RespawnDelayMin), FormatTime(spawnGroupData.RespawnDelayMax)));
+                    _sb.AppendLine(_pluginInstance.GetMessage(player, Lang.ShowLabelPopulation, spawnGroupAdapter.SpawnGroup.currentPopulation, spawnGroupData.MaxPopulation));
+                    _sb.AppendLine(_pluginInstance.GetMessage(player, Lang.ShowLabelRespawnPerTick, spawnGroupData.SpawnPerTickMin, spawnGroupData.SpawnPerTickMax));
+                    _sb.AppendLine(_pluginInstance.GetMessage(player, Lang.ShowLabelRespawnDelay, FormatTime(spawnGroupData.RespawnDelayMin), FormatTime(spawnGroupData.RespawnDelayMax)));
 
-                    var nextSpawnTime = spawnGroupAdapter.SpawnGroup.GetTimeToNextSpawn();
+                    var nextSpawnTime = GetTimeToNextSpawn(spawnGroupAdapter.SpawnGroup);
 
                     _sb.AppendLine(_pluginInstance.GetMessage(
                         player,
-                        Lang.ShowLabelSpawnGroupNextSpawn,
+                        Lang.ShowLabelNextSpawn,
                         nextSpawnTime <= 0
-                            ? _pluginInstance.GetMessage(player, Lang.ShowLabelSpawnGroupNextSpawnQueued)
+                            ? _pluginInstance.GetMessage(player, Lang.ShowLabelNextSpawnQueued)
                             : FormatTime(Mathf.CeilToInt(nextSpawnTime))
                     ));
 
                     if (spawnGroupData.Prefabs.Count > 0)
                     {
-                        _sb.AppendLine(_pluginInstance.GetMessage(player, Lang.ShowLabelSpawnGroupEntities));
+                        _sb.AppendLine(_pluginInstance.GetMessage(player, Lang.ShowLabelEntities));
                         foreach (var prefabEntry in spawnGroupData.Prefabs)
                         {
-                            _sb.AppendLine(_pluginInstance.GetMessage(player, Lang.ShowLabelSpawnGroupEntityDetail, prefabEntry.PrefabName, prefabEntry.Weight));
+                            _sb.AppendLine(_pluginInstance.GetMessage(player, Lang.ShowLabelEntityDetail, prefabEntry.PrefabName, prefabEntry.Weight));
                         }
                     }
                     else
                     {
-                        _sb.AppendLine(_pluginInstance.GetMessage(player, Lang.ShowLabelSpawnGroupNoEntities));
+                        _sb.AppendLine(_pluginInstance.GetMessage(player, Lang.ShowLabelNoEntities));
                     }
 
                     foreach (var otherAdapter in spawnGroupAdapter.Adapters)
@@ -5220,14 +5533,13 @@ namespace Oxide.Plugins
             private void ShowPasteInfo(BasePlayer player, PasteAdapter adapter, PlayerInfo playerInfo)
             {
                 var pasteData = adapter.PasteData;
-                var entityController = adapter.Controller;
-                var profileController = entityController.ProfileController;
+                var controller = adapter.Controller;
+                var profileController = controller.ProfileController;
                 var color = DetermineColor(adapter, playerInfo, profileController);
 
                 _sb.Clear();
                 _sb.AppendLine($"<size={HeaderSize}>{_pluginInstance.GetMessage(player, Lang.ShowHeaderPaste, pasteData.Filename)}</size>");
-                _sb.AppendLine(_pluginInstance.GetMessage(player, Lang.ShowLabelProfile, profileController.Profile.Name));
-                _sb.AppendLine(_pluginInstance.GetMessage(player, Lang.ShowLabelMonument, adapter.Monument.AliasOrShortName, entityController.Adapters.Count));
+                AddCommonInfo(player, profileController, controller, adapter);
 
                 Ddraw.Text(player, adapter.Position, _sb.ToString(), color, DisplayIntervalDuration);
             }
@@ -5235,8 +5547,8 @@ namespace Oxide.Plugins
             private void ShowCustomAddonInfo(BasePlayer player, CustomAddonAdapter adapter, PlayerInfo playerInfo)
             {
                 var customAddonData = adapter.CustomAddonData;
-                var entityController = adapter.Controller;
-                var profileController = entityController.ProfileController;
+                var controller = adapter.Controller;
+                var profileController = controller.ProfileController;
                 var color = DetermineColor(adapter, playerInfo, profileController);
 
                 var addonDefinition = adapter.AddonDefinition;
@@ -5244,8 +5556,7 @@ namespace Oxide.Plugins
                 _sb.Clear();
                 _sb.AppendLine($"<size={HeaderSize}>{_pluginInstance.GetMessage(player, Lang.ShowHeaderCustom, customAddonData.AddonName)}</size>");
                 _sb.AppendLine(_pluginInstance.GetMessage(player, Lang.ShowLabelPlugin, addonDefinition.OwnerPlugin.Name));
-                _sb.AppendLine(_pluginInstance.GetMessage(player, Lang.ShowLabelProfile, profileController.Profile.Name));
-                _sb.AppendLine(_pluginInstance.GetMessage(player, Lang.ShowLabelMonument, adapter.Monument.AliasOrShortName, entityController.Adapters.Count));
+                AddCommonInfo(player, profileController, controller, adapter);
 
                 addonDefinition.AddDisplayInfo?.Invoke(adapter.Component, customAddonData.GetSerializedData(), _sb);
 
@@ -7036,13 +7347,13 @@ namespace Oxide.Plugins
             public const string ErrorNoSpawnPointFound = "Error.NoSpawnPointFound";
             public const string ErrorSetSyntax = "Error.Set.Syntax";
             public const string ErrorSetUnknownOption = "Error.Set.UnknownOption";
+            public const string ErrorNoSurface = "Error.NoSurface";
 
             public const string SpawnErrorSyntax = "Spawn.Error.Syntax";
             public const string SpawnErrorNoProfileSelected = "Spawn.Error.NoProfileSelected";
             public const string SpawnErrorEntityNotFound = "Spawn.Error.EntityNotFound2";
             public const string SpawnErrorEntityOrAddonNotFound = "Spawn.Error.EntityOrCustomNotFound";
             public const string SpawnErrorMultipleMatches = "Spawn.Error.MultipleMatches";
-            public const string SpawnErrorNoTarget = "Spawn.Error.NoTarget";
             public const string SpawnSuccess = "Spawn.Success2";
             public const string KillSuccess = "Kill.Success3";
             public const string MoveNothingToDo = "Move.NothingToDo";
@@ -7086,15 +7397,21 @@ namespace Oxide.Plugins
             public const string SpawnPointHelpCreate = "SpawnPoint.Help.Create";
             public const string SpawnPointHelpSet = "SpawnPoint.Help.Set";
 
+            public const string ShowVanillaNoSpawnPoints = "Show.Vanilla.NoSpawnPoints";
+
             public const string ShowSuccess = "Show.Success";
             public const string ShowHeaderEntity = "Show.Header.Entity";
             public const string ShowHeaderSpawnGroup = "Show.Header.SpawnGroup";
+            public const string ShowHeaderVanillaSpawnGroup = "Show.Header.Vanilla.SpawnGroup";
             public const string ShowHeaderSpawnPoint = "Show.Header.SpawnPoint";
+            public const string ShowHeaderVanillaSpawnPoint = "Show.Header.Vanilla.SpawnPoint";
+            public const string ShowHeaderVanillaIndividualSpawnPoint = "Show.Header.Vanilla.IndividualSpawnPoint";
             public const string ShowHeaderPaste = "Show.Header.Paste";
             public const string ShowHeaderCustom = "Show.Header.Custom";
             public const string ShowLabelPlugin = "Show.Label.Plugin";
             public const string ShowLabelProfile = "Show.Label.Profile";
             public const string ShowLabelMonument = "Show.Label.Monument";
+            public const string ShowLabelMonumentWithTier = "Show.Label.MonumentWithTier";
             public const string ShowLabelSkin = "Show.Label.Skin";
             public const string ShowLabelScale = "Show.Label.Scale";
             public const string ShowLabelRCIdentifier = "Show.Label.RCIdentifier";
@@ -7106,16 +7423,21 @@ namespace Oxide.Plugins
             public const string ShowLabelSpawnPointChecksSpace = "Show.Label.SpawnPoint.ChecksSpace";
             public const string ShowLabelSpawnPointRandomRadius = "Show.Label.SpawnPoint.RandomRadius";
 
-            public const string ShowLabelSpawnGroupPoints = "Show.Label.SpawnGroup.Points";
-            public const string ShowLabelSpawnGroupPreventDuplicates = "Show.Label.SpawnGroup.PreventDuplicates";
-            public const string ShowLabelSpawnGroupPopulation = "Show.Label.SpawnGroup.Population";
-            public const string ShowLabelSpawnGroupRespawnPerTick = "Show.Label.SpawnGroup.RespawnPerTick";
-            public const string ShowLabelSpawnGroupRespawnDelay = "Show.Label.SpawnGroup.RespawnDelay";
-            public const string ShowLabelSpawnGroupNextSpawn = "Show.Label.SpawnGroup.NextSpawn";
-            public const string ShowLabelSpawnGroupNextSpawnQueued = "Show.Label.SpawnGroup.NextSpawn.Queued";
-            public const string ShowLabelSpawnGroupEntities = "Show.Label.SpawnGroup.Entities";
-            public const string ShowLabelSpawnGroupEntityDetail = "Show.Label.SpawnGroup.Entities.Detail";
-            public const string ShowLabelSpawnGroupNoEntities = "Show.Label.SpawnGroup.NoEntities";
+            public const string ShowLabelSpawnPoints = "Show.Label.Points";
+            public const string ShowLabelPreventDuplicates = "Show.Label.PreventDuplicates";
+
+            public const string ShowLabelTiers = "Show.Label.Tiers";
+            public const string ShowLabelPopulation = "Show.Label.Population";
+            public const string ShowLabelRespawnPerTick = "Show.Label.RespawnPerTick";
+            public const string ShowLabelRespawnDelay = "Show.Label.RespawnDelay";
+            public const string ShowLabelNextSpawn = "Show.Label.NextSpawn";
+            public const string ShowLabelNextSpawnQueued = "Show.Label.NextSpawn.Queued";
+            public const string ShowLabelEntities = "Show.Label.Entities";
+            public const string ShowLabelEntityDetail = "Show.Label.Entities.Detail";
+            public const string ShowLabelNoEntities = "Show.Label.NoEntities";
+            public const string ShowLabelSpawnWhenParentSpawns = "Show.Label.SpawnWhenParentSpawns";
+            public const string ShowLabelSpawnOnServerStart = "Show.Label.SpawnOnServerStart";
+            public const string ShowLabelSpawnOnMapWipe = "Show.Lable.SpawnOnMapWipe";
 
             public const string SkinGet = "Skin.Get";
             public const string SkinSetSyntax = "Skin.Set.Syntax";
@@ -7205,7 +7527,7 @@ namespace Oxide.Plugins
                 [Lang.SpawnErrorEntityNotFound] = "Error: No entity found matching name <color=#fd4>{0}</color>.",
                 [Lang.SpawnErrorEntityOrAddonNotFound] = "Error: No entity or custom addon found matching name <color=#fd4>{0}</color>.",
                 [Lang.SpawnErrorMultipleMatches] = "Multiple matches:\n",
-                [Lang.SpawnErrorNoTarget] = "Error: No valid spawn position found.",
+                [Lang.ErrorNoSurface] = "Error: No valid surface found.",
                 [Lang.SpawnSuccess] = "Spawned entity at <color=#fd4>{0}</color> matching monument(s) and saved to <color=#fd4>{1}</color> profile for monument <color=#fd4>{2}</color>.",
                 [Lang.KillSuccess] = "Killed <color=#fd4>{0}</color> at <color=#fd4>{1}</color> matching monument(s) and removed from profile <color=#fd4>{2}</color>.",
                 [Lang.MoveNothingToDo] = "That entity is already at the saved position.",
@@ -7250,17 +7572,23 @@ namespace Oxide.Plugins
                 [Lang.SpawnPointHelpCreate] = "<color=#fd4>{0} create <group_name></color> - Create a spawn point",
                 [Lang.SpawnPointHelpSet] = "<color=#fd4>{0} set <option> <value></color> - Set a property of a spawn point",
 
+                [Lang.ShowVanillaNoSpawnPoints] = "No spawn points found in <color=#fd4>{0}</color>.",
+
                 [Lang.ShowSuccess] = "Showing nearby Monument Addons for <color=#fd4>{0}</color>.",
                 [Lang.ShowLabelPlugin] = "Plugin: {0}",
                 [Lang.ShowLabelProfile] = "Profile: {0}",
                 [Lang.ShowLabelMonument] = "Monument: {0} (x{1})",
+                [Lang.ShowLabelMonumentWithTier] = "Monument: {0} (x{1}, Tier: {2})",
                 [Lang.ShowLabelSkin] = "Skin: {0}",
                 [Lang.ShowLabelScale] = "Scale: {0}",
                 [Lang.ShowLabelRCIdentifier] = "RC Identifier: {0}",
 
                 [Lang.ShowHeaderEntity] = "Entity: {0}",
                 [Lang.ShowHeaderSpawnGroup] = "Spawn Group: {0}",
+                [Lang.ShowHeaderVanillaSpawnGroup] = "Vanilla Spawn Group: {0}",
                 [Lang.ShowHeaderSpawnPoint] = "Spawn Point ({0})",
+                [Lang.ShowHeaderVanillaSpawnPoint] = "Vanilla Spawn Point ({0})",
+                [Lang.ShowHeaderVanillaIndividualSpawnPoint] = "Vanilla Individual Spawn Point: {0}",
                 [Lang.ShowHeaderPaste] = "Paste: {0}",
                 [Lang.ShowHeaderCustom] = "Custom Addon: {0}",
 
@@ -7271,16 +7599,20 @@ namespace Oxide.Plugins
                 [Lang.ShowLabelSpawnPointChecksSpace] = "Checks space",
                 [Lang.ShowLabelSpawnPointRandomRadius] = "Random spawn radius: {0:f1}",
 
-                [Lang.ShowLabelSpawnGroupPoints] = "Spawn points: {0}",
-                [Lang.ShowLabelSpawnGroupPreventDuplicates] = "Prevent duplicates",
-                [Lang.ShowLabelSpawnGroupPopulation] = "Population: {0} / {1}",
-                [Lang.ShowLabelSpawnGroupRespawnPerTick] = "Spawn per tick: {0} - {1}",
-                [Lang.ShowLabelSpawnGroupRespawnDelay] = "Respawn delay: {0} - {1}",
-                [Lang.ShowLabelSpawnGroupNextSpawn] = "Next spawn: {0}",
-                [Lang.ShowLabelSpawnGroupNextSpawnQueued] = "Queued",
-                [Lang.ShowLabelSpawnGroupEntities] = "Entities:",
-                [Lang.ShowLabelSpawnGroupEntityDetail] = "{0} | weight: {1}",
-                [Lang.ShowLabelSpawnGroupNoEntities] = "No entities configured. Run /maspawngroup add <entity> <weight>",
+                [Lang.ShowLabelSpawnPoints] = "Spawn points: {0}",
+                [Lang.ShowLabelTiers] = "Tiers: {0}",
+                [Lang.ShowLabelSpawnWhenParentSpawns] = "Spawn when parent spawns",
+                [Lang.ShowLabelSpawnOnServerStart] = "Spawn on server start",
+                [Lang.ShowLabelSpawnOnMapWipe] = "Spawn on map wipe",
+                [Lang.ShowLabelPreventDuplicates] = "Prevent duplicates",
+                [Lang.ShowLabelPopulation] = "Population: {0} / {1}",
+                [Lang.ShowLabelRespawnPerTick] = "Spawn per tick: {0} - {1}",
+                [Lang.ShowLabelRespawnDelay] = "Respawn delay: {0} - {1}",
+                [Lang.ShowLabelNextSpawn] = "Next spawn: {0}",
+                [Lang.ShowLabelNextSpawnQueued] = "Queued",
+                [Lang.ShowLabelEntities] = "Entities:",
+                [Lang.ShowLabelEntityDetail] = "{0} | weight: {1}",
+                [Lang.ShowLabelNoEntities] = "No entities configured. Run /maspawngroup add <entity> <weight>",
 
                 [Lang.SkinGet] = "Skin ID: <color=#fd4>{0}</color>. Run <color=#fd4>{1} <skin id></color> to change it.",
                 [Lang.SkinSetSyntax] = "Syntax: <color=#fd4>{0} <skin id></color>",
