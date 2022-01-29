@@ -668,7 +668,7 @@ namespace Oxide.Plugins
         {
             foreach (var summaryEntry in GetProfileSummary(player, profileController.Profile))
             {
-                sb.AppendLine(GetMessage(player, LangEntry.ProfileDescribeItem, summaryEntry.AddonType, summaryEntry.AddonName, summaryEntry.Count, summaryEntry.MonumentName));
+                sb.AppendLine(GetMessage(player.Id, LangEntry.ProfileDescribeItem, summaryEntry.AddonType, summaryEntry.AddonName, summaryEntry.Count, summaryEntry.MonumentName));
             }
         }
 
@@ -710,7 +710,7 @@ namespace Oxide.Plugins
                         .ToArray();
 
                     var sb = new StringBuilder();
-                    sb.AppendLine(GetMessage(player, LangEntry.ProfileListHeader));
+                    sb.AppendLine(GetMessage(player.Id, LangEntry.ProfileListHeader));
                     foreach (var profile in profileList)
                     {
                         var messageName = profile.Enabled && profile.Name == playerProfileName
@@ -719,7 +719,7 @@ namespace Oxide.Plugins
                             ? LangEntry.ProfileListItemEnabled
                             : LangEntry.ProfileListItemDisabled;
 
-                        sb.AppendLine(GetMessage(player, messageName, profile.Name, GetAuthorSuffix(player, profile.Profile?.Author)));
+                        sb.AppendLine(GetMessage(player.Id, messageName, profile.Name, GetAuthorSuffix(player, profile.Profile?.Author)));
                     }
                     player.Reply(sb.ToString());
                     break;
@@ -738,7 +738,7 @@ namespace Oxide.Plugins
                     }
 
                     var sb = new StringBuilder();
-                    sb.AppendLine(GetMessage(player, LangEntry.ProfileDescribeHeader, controller.Profile.Name));
+                    sb.AppendLine(GetMessage(player.Id, LangEntry.ProfileDescribeHeader, controller.Profile.Name));
                     AddProfileDescription(sb, player, controller);
 
                     player.Reply(sb.ToString());
@@ -1018,18 +1018,18 @@ namespace Oxide.Plugins
         private void SubCommandProfileHelp(IPlayer player)
         {
             var sb = new StringBuilder();
-            sb.AppendLine(GetMessage(player, LangEntry.ProfileHelpHeader));
-            sb.AppendLine(GetMessage(player, LangEntry.ProfileHelpList));
-            sb.AppendLine(GetMessage(player, LangEntry.ProfileHelpDescribe));
-            sb.AppendLine(GetMessage(player, LangEntry.ProfileHelpEnable));
-            sb.AppendLine(GetMessage(player, LangEntry.ProfileHelpDisable));
-            sb.AppendLine(GetMessage(player, LangEntry.ProfileHelpReload));
-            sb.AppendLine(GetMessage(player, LangEntry.ProfileHelpSelect));
-            sb.AppendLine(GetMessage(player, LangEntry.ProfileHelpCreate));
-            sb.AppendLine(GetMessage(player, LangEntry.ProfileHelpRename));
-            sb.AppendLine(GetMessage(player, LangEntry.ProfileHelpClear));
-            sb.AppendLine(GetMessage(player, LangEntry.ProfileHelpMoveTo));
-            sb.AppendLine(GetMessage(player, LangEntry.ProfileHelpInstall));
+            sb.AppendLine(GetMessage(player.Id, LangEntry.ProfileHelpHeader));
+            sb.AppendLine(GetMessage(player.Id, LangEntry.ProfileHelpList));
+            sb.AppendLine(GetMessage(player.Id, LangEntry.ProfileHelpDescribe));
+            sb.AppendLine(GetMessage(player.Id, LangEntry.ProfileHelpEnable));
+            sb.AppendLine(GetMessage(player.Id, LangEntry.ProfileHelpDisable));
+            sb.AppendLine(GetMessage(player.Id, LangEntry.ProfileHelpReload));
+            sb.AppendLine(GetMessage(player.Id, LangEntry.ProfileHelpSelect));
+            sb.AppendLine(GetMessage(player.Id, LangEntry.ProfileHelpCreate));
+            sb.AppendLine(GetMessage(player.Id, LangEntry.ProfileHelpRename));
+            sb.AppendLine(GetMessage(player.Id, LangEntry.ProfileHelpClear));
+            sb.AppendLine(GetMessage(player.Id, LangEntry.ProfileHelpMoveTo));
+            sb.AppendLine(GetMessage(player.Id, LangEntry.ProfileHelpInstall));
             player.Reply(sb.ToString());
         }
 
@@ -1118,7 +1118,7 @@ namespace Oxide.Plugins
                         profileController.Enable();
 
                     var sb = new StringBuilder();
-                    sb.AppendLine(GetMessage(player, LangEntry.ProfileInstallSuccess, profile.Name, GetAuthorSuffix(player, profile.Author)));
+                    sb.AppendLine(GetMessage(player.Id, LangEntry.ProfileInstallSuccess, profile.Name, GetAuthorSuffix(player, profile.Author)));
                     AddProfileDescription(sb, player, profileController);
                     player.Reply(sb.ToString());
 
@@ -1480,11 +1480,11 @@ namespace Oxide.Plugins
         private void SubCommandSpawnGroupHelp(IPlayer player, string cmd)
         {
             var sb = new StringBuilder();
-            sb.AppendLine(GetMessage(player, LangEntry.SpawnGroupHelpHeader, cmd));
-            sb.AppendLine(GetMessage(player, LangEntry.SpawnGroupHelpCreate, cmd));
-            sb.AppendLine(GetMessage(player, LangEntry.SpawnGroupHelpSet, cmd));
-            sb.AppendLine(GetMessage(player, LangEntry.SpawnGroupHelpAdd, cmd));
-            sb.AppendLine(GetMessage(player, LangEntry.SpawnGroupHelpRemove, cmd));
+            sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnGroupHelpHeader, cmd));
+            sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnGroupHelpCreate, cmd));
+            sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnGroupHelpSet, cmd));
+            sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnGroupHelpAdd, cmd));
+            sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnGroupHelpRemove, cmd));
             player.Reply(sb.ToString());
         }
 
@@ -1646,9 +1646,9 @@ namespace Oxide.Plugins
         private void SubCommandSpawnPointHelp(IPlayer player, string cmd)
         {
             var sb = new StringBuilder();
-            sb.AppendLine(GetMessage(player, LangEntry.SpawnPointHelpHeader, cmd));
-            sb.AppendLine(GetMessage(player, LangEntry.SpawnPointHelpCreate, cmd));
-            sb.AppendLine(GetMessage(player, LangEntry.SpawnPointHelpSet, cmd));
+            sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnPointHelpHeader, cmd));
+            sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnPointHelpCreate, cmd));
+            sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnPointHelpSet, cmd));
             player.Reply(sb.ToString());
         }
 
@@ -1715,65 +1715,65 @@ namespace Oxide.Plugins
 
         private void AddSpawnGroupInfo(IPlayer player, StringBuilder sb, SpawnGroup spawnGroup, int spawnPointCount)
         {
-            sb.AppendLine($"<size={AdapterDisplayManager.HeaderSize}>{GetMessage(player, LangEntry.ShowHeaderVanillaSpawnGroup, spawnGroup.name)}</size>");
-            sb.AppendLine(GetMessage(player, LangEntry.ShowLabelSpawnPoints, spawnPointCount));
+            sb.AppendLine($"<size={AdapterDisplayManager.HeaderSize}>{GetMessage(player.Id, LangEntry.ShowHeaderVanillaSpawnGroup, spawnGroup.name)}</size>");
+            sb.AppendLine(GetMessage(player.Id, LangEntry.ShowLabelSpawnPoints, spawnPointCount));
 
             if ((int)spawnGroup.Tier != -1)
             {
-                sb.AppendLine(GetMessage(player, LangEntry.ShowLabelTiers, string.Join(", ", GetTierList(spawnGroup.Tier))));
+                sb.AppendLine(GetMessage(player.Id, LangEntry.ShowLabelTiers, string.Join(", ", GetTierList(spawnGroup.Tier))));
             }
 
             if (spawnGroup.wantsInitialSpawn)
             {
                 if (spawnGroup.temporary)
                 {
-                    sb.AppendLine(GetMessage(player, LangEntry.ShowLabelSpawnWhenParentSpawns));
+                    sb.AppendLine(GetMessage(player.Id, LangEntry.ShowLabelSpawnWhenParentSpawns));
                 }
                 else if (spawnGroup.forceInitialSpawn)
                 {
-                    sb.AppendLine(GetMessage(player, LangEntry.ShowLabelSpawnOnServerStart));
+                    sb.AppendLine(GetMessage(player.Id, LangEntry.ShowLabelSpawnOnServerStart));
                 }
                 else
                 {
-                    sb.AppendLine(GetMessage(player, LangEntry.ShowLabelSpawnOnMapWipe));
+                    sb.AppendLine(GetMessage(player.Id, LangEntry.ShowLabelSpawnOnMapWipe));
                 }
             }
 
             if (spawnGroup.preventDuplicates && spawnGroup.prefabs.Count > 1)
             {
-                sb.AppendLine(GetMessage(player, LangEntry.ShowLabelPreventDuplicates));
+                sb.AppendLine(GetMessage(player.Id, LangEntry.ShowLabelPreventDuplicates));
             }
 
-            sb.AppendLine(GetMessage(player, LangEntry.ShowLabelPopulation, spawnGroup.currentPopulation, spawnGroup.maxPopulation));
-            sb.AppendLine(GetMessage(player, LangEntry.ShowLabelRespawnPerTick, spawnGroup.numToSpawnPerTickMin, spawnGroup.numToSpawnPerTickMax));
+            sb.AppendLine(GetMessage(player.Id, LangEntry.ShowLabelPopulation, spawnGroup.currentPopulation, spawnGroup.maxPopulation));
+            sb.AppendLine(GetMessage(player.Id, LangEntry.ShowLabelRespawnPerTick, spawnGroup.numToSpawnPerTickMin, spawnGroup.numToSpawnPerTickMax));
             if (spawnGroup.respawnDelayMin != float.PositiveInfinity)
             {
-                sb.AppendLine(GetMessage(player, LangEntry.ShowLabelRespawnDelay, FormatTime(spawnGroup.respawnDelayMin), FormatTime(spawnGroup.respawnDelayMax)));
+                sb.AppendLine(GetMessage(player.Id, LangEntry.ShowLabelRespawnDelay, FormatTime(spawnGroup.respawnDelayMin), FormatTime(spawnGroup.respawnDelayMax)));
             }
 
             var nextSpawnTime = GetTimeToNextSpawn(spawnGroup);
             if (nextSpawnTime != float.PositiveInfinity && SingletonComponent<SpawnHandler>.Instance.SpawnGroups.Contains(spawnGroup))
             {
                 sb.AppendLine(GetMessage(
-                    player,
+                    player.Id,
                     LangEntry.ShowLabelNextSpawn,
                     nextSpawnTime <= 0
-                        ? GetMessage(player, LangEntry.ShowLabelNextSpawnQueued)
+                        ? GetMessage(player.Id, LangEntry.ShowLabelNextSpawnQueued)
                         : FormatTime(Mathf.CeilToInt(nextSpawnTime))
                 ));
             }
 
             if (spawnGroup.prefabs.Count > 0)
             {
-                sb.AppendLine(_pluginInstance.GetMessage(player, LangEntry.ShowLabelEntities));
+                sb.AppendLine(_pluginInstance.GetMessage(player.Id, LangEntry.ShowLabelEntities));
                 foreach (var prefabEntry in spawnGroup.prefabs)
                 {
-                    sb.AppendLine(_pluginInstance.GetMessage(player, LangEntry.ShowLabelEntityDetail, prefabEntry.prefab.resourcePath, prefabEntry.weight));
+                    sb.AppendLine(_pluginInstance.GetMessage(player.Id, LangEntry.ShowLabelEntityDetail, prefabEntry.prefab.resourcePath, prefabEntry.weight));
                 }
             }
             else
             {
-                sb.AppendLine(_pluginInstance.GetMessage(player, LangEntry.ShowLabelNoEntities));
+                sb.AppendLine(_pluginInstance.GetMessage(player.Id, LangEntry.ShowLabelNoEntities));
             }
         }
 
@@ -1864,41 +1864,41 @@ namespace Oxide.Plugins
 
                     foreach (var spawnPoint in spawnPointList)
                     {
-                        sb.AppendLine($"<size={AdapterDisplayManager.HeaderSize}>{GetMessage(player, LangEntry.ShowHeaderVanillaSpawnPoint, spawnGroup.name)}</size>");
+                        sb.AppendLine($"<size={AdapterDisplayManager.HeaderSize}>{GetMessage(player.Id, LangEntry.ShowHeaderVanillaSpawnPoint, spawnGroup.name)}</size>");
 
                         var booleanProperties = new List<string>();
 
                         var genericSpawnPoint = spawnPoint as GenericSpawnPoint;
                         if (genericSpawnPoint != null)
                         {
-                            booleanProperties.Add(_pluginInstance.GetMessage(player, LangEntry.ShowLabelSpawnPointExclusive));
+                            booleanProperties.Add(_pluginInstance.GetMessage(player.Id, LangEntry.ShowLabelSpawnPointExclusive));
 
                             if (genericSpawnPoint.randomRot)
                             {
-                                booleanProperties.Add(_pluginInstance.GetMessage(player, LangEntry.ShowLabelSpawnPointRandomRotation));
+                                booleanProperties.Add(_pluginInstance.GetMessage(player.Id, LangEntry.ShowLabelSpawnPointRandomRotation));
                             }
 
                             if (genericSpawnPoint.dropToGround)
                             {
-                                booleanProperties.Add(_pluginInstance.GetMessage(player, LangEntry.ShowLabelSpawnPointDropsToGround));
+                                booleanProperties.Add(_pluginInstance.GetMessage(player.Id, LangEntry.ShowLabelSpawnPointDropsToGround));
                             }
                         }
 
                         var spaceCheckingSpawnPoint = spawnPoint as SpaceCheckingSpawnPoint;
                         if (spaceCheckingSpawnPoint != null)
                         {
-                            booleanProperties.Add(_pluginInstance.GetMessage(player, LangEntry.ShowLabelSpawnPointChecksSpace));
+                            booleanProperties.Add(_pluginInstance.GetMessage(player.Id, LangEntry.ShowLabelSpawnPointChecksSpace));
                         }
 
                         if (booleanProperties.Count > 0)
                         {
-                            sb.AppendLine(_pluginInstance.GetMessage(player, LangEntry.ShowLabelFlags, string.Join(" | ", booleanProperties)));
+                            sb.AppendLine(_pluginInstance.GetMessage(player.Id, LangEntry.ShowLabelFlags, string.Join(" | ", booleanProperties)));
                         }
 
                         var radialSpawnPoint = spawnPoint as RadialSpawnPoint;
                         if (radialSpawnPoint != null)
                         {
-                            sb.AppendLine(GetMessage(player, LangEntry.ShowLabelSpawnPointRandomRadius, radialSpawnPoint.radius));
+                            sb.AppendLine(GetMessage(player.Id, LangEntry.ShowLabelSpawnPointRandomRadius, radialSpawnPoint.radius));
                         }
 
                         if (spawnPoint == closestSpawnPoint)
@@ -1935,34 +1935,34 @@ namespace Oxide.Plugins
                         _selectedColorIndex = 0;
                     }
 
-                    sb.AppendLine($"<size={AdapterDisplayManager.HeaderSize}>{GetMessage(player, LangEntry.ShowHeaderVanillaIndividualSpawnPoint, individualSpawner.name)}</size>");
-                    sb.AppendLine(GetMessage(player, LangEntry.ShowLabelFlags, $"{GetMessage(player, LangEntry.ShowLabelSpawnPointExclusive)} | {GetMessage(player, LangEntry.ShowLabelSpawnPointChecksSpace)}"));
+                    sb.AppendLine($"<size={AdapterDisplayManager.HeaderSize}>{GetMessage(player.Id, LangEntry.ShowHeaderVanillaIndividualSpawnPoint, individualSpawner.name)}</size>");
+                    sb.AppendLine(GetMessage(player.Id, LangEntry.ShowLabelFlags, $"{GetMessage(player.Id, LangEntry.ShowLabelSpawnPointExclusive)} | {GetMessage(player.Id, LangEntry.ShowLabelSpawnPointChecksSpace)}"));
 
                     if (individualSpawner.oneTimeSpawner)
                     {
-                        sb.AppendLine(GetMessage(player, LangEntry.ShowLabelSpawnOnMapWipe));
+                        sb.AppendLine(GetMessage(player.Id, LangEntry.ShowLabelSpawnOnMapWipe));
                     }
                     else
                     {
                         if (individualSpawner.respawnDelayMin != float.PositiveInfinity)
                         {
-                            sb.AppendLine(GetMessage(player, LangEntry.ShowLabelRespawnDelay, FormatTime(individualSpawner.respawnDelayMin), FormatTime(individualSpawner.respawnDelayMax)));
+                            sb.AppendLine(GetMessage(player.Id, LangEntry.ShowLabelRespawnDelay, FormatTime(individualSpawner.respawnDelayMin), FormatTime(individualSpawner.respawnDelayMax)));
                         }
 
                         var nextSpawnTime = GetTimeToNextSpawn(individualSpawner);
                         if (nextSpawnTime != float.PositiveInfinity)
                         {
                             sb.AppendLine(GetMessage(
-                                player,
+                                player.Id,
                                 LangEntry.ShowLabelNextSpawn,
                                 nextSpawnTime <= 0
-                                    ? GetMessage(player, LangEntry.ShowLabelNextSpawnQueued)
+                                    ? GetMessage(player.Id, LangEntry.ShowLabelNextSpawnQueued)
                                     : FormatTime(Mathf.CeilToInt(nextSpawnTime))
                             ));
                         }
                     }
 
-                    sb.AppendLine(GetMessage(player, LangEntry.ShowHeaderEntity, individualSpawner.entityPrefab.resourcePath));
+                    sb.AppendLine(GetMessage(player.Id, LangEntry.ShowHeaderEntity, individualSpawner.entityPrefab.resourcePath));
 
                     var spawnPointPosition = individualSpawner.transform.position;
                     Ddraw.Sphere(basePlayer, spawnPointPosition, 0.5f, color, ShowVanillaDuration);
@@ -2123,7 +2123,7 @@ namespace Oxide.Plugins
             }
 
             // Multiple matches were found, so print them all to the player.
-            var replyMessage = GetMessage(player, LangEntry.SpawnErrorMultipleMatches);
+            var replyMessage = GetMessage(player.Id, LangEntry.SpawnErrorMultipleMatches);
             foreach (var match in matches)
             {
                 replyMessage += $"\n{GetShortName(match)}";
@@ -2170,7 +2170,7 @@ namespace Oxide.Plugins
             }
 
             // Multiple matches were found, so print them all to the player.
-            var replyMessage = GetMessage(player, LangEntry.SpawnErrorMultipleMatches);
+            var replyMessage = GetMessage(player.Id, LangEntry.SpawnErrorMultipleMatches);
             foreach (var match in prefabMatches)
             {
                 replyMessage += $"\n{GetShortName(match)}";
@@ -2744,7 +2744,7 @@ namespace Oxide.Plugins
 
                     if (statusCode != 200)
                     {
-                        errorCallback(GetMessage(player, LangEntry.ProfileDownloadError, url, statusCode));
+                        errorCallback(GetMessage(player.Id, LangEntry.ProfileDownloadError, url, statusCode));
                         return;
                     }
 
@@ -2755,7 +2755,7 @@ namespace Oxide.Plugins
                     }
                     catch (Exception ex)
                     {
-                        errorCallback(GetMessage(player, LangEntry.ProfileParseError, url, ex.Message));
+                        errorCallback(GetMessage(player.Id, LangEntry.ProfileParseError, url, ex.Message));
                         return;
                     }
 
@@ -5390,16 +5390,16 @@ namespace Oxide.Plugins
 
             private void AddCommonInfo(BasePlayer player, ProfileController profileController, BaseController controller, BaseAdapter adapter)
             {
-                _sb.AppendLine(_pluginInstance.GetMessage(player, LangEntry.ShowLabelProfile, profileController.Profile.Name));
+                _sb.AppendLine(_pluginInstance.GetMessage(player.UserIDString, LangEntry.ShowLabelProfile, profileController.Profile.Name));
 
                 var vanillaMonument = adapter.Monument.Object as MonumentInfo;
                 if (vanillaMonument != null)
                 {
-                    _sb.AppendLine(_pluginInstance.GetMessage(player, LangEntry.ShowLabelMonumentWithTier, adapter.Monument.AliasOrShortName, controller.Adapters.Count, vanillaMonument.Tier));
+                    _sb.AppendLine(_pluginInstance.GetMessage(player.UserIDString, LangEntry.ShowLabelMonumentWithTier, adapter.Monument.AliasOrShortName, controller.Adapters.Count, vanillaMonument.Tier));
                 }
                 else
                 {
-                    _sb.AppendLine(_pluginInstance.GetMessage(player, LangEntry.ShowLabelMonument, adapter.Monument.AliasOrShortName, controller.Adapters.Count));
+                    _sb.AppendLine(_pluginInstance.GetMessage(player.UserIDString, LangEntry.ShowLabelMonument, adapter.Monument.AliasOrShortName, controller.Adapters.Count));
                 }
             }
 
@@ -5411,14 +5411,14 @@ namespace Oxide.Plugins
                 var color = DetermineColor(adapter, playerInfo, profileController);
 
                 _sb.Clear();
-                _sb.AppendLine($"<size={HeaderSize}>{_pluginInstance.GetMessage(player, LangEntry.ShowHeaderEntity, entityData.ShortPrefabName)}</size>");
+                _sb.AppendLine($"<size={HeaderSize}>{_pluginInstance.GetMessage(player.UserIDString, LangEntry.ShowHeaderEntity, entityData.ShortPrefabName)}</size>");
                 AddCommonInfo(player, profileController, controller, adapter);
 
                 if (entityData.Skin != 0)
-                _sb.AppendLine(_pluginInstance.GetMessage(player, LangEntry.ShowLabelSkin, entityData.Skin));
+                _sb.AppendLine(_pluginInstance.GetMessage(player.UserIDString, LangEntry.ShowLabelSkin, entityData.Skin));
 
                 if (entityData.Scale != 1)
-                 _sb.AppendLine(_pluginInstance.GetMessage(player, LangEntry.ShowLabelScale, entityData.Scale));
+                 _sb.AppendLine(_pluginInstance.GetMessage(player.UserIDString, LangEntry.ShowLabelScale, entityData.Scale));
 
                 var singleEntityAdapter = adapter as SingleEntityAdapter;
                 if (singleEntityAdapter != null)
@@ -5439,7 +5439,7 @@ namespace Oxide.Plugins
                 {
                     var identifier = (adapter as CCTVEntityAdapter)?.GetIdentifier();
                     if (identifier != null)
-                    _sb.AppendLine(_pluginInstance.GetMessage(player, LangEntry.ShowLabelRCIdentifier, identifier));
+                    _sb.AppendLine(_pluginInstance.GetMessage(player.UserIDString, LangEntry.ShowLabelRCIdentifier, identifier));
                 }
 
                 Ddraw.Text(player, adapter.Position, _sb.ToString(), color, DisplayIntervalDuration);
@@ -5455,69 +5455,69 @@ namespace Oxide.Plugins
                 var spawnGroupData = spawnGroupAdapter.SpawnGroupData;
 
                 _sb.Clear();
-                _sb.AppendLine($"<size={HeaderSize}>{_pluginInstance.GetMessage(player, LangEntry.ShowHeaderSpawnPoint, spawnGroupData.Name)}</size>");
+                _sb.AppendLine($"<size={HeaderSize}>{_pluginInstance.GetMessage(player.UserIDString, LangEntry.ShowHeaderSpawnPoint, spawnGroupData.Name)}</size>");
                 AddCommonInfo(player, profileController, controller, adapter);
 
                 var booleanProperties = new List<string>();
 
                 if (spawnPointData.Exclusive)
-                    booleanProperties.Add(_pluginInstance.GetMessage(player, LangEntry.ShowLabelSpawnPointExclusive));
+                    booleanProperties.Add(_pluginInstance.GetMessage(player.UserIDString, LangEntry.ShowLabelSpawnPointExclusive));
 
                 if (spawnPointData.RandomRotation)
-                    booleanProperties.Add(_pluginInstance.GetMessage(player, LangEntry.ShowLabelSpawnPointRandomRotation));
+                    booleanProperties.Add(_pluginInstance.GetMessage(player.UserIDString, LangEntry.ShowLabelSpawnPointRandomRotation));
 
                 if (spawnPointData.DropToGround)
-                    booleanProperties.Add(_pluginInstance.GetMessage(player, LangEntry.ShowLabelSpawnPointDropsToGround));
+                    booleanProperties.Add(_pluginInstance.GetMessage(player.UserIDString, LangEntry.ShowLabelSpawnPointDropsToGround));
 
                 if (spawnPointData.CheckSpace)
-                    booleanProperties.Add(_pluginInstance.GetMessage(player, LangEntry.ShowLabelSpawnPointChecksSpace));
+                    booleanProperties.Add(_pluginInstance.GetMessage(player.UserIDString, LangEntry.ShowLabelSpawnPointChecksSpace));
 
                 if (booleanProperties.Count > 0)
-                     _sb.AppendLine(_pluginInstance.GetMessage(player, LangEntry.ShowLabelFlags, string.Join(" | ", booleanProperties)));
+                     _sb.AppendLine(_pluginInstance.GetMessage(player.UserIDString, LangEntry.ShowLabelFlags, string.Join(" | ", booleanProperties)));
 
                 if (spawnPointData.RandomRadius > 0)
-                    _sb.AppendLine(_pluginInstance.GetMessage(player, LangEntry.ShowLabelSpawnPointRandomRadius, spawnPointData.RandomRadius));
+                    _sb.AppendLine(_pluginInstance.GetMessage(player.UserIDString, LangEntry.ShowLabelSpawnPointRandomRadius, spawnPointData.RandomRadius));
 
                 if (showGroupInfo)
                 {
                     _sb.AppendLine(Divider);
-                    _sb.AppendLine($"<size=25>{_pluginInstance.GetMessage(player, LangEntry.ShowHeaderSpawnGroup, spawnGroupData.Name)}</size>");
+                    _sb.AppendLine($"<size=25>{_pluginInstance.GetMessage(player.UserIDString, LangEntry.ShowHeaderSpawnGroup, spawnGroupData.Name)}</size>");
 
-                    _sb.AppendLine(_pluginInstance.GetMessage(player, LangEntry.ShowLabelSpawnPoints, spawnGroupData.SpawnPoints.Count));
+                    _sb.AppendLine(_pluginInstance.GetMessage(player.UserIDString, LangEntry.ShowLabelSpawnPoints, spawnGroupData.SpawnPoints.Count));
 
                     var groupBooleanProperties = new List<string>();
 
                     if (spawnGroupData.PreventDuplicates)
-                        groupBooleanProperties.Add(_pluginInstance.GetMessage(player, LangEntry.ShowLabelPreventDuplicates));
+                        groupBooleanProperties.Add(_pluginInstance.GetMessage(player.UserIDString, LangEntry.ShowLabelPreventDuplicates));
 
                     if (groupBooleanProperties.Count > 0)
-                        _sb.AppendLine(_pluginInstance.GetMessage(player, LangEntry.ShowLabelFlags, string.Join(" | ", groupBooleanProperties)));
+                        _sb.AppendLine(_pluginInstance.GetMessage(player.UserIDString, LangEntry.ShowLabelFlags, string.Join(" | ", groupBooleanProperties)));
 
-                    _sb.AppendLine(_pluginInstance.GetMessage(player, LangEntry.ShowLabelPopulation, spawnGroupAdapter.SpawnGroup.currentPopulation, spawnGroupData.MaxPopulation));
-                    _sb.AppendLine(_pluginInstance.GetMessage(player, LangEntry.ShowLabelRespawnPerTick, spawnGroupData.SpawnPerTickMin, spawnGroupData.SpawnPerTickMax));
-                    _sb.AppendLine(_pluginInstance.GetMessage(player, LangEntry.ShowLabelRespawnDelay, FormatTime(spawnGroupData.RespawnDelayMin), FormatTime(spawnGroupData.RespawnDelayMax)));
+                    _sb.AppendLine(_pluginInstance.GetMessage(player.UserIDString, LangEntry.ShowLabelPopulation, spawnGroupAdapter.SpawnGroup.currentPopulation, spawnGroupData.MaxPopulation));
+                    _sb.AppendLine(_pluginInstance.GetMessage(player.UserIDString, LangEntry.ShowLabelRespawnPerTick, spawnGroupData.SpawnPerTickMin, spawnGroupData.SpawnPerTickMax));
+                    _sb.AppendLine(_pluginInstance.GetMessage(player.UserIDString, LangEntry.ShowLabelRespawnDelay, FormatTime(spawnGroupData.RespawnDelayMin), FormatTime(spawnGroupData.RespawnDelayMax)));
 
                     var nextSpawnTime = GetTimeToNextSpawn(spawnGroupAdapter.SpawnGroup);
 
                     _sb.AppendLine(_pluginInstance.GetMessage(
-                        player,
+                        player.UserIDString,
                         LangEntry.ShowLabelNextSpawn,
                         nextSpawnTime <= 0
-                            ? _pluginInstance.GetMessage(player, LangEntry.ShowLabelNextSpawnQueued)
+                            ? _pluginInstance.GetMessage(player.UserIDString, LangEntry.ShowLabelNextSpawnQueued)
                             : FormatTime(Mathf.CeilToInt(nextSpawnTime))
                     ));
 
                     if (spawnGroupData.Prefabs.Count > 0)
                     {
-                        _sb.AppendLine(_pluginInstance.GetMessage(player, LangEntry.ShowLabelEntities));
+                        _sb.AppendLine(_pluginInstance.GetMessage(player.UserIDString, LangEntry.ShowLabelEntities));
                         foreach (var prefabEntry in spawnGroupData.Prefabs)
                         {
-                            _sb.AppendLine(_pluginInstance.GetMessage(player, LangEntry.ShowLabelEntityDetail, prefabEntry.PrefabName, prefabEntry.Weight));
+                            _sb.AppendLine(_pluginInstance.GetMessage(player.UserIDString, LangEntry.ShowLabelEntityDetail, prefabEntry.PrefabName, prefabEntry.Weight));
                         }
                     }
                     else
                     {
-                        _sb.AppendLine(_pluginInstance.GetMessage(player, LangEntry.ShowLabelNoEntities));
+                        _sb.AppendLine(_pluginInstance.GetMessage(player.UserIDString, LangEntry.ShowLabelNoEntities));
                     }
 
                     foreach (var otherAdapter in spawnGroupAdapter.Adapters)
@@ -5538,7 +5538,7 @@ namespace Oxide.Plugins
                 var color = DetermineColor(adapter, playerInfo, profileController);
 
                 _sb.Clear();
-                _sb.AppendLine($"<size={HeaderSize}>{_pluginInstance.GetMessage(player, LangEntry.ShowHeaderPaste, pasteData.Filename)}</size>");
+                _sb.AppendLine($"<size={HeaderSize}>{_pluginInstance.GetMessage(player.UserIDString, LangEntry.ShowHeaderPaste, pasteData.Filename)}</size>");
                 AddCommonInfo(player, profileController, controller, adapter);
 
                 Ddraw.Text(player, adapter.Position, _sb.ToString(), color, DisplayIntervalDuration);
@@ -5554,8 +5554,8 @@ namespace Oxide.Plugins
                 var addonDefinition = adapter.AddonDefinition;
 
                 _sb.Clear();
-                _sb.AppendLine($"<size={HeaderSize}>{_pluginInstance.GetMessage(player, LangEntry.ShowHeaderCustom, customAddonData.AddonName)}</size>");
-                _sb.AppendLine(_pluginInstance.GetMessage(player, LangEntry.ShowLabelPlugin, addonDefinition.OwnerPlugin.Name));
+                _sb.AppendLine($"<size={HeaderSize}>{_pluginInstance.GetMessage(player.UserIDString, LangEntry.ShowHeaderCustom, customAddonData.AddonName)}</size>");
+                _sb.AppendLine(_pluginInstance.GetMessage(player.UserIDString, LangEntry.ShowLabelPlugin, addonDefinition.OwnerPlugin.Name));
                 AddCommonInfo(player, profileController, controller, adapter);
 
                 addonDefinition.AddDisplayInfo?.Invoke(adapter.Component, customAddonData.GetSerializedData(), _sb);
@@ -6452,10 +6452,10 @@ namespace Oxide.Plugins
         {
             var summary = new List<ProfileSummaryEntry>();
 
-            var addonTypeEntity = GetMessage(player, LangEntry.AddonTypeEntity);
-            var addonTypePaste = GetMessage(player, LangEntry.AddonTypePaste);
-            var addonTypeSpawnPoint = GetMessage(player, LangEntry.AddonTypeSpawnPoint);
-            var addonTypeCustom = GetMessage(player, LangEntry.AddonTypeCustom);
+            var addonTypeEntity = GetMessage(player.Id, LangEntry.AddonTypeEntity);
+            var addonTypePaste = GetMessage(player.Id, LangEntry.AddonTypePaste);
+            var addonTypeSpawnPoint = GetMessage(player.Id, LangEntry.AddonTypeSpawnPoint);
+            var addonTypeCustom = GetMessage(player.Id, LangEntry.AddonTypeCustom);
 
             foreach (var monumentEntry in profile.MonumentDataMap)
             {
@@ -7288,28 +7288,59 @@ namespace Oxide.Plugins
 
         #region Localization
 
-        private string GetMessage(string playerId, LangEntry langEntry, params object[] args)
-        {
-            var message = lang.GetMessage(langEntry.Name, this, playerId);
-            return args.Length > 0 ? string.Format(message, args) : message;
-        }
+        // Multi-argument overloads are defined to reduce array allocations.
+        private string GetMessage(string playerId, LangEntry langEntry) =>
+            lang.GetMessage(langEntry.Name, this, playerId);
 
-        private string GetMessage(IPlayer player, LangEntry langEntry, params object[] args) =>
-            GetMessage(player.Id, langEntry, args);
+        private string GetMessage(string playerId, LangEntry langEntry, object arg1) =>
+            string.Format(GetMessage(playerId, langEntry), arg1);
 
-        private string GetMessage(BasePlayer player, LangEntry langEntry, params object[] args) =>
-            GetMessage(player.UserIDString, langEntry, args);
+        private string GetMessage(string playerId, LangEntry langEntry, object arg1, object arg2) =>
+            string.Format(GetMessage(playerId, langEntry), arg1, arg2);
+
+        private string GetMessage(string playerId, LangEntry langEntry, object arg1, object arg2, string arg3) =>
+            string.Format(GetMessage(playerId, langEntry), arg1, arg2, arg3);
+
+        private string GetMessage(string playerId, LangEntry langEntry, params object[] args) =>
+            string.Format(GetMessage(playerId, langEntry), args);
+
+
+        private void ReplyToPlayer(IPlayer player, LangEntry langEntry) =>
+            player.Reply(GetMessage(player.Id, langEntry));
+
+        private void ReplyToPlayer(IPlayer player, LangEntry langEntry, object arg1) =>
+            player.Reply(GetMessage(player.Id, langEntry, arg1));
+
+        private void ReplyToPlayer(IPlayer player, LangEntry langEntry, object arg1, object arg2) =>
+            player.Reply(GetMessage(player.Id, langEntry, arg1, arg2));
+
+        private void ReplyToPlayer(IPlayer player, LangEntry langEntry, object arg1, object arg2, object arg3) =>
+            player.Reply(GetMessage(player.Id, langEntry, arg1, arg2, arg3));
 
         private void ReplyToPlayer(IPlayer player, LangEntry langEntry, params object[] args) =>
-            player.Reply(string.Format(GetMessage(player, langEntry), args));
+            player.Reply(GetMessage(player.Id, langEntry, args));
+
+
+        private void ChatMessage(BasePlayer player, LangEntry langEntry) =>
+            player.ChatMessage(GetMessage(player.UserIDString, langEntry));
+
+        private void ChatMessage(BasePlayer player, LangEntry langEntry, object arg1) =>
+            player.ChatMessage(GetMessage(player.UserIDString, langEntry, arg1));
+
+        private void ChatMessage(BasePlayer player, LangEntry langEntry, object arg1, object arg2) =>
+            player.ChatMessage(GetMessage(player.UserIDString, langEntry, arg1, arg2));
+
+        private void ChatMessage(BasePlayer player, LangEntry langEntry, object arg1, object arg2, object arg3) =>
+            player.ChatMessage(GetMessage(player.UserIDString, langEntry, arg1, arg2, arg3));
 
         private void ChatMessage(BasePlayer player, LangEntry langEntry, params object[] args) =>
-            player.ChatMessage(string.Format(GetMessage(player.UserIDString, langEntry), args));
+            player.ChatMessage(GetMessage(player.UserIDString, langEntry, args));
+
 
         private string GetAuthorSuffix(IPlayer player, string author)
         {
             return !string.IsNullOrWhiteSpace(author)
-                ? GetMessage(player, LangEntry.ProfileByAuthor, author)
+                ? GetMessage(player.Id, LangEntry.ProfileByAuthor, author)
                 : string.Empty;
         }
 
@@ -7324,7 +7355,7 @@ namespace Oxide.Plugins
             var spawnPointData = data as SpawnPointData;
             if (spawnPointData != null)
             {
-                return GetMessage(player, LangEntry.AddonTypeSpawnPoint);
+                return GetMessage(player.Id, LangEntry.AddonTypeSpawnPoint);
             }
 
             var pasteData = data as PasteData;
@@ -7333,7 +7364,7 @@ namespace Oxide.Plugins
                 return pasteData.Filename;
             }
 
-            return GetMessage(player, LangEntry.AddonTypeUnknown);
+            return GetMessage(player.Id, LangEntry.AddonTypeUnknown);
         }
 
         private class LangEntry
