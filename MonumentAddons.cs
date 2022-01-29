@@ -763,6 +763,7 @@ namespace Oxide.Plugins
                     }
 
                     ProfileController controller;
+                    Profile newProfileData;
                     if (!VerifyProfile(player, args, out controller, LangEntry.ProfileSelectSyntax))
                         return;
 
@@ -775,7 +776,10 @@ namespace Oxide.Plugins
                     }
                     else
                     {
-                        controller.Enable();
+                        if (!RefreshProfileAndVerifyJSONSyntax(player, controller.Profile.Name, out newProfileData))
+                            return;
+
+                        controller.Enable(newProfileData);
                     }
 
                     ReplyToPlayer(player, wasEnabled ? LangEntry.ProfileSelectSuccess : LangEntry.ProfileSelectEnableSuccess, controller.Profile.Name);
@@ -898,6 +902,7 @@ namespace Oxide.Plugins
                     }
 
                     ProfileController controller;
+                    Profile newProfileData;
                     if (!VerifyProfileExists(player, args[1], out controller))
                         return;
 
@@ -908,7 +913,10 @@ namespace Oxide.Plugins
                         return;
                     }
 
-                    controller.Enable();
+                    if (!RefreshProfileAndVerifyJSONSyntax(player, controller.Profile.Name, out newProfileData))
+                        return;
+
+                    controller.Enable(newProfileData);
                     ReplyToPlayer(player, LangEntry.ProfileEnableSuccess, profileName);
                     if (!player.IsServer)
                     {
@@ -1115,7 +1123,7 @@ namespace Oxide.Plugins
                     if (profileController.IsEnabled)
                         profileController.Reload(profile);
                     else
-                        profileController.Enable();
+                        profileController.Enable(profile);
 
                     var sb = new StringBuilder();
                     sb.AppendLine(GetMessage(player.Id, LangEntry.ProfileInstallSuccess, profile.Name, GetAuthorSuffix(player, profile.Author)));
@@ -2363,6 +2371,21 @@ namespace Oxide.Plugins
 
             ReplyToPlayer(player, LangEntry.SpawnGroupCreateNameInUse, spawnGroupName, monument.AliasOrShortName, profile.Name);
             return false;
+        }
+
+        private bool RefreshProfileAndVerifyJSONSyntax(IPlayer player, string profileName, out Profile profile)
+        {
+            try
+            {
+                profile = Profile.Load(profileName);
+                return true;
+            }
+            catch (JsonReaderException ex)
+            {
+                profile = null;
+                player.Reply("{0}", string.Empty, ex.Message);
+                return false;
+            }
         }
 
         #endregion
@@ -5799,11 +5822,12 @@ namespace Oxide.Plugins
                 Profile.CopyTo(newName);
             }
 
-            public void Enable()
+            public void Enable(Profile newProfileData)
             {
                 if (IsEnabled)
                     return;
 
+                Profile = newProfileData;
                 _pluginData.SetProfileEnabled(Profile.Name);
                 Load();
             }
