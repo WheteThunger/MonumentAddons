@@ -75,6 +75,8 @@ namespace Oxide.Plugins
             new Color(1, 1, 1),
         };
 
+        private readonly object _cancelHook = false;
+
         private ItemDefinition _waterDefinition;
         private ProtectionProperties _immortalProtection;
 
@@ -158,17 +160,17 @@ namespace Oxide.Plugins
         private object canRemove(BasePlayer player, BaseEntity entity)
         {
             if (_entityTracker.IsMonumentEntity(entity))
-                return false;
+                return _cancelHook;
 
             return null;
         }
 
-        private bool? CanUpdateSign(BasePlayer player, ISignage signage)
+        private object CanUpdateSign(BasePlayer player, ISignage signage)
         {
             if (_entityTracker.IsMonumentEntity(signage as BaseEntity) && !HasAdminPermission(player))
             {
                 ChatMessage(player, LangEntry.ErrorNoPermission);
-                return false;
+                return _cancelHook;
             }
 
             return null;
@@ -242,10 +244,10 @@ namespace Oxide.Plugins
         }
 
         // This hook is exposed by plugin: Telekinesis.
-        private bool? CanStartTelekinesis(BasePlayer player, BaseEntity moveEntity)
+        private object CanStartTelekinesis(BasePlayer player, BaseEntity moveEntity)
         {
             if (_entityTracker.IsMonumentEntity(moveEntity) && !HasAdminPermission(player))
-                return false;
+                return _cancelHook;
 
             return null;
         }
