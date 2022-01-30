@@ -3008,8 +3008,18 @@ namespace Oxide.Plugins
                 {
                     if (ShouldBeImmortal(entity))
                     {
-                        // Must set after spawn for building blocks.
-                        combatEntity.baseProtection = _pluginInstance._immortalProtection;
+                        var basePlayer = entity as BasePlayer;
+                        if (basePlayer != null)
+                        {
+                            // Don't share common protection properties with BasePlayer instances since they get destroyed on kill.
+                            combatEntity.baseProtection.Clear();
+                            combatEntity.baseProtection.Add(1);
+                        }
+                        else
+                        {
+                            // Must set after spawn for building blocks.
+                            combatEntity.baseProtection = _pluginInstance._immortalProtection;
+                        }
                     }
                 }
 
