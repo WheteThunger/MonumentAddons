@@ -2629,12 +2629,12 @@ namespace Oxide.Plugins
             entity.transform.hasChanged = false;
         }
 
-        private static void EnableSavingResursive(BaseEntity entity, bool enableSaving)
+        private static void EnableSavingRecursive(BaseEntity entity, bool enableSaving)
         {
             entity.EnableSaving(enableSaving);
 
             foreach (var child in entity.children)
-                EnableSavingResursive(child, enableSaving);
+                EnableSavingRecursive(child, enableSaving);
         }
 
         private static IEnumerator WaitWhileWithTimeout(Func<bool> predicate, float timeoutSeconds)
@@ -3001,7 +3001,7 @@ namespace Oxide.Plugins
             {
                 // Disable saving after spawn to make sure children that are spawned late also have saving disabled.
                 // For example, the Lift class spawns a sub entity.
-                EnableSavingResursive(entity, false);
+                EnableSavingRecursive(entity, false);
 
                 var combatEntity = entity as BaseCombatEntity;
                 if (combatEntity != null)
@@ -3437,7 +3437,7 @@ namespace Oxide.Plugins
                     return null;
 
                 // In case the plugin doesn't clean it up on server shutdown, make sure it doesn't come back so it's not duplicated.
-                EnableSavingResursive(entity, false);
+                EnableSavingRecursive(entity, false);
 
                 var dynamicMonument = Monument as DynamicMonument;
                 if (dynamicMonument != null)
@@ -4239,7 +4239,7 @@ namespace Oxide.Plugins
                 var vehicle = GetComponent<BaseEntity>();
                 if (vehicle != null && !vehicle.IsDestroyed)
                 {
-                    EnableSavingResursive(vehicle, true);
+                    EnableSavingRecursive(vehicle, true);
 
                     var workcart = vehicle as TrainEngine;
                     if (workcart != null && !workcart.IsInvoking(workcart.DecayTick))
@@ -4468,7 +4468,7 @@ namespace Oxide.Plugins
             {
                 base.PostSpawnProcess(entity, spawnPoint);
 
-                EnableSavingResursive(entity, false);
+                EnableSavingRecursive(entity, false);
 
                 var npcPlayer = entity as NPCPlayer;
                 if (npcPlayer != null)
