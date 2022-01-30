@@ -165,6 +165,14 @@ namespace Oxide.Plugins
             return null;
         }
 
+        private object CanChangeGrade(BasePlayer player, BuildingBlock block, BuildingGrade.Enum grade)
+        {
+            if (_entityTracker.IsMonumentEntity(block) && !HasAdminPermission(player))
+                return _cancelHook;
+
+            return null;
+        }
+
         private object CanUpdateSign(BasePlayer player, ISignage signage)
         {
             if (_entityTracker.IsMonumentEntity(signage as BaseEntity) && !HasAdminPermission(player))
@@ -4244,11 +4252,32 @@ namespace Oxide.Plugins
             }
         }
 
+        private class BuildingBlockEntityListener : DynamicHookListener
+        {
+            public BuildingBlockEntityListener()
+            {
+                _dynamicHookNames = new string[]
+                {
+                    nameof(CanChangeGrade),
+                };
+            }
+
+            public override bool InterestedInAdapter(BaseAdapter adapter)
+            {
+                var entityData = adapter.Data as EntityData;
+                if (entityData == null)
+                    return false;
+
+                return FindBaseEntityForPrefab(entityData.PrefabName) is BuildingBlock;
+            }
+        }
+
         private class AdapterListenerManager
         {
             private AdapterListenerBase[] _listeners = new AdapterListenerBase[]
             {
                 new SignEntityListener(),
+                new BuildingBlockEntityListener(),
             };
 
             public void Init()
