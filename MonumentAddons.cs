@@ -263,16 +263,16 @@ namespace Oxide.Plugins
             SingleEntityAdapter adapter;
             SingleEntityController controller;
 
-            if (!_entityTracker.IsMonumentEntity(moveEntity, out adapter, out controller)
-                || adapter.IsAtIntendedPosition)
+            if (!_entityTracker.IsMonumentEntity(moveEntity, out adapter, out controller))
                 return;
 
-            HandleAdapterMoved(adapter, controller);
+            if (!adapter.TrySaveAndApplyChanges())
+                return;
 
             if (player != null)
             {
                 _entityDisplayManager.ShowAllRepeatedly(player);
-                ChatMessage(player, LangEntry.MoveSuccess, controller.Adapters.Count, controller.Profile.Name);
+                ChatMessage(player, LangEntry.SaveSuccess, controller.Adapters.Count, controller.Profile.Name);
             }
         }
 
@@ -522,14 +522,13 @@ namespace Oxide.Plugins
             if (!VerifyLookingAtAdapter(player, out adapter, out controller, LangEntry.ErrorNoSuitableAddonFound))
                 return;
 
-            if (adapter.IsAtIntendedPosition)
+            if (!adapter.TrySaveAndApplyChanges())
             {
-                ReplyToPlayer(player, LangEntry.MoveNothingToDo);
+                ReplyToPlayer(player, LangEntry.SaveNothingToDo);
                 return;
             }
 
-            HandleAdapterMoved(adapter, controller);
-            ReplyToPlayer(player, LangEntry.MoveSuccess, controller.Adapters.Count, controller.Profile.Name);
+            ReplyToPlayer(player, LangEntry.SaveSuccess, controller.Adapters.Count, controller.Profile.Name);
 
             var basePlayer = player.Object as BasePlayer;
             _entityDisplayManager.ShowAllRepeatedly(basePlayer);
@@ -2794,15 +2793,6 @@ namespace Oxide.Plugins
             );
         }
 
-        private void HandleAdapterMoved(SingleEntityAdapter adapter, SingleEntityController controller)
-        {
-            adapter.EntityData.Position = adapter.LocalPosition;
-            adapter.EntityData.RotationAngles = adapter.LocalRotation.eulerAngles;
-            adapter.EntityData.OnTerrain = IsOnTerrain(adapter.Position);
-            controller.Profile.Save();
-            controller.UpdatePosition();
-        }
-
         private int AddExactPrefabMatches(string partialName, List<string> matches)
         {
             foreach (var path in GameManifest.Current.entities)
@@ -3514,6 +3504,19 @@ namespace Oxide.Plugins
             public override Vector3 Position => _transform.position;
             public override Quaternion Rotation => _transform.rotation;
 
+            private BuildingGrade.Enum IntendedBuildingGrade
+            {
+                get
+                {
+                    var buildingBlock = Entity as BuildingBlock;
+                    var desiredGrade = EntityData.BuildingBlock?.Grade;
+
+                    return desiredGrade != null && desiredGrade != BuildingGrade.Enum.None
+                        ? desiredGrade.Value
+                        : buildingBlock.blockDefinition.defaultGrade.gradeBase.type;
+                }
+            }
+
             private Transform _transform;
 
             public SingleEntityAdapter(EntityControllerBase controller, EntityData entityData, BaseMonument monument) : base(controller, monument, entityData) {}
@@ -3589,6 +3592,46 @@ namespace Oxide.Plugins
                 Entity.SendNetworkUpdate();
             }
 
+            public bool TrySaveAndApplyChanges()
+            {
+                var hasChanged = false;
+
+                if (!IsAtIntendedPosition)
+                {
+                    EntityData.Position = LocalPosition;
+                    EntityData.RotationAngles = LocalRotation.eulerAngles;
+                    EntityData.OnTerrain = IsOnTerrain(Position);
+                    hasChanged = true;
+                }
+
+                var buildingBlock = Entity as BuildingBlock;
+                if (buildingBlock != null && buildingBlock.grade != IntendedBuildingGrade)
+                {
+                    if (EntityData.BuildingBlock == null)
+                    {
+                        EntityData.BuildingBlock = new BuildingBlockInfo();
+                    }
+
+                    EntityData.BuildingBlock.Grade = buildingBlock.grade;
+                    hasChanged = true;
+                }
+
+                if (hasChanged)
+                {
+                    var singleEntityController = Controller as SingleEntityController;
+                    singleEntityController.HandleChanges();
+                    singleEntityController.Profile.Save();
+                }
+
+                return hasChanged;
+            }
+
+            public void HandleChanges()
+            {
+                UpdatePosition();
+                UpdateBuildingGrade();
+            }
+
             protected virtual void PreEntitySpawn()
             {
                 if (EntityData.Skin != 0)
@@ -3602,8 +3645,7 @@ namespace Oxide.Plugins
                     buildingBlock.blockDefinition = PrefabAttribute.server.Find<Construction>(buildingBlock.prefabID);
                     if (buildingBlock.blockDefinition != null)
                     {
-                        var buildingGrade = EntityData.BuildingBlock?.Grade ?? buildingBlock.blockDefinition.defaultGrade.gradeBase.type;
-                        buildingBlock.SetGrade(buildingGrade);
+                        buildingBlock.SetGrade(IntendedBuildingGrade);
 
                         var maxHealth = buildingBlock.currentGrade.maxHealth;
                         buildingBlock.InitializeHealth(maxHealth, maxHealth);
@@ -3734,6 +3776,22 @@ namespace Oxide.Plugins
 
                 return true;
             }
+
+            private void UpdateBuildingGrade()
+            {
+                var buildingBlock = Entity as BuildingBlock;
+                if (buildingBlock == null)
+                    return;
+
+                var intendedBuildingGrade = IntendedBuildingGrade;
+                if (buildingBlock.grade == intendedBuildingGrade)
+                    return;
+
+                buildingBlock.SetGrade(intendedBuildingGrade);
+                buildingBlock.SetHealthToMax();
+                buildingBlock.SendNetworkUpdate();
+                buildingBlock.baseProtection = _pluginInstance._immortalProtection;
+            }
         }
 
         private class SingleEntityController : EntityControllerBase
@@ -3754,7 +3812,12 @@ namespace Oxide.Plugins
                 ProfileController.StartCoroutine(UpdateScaleRoutine());
             }
 
-            public IEnumerator UpdateSkinRoutine()
+            public void HandleChanges()
+            {
+                ProfileController.StartCoroutine(HandleChangesRoutine());
+            }
+
+            private IEnumerator UpdateSkinRoutine()
             {
                 foreach (var adapter in Adapters.ToArray())
                 {
@@ -3763,11 +3826,11 @@ namespace Oxide.Plugins
                         continue;
 
                     singleAdapter.UpdateSkin();
-                    yield return CoroutineEx.waitForEndOfFrame;
+                    yield return null;
                 }
             }
 
-            public IEnumerator UpdateScaleRoutine()
+            private IEnumerator UpdateScaleRoutine()
             {
                 foreach (var adapter in Adapters.ToArray())
                 {
@@ -3776,7 +3839,20 @@ namespace Oxide.Plugins
                         continue;
 
                     singleAdapter.UpdateScale();
-                    yield return CoroutineEx.waitForEndOfFrame;
+                    yield return null;
+                }
+            }
+
+            private IEnumerator HandleChangesRoutine()
+            {
+                foreach (var adapter in Adapters.ToArray())
+                {
+                    var singleAdapter = adapter as SingleEntityAdapter;
+                    if (singleAdapter.IsDestroyed)
+                        continue;
+
+                    singleAdapter.HandleChanges();
+                    yield return null;
                 }
             }
         }
@@ -7421,8 +7497,8 @@ namespace Oxide.Plugins
             public static readonly LangEntry ErrorNoSurface = new LangEntry("Error.NoSurface", "Error: No valid surface found.");
             public static readonly LangEntry SpawnSuccess = new LangEntry("Spawn.Success2", "Spawned entity at <color=#fd4>{0}</color> matching monument(s) and saved to <color=#fd4>{1}</color> profile for monument <color=#fd4>{2}</color>.");
             public static readonly LangEntry KillSuccess = new LangEntry("Kill.Success3", "Killed <color=#fd4>{0}</color> at <color=#fd4>{1}</color> matching monument(s) and removed from profile <color=#fd4>{2}</color>.");
-            public static readonly LangEntry MoveNothingToDo = new LangEntry("Move.NothingToDo", "That entity is already at the saved position.");
-            public static readonly LangEntry MoveSuccess = new LangEntry("Move.Success", "Updated entity position at <color=#fd4>{0}</color> matching monument(s) and saved to profile <color=#fd4>{1}</color>.");
+            public static readonly LangEntry SaveNothingToDo = new LangEntry("Save.NothingToDo", "No changes detected for that entity.");
+            public static readonly LangEntry SaveSuccess = new LangEntry("Save.Success", "Updated entity at <color=#fd4>{0}</color> matching monument(s) and saved to profile <color=#fd4>{1}</color>.");
 
             public static readonly LangEntry PasteNotCompatible = new LangEntry("Paste.NotCompatible", "CopyPaste is not loaded or its version is incompatible.");
             public static readonly LangEntry PasteSyntax = new LangEntry("Paste.Syntax", "Syntax: <color=#fd4>mapaste <file></color>");
