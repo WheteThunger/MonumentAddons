@@ -3788,15 +3788,6 @@ namespace Oxide.Plugins
                 return Entity;
             }
 
-            private bool ShouldBeImmortal()
-            {
-                var samSite = Entity as SamSite;
-                if (samSite != null && samSite.staticRespawn)
-                    return false;
-
-                return true;
-            }
-
             private void UpdateBuildingGrade()
             {
                 var buildingBlock = Entity as BuildingBlock;
