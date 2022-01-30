@@ -1859,7 +1859,7 @@ namespace Oxide.Plugins
                         var spawnGroupPosition = spawnGroup.transform.position;
 
                         Ddraw.Sphere(basePlayer, spawnGroupPosition, 0.5f, color, ShowVanillaDuration);
-                        Ddraw.Text(basePlayer, spawnGroupPosition + new Vector3(0, tierMask > 0 ? Mathf.Log(tierMask, 2): 0, 0), sb.ToString(), color, ShowVanillaDuration);
+                        Ddraw.Text(basePlayer, spawnGroupPosition + new Vector3(0, tierMask > 0 ? Mathf.Log(tierMask, 2) : 0, 0), sb.ToString(), color, ShowVanillaDuration);
                         sb.Clear();
                         continue;
                     }
@@ -1926,15 +1926,11 @@ namespace Oxide.Plugins
 
                         var spawnPointPosition = spawnPoint.transform.position;
                         Ddraw.Sphere(basePlayer, spawnPointPosition, 0.5f, color, ShowVanillaDuration);
+                        Ddraw.Text(basePlayer, spawnPointPosition + new Vector3(0, tierMask > 0 ? Mathf.Log(tierMask, 2) : 0, 0), sb.ToString(), color, ShowVanillaDuration);
 
-                        if (spawnPoint == closestSpawnPoint)
-                        {
-                            Ddraw.Text(basePlayer, spawnPointPosition + new Vector3(0, tierMask > 0 ? Mathf.Log(tierMask, 2) : 0, 0), sb.ToString(), color, ShowVanillaDuration);
-                        }
-                        else
+                        if (spawnPoint != closestSpawnPoint)
                         {
                             Ddraw.Arrow(basePlayer, closestSpawnPointPosition, spawnPointPosition, 0.25f, color, ShowVanillaDuration);
-                            Ddraw.Text(basePlayer, spawnPointPosition, sb.ToString(), color, ShowVanillaDuration);
                         }
 
                         sb.Clear();
