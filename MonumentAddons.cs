@@ -1763,21 +1763,25 @@ namespace Oxide.Plugins
 
             sb.AppendLine(GetMessage(player.Id, LangEntry.ShowLabelPopulation, spawnGroup.currentPopulation, spawnGroup.maxPopulation));
             sb.AppendLine(GetMessage(player.Id, LangEntry.ShowLabelRespawnPerTick, spawnGroup.numToSpawnPerTickMin, spawnGroup.numToSpawnPerTickMax));
-            if (spawnGroup.respawnDelayMin != float.PositiveInfinity)
-            {
-                sb.AppendLine(GetMessage(player.Id, LangEntry.ShowLabelRespawnDelay, FormatTime(spawnGroup.respawnDelayMin), FormatTime(spawnGroup.respawnDelayMax)));
-            }
 
-            var nextSpawnTime = GetTimeToNextSpawn(spawnGroup);
-            if (nextSpawnTime != float.PositiveInfinity && SingletonComponent<SpawnHandler>.Instance.SpawnGroups.Contains(spawnGroup))
+            if (!spawnGroup.temporary)
             {
-                sb.AppendLine(GetMessage(
-                    player.Id,
-                    LangEntry.ShowLabelNextSpawn,
-                    nextSpawnTime <= 0
-                        ? GetMessage(player.Id, LangEntry.ShowLabelNextSpawnQueued)
-                        : FormatTime(Mathf.CeilToInt(nextSpawnTime))
-                ));
+                if (spawnGroup.respawnDelayMin != float.PositiveInfinity)
+                {
+                    sb.AppendLine(GetMessage(player.Id, LangEntry.ShowLabelRespawnDelay, FormatTime(spawnGroup.respawnDelayMin), FormatTime(spawnGroup.respawnDelayMax)));
+                }
+
+                var nextSpawnTime = GetTimeToNextSpawn(spawnGroup);
+                if (nextSpawnTime != float.PositiveInfinity && SingletonComponent<SpawnHandler>.Instance.SpawnGroups.Contains(spawnGroup))
+                {
+                    sb.AppendLine(GetMessage(
+                        player.Id,
+                        LangEntry.ShowLabelNextSpawn,
+                        nextSpawnTime <= 0
+                            ? GetMessage(player.Id, LangEntry.ShowLabelNextSpawnQueued)
+                            : FormatTime(Mathf.CeilToInt(nextSpawnTime))
+                    ));
+                }
             }
 
             if (spawnGroup.prefabs.Count > 0)
