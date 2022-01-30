@@ -4502,6 +4502,15 @@ namespace Oxide.Plugins
 
         private class CustomSpawnPoint : BaseSpawnPoint
         {
+            // When CheckSpace is enabled, override the layer mask for certain entity prefabs.
+            private static readonly Dictionary<string, int> CustomBoundsCheckMask = new Dictionary<string, int>
+            {
+                ["assets/content/vehicles/workcart/workcart.entity.prefab"] = Rust.Layers.Mask.AI
+                    | Rust.Layers.Mask.Vehicle_World
+                    | Rust.Layers.Mask.Player_Server
+                    | Rust.Layers.Mask.Construction,
+            };
+
             private SpawnPointAdapter _adapter;
             private SpawnPointData _spawnPointData;
             private Transform _transform;
@@ -4585,7 +4594,15 @@ namespace Oxide.Plugins
 
                 if (_spawnPointData.CheckSpace)
                 {
-                    return SingletonComponent<SpawnHandler>.Instance.CheckBounds(prefabRef.Get(), _transform.position, _transform.rotation, Vector3.one);
+                    int customBoundsCheckMask;
+                    if (CustomBoundsCheckMask.TryGetValue(prefabRef.resourcePath, out customBoundsCheckMask))
+                    {
+                        return SpawnHandler.CheckBounds(prefabRef.Get(), _transform.position, _transform.rotation, Vector3.one, customBoundsCheckMask);
+                    }
+                    else
+                    {
+                        return SingletonComponent<SpawnHandler>.Instance.CheckBounds(prefabRef.Get(), _transform.position, _transform.rotation, Vector3.one);
+                    }
                 }
 
                 return true;
