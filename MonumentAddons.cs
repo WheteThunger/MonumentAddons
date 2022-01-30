@@ -1249,6 +1249,8 @@ namespace Oxide.Plugins
                                 Position = localPosition,
                                 RotationAngles = localRotationAngles,
                                 OnTerrain = isOnTerrain,
+                                Exclusive = true,
+                                DropToGround = true,
                             },
                         },
                     };
@@ -1551,6 +1553,8 @@ namespace Oxide.Plugins
                         Position = localPosition,
                         RotationAngles = localRotationAngles,
                         OnTerrain = isOnTerrain,
+                        Exclusive = true,
+                        DropToGround = true,
                     };
 
                     spawnGroupController.SpawnGroupData.SpawnPoints.Add(spawnPointData);
@@ -1989,6 +1993,123 @@ namespace Oxide.Plugins
                     continue;
                 }
             }
+        }
+
+        [Command("magenerate")]
+        private void CommandGenerateSpawnPointProfile(IPlayer player, string cmd, string[] args)
+        {
+            Vector3 position;
+            BaseMonument monument;
+
+            if (player.IsServer
+                || !VerifyHasPermission(player)
+                || !VerifyMonumentFinderLoaded(player)
+                || !VerifyHitPosition(player, out position)
+                || !VerifyAtMonument(player, position, out monument))
+                return;
+
+            var spawnerList = monument.Object.GetComponentsInChildren<ISpawnGroup>();
+            if (spawnerList.Length == 0)
+            {
+                ReplyToPlayer(player, LangEntry.ShowVanillaNoSpawnPoints, monument.Object.name);
+                return;
+            }
+
+            var monumentTierMask = GetMonumentTierMask(monument.Position);
+            var monumentTierList = GetTierList(monumentTierMask);
+            var spawnGroupsSpecifyTier = false;
+
+            var spawnGroupDataList = new List<SpawnGroupData>();
+
+            foreach (var spawner in spawnerList)
+            {
+                var spawnGroup = spawner as SpawnGroup;
+                if (spawnGroup != null)
+                {
+                    if (spawnGroup.spawnPoints.Length == 0)
+                        continue;
+
+                    if ((int)spawnGroup.Tier != -1)
+                    {
+                        spawnGroupsSpecifyTier = true;
+
+                        if ((spawnGroup.Tier & monumentTierMask) == 0)
+                        {
+                            // Don't add spawn groups with different tiers. This can be improved later.
+                            continue;
+                        }
+                    }
+
+                    var spawnGroupData = new SpawnGroupData
+                    {
+                        Id = Guid.NewGuid(),
+                        Name = spawnGroup.name,
+                        MaxPopulation = spawnGroup.maxPopulation,
+                        RespawnDelayMin = spawnGroup.respawnDelayMin,
+                        RespawnDelayMax = spawnGroup.respawnDelayMax,
+                        SpawnPerTickMin = spawnGroup.numToSpawnPerTickMin,
+                        SpawnPerTickMax = spawnGroup.numToSpawnPerTickMax,
+                        PreventDuplicates = spawnGroup.preventDuplicates,
+                    };
+
+                    spawnGroupDataList.Add(spawnGroupData);
+
+                    foreach (var prefabEntry in spawnGroup.prefabs)
+                    {
+                        spawnGroupData.Prefabs.Add(new WeightedPrefabData
+                        {
+                            PrefabName = prefabEntry.prefab.resourcePath,
+                            Weight = prefabEntry.weight,
+                        });
+                    }
+
+                    foreach (var spawnPoint in spawnGroup.spawnPoints)
+                    {
+                        var spawnPointData = new SpawnPointData
+                        {
+                            Id = Guid.NewGuid(),
+                            Position = monument.InverseTransformPoint(spawnPoint.transform.position),
+                            RotationAngles = (Quaternion.Inverse(monument.Rotation) * spawnPoint.transform.rotation).eulerAngles,
+                        };
+
+                        var genericSpawnPoint = spawnPoint as GenericSpawnPoint;
+                        if (genericSpawnPoint != null)
+                        {
+                            spawnPointData.Exclusive = true;
+                            spawnPointData.RandomRotation = genericSpawnPoint.randomRot;
+                            spawnPointData.DropToGround = genericSpawnPoint.dropToGround;
+                        }
+
+                        var radialSpawnPoint = spawnPoint as RadialSpawnPoint;
+                        if (radialSpawnPoint != null)
+                        {
+                            spawnPointData.RandomRotation = true;
+                            spawnPointData.RandomRadius = radialSpawnPoint.radius;
+                        }
+
+                        if (spawnPoint is SpaceCheckingSpawnPoint)
+                        {
+                            spawnPointData.CheckSpace = true;
+                        }
+
+                        spawnGroupData.SpawnPoints.Add(spawnPointData);
+                    }
+
+                    continue;
+                }
+            }
+
+            var basePlayer = player.Object as BasePlayer;
+
+            var tierSuffix = spawnGroupsSpecifyTier && monumentTierList.Count > 0
+                ? $"_{string.Join("_", monumentTierList)}"
+                : string.Empty;
+
+            var profileName = $"{monument.AliasOrShortName}{tierSuffix}_vanilla_generated";
+            var profile = Profile.Create(profileName, basePlayer.displayName);
+            profile.AddDataList(monument.AliasOrShortName, spawnGroupDataList.Cast<BaseIdentifiableData>());
+
+            ReplyToPlayer(player, LangEntry.GenerateSuccess, profileName);
         }
 
         #endregion
@@ -2703,6 +2824,24 @@ namespace Oxide.Plugins
                 tierList.Add(MonumentTier.Tier2);
 
             return tierList;
+        }
+
+        private static MonumentTier GetMonumentTierMask(Vector3 position)
+        {
+            var topologyMask = TerrainMeta.TopologyMap.GetTopology(position);
+
+            var mask = (MonumentTier)0;
+
+            if ((TerrainTopology.TIER0 & topologyMask) != 0)
+                mask |= MonumentTier.Tier0;
+
+            if ((TerrainTopology.TIER1 & topologyMask) != 0)
+                mask |= MonumentTier.Tier1;
+
+            if ((TerrainTopology.TIER2 & topologyMask) != 0)
+                mask |= MonumentTier.Tier2;
+
+            return mask;
         }
 
         private bool HasAdminPermission(string userId) =>
@@ -5531,10 +5670,11 @@ namespace Oxide.Plugins
             {
                 _sb.AppendLine(_pluginInstance.GetMessage(player.UserIDString, LangEntry.ShowLabelProfile, profileController.Profile.Name));
 
-                var vanillaMonument = adapter.Monument.Object as MonumentInfo;
-                if (vanillaMonument != null && (int)vanillaMonument.Tier != -1)
+                var monumentTierMask = GetMonumentTierMask(adapter.Monument.Position);
+                var monumentTierList = GetTierList(monumentTierMask);
+                if (monumentTierList.Count > 0)
                 {
-                    _sb.AppendLine(_pluginInstance.GetMessage(player.UserIDString, LangEntry.ShowLabelMonumentWithTier, adapter.Monument.AliasOrShortName, controller.Adapters.Count, vanillaMonument.Tier));
+                    _sb.AppendLine(_pluginInstance.GetMessage(player.UserIDString, LangEntry.ShowLabelMonumentWithTier, adapter.Monument.AliasOrShortName, controller.Adapters.Count, string.Join(", ", monumentTierList)));
                 }
                 else
                 {
@@ -5634,17 +5774,21 @@ namespace Oxide.Plugins
 
                     _sb.AppendLine(_pluginInstance.GetMessage(player.UserIDString, LangEntry.ShowLabelPopulation, spawnGroupAdapter.SpawnGroup.currentPopulation, spawnGroupData.MaxPopulation));
                     _sb.AppendLine(_pluginInstance.GetMessage(player.UserIDString, LangEntry.ShowLabelRespawnPerTick, spawnGroupData.SpawnPerTickMin, spawnGroupData.SpawnPerTickMax));
-                    _sb.AppendLine(_pluginInstance.GetMessage(player.UserIDString, LangEntry.ShowLabelRespawnDelay, FormatTime(spawnGroupData.RespawnDelayMin), FormatTime(spawnGroupData.RespawnDelayMax)));
+
+                    if (spawnGroupData.RespawnDelayMin != float.PositiveInfinity)
+                        _sb.AppendLine(_pluginInstance.GetMessage(player.UserIDString, LangEntry.ShowLabelRespawnDelay, FormatTime(spawnGroupData.RespawnDelayMin), FormatTime(spawnGroupData.RespawnDelayMax)));
 
                     var nextSpawnTime = GetTimeToNextSpawn(spawnGroupAdapter.SpawnGroup);
-
-                    _sb.AppendLine(_pluginInstance.GetMessage(
-                        player.UserIDString,
-                        LangEntry.ShowLabelNextSpawn,
-                        nextSpawnTime <= 0
-                            ? _pluginInstance.GetMessage(player.UserIDString, LangEntry.ShowLabelNextSpawnQueued)
-                            : FormatTime(Mathf.CeilToInt(nextSpawnTime))
-                    ));
+                    if (nextSpawnTime != float.PositiveInfinity)
+                    {
+                        _sb.AppendLine(_pluginInstance.GetMessage(
+                            player.UserIDString,
+                            LangEntry.ShowLabelNextSpawn,
+                            nextSpawnTime <= 0
+                                ? _pluginInstance.GetMessage(player.UserIDString, LangEntry.ShowLabelNextSpawnQueued)
+                                : FormatTime(Mathf.CeilToInt(nextSpawnTime))
+                        ));
+                    }
 
                     if (spawnGroupData.Prefabs.Count > 0)
                     {
@@ -6436,19 +6580,19 @@ namespace Oxide.Plugins
         private class SpawnPointData : BaseTransformData
         {
             [JsonProperty("Exclusive")]
-            public bool Exclusive = true;
+            public bool Exclusive;
 
             [JsonProperty("DropToGround")]
-            public bool DropToGround = true;
+            public bool DropToGround;
 
             [JsonProperty("CheckSpace")]
-            public bool CheckSpace = false;
+            public bool CheckSpace;
 
             [JsonProperty("RandomRotation")]
-            public bool RandomRotation = false;
+            public bool RandomRotation;
 
             [JsonProperty("RandomRadius")]
-            public float RandomRadius = 0;
+            public float RandomRadius;
         }
 
         private class WeightedPrefabData
@@ -7059,6 +7203,15 @@ namespace Oxide.Plugins
                 Save();
             }
 
+            public void AddDataList(string monumentAliasOrShortName, IEnumerable<BaseIdentifiableData> dataList)
+            {
+                foreach (var data in dataList)
+                {
+                    EnsureMonumentData(monumentAliasOrShortName).AddData(data);
+                }
+                Save();
+            }
+
             public bool RemoveData(BaseIdentifiableData data, out string monumentAliasOrShortName)
             {
                 foreach (var entry in MonumentDataMap)
@@ -7572,12 +7725,13 @@ namespace Oxide.Plugins
             public static readonly LangEntry SpawnPointHelpSet = new LangEntry("SpawnPoint.Help.Set", "<color=#fd4>{0} set <option> <value></color> - Set a property of a spawn point");
 
             public static readonly LangEntry ShowVanillaNoSpawnPoints = new LangEntry("Show.Vanilla.NoSpawnPoints", "No spawn points found in <color=#fd4>{0}</color>.");
+            public static readonly LangEntry GenerateSuccess = new LangEntry("Generate.Success", "Successfully generated profile <color=#fd4>{0}</color>.");
 
             public static readonly LangEntry ShowSuccess = new LangEntry("Show.Success", "Showing nearby Monument Addons for <color=#fd4>{0}</color>.");
             public static readonly LangEntry ShowLabelPlugin = new LangEntry("Show.Label.Plugin", "Plugin: {0}");
             public static readonly LangEntry ShowLabelProfile = new LangEntry("Show.Label.Profile", "Profile: {0}");
             public static readonly LangEntry ShowLabelMonument = new LangEntry("Show.Label.Monument", "Monument: {0} (x{1})");
-            public static readonly LangEntry ShowLabelMonumentWithTier = new LangEntry("Show.Label.MonumentWithTier", "Monument: {0} (x{1}, Tier: {2})");
+            public static readonly LangEntry ShowLabelMonumentWithTier = new LangEntry("Show.Label.MonumentWithTier", "Monument: {0} (x{1} | {2})");
             public static readonly LangEntry ShowLabelSkin = new LangEntry("Show.Label.Skin", "Skin: {0}");
             public static readonly LangEntry ShowLabelScale = new LangEntry("Show.Label.Scale", "Scale: {0}");
             public static readonly LangEntry ShowLabelRCIdentifier = new LangEntry("Show.Label.RCIdentifier", "RC Identifier: {0}");
