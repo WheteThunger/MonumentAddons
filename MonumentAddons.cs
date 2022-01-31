@@ -63,7 +63,7 @@ namespace Oxide.Plugins
         private readonly ControllerFactory _entityControllerFactoryResolver = new ControllerFactory();
         private readonly CustomAddonManager _customAddonManager = new CustomAddonManager();
         private readonly UniqueNameRegistry _uniqueNameRegistry = new UniqueNameRegistry();
-        private readonly AdapterDisplayManager _entityDisplayManager;
+        private readonly AdapterDisplayManager _adapterDisplayManager;
 
         private readonly Color[] _distinctColors = new Color[]
         {
@@ -90,7 +90,7 @@ namespace Oxide.Plugins
 
         public MonumentAddons()
         {
-            _entityDisplayManager = new AdapterDisplayManager(_uniqueNameRegistry);
+            _adapterDisplayManager = new AdapterDisplayManager(_uniqueNameRegistry);
         }
 
         private void Init()
@@ -271,7 +271,7 @@ namespace Oxide.Plugins
         private void OnTelekinesisStarted(BasePlayer player, BaseEntity moveEntity, BaseEntity rotateEntity)
         {
             if (_entityTracker.IsMonumentEntity(moveEntity))
-                _entityDisplayManager.ShowAllRepeatedly(player);
+                _adapterDisplayManager.ShowAllRepeatedly(player);
         }
 
         // This hook is exposed by plugin: Telekinesis.
@@ -288,7 +288,7 @@ namespace Oxide.Plugins
 
             if (player != null)
             {
-                _entityDisplayManager.ShowAllRepeatedly(player);
+                _adapterDisplayManager.ShowAllRepeatedly(player);
                 ChatMessage(player, LangEntry.SaveSuccess, controller.Adapters.Count, controller.Profile.Name);
             }
         }
@@ -524,7 +524,7 @@ namespace Oxide.Plugins
             profileController.Profile.AddData(monument.AliasOrShortName, addonData);
             profileController.SpawnNewData(addonData, matchingMonuments);
 
-            _entityDisplayManager.ShowAllRepeatedly(basePlayer);
+            _adapterDisplayManager.ShowAllRepeatedly(basePlayer);
             ReplyToPlayer(player, LangEntry.SpawnSuccess, matchingMonuments.Count, profileController.Profile.Name, monument.AliasOrShortName);
         }
 
@@ -548,7 +548,7 @@ namespace Oxide.Plugins
             ReplyToPlayer(player, LangEntry.SaveSuccess, controller.Adapters.Count, controller.Profile.Name);
 
             var basePlayer = player.Object as BasePlayer;
-            _entityDisplayManager.ShowAllRepeatedly(basePlayer);
+            _adapterDisplayManager.ShowAllRepeatedly(basePlayer);
         }
 
         [Command("makill")]
@@ -578,7 +578,7 @@ namespace Oxide.Plugins
             }
 
             var basePlayer = player.Object as BasePlayer;
-            _entityDisplayManager.ShowAllRepeatedly(basePlayer);
+            _adapterDisplayManager.ShowAllRepeatedly(basePlayer);
             ReplyToPlayer(player, LangEntry.KillSuccess, GetAddonName(player, adapter.Data), numAdapters, controller.Profile.Name);
         }
 
@@ -606,7 +606,7 @@ namespace Oxide.Plugins
             controller.UpdateIdentifier();
 
             var basePlayer = player.Object as BasePlayer;
-            _entityDisplayManager.ShowAllRepeatedly(basePlayer);
+            _adapterDisplayManager.ShowAllRepeatedly(basePlayer);
             ReplyToPlayer(player, LangEntry.CCTVSetIdSuccess, args[0], controller.Adapters.Count, controller.Profile.Name);
         }
 
@@ -636,7 +636,7 @@ namespace Oxide.Plugins
             controller.Profile.Save();
             controller.UpdateDirection();
 
-            _entityDisplayManager.ShowAllRepeatedly(basePlayer);
+            _adapterDisplayManager.ShowAllRepeatedly(basePlayer);
             ReplyToPlayer(player, LangEntry.CCTVSetDirectionSuccess, controller.Adapters.Count, controller.Profile.Name);
         }
 
@@ -676,7 +676,7 @@ namespace Oxide.Plugins
             controller.UpdateSkin();
 
             var basePlayer = player.Object as BasePlayer;
-            _entityDisplayManager.ShowAllRepeatedly(basePlayer);
+            _adapterDisplayManager.ShowAllRepeatedly(basePlayer);
             ReplyToPlayer(player, LangEntry.SkinSetSuccess, skinId, controller.Adapters.Count, controller.Profile.Name);
         }
 
@@ -761,8 +761,8 @@ namespace Oxide.Plugins
 
                     if (!player.IsServer)
                     {
-                        _entityDisplayManager.SetPlayerProfile(basePlayer, controller);
-                        _entityDisplayManager.ShowAllRepeatedly(basePlayer);
+                        _adapterDisplayManager.SetPlayerProfile(basePlayer, controller);
+                        _adapterDisplayManager.ShowAllRepeatedly(basePlayer);
                     }
                     break;
                 }
@@ -799,8 +799,8 @@ namespace Oxide.Plugins
                     }
 
                     ReplyToPlayer(player, wasEnabled ? LangEntry.ProfileSelectSuccess : LangEntry.ProfileSelectEnableSuccess, controller.Profile.Name);
-                    _entityDisplayManager.SetPlayerProfile(basePlayer, controller);
-                    _entityDisplayManager.ShowAllRepeatedly(basePlayer);
+                    _adapterDisplayManager.SetPlayerProfile(basePlayer, controller);
+                    _adapterDisplayManager.ShowAllRepeatedly(basePlayer);
                     break;
                 }
 
@@ -871,7 +871,7 @@ namespace Oxide.Plugins
                     ReplyToPlayer(player, LangEntry.ProfileRenameSuccess, actualOldName, controller.Profile.Name);
                     if (!player.IsServer)
                     {
-                        _entityDisplayManager.ShowAllRepeatedly(basePlayer);
+                        _adapterDisplayManager.ShowAllRepeatedly(basePlayer);
                     }
                     break;
                 }
@@ -903,8 +903,8 @@ namespace Oxide.Plugins
                     ReplyToPlayer(player, LangEntry.ProfileReloadSuccess, controller.Profile.Name);
                     if (!player.IsServer)
                     {
-                        _entityDisplayManager.SetPlayerProfile(basePlayer, controller);
-                        _entityDisplayManager.ShowAllRepeatedly(basePlayer);
+                        _adapterDisplayManager.SetPlayerProfile(basePlayer, controller);
+                        _adapterDisplayManager.ShowAllRepeatedly(basePlayer);
                     }
                     break;
                 }
@@ -936,8 +936,8 @@ namespace Oxide.Plugins
                     ReplyToPlayer(player, LangEntry.ProfileEnableSuccess, profileName);
                     if (!player.IsServer)
                     {
-                        _entityDisplayManager.SetPlayerProfile(basePlayer, controller);
-                        _entityDisplayManager.ShowAllRepeatedly(basePlayer);
+                        _adapterDisplayManager.SetPlayerProfile(basePlayer, controller);
+                        _adapterDisplayManager.ShowAllRepeatedly(basePlayer);
                     }
                     break;
                 }
@@ -1013,8 +1013,8 @@ namespace Oxide.Plugins
                     ReplyToPlayer(player, LangEntry.ProfileMoveToSuccess, addonName, oldProfile.Name, newProfile.Name);
                     if (!player.IsServer)
                     {
-                        _entityDisplayManager.SetPlayerProfile(basePlayer, newProfileController);
-                        _entityDisplayManager.ShowAllRepeatedly(basePlayer);
+                        _adapterDisplayManager.SetPlayerProfile(basePlayer, newProfileController);
+                        _adapterDisplayManager.ShowAllRepeatedly(basePlayer);
                     }
                     break;
                 }
@@ -1149,8 +1149,8 @@ namespace Oxide.Plugins
                     if (!player.IsServer)
                     {
                         var basePlayer = player.Object as BasePlayer;
-                        _entityDisplayManager.SetPlayerProfile(basePlayer, profileController);
-                        _entityDisplayManager.ShowAllRepeatedly(basePlayer);
+                        _adapterDisplayManager.SetPlayerProfile(basePlayer, profileController);
+                        _adapterDisplayManager.ShowAllRepeatedly(basePlayer);
                     }
                 },
                 errorCallback: errorMessage =>
@@ -1197,8 +1197,8 @@ namespace Oxide.Plugins
 
             var basePlayer = player.Object as BasePlayer;
 
-            _entityDisplayManager.SetPlayerProfile(basePlayer, profileController);
-            _entityDisplayManager.ShowAllRepeatedly(basePlayer, duration);
+            _adapterDisplayManager.SetPlayerProfile(basePlayer, profileController);
+            _adapterDisplayManager.ShowAllRepeatedly(basePlayer, duration);
 
             ReplyToPlayer(player, LangEntry.ShowSuccess, FormatTime(duration));
         }
@@ -1267,7 +1267,7 @@ namespace Oxide.Plugins
                     profileController.Profile.AddData(monument.AliasOrShortName, spawnGroupData);
                     profileController.SpawnNewData(spawnGroupData, matchingMonuments);
 
-                    _entityDisplayManager.ShowAllRepeatedly(basePlayer);
+                    _adapterDisplayManager.ShowAllRepeatedly(basePlayer);
 
                     ReplyToPlayer(player, LangEntry.SpawnGroupCreateSucces, spawnGroupName);
                     break;
@@ -1380,7 +1380,7 @@ namespace Oxide.Plugins
                     spawnGroupController.UpdateSpawnGroups();
                     spawnGroupController.Profile.Save();
 
-                    _entityDisplayManager.ShowAllRepeatedly(basePlayer);
+                    _adapterDisplayManager.ShowAllRepeatedly(basePlayer);
 
                     ReplyToPlayer(player, LangEntry.SpawnGroupSetSuccess, spawnGroupData.Name, spawnGroupOption, setValue);
                     break;
@@ -1422,7 +1422,7 @@ namespace Oxide.Plugins
                     spawnGroupController.UpdateSpawnGroups();
                     spawnGroupController.Profile.Save();
 
-                    _entityDisplayManager.ShowAllRepeatedly(basePlayer);
+                    _adapterDisplayManager.ShowAllRepeatedly(basePlayer);
 
                     ReplyToPlayer(player, LangEntry.SpawnGroupAddSuccess, _uniqueNameRegistry.GetUniqueShortName(prefabData.PrefabName), weight, spawnGroupData.Name);
                     break;
@@ -1448,14 +1448,14 @@ namespace Oxide.Plugins
                     if (matchingPrefabs.Count == 0)
                     {
                         ReplyToPlayer(player, LangEntry.SpawnGroupRemoveNoMatch, spawnGroupData.Name, desiredPrefab);
-                        _entityDisplayManager.ShowAllRepeatedly(basePlayer);
+                        _adapterDisplayManager.ShowAllRepeatedly(basePlayer);
                         return;
                     }
 
                     if (matchingPrefabs.Count > 1)
                     {
                         ReplyToPlayer(player, LangEntry.SpawnGroupRemoveMultipleMatches, spawnGroupData.Name, desiredPrefab);
-                        _entityDisplayManager.ShowAllRepeatedly(basePlayer);
+                        _adapterDisplayManager.ShowAllRepeatedly(basePlayer);
                         return;
                     }
 
@@ -1466,7 +1466,7 @@ namespace Oxide.Plugins
                     spawnGroupController.UpdateSpawnGroups();
                     spawnGroupController.Profile.Save();
 
-                    _entityDisplayManager.ShowAllRepeatedly(basePlayer);
+                    _adapterDisplayManager.ShowAllRepeatedly(basePlayer);
 
                     ReplyToPlayer(player, LangEntry.SpawnGroupRemoveSuccess, _uniqueNameRegistry.GetUniqueShortName(prefabMatch.PrefabName), spawnGroupData.Name);
                     break;
@@ -1480,7 +1480,7 @@ namespace Oxide.Plugins
                         return;
 
                     spawnGroupController.SpawnTick();
-                    _entityDisplayManager.ShowAllRepeatedly(basePlayer);
+                    _adapterDisplayManager.ShowAllRepeatedly(basePlayer);
                     break;
                 }
 
@@ -1491,7 +1491,7 @@ namespace Oxide.Plugins
                         return;
 
                     spawnGroupController.Respawn();
-                    _entityDisplayManager.ShowAllRepeatedly(basePlayer);
+                    _adapterDisplayManager.ShowAllRepeatedly(basePlayer);
                     break;
                 }
 
@@ -1568,7 +1568,7 @@ namespace Oxide.Plugins
                     spawnGroupController.Profile.Save();
                     spawnGroupController.AddSpawnPoint(spawnPointData);
 
-                    _entityDisplayManager.ShowAllRepeatedly(basePlayer);
+                    _adapterDisplayManager.ShowAllRepeatedly(basePlayer);
 
                     ReplyToPlayer(player, LangEntry.SpawnPointCreateSuccess, spawnGroupController.SpawnGroupData.Name);
                     break;
@@ -1657,7 +1657,7 @@ namespace Oxide.Plugins
 
                     spawnGroupController.Profile.Save();
 
-                    _entityDisplayManager.ShowAllRepeatedly(basePlayer);
+                    _adapterDisplayManager.ShowAllRepeatedly(basePlayer);
 
                     ReplyToPlayer(player, LangEntry.SpawnPointSetSuccess, spawnPointOption, setValue);
                     break;
@@ -1736,7 +1736,7 @@ namespace Oxide.Plugins
             profileController.Profile.AddData(monument.AliasOrShortName, pasteData);
             profileController.SpawnNewData(pasteData, matchingMonuments);
 
-            _entityDisplayManager.ShowAllRepeatedly(basePlayer);
+            _adapterDisplayManager.ShowAllRepeatedly(basePlayer);
 
             ReplyToPlayer(player, LangEntry.PasteSuccess, pasteName, monument.AliasOrShortName, matchingMonuments.Count, profileController.Profile.Name);
         }
