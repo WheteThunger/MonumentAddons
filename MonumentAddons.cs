@@ -1992,7 +1992,7 @@ namespace Oxide.Plugins
                         }
 
                         var nextSpawnTime = GetTimeToNextSpawn(individualSpawner);
-                        if (nextSpawnTime != float.PositiveInfinity)
+                        if (!individualSpawner.IsSpawned && nextSpawnTime != float.PositiveInfinity)
                         {
                             sb.AppendLine(GetMessage(
                                 player.Id,
