@@ -601,12 +601,14 @@ namespace Oxide.Plugins
             if (controller.EntityData.CCTV == null)
                 controller.EntityData.CCTV = new CCTVInfo();
 
+            var hadIdentifier = !string.IsNullOrEmpty(controller.EntityData.CCTV.RCIdentifier);
+
             controller.EntityData.CCTV.RCIdentifier = args[0];
             controller.Profile.Save();
             controller.UpdateIdentifier();
 
             var basePlayer = player.Object as BasePlayer;
-            _adapterDisplayManager.ShowAllRepeatedly(basePlayer);
+            _adapterDisplayManager.ShowAllRepeatedly(basePlayer, immediate: hadIdentifier);
             ReplyToPlayer(player, LangEntry.CCTVSetIdSuccess, args[0], controller.Adapters.Count, controller.Profile.Name);
         }
 
@@ -671,12 +673,14 @@ namespace Oxide.Plugins
                 return;
             }
 
+            var updatedExistingSkin = (controller.EntityData.Skin == 0) != (skinId == 0);
+
             controller.EntityData.Skin = skinId;
             controller.Profile.Save();
             controller.UpdateSkin();
 
             var basePlayer = player.Object as BasePlayer;
-            _adapterDisplayManager.ShowAllRepeatedly(basePlayer);
+            _adapterDisplayManager.ShowAllRepeatedly(basePlayer, immediate: !updatedExistingSkin);
             ReplyToPlayer(player, LangEntry.SkinSetSuccess, skinId, controller.Adapters.Count, controller.Profile.Name);
         }
 
@@ -1403,11 +1407,14 @@ namespace Oxide.Plugins
                     if (!VerifyLookingAtAdapter(player, out spawnGroupController, LangEntry.ErrorNoSpawnPointFound))
                         return;
 
+                    var updatedExistingEntry = false;
+
                     var spawnGroupData = spawnGroupController.SpawnGroupData;
                     var prefabData = spawnGroupData.Prefabs.Where(entry => entry.PrefabName == prefabPath).FirstOrDefault();
                     if (prefabData != null)
                     {
                         prefabData.Weight = weight;
+                        updatedExistingEntry = true;
                     }
                     else
                     {
@@ -1422,7 +1429,7 @@ namespace Oxide.Plugins
                     spawnGroupController.UpdateSpawnGroups();
                     spawnGroupController.Profile.Save();
 
-                    _adapterDisplayManager.ShowAllRepeatedly(basePlayer);
+                    _adapterDisplayManager.ShowAllRepeatedly(basePlayer, immediate: updatedExistingEntry);
 
                     ReplyToPlayer(player, LangEntry.SpawnGroupAddSuccess, _uniqueNameRegistry.GetUniqueShortName(prefabData.PrefabName), weight, spawnGroupData.Name);
                     break;
@@ -1466,7 +1473,7 @@ namespace Oxide.Plugins
                     spawnGroupController.UpdateSpawnGroups();
                     spawnGroupController.Profile.Save();
 
-                    _adapterDisplayManager.ShowAllRepeatedly(basePlayer);
+                    _adapterDisplayManager.ShowAllRepeatedly(basePlayer, immediate: false);
 
                     ReplyToPlayer(player, LangEntry.SpawnGroupRemoveSuccess, _uniqueNameRegistry.GetUniqueShortName(prefabMatch.PrefabName), spawnGroupData.Name);
                     break;
@@ -5699,13 +5706,11 @@ namespace Oxide.Plugins
                 GetOrCreatePlayerInfo(player).ProfileController = profileController;
             }
 
-            public void ShowAllRepeatedly(BasePlayer player, int duration = -1)
+            public void ShowAllRepeatedly(BasePlayer player, int duration = -1, bool immediate = true)
             {
                 var playerInfo = GetOrCreatePlayerInfo(player);
 
-                // Only show initial debug info if there is no pending timer.
-                // This is done to avoid the text looking broken when the number of lines change and overlaps.
-                if (playerInfo.Timer == null || playerInfo.Timer.Destroyed)
+                if (immediate || playerInfo.Timer == null || playerInfo.Timer.Destroyed)
                 {
                     ShowNearbyAdapters(player, player.transform.position, playerInfo);
                 }
