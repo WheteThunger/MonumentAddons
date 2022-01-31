@@ -12,6 +12,7 @@ Easily spawn permanent entities at monuments, which auto respawn after restarts 
 - Entities are indestructible, have no stability, free electricity, and cannot be picked up
 - Supports vanilla monuments, custom monuments, train tunnels, underwater labs, and cargo ship
 - Allows skinning spawned entities
+- (Advanced) Allows placing spawn points for loot containers, key cards, vehicles, NPCs, and more
 - [Sign Artist](https://umod.org/plugins/sign-artist) integration allows persisting sign images
 - [Entity Scale Manager](https://umod.org/plugins/entity-scale-manager) integration allows persisting entity scale
 - [Telekinesis](https://umod.org/plugins/telekinesis) integration allows easily moving and rotating entities
@@ -43,10 +44,10 @@ This does several things.
 
 ## Commands
 
-- `maspawn <entity>` -- Spawns an entity where you are aiming, using the entity short prefab name.
+- `maspawn <entity>` -- Spawns an entity where you are aiming, using the entity prefab name.
   - If you are holding a deployable item, you can simply run `maspawn` without specifying the entity name.
   - You must be at a monument, as determined by Monument Finder.
-  - Works just like the native `spawn` command, so if the entity name isn't specific enough, it will print all matching entity names.
+  - Works like the native `spawn` command, so if the entity name isn't specific enough, it will print all matching entity names.
   - Also spawns the entity at other matching monuments (e.g., if at a gas station, will spawn at all gas stations).
     - A monument is considered a match if it has the same short prefab name or the same alias as the monument you are aiming at. The Monument Finder plugin will assign aliases for primarily underground tunnels. For example, `station-sn-0` and `station-we-0` will both use the `TrainStation` alias, allowing all train stations to have the same entities.
   - Saves the entity info to the plugin data file so that reloading the plugin (or restarting the server) will respawn the entity.
@@ -56,12 +57,44 @@ This does several things.
 
 The following commands only work on objects managed by this plugin. The effect of these commands automatically applies to all copies of the object at matching monuments, and also updates the data files.
 
-- `makill` -- Removes the entity or spawn point that you are aiming at.
+- `makill` -- Deletes the entity or spawn point that you are aiming at.
 - `masave` -- Saves the current position and rotation of the entity you are aiming at. This is useful if you moved the entity with a plugin such as Edit Tool or Uber Tool. This is not necessary if you are repositioning entities with [Telekinesis](https://umod.org/plugins/telekinesis) since that will be automatically detected.
 - `maskin <skin id>` -- Updates the skin of the entity you are aiming at.
 - `masetid <id>` -- Updates the RC identifier of the CCTV camera you are aiming at.
-  - Note: Each CCTV's RC identifier will have a numeric suffix like `1`, `2`, `3` and so on. This is done because each CCTV must have a unique identifier.
+  - Note: Each CCTV's RC identifier will have a numeric suffix like `1`, `2`, `3` and so on. This is done because some monuments may be duplicated, and each CCTV must have a unique identifier.
 - `masetdir` -- Updates the direction of the CCTV you are aiming at, so that it points toward you.
+
+### Spawn points and spawn groups
+
+- `mashowvanilla` -- For educational purposes, this shows debug information for 60 seconds about vanilla spawn points at the monument you are aiming at. If you are aiming at an entity (e.g., a junk pile, dwelling, or cargo ship), this will instead show spawn points that are parented to that entity.
+
+#### Spawn groups
+
+- `maspawngroup create <name>` -- Creates a spawn group **and** a spawn point where you are looking.
+- `maspawngroup set <option> <value>` -- Sets a property of the spawn group you are looking at.
+  - `Name`: string -- This name must be unique for the given profile + monument. This name can be used to create additional spawn points for this spawn group using `maspawnpoint create <group_name>`.
+  - `MaxPopulation`: number -- The maximum number of entities that can be spawned across all spawn points in this spawn group.
+  - `RespawnDelayMin`: number -- The minimum time in minutes to wait between spawning entities.
+  - `RespawnDelayMax`: number -- The maximum time in minutes to wait between spawning entities.
+  - `SpawnPerTickMin`: number -- The minumum number of entities to try to spawn in a batch.
+  - `SpawnPerTickMax`: number -- The maximum number of entities to try to spawn in a batch.
+  - `PreventDuplicates`: true/false -- While `true`, only one of each entity prefab can be present across all spawn points in the spawn group. Vanilla Rust uses this property for spawning modules at desert military bases.
+- `maspawngroup add <entity> <weight>` -- Adds the specified entity prefab to the spawn group you are looking at.
+- `maspawngroup remove <entity>` -- Removes the specified entity prefab from the spawn group you are looking at.
+
+Note: `masg` can be used in place of `maspawngroup`.
+
+#### Spawn points
+
+- `maspawnpoint create <group_name>` -- Creates a spawn point where you are looking, for the specified spawn group. The spawn group must be in your selected profile and be at the same monument.
+- `maspawnpoint set <option> <value>` -- Sets a property of the spawn group you are looking at.
+  - `Exclusive`: true/false -- While `true`, only one entity can be spawned at this spawn point at a time.
+  - `DropToGround`: true/false -- While `true`, entities will be spawned on the nearest flat surface below the spawn point.
+  - `CheckSpace`: true/false -- While `true`, entities can only spawn at this spawn point when there is sufficient space. This option is recommended for vehicle spawn points.
+  - `RandomRotation` : true/false -- While `true`, entities will spawn with random rotation at this spawn point, instead of following the rotation of the spawn point itself.
+  - `RandomRadius`: number -- This number determines how far away entities can spawn from this spawn point. The default is `0.0`.
+
+Note: `masp` can be used in place of `maspawnpoint`.
 
 ### Profiles
 
@@ -69,15 +102,15 @@ Profiles allow you to organize entities into groups. Each profile can be indepen
 
 - `maprofile` -- Prints help info about all profile commands.
 - `maprofile list` -- Lists all profiles in the `oxide/data/MonumentAddons/` directory.
-- `maprofile describe <name>` -- Describes all entities within the specified profile.
-- `maprofile enable <name>` -- Enables the specified profile. Enabling a profile spawns all of the profile's entities, and marks the profile as enabled in the data file so it will automatically load when the the plugin does.
-- `maprofile disable <name>` -- Disables the specified profile. Disabling a profile despawns all of the profile's entities, and marks the profile as disabled in the data file so it won't automatically load when the plugin does.
-- `maprofile reload <name>` -- Reloads the specified profile from disk. This despawns all the profile's entities, re-reads the data file, then respawns all the profile's entities. This is useful if you downloaded a new version of a profile or if you made manual edits to the data file.
-- `maprofile select <name>` -- Selects and enables the specified profile. Running `maspawn <entity>` will save entities to the currently selected profile. Each player can have a separate profile selected, allowing multiple players to work on different profiles at the same time.
+- `maprofile describe <name>` -- Describes all addons within the specified profile.
+- `maprofile enable <name>` -- Enables the specified profile. Enabling a profile spawns all of the profile's addons, and marks the profile as enabled in the data file so it will automatically load when the the plugin does.
+- `maprofile disable <name>` -- Disables the specified profile. Disabling a profile despawns all of the profile's addons, and marks the profile as disabled in the data file so it won't automatically load when the plugin does.
+- `maprofile reload <name>` -- Reloads the specified profile from disk. This despawns all the profile's addons, re-reads the data file, then respawns all the profile's addons. This is useful if you downloaded a new version of a profile or if you made manual edits to the data file.
+- `maprofile select <name>` -- Selects and enables the specified profile. Running `maspawn <entity>` will save addons to the currently selected profile. Each player can have a separate profile selected, allowing multiple players to work on different profiles at the same time.
 - `maprofile create <name>` -- Creates a new profile, enables it and selects it.
 - `maprofile rename <name> <new name>` -- Renames the specified profile. The plugin cannot delete the data file for the old name, so you will have to delete it yourself at `oxide/data/MonumentAddons/{name}.json`.
-- `maprofile clear <name>` -- Removes all entities from the specified profile.
-- `maprofile moveto <name>` -- Moves the entity you are looking at to the specified profile.
+- `maprofile clear <name>` -- Removes all addons from the specified profile.
+- `maprofile moveto <name>` -- Moves the addon you are looking at to the specified profile.
 - `maprofile install <url>` -- Installs a profile from a URL.
   - Abbreviated command: `mainstall <url>`.
   - You may replace the URL with simply the profile name if installing from [https://github.com/WheteThunger/MonumentAddons/tree/master/Profiles](https://github.com/WheteThunger/MonumentAddons/tree/master/Profiles). For example, `maprofile install OutpostAirwolf` or `mainstall OutpostAirwolf`.
@@ -119,7 +152,7 @@ Profiles allow you to organize entities into groups. Each profile can be indepen
 
 Since underwater labs are procedurally generated, this plugin does not spawn entities relative to the monuments themselves. Instead, entities are spawned relative to specific modules. For example, if you spawn an entity in a moonpool module, the entity will also be spawned at all moonpool modules in the same lab and other labs.
 
-Note that some modules have multiple possible vanilla configurations, so multiple instances of the same module might have slightly different placement of vanilla objects. This plugin does not currently differentiate between these module-specific configurations, so after spawning something into a lab module, be sure to inspect other instances of that module to make sure the entity placement makes sense for all of them.
+Note that some modules have multiple possible vanilla configurations, so multiple instances of the same module might have slightly different placement of vanilla objects. That happens because Rust spawns semi-random dwelling entities in them, which you can learn about them with the `mashowvanilla` command. You can use that command to get an idea of where dwellings spawn, in order to avoid placing your addons at those locations. After spawning something into a lab module, it's also recommended to inspect other instances of that module to make sure the entity placement isn't overlapping a dwelling entity.
 
 ## Example profiles
 
