@@ -1804,10 +1804,17 @@ namespace Oxide.Plugins
 
             if (spawnGroup.prefabs.Count > 0)
             {
+                var totalWeight = 0;
+                foreach (var prefab in spawnGroup.prefabs)
+                {
+                    totalWeight += prefab.weight;
+                }
+
                 sb.AppendLine(_pluginInstance.GetMessage(player.Id, LangEntry.ShowLabelEntities));
                 foreach (var prefabEntry in spawnGroup.prefabs)
                 {
-                    sb.AppendLine(_pluginInstance.GetMessage(player.Id, LangEntry.ShowLabelEntityDetail, prefabEntry.prefab.resourcePath, prefabEntry.weight));
+                    var relativeChance = (float)prefabEntry.weight / totalWeight;
+                    sb.AppendLine(_pluginInstance.GetMessage(player.Id, LangEntry.ShowLabelEntityDetail, prefabEntry.prefab.resourcePath, prefabEntry.weight, relativeChance));
                 }
             }
             else
@@ -5895,10 +5902,13 @@ namespace Oxide.Plugins
 
                     if (spawnGroupData.Prefabs.Count > 0)
                     {
+                        var totalWeight = spawnGroupData.TotalWeight;
+
                         _sb.AppendLine(_pluginInstance.GetMessage(player.UserIDString, LangEntry.ShowLabelEntities));
                         foreach (var prefabEntry in spawnGroupData.Prefabs)
                         {
-                            _sb.AppendLine(_pluginInstance.GetMessage(player.UserIDString, LangEntry.ShowLabelEntityDetail, prefabEntry.PrefabName, prefabEntry.Weight));
+                            var relativeChance = (float)prefabEntry.Weight / totalWeight;
+                            _sb.AppendLine(_pluginInstance.GetMessage(player.UserIDString, LangEntry.ShowLabelEntityDetail, prefabEntry.PrefabName, prefabEntry.Weight, relativeChance));
                         }
                     }
                     else
@@ -6735,6 +6745,20 @@ namespace Oxide.Plugins
 
             [JsonProperty("SpawnPoints")]
             public List<SpawnPointData> SpawnPoints = new List<SpawnPointData>();
+
+            [JsonIgnore]
+            public int TotalWeight
+            {
+                get
+                {
+                    var total = 0;
+                    foreach (var prefabEntry in Prefabs)
+                    {
+                        total += prefabEntry.Weight;
+                    }
+                    return total;
+                }
+            }
 
             public List<WeightedPrefabData> FindPrefabMatches(string partialName, UniqueNameRegistry uniqueNameRegistry)
             {
@@ -7833,7 +7857,7 @@ namespace Oxide.Plugins
             public static readonly LangEntry ShowLabelNextSpawn = new LangEntry("Show.Label.NextSpawn", "Next spawn: {0}");
             public static readonly LangEntry ShowLabelNextSpawnQueued = new LangEntry("Show.Label.NextSpawn.Queued", "Queued");
             public static readonly LangEntry ShowLabelEntities = new LangEntry("Show.Label.Entities", "Entities:");
-            public static readonly LangEntry ShowLabelEntityDetail = new LangEntry("Show.Label.Entities.Detail", "{0} | weight: {1}");
+            public static readonly LangEntry ShowLabelEntityDetail = new LangEntry("Show.Label.Entities.Detail2", "{0} | weight: {1} ({2:P1})");
             public static readonly LangEntry ShowLabelNoEntities = new LangEntry("Show.Label.NoEntities", "No entities configured. Run /maspawngroup add <entity> <weight>");
 
             public static readonly LangEntry SkinGet = new LangEntry("Skin.Get", "Skin ID: <color=#fd4>{0}</color>. Run <color=#fd4>{1} <skin id></color> to change it.");
