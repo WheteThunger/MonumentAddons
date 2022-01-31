@@ -1814,7 +1814,7 @@ namespace Oxide.Plugins
                 foreach (var prefabEntry in spawnGroup.prefabs)
                 {
                     var relativeChance = (float)prefabEntry.weight / totalWeight;
-                    sb.AppendLine(_pluginInstance.GetMessage(player.Id, LangEntry.ShowLabelEntityDetail, prefabEntry.prefab.resourcePath, prefabEntry.weight, relativeChance));
+                    sb.AppendLine(_pluginInstance.GetMessage(player.Id, LangEntry.ShowLabelEntityDetail, _uniqueNameRegistry.GetUniqueShortName(prefabEntry.prefab.resourcePath), prefabEntry.weight, relativeChance));
                 }
             }
             else
@@ -2004,7 +2004,7 @@ namespace Oxide.Plugins
                         }
                     }
 
-                    sb.AppendLine(GetMessage(player.Id, LangEntry.ShowHeaderEntity, individualSpawner.entityPrefab.resourcePath));
+                    sb.AppendLine(GetMessage(player.Id, LangEntry.ShowHeaderEntity, _uniqueNameRegistry.GetUniqueShortName(individualSpawner.entityPrefab.resourcePath)));
 
                     var spawnPointPosition = individualSpawner.transform.position;
                     Ddraw.Sphere(basePlayer, spawnPointPosition, 0.5f, color, ShowVanillaDuration);
@@ -5908,7 +5908,7 @@ namespace Oxide.Plugins
                         foreach (var prefabEntry in spawnGroupData.Prefabs)
                         {
                             var relativeChance = (float)prefabEntry.Weight / totalWeight;
-                            _sb.AppendLine(_pluginInstance.GetMessage(player.UserIDString, LangEntry.ShowLabelEntityDetail, prefabEntry.PrefabName, prefabEntry.Weight, relativeChance));
+                            _sb.AppendLine(_pluginInstance.GetMessage(player.UserIDString, LangEntry.ShowLabelEntityDetail, _uniqueNameRegistry.GetUniqueShortName(prefabEntry.PrefabName), prefabEntry.Weight, relativeChance));
                         }
                     }
                     else
