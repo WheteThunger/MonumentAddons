@@ -59,10 +59,11 @@ namespace Oxide.Plugins
         private readonly ProfileManager _profileManager = new ProfileManager();
         private readonly CoroutineManager _coroutineManager = new CoroutineManager();
         private readonly MonumentEntityTracker _entityTracker = new MonumentEntityTracker();
-        private readonly AdapterDisplayManager _entityDisplayManager = new AdapterDisplayManager();
         private readonly AdapterListenerManager _adapterListenerManager = new AdapterListenerManager();
         private readonly ControllerFactory _entityControllerFactoryResolver = new ControllerFactory();
         private readonly CustomAddonManager _customAddonManager = new CustomAddonManager();
+        private readonly UniqueNameRegistry _uniqueNameRegistry = new UniqueNameRegistry();
+        private readonly AdapterDisplayManager _entityDisplayManager;
 
         private readonly Color[] _distinctColors = new Color[]
         {
@@ -87,6 +88,11 @@ namespace Oxide.Plugins
 
         #region Hooks
 
+        public MonumentAddons()
+        {
+            _entityDisplayManager = new AdapterDisplayManager(_uniqueNameRegistry);
+        }
+
         private void Init()
         {
             _pluginInstance = this;
@@ -110,6 +116,7 @@ namespace Oxide.Plugins
             _immortalProtection.name = "MonumentAddonsProtection";
             _immortalProtection.Add(1);
 
+            _uniqueNameRegistry.OnServerInitialized();
             _adapterListenerManager.OnServerInitialized();
 
             if (CheckDependencies())
@@ -1417,7 +1424,7 @@ namespace Oxide.Plugins
 
                     _entityDisplayManager.ShowAllRepeatedly(basePlayer);
 
-                    ReplyToPlayer(player, LangEntry.SpawnGroupAddSuccess, prefabData.ShortPrefabName, weight, spawnGroupData.Name);
+                    ReplyToPlayer(player, LangEntry.SpawnGroupAddSuccess, _uniqueNameRegistry.GetUniqueShortName(prefabData.PrefabName), weight, spawnGroupData.Name);
                     break;
                 }
 
@@ -1437,7 +1444,7 @@ namespace Oxide.Plugins
 
                     var spawnGroupData = spawnGroupController.SpawnGroupData;
 
-                    var matchingPrefabs = spawnGroupData.FindPrefabMatches(desiredPrefab);
+                    var matchingPrefabs = spawnGroupData.FindPrefabMatches(desiredPrefab, _uniqueNameRegistry);
                     if (matchingPrefabs.Count == 0)
                     {
                         ReplyToPlayer(player, LangEntry.SpawnGroupRemoveNoMatch, spawnGroupData.Name, desiredPrefab);
@@ -1461,7 +1468,7 @@ namespace Oxide.Plugins
 
                     _entityDisplayManager.ShowAllRepeatedly(basePlayer);
 
-                    ReplyToPlayer(player, LangEntry.SpawnGroupRemoveSuccess, prefabMatch.ShortPrefabName, spawnGroupData.Name);
+                    ReplyToPlayer(player, LangEntry.SpawnGroupRemoveSuccess, _uniqueNameRegistry.GetUniqueShortName(prefabMatch.PrefabName), spawnGroupData.Name);
                     break;
                 }
 
@@ -2240,21 +2247,14 @@ namespace Oxide.Plugins
         {
             prefabPath = null;
 
-            var matches = new List<string>();
-
-            if (AddExactPrefabMatches(prefabArg, matches) == 1)
+            var prefabMatches = SearchUtils.FindPrefabMatches(prefabArg, _uniqueNameRegistry);
+            if (prefabMatches.Count == 1)
             {
-                prefabPath = matches.First();
+                prefabPath = prefabMatches.First().ToLower();
                 return true;
             }
 
-            if (matches.Count == 0 && AddPartialPrefabMatches(prefabArg, matches) == 1)
-            {
-                prefabPath = matches.First();
-                return true;
-            }
-
-            if (matches.Count == 0)
+            if (prefabMatches.Count == 0)
             {
                 ReplyToPlayer(player, LangEntry.SpawnErrorEntityNotFound, prefabArg);
                 return false;
@@ -2262,9 +2262,9 @@ namespace Oxide.Plugins
 
             // Multiple matches were found, so print them all to the player.
             var replyMessage = GetMessage(player.Id, LangEntry.SpawnErrorMultipleMatches);
-            foreach (var match in matches)
+            foreach (var matchingPrefabPath in prefabMatches)
             {
-                replyMessage += $"\n{GetShortName(match)}";
+                replyMessage += $"\n{_uniqueNameRegistry.GetUniqueShortName(matchingPrefabPath)}";
             }
 
             player.Reply(replyMessage);
@@ -2276,23 +2276,21 @@ namespace Oxide.Plugins
             prefabPath = null;
             addonDefinition = null;
 
-            var prefabMatches = new List<string>();
-            var customAddonMatches = new List<CustomAddonDefinition>();
+            var prefabMatches = SearchUtils.FindPrefabMatches(prefabArg, _uniqueNameRegistry);
+            var customAddonMatches = SearchUtils.FindCustomAddonMatches(prefabArg, _customAddonManager.GetAllAddons());
 
-            var matchCount = AddExactPrefabMatches(prefabArg, prefabMatches)
-                + AddExactCustomAddonMatches(prefabArg, customAddonMatches);
-
+            var matchCount = prefabMatches.Count + customAddonMatches.Count;
             if (matchCount == 0)
             {
-                matchCount = AddPartialPrefabMatches(prefabArg, prefabMatches)
-                    + AddPartialAddonMatches(prefabArg, customAddonMatches);
+                ReplyToPlayer(player, LangEntry.SpawnErrorEntityOrAddonNotFound, prefabArg);
+                return false;
             }
 
             if (matchCount == 1)
             {
                 if (prefabMatches.Count == 1)
                 {
-                    prefabPath = prefabMatches.First();
+                    prefabPath = prefabMatches.First().ToLower();
                 }
                 else
                 {
@@ -2301,21 +2299,15 @@ namespace Oxide.Plugins
                 return true;
             }
 
-            if (matchCount == 0)
-            {
-                ReplyToPlayer(player, LangEntry.SpawnErrorEntityOrAddonNotFound, prefabArg);
-                return false;
-            }
-
             // Multiple matches were found, so print them all to the player.
             var replyMessage = GetMessage(player.Id, LangEntry.SpawnErrorMultipleMatches);
-            foreach (var match in prefabMatches)
+            foreach (var matchingPrefabPath in prefabMatches)
             {
-                replyMessage += $"\n{GetShortName(match)}";
+                replyMessage += $"\n{_uniqueNameRegistry.GetUniqueShortName(matchingPrefabPath)}";
             }
-            foreach (var match in customAddonMatches)
+            foreach (var matchingAddonDefinition in customAddonMatches)
             {
-                replyMessage += $"\n{match.AddonName}";
+                replyMessage += $"\n{matchingAddonDefinition.AddonName}";
             }
 
             player.Reply(replyMessage);
@@ -2666,7 +2658,7 @@ namespace Oxide.Plugins
         {
             var slashIndex = prefabName.LastIndexOf("/");
             var baseName = (slashIndex == -1) ? prefabName : prefabName.Substring(slashIndex + 1);
-            return baseName.Replace(".prefab", "");
+            return baseName.Replace(".prefab", string.Empty);
         }
 
         private static void DetermineLocalTransformData(Vector3 position, BasePlayer basePlayer, BaseMonument monument, out Vector3 localPosition, out Vector3 localRotationAngles, out bool isOnTerrain, bool flipRotation = true)
@@ -2942,58 +2934,6 @@ namespace Oxide.Plugins
             );
         }
 
-        private int AddExactPrefabMatches(string partialName, List<string> matches)
-        {
-            foreach (var path in GameManifest.Current.entities)
-            {
-                if (string.Compare(GetShortName(path), partialName, StringComparison.OrdinalIgnoreCase) == 0)
-                {
-                    matches.Add(path.ToLower());
-                }
-            }
-
-            return matches.Count;
-        }
-
-        private int AddPartialPrefabMatches(string partialName, List<string> matches)
-        {
-            foreach (var path in GameManifest.Current.entities)
-            {
-                if (GetShortName(path).Contains(partialName, CompareOptions.IgnoreCase))
-                {
-                    matches.Add(path.ToLower());
-                }
-            }
-
-            return matches.Count;
-        }
-
-        private int AddExactCustomAddonMatches(string partialName, List<CustomAddonDefinition> matches)
-        {
-            foreach (var addonDefinition in _customAddonManager.GetAllAddons())
-            {
-                if (string.Compare(addonDefinition.AddonName, partialName, StringComparison.OrdinalIgnoreCase) == 0)
-                {
-                    matches.Add(addonDefinition);
-                }
-            }
-
-            return matches.Count;
-        }
-
-        private int AddPartialAddonMatches(string partialName, List<CustomAddonDefinition> matches)
-        {
-            foreach (var addonDefinition in _customAddonManager.GetAllAddons())
-            {
-                if (addonDefinition.AddonName.Contains(partialName, CompareOptions.IgnoreCase))
-                {
-                    matches.Add(addonDefinition);
-                }
-            }
-
-            return matches.Count;
-        }
-
         private string DeterminePrefabFromPlayerActiveDeployable(BasePlayer basePlayer)
         {
             var activeItem = basePlayer.GetActiveItem();
@@ -3013,35 +2953,73 @@ namespace Oxide.Plugins
 
         #endregion
 
-        #region Boolean Parser
+        #region Helper Classes
 
-        private static class BooleanParser
+        private class StringUtils
         {
-            private static string[] _booleanYesValues = new string[] { "true", "yes", "on", "1" };
-            private static string[] _booleanNoValues = new string[] { "false", "no", "off", "0" };
+            public static bool Equals(string a, string b) =>
+                string.Compare(a, b, StringComparison.OrdinalIgnoreCase) == 0;
 
-            public static bool TryParse(string arg, out bool value)
-            {
-                if (_booleanYesValues.Contains(arg, StringComparer.InvariantCultureIgnoreCase))
-                {
-                    value = true;
-                    return true;
-                }
-
-                if (_booleanNoValues.Contains(arg, StringComparer.InvariantCultureIgnoreCase))
-                {
-                    value = false;
-                    return true;
-                }
-
-                value = false;
-                return false;
-            }
+            public static bool Contains(string haystack, string needle) =>
+                haystack.Contains(needle, CompareOptions.IgnoreCase);
         }
 
-        #endregion
+        private static class SearchUtils
+        {
+            public static List<string> FindPrefabMatches(string partialName, UniqueNameRegistry uniqueNameRegistry)
+            {
+                return FindMatches(
+                    partialName,
+                    GameManifest.Current.entities,
+                    prefabPath => StringUtils.Contains(prefabPath, partialName),
+                    prefabPath => StringUtils.Equals(prefabPath, partialName),
+                    prefabPath => StringUtils.Contains(uniqueNameRegistry.GetUniqueShortName(prefabPath), partialName),
+                    prefabPath => StringUtils.Equals(uniqueNameRegistry.GetUniqueShortName(prefabPath), partialName)
+                );
+            }
 
-        #region Ddraw
+            public static List<CustomAddonDefinition> FindCustomAddonMatches(string partialName, IEnumerable<CustomAddonDefinition> customAddons)
+            {
+                return FindMatches(
+                    partialName,
+                    customAddons,
+                    addonDefinition => StringUtils.Contains(addonDefinition.AddonName, partialName),
+                    addonDefinition => StringUtils.Equals(addonDefinition.AddonName, partialName)
+                );
+            }
+
+            public static List<T> FindMatches<T>(string partialName, IEnumerable<T> sourceList, params Func<T, bool>[] predicateList)
+            {
+                List<T> results = null;
+
+                foreach (var predicate in predicateList)
+                {
+                    if (results == null)
+                    {
+                        results = sourceList.Where(predicate).ToList();
+                        continue;
+                    }
+
+                    var newResults = results.Where(predicate).ToList();
+                    if (newResults.Count == 0)
+                    {
+                        // No matches found after filtering, so ignore the results and then try a different filter.
+                        continue;
+                    }
+
+                    if (newResults.Count == 1)
+                    {
+                        // Only a single match after filtering, so return new results.
+                        return newResults;
+                    }
+
+                    // Multiple matches found, so proceed with further filtering.
+                    results = newResults;
+                }
+
+                return results;
+            }
+        }
 
         private static class Ddraw
         {
@@ -3057,10 +3035,6 @@ namespace Oxide.Plugins
             public static void Text(BasePlayer player, Vector3 origin, string text, Color color, float duration) =>
                 player.SendConsoleCommand("ddraw.text", duration, color, origin, text);
         }
-
-        #endregion
-
-        #region Entity Utilities
 
         private static class EntityUtils
         {
@@ -3185,9 +3159,107 @@ namespace Oxide.Plugins
             }
         }
 
-        #endregion
+        private static class BooleanParser
+        {
+            private static string[] _booleanYesValues = new string[] { "true", "yes", "on", "1" };
+            private static string[] _booleanNoValues = new string[] { "false", "no", "off", "0" };
 
-        #region Coroutine Manager
+            public static bool TryParse(string arg, out bool value)
+            {
+                if (_booleanYesValues.Contains(arg, StringComparer.InvariantCultureIgnoreCase))
+                {
+                    value = true;
+                    return true;
+                }
+
+                if (_booleanNoValues.Contains(arg, StringComparer.InvariantCultureIgnoreCase))
+                {
+                    value = false;
+                    return true;
+                }
+
+                value = false;
+                return false;
+            }
+        }
+
+        private class UniqueNameRegistry
+        {
+            private Dictionary<string, string> _uniqueNameByPrefabPath = new Dictionary<string, string>(StringComparer.InvariantCultureIgnoreCase);
+
+            public void OnServerInitialized() => BuildIndex();
+
+            public string GetUniqueShortName(string prefabPath)
+            {
+                string uniqueName;
+                if (!_uniqueNameByPrefabPath.TryGetValue(prefabPath, out uniqueName))
+                {
+                    // Unique names are only stored initially if different from short name.
+                    // To avoid frequent heap allocations, also cache other short names that are accessed.
+                    uniqueName = GetShortName(prefabPath);
+                    _uniqueNameByPrefabPath[prefabPath] = uniqueName;
+                }
+
+                return uniqueName;
+            }
+
+            private string[] GetSegments(string prefabPath) => prefabPath.Split('/');
+
+            private string GetPartialPath(string[] segments, int numSegments)
+            {
+                numSegments = Math.Min(numSegments, segments.Length);
+                var arraySegment = new ArraySegment<string>(segments, segments.Length - numSegments, numSegments);
+                return string.Join("/", arraySegment);
+            }
+
+            private void BuildIndex()
+            {
+                var remainingPrefabPaths = GameManifest.Current.entities.ToList();
+                var numSegmentsFromEnd = 1;
+
+                var iterations = 0;
+                var maxIterations = 1;
+
+                while (remainingPrefabPaths.Count > 0 && iterations++ < maxIterations)
+                {
+                    var countByPartialPath = new Dictionary<string, int>();
+
+                    foreach (var prefabPath in remainingPrefabPaths)
+                    {
+                        var segments = GetSegments(prefabPath);
+                        maxIterations = Math.Max(maxIterations, segments.Length);
+
+                        var partialPath = GetPartialPath(segments, numSegmentsFromEnd);
+
+                        int segmentCount;
+                        if (!countByPartialPath.TryGetValue(partialPath, out segmentCount))
+                        {
+                            segmentCount = 0;
+                        }
+
+                        countByPartialPath[partialPath] = segmentCount + 1;
+                    }
+
+                    for (var i = remainingPrefabPaths.Count - 1; i >= 0; i--)
+                    {
+                        var prefabPath = remainingPrefabPaths[i];
+                        var partialPath = GetPartialPath(GetSegments(prefabPath), numSegmentsFromEnd);
+
+                        if (countByPartialPath[partialPath] == 1)
+                        {
+                            // Only cache the unique name if different than short name.
+                            if (numSegmentsFromEnd > 1)
+                            {
+                                _uniqueNameByPrefabPath[prefabPath] = partialPath.ToLower().Replace(".prefab", string.Empty);
+                            }
+                            remainingPrefabPaths.RemoveAt(i);
+                        }
+                    }
+
+                    numSegmentsFromEnd++;
+                }
+            }
+        }
 
         private class EmptyMonoBehavior : MonoBehaviour {}
 
@@ -5598,6 +5670,8 @@ namespace Oxide.Plugins
 
         private class AdapterDisplayManager
         {
+            private UniqueNameRegistry _uniqueNameRegistry;
+
             public const int DefaultDisplayDuration = 60;
             public const int HeaderSize = 25;
             public static readonly string Divider = $"<size={HeaderSize}>------------------------------</size>";
@@ -5614,6 +5688,11 @@ namespace Oxide.Plugins
 
             private StringBuilder _sb = new StringBuilder(200);
             private Dictionary<ulong, PlayerInfo> _playerInfo = new Dictionary<ulong, PlayerInfo>();
+
+            public AdapterDisplayManager(UniqueNameRegistry uniqueNameRegistry)
+            {
+                _uniqueNameRegistry = uniqueNameRegistry;
+            }
 
             public void SetPlayerProfile(BasePlayer player, ProfileController profileController)
             {
@@ -5706,8 +5785,10 @@ namespace Oxide.Plugins
                 var profileController = controller.ProfileController;
                 var color = DetermineColor(adapter, playerInfo, profileController);
 
+                var uniqueEntityName = _uniqueNameRegistry.GetUniqueShortName(entityData.PrefabName);
+
                 _sb.Clear();
-                _sb.AppendLine($"<size={HeaderSize}>{_pluginInstance.GetMessage(player.UserIDString, LangEntry.ShowHeaderEntity, entityData.ShortPrefabName)}</size>");
+                _sb.AppendLine($"<size={HeaderSize}>{_pluginInstance.GetMessage(player.UserIDString, LangEntry.ShowHeaderEntity, uniqueEntityName)}</size>");
                 AddCommonInfo(player, profileController, controller, adapter);
 
                 if (entityData.Skin != 0)
@@ -6559,20 +6640,6 @@ namespace Oxide.Plugins
             [JsonProperty("PrefabName")]
             public string PrefabName;
 
-            private string _shortPrefabName;
-
-            [JsonIgnore]
-            public string ShortPrefabName
-            {
-                get
-                {
-                    if (_shortPrefabName == null)
-                        _shortPrefabName = GetShortName(PrefabName);
-
-                    return _shortPrefabName;
-                }
-            }
-
             [JsonProperty("Skin", DefaultValueHandling = DefaultValueHandling.Ignore)]
             public ulong Skin;
 
@@ -6664,38 +6731,16 @@ namespace Oxide.Plugins
             [JsonProperty("SpawnPoints")]
             public List<SpawnPointData> SpawnPoints = new List<SpawnPointData>();
 
-            public List<WeightedPrefabData> FindPrefabMatches(string prefabName)
+            public List<WeightedPrefabData> FindPrefabMatches(string partialName, UniqueNameRegistry uniqueNameRegistry)
             {
-                var matches = new List<WeightedPrefabData>();
-
-                // Search for exact matches first.
-                foreach (var prefabData in Prefabs)
-                {
-                    if (prefabData.PrefabName == prefabName)
-                        matches.Add(prefabData);
-                }
-
-                if (matches.Count > 0)
-                    return matches;
-
-                // No exact matches found, so search for exact matches by short prefab name.
-                foreach (var prefabData in Prefabs)
-                {
-                    if (prefabData.ShortPrefabName == prefabName)
-                        matches.Add(prefabData);
-                }
-
-                if (matches.Count > 0)
-                    return matches;
-
-                // No exact matches for short prefab name, so search for partial matches.
-                foreach (var prefabData in Prefabs)
-                {
-                    if (prefabData.PrefabName.Contains(prefabName))
-                        matches.Add(prefabData);
-                }
-
-                return matches;
+                return SearchUtils.FindMatches(
+                    partialName,
+                    Prefabs,
+                    prefabData => StringUtils.Contains(prefabData.PrefabName, partialName),
+                    prefabData => StringUtils.Equals(prefabData.PrefabName, partialName),
+                    prefabData => StringUtils.Contains(uniqueNameRegistry.GetUniqueShortName(prefabData.PrefabName), partialName),
+                    prefabData => StringUtils.Equals(uniqueNameRegistry.GetUniqueShortName(prefabData.PrefabName), partialName)
+                );
             }
         }
 
@@ -6767,16 +6812,18 @@ namespace Oxide.Plugins
 
                 foreach (var entityData in monumentData.Entities)
                 {
+                    var entityUniqueName = _uniqueNameRegistry.GetUniqueShortName(entityData.PrefabName);
+
                     ProfileSummaryEntry summaryEntry;
-                    if (!entryMap.TryGetValue(entityData.ShortPrefabName, out summaryEntry))
+                    if (!entryMap.TryGetValue(entityUniqueName, out summaryEntry))
                     {
                         summaryEntry = new ProfileSummaryEntry
                         {
                             MonumentName = monumentName,
                             AddonType = addonTypeEntity,
-                            AddonName = entityData.ShortPrefabName,
+                            AddonName = entityUniqueName,
                         };
-                        entryMap[entityData.ShortPrefabName] = summaryEntry;
+                        entryMap[entityUniqueName] = summaryEntry;
                     }
 
                     summaryEntry.Count++;
@@ -6995,7 +7042,7 @@ namespace Oxide.Plugins
 
                         foreach (var entityData in entityDataList)
                         {
-                            if (entityData.ShortPrefabName == "big_wheel"
+                            if (GetShortName(entityData.PrefabName) == "big_wheel"
                                 && entityData.RotationAngles.x != 90)
                             {
                                 // The plugin used to coerce the x component to 90.
@@ -7659,7 +7706,7 @@ namespace Oxide.Plugins
             var entityData = data as EntityData;
             if (entityData != null)
             {
-                return entityData.ShortPrefabName;
+                return _uniqueNameRegistry.GetUniqueShortName(entityData.PrefabName);
             }
 
             var spawnPointData = data as SpawnPointData;
