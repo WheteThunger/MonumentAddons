@@ -6732,10 +6732,10 @@ namespace Oxide.Plugins
             public int SpawnPerTickMax = 2;
 
             [JsonProperty("RespawnDelayMin")]
-            public float RespawnDelayMin = 30;
+            public float RespawnDelayMin = 1500;
 
             [JsonProperty("RespawnDelayMax")]
-            public float RespawnDelayMax = 60;
+            public float RespawnDelayMax = 2100;
 
             [JsonProperty("PreventDuplicates")]
             public bool PreventDuplicates;
