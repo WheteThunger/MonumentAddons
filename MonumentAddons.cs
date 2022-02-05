@@ -7683,85 +7683,6 @@ namespace Oxide.Plugins
 
         #region Localization
 
-        // Multi-argument overloads are defined to reduce array allocations.
-        private string GetMessage(string playerId, LangEntry langEntry) =>
-            lang.GetMessage(langEntry.Name, this, playerId);
-
-        private string GetMessage(string playerId, LangEntry langEntry, object arg1) =>
-            string.Format(GetMessage(playerId, langEntry), arg1);
-
-        private string GetMessage(string playerId, LangEntry langEntry, object arg1, object arg2) =>
-            string.Format(GetMessage(playerId, langEntry), arg1, arg2);
-
-        private string GetMessage(string playerId, LangEntry langEntry, object arg1, object arg2, string arg3) =>
-            string.Format(GetMessage(playerId, langEntry), arg1, arg2, arg3);
-
-        private string GetMessage(string playerId, LangEntry langEntry, params object[] args) =>
-            string.Format(GetMessage(playerId, langEntry), args);
-
-
-        private void ReplyToPlayer(IPlayer player, LangEntry langEntry) =>
-            player.Reply(GetMessage(player.Id, langEntry));
-
-        private void ReplyToPlayer(IPlayer player, LangEntry langEntry, object arg1) =>
-            player.Reply(GetMessage(player.Id, langEntry, arg1));
-
-        private void ReplyToPlayer(IPlayer player, LangEntry langEntry, object arg1, object arg2) =>
-            player.Reply(GetMessage(player.Id, langEntry, arg1, arg2));
-
-        private void ReplyToPlayer(IPlayer player, LangEntry langEntry, object arg1, object arg2, object arg3) =>
-            player.Reply(GetMessage(player.Id, langEntry, arg1, arg2, arg3));
-
-        private void ReplyToPlayer(IPlayer player, LangEntry langEntry, params object[] args) =>
-            player.Reply(GetMessage(player.Id, langEntry, args));
-
-
-        private void ChatMessage(BasePlayer player, LangEntry langEntry) =>
-            player.ChatMessage(GetMessage(player.UserIDString, langEntry));
-
-        private void ChatMessage(BasePlayer player, LangEntry langEntry, object arg1) =>
-            player.ChatMessage(GetMessage(player.UserIDString, langEntry, arg1));
-
-        private void ChatMessage(BasePlayer player, LangEntry langEntry, object arg1, object arg2) =>
-            player.ChatMessage(GetMessage(player.UserIDString, langEntry, arg1, arg2));
-
-        private void ChatMessage(BasePlayer player, LangEntry langEntry, object arg1, object arg2, object arg3) =>
-            player.ChatMessage(GetMessage(player.UserIDString, langEntry, arg1, arg2, arg3));
-
-        private void ChatMessage(BasePlayer player, LangEntry langEntry, params object[] args) =>
-            player.ChatMessage(GetMessage(player.UserIDString, langEntry, args));
-
-
-        private string GetAuthorSuffix(IPlayer player, string author)
-        {
-            return !string.IsNullOrWhiteSpace(author)
-                ? GetMessage(player.Id, LangEntry.ProfileByAuthor, author)
-                : string.Empty;
-        }
-
-        private string GetAddonName(IPlayer player, BaseIdentifiableData data)
-        {
-            var entityData = data as EntityData;
-            if (entityData != null)
-            {
-                return _uniqueNameRegistry.GetUniqueShortName(entityData.PrefabName);
-            }
-
-            var spawnPointData = data as SpawnPointData;
-            if (spawnPointData != null)
-            {
-                return GetMessage(player.Id, LangEntry.AddonTypeSpawnPoint);
-            }
-
-            var pasteData = data as PasteData;
-            if (pasteData != null)
-            {
-                return pasteData.Filename;
-            }
-
-            return GetMessage(player.Id, LangEntry.AddonTypeUnknown);
-        }
-
         private class LangEntry
         {
             public static List<LangEntry> AllLangEntries = new List<LangEntry>();
@@ -7949,6 +7870,85 @@ namespace Oxide.Plugins
 
                 AllLangEntries.Add(this);
             }
+        }
+
+        // Multi-argument overloads are defined to reduce array allocations.
+        private string GetMessage(string playerId, LangEntry langEntry) =>
+            lang.GetMessage(langEntry.Name, this, playerId);
+
+        private string GetMessage(string playerId, LangEntry langEntry, object arg1) =>
+            string.Format(GetMessage(playerId, langEntry), arg1);
+
+        private string GetMessage(string playerId, LangEntry langEntry, object arg1, object arg2) =>
+            string.Format(GetMessage(playerId, langEntry), arg1, arg2);
+
+        private string GetMessage(string playerId, LangEntry langEntry, object arg1, object arg2, string arg3) =>
+            string.Format(GetMessage(playerId, langEntry), arg1, arg2, arg3);
+
+        private string GetMessage(string playerId, LangEntry langEntry, params object[] args) =>
+            string.Format(GetMessage(playerId, langEntry), args);
+
+
+        private void ReplyToPlayer(IPlayer player, LangEntry langEntry) =>
+            player.Reply(GetMessage(player.Id, langEntry));
+
+        private void ReplyToPlayer(IPlayer player, LangEntry langEntry, object arg1) =>
+            player.Reply(GetMessage(player.Id, langEntry, arg1));
+
+        private void ReplyToPlayer(IPlayer player, LangEntry langEntry, object arg1, object arg2) =>
+            player.Reply(GetMessage(player.Id, langEntry, arg1, arg2));
+
+        private void ReplyToPlayer(IPlayer player, LangEntry langEntry, object arg1, object arg2, object arg3) =>
+            player.Reply(GetMessage(player.Id, langEntry, arg1, arg2, arg3));
+
+        private void ReplyToPlayer(IPlayer player, LangEntry langEntry, params object[] args) =>
+            player.Reply(GetMessage(player.Id, langEntry, args));
+
+
+        private void ChatMessage(BasePlayer player, LangEntry langEntry) =>
+            player.ChatMessage(GetMessage(player.UserIDString, langEntry));
+
+        private void ChatMessage(BasePlayer player, LangEntry langEntry, object arg1) =>
+            player.ChatMessage(GetMessage(player.UserIDString, langEntry, arg1));
+
+        private void ChatMessage(BasePlayer player, LangEntry langEntry, object arg1, object arg2) =>
+            player.ChatMessage(GetMessage(player.UserIDString, langEntry, arg1, arg2));
+
+        private void ChatMessage(BasePlayer player, LangEntry langEntry, object arg1, object arg2, object arg3) =>
+            player.ChatMessage(GetMessage(player.UserIDString, langEntry, arg1, arg2, arg3));
+
+        private void ChatMessage(BasePlayer player, LangEntry langEntry, params object[] args) =>
+            player.ChatMessage(GetMessage(player.UserIDString, langEntry, args));
+
+
+        private string GetAuthorSuffix(IPlayer player, string author)
+        {
+            return !string.IsNullOrWhiteSpace(author)
+                ? GetMessage(player.Id, LangEntry.ProfileByAuthor, author)
+                : string.Empty;
+        }
+
+        private string GetAddonName(IPlayer player, BaseIdentifiableData data)
+        {
+            var entityData = data as EntityData;
+            if (entityData != null)
+            {
+                return _uniqueNameRegistry.GetUniqueShortName(entityData.PrefabName);
+            }
+
+            var spawnPointData = data as SpawnPointData;
+            if (spawnPointData != null)
+            {
+                return GetMessage(player.Id, LangEntry.AddonTypeSpawnPoint);
+            }
+
+            var pasteData = data as PasteData;
+            if (pasteData != null)
+            {
+                return pasteData.Filename;
+            }
+
+            return GetMessage(player.Id, LangEntry.AddonTypeUnknown);
         }
 
         protected override void LoadDefaultMessages()
