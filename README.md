@@ -81,6 +81,8 @@ The following commands only work on objects managed by this plugin. The effect o
   - `PreventDuplicates`: true/false -- While `true`, only one of each entity prefab can be present across all spawn points in the spawn group. Vanilla Rust uses this property for spawning modules at desert military bases.
 - `maspawngroup add <entity> <weight>` -- Adds the specified entity prefab to the spawn group you are looking at.
 - `maspawngroup remove <entity>` -- Removes the specified entity prefab from the spawn group you are looking at.
+- `maspawngroup spawn` -- Runs one spawn tick for the spawn group. For example, if you have set `SpawnPerTickMin` to 1 and `SpawnPerTickMax` to 2, running this command will spawn 1-2 entities, as long as there are available spawn points and sufficient population headroom.
+- `maspawngroup respawn` -- Despawns all entities across the spawn group and runs one spawn tick.
 
 Note: `masg` can be used in place of `maspawngroup`.
 
