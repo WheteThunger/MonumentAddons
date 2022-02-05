@@ -4733,6 +4733,13 @@ namespace Oxide.Plugins
                     return;
                 }
 
+                var snowmobile = vehicle as Snowmobile;
+                if (snowmobile != null)
+                {
+                    snowmobile.timeSinceLastUsed = float.MinValue;
+                    return;
+                }
+
                 var sub = vehicle as BaseSubmarine;
                 if (sub != null)
                 {
