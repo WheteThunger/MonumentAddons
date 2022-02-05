@@ -2135,6 +2135,28 @@ namespace Oxide.Plugins
             ReplyToPlayer(player, LangEntry.GenerateSuccess, profileName);
         }
 
+        [Command("mahelp")]
+        private void CommandHelp(IPlayer player, string cmd, string[] args)
+        {
+            if (!VerifyHasPermission(player))
+                return;
+
+            var sb = new StringBuilder();
+            sb.AppendLine(GetMessage(player.Id, LangEntry.HelpHeader));
+            sb.AppendLine(GetMessage(player.Id, LangEntry.HelpSpawn));
+            sb.AppendLine(GetMessage(player.Id, LangEntry.HelpKill));
+            sb.AppendLine(GetMessage(player.Id, LangEntry.HelpSave));
+            sb.AppendLine(GetMessage(player.Id, LangEntry.HelpSkin));
+            sb.AppendLine(GetMessage(player.Id, LangEntry.HelpSetId));
+            sb.AppendLine(GetMessage(player.Id, LangEntry.HelpSetDir));
+            sb.AppendLine(GetMessage(player.Id, LangEntry.HelpShow));
+            sb.AppendLine(GetMessage(player.Id, LangEntry.HelpShowVanilla));
+            sb.AppendLine(GetMessage(player.Id, LangEntry.HelpSpawnGroup));
+            sb.AppendLine(GetMessage(player.Id, LangEntry.HelpSpawnPoint));
+            sb.AppendLine(GetMessage(player.Id, LangEntry.HelpProfile));
+            player.Reply(sb.ToString());
+        }
+
         #endregion
 
         #region API
@@ -7856,9 +7878,22 @@ namespace Oxide.Plugins
             public static readonly LangEntry ProfileHelpSelect = new LangEntry("Profile.Help.Select", "<color=#fd4>maprofile select <name></color> - Select a profile");
             public static readonly LangEntry ProfileHelpCreate = new LangEntry("Profile.Help.Create", "<color=#fd4>maprofile create <name></color> - Create a new profile");
             public static readonly LangEntry ProfileHelpRename = new LangEntry("Profile.Help.Rename", "<color=#fd4>maprofile rename <name> <new name></color> - Rename a profile");
-            public static readonly LangEntry ProfileHelpClear = new LangEntry("Profile.Help.Clear", "<color=#fd4>maprofile clear <name></color> - Clears a profile");
+            public static readonly LangEntry ProfileHelpClear = new LangEntry("Profile.Help.Clear2", "<color=#fd4>maprofile clear <name></color> - Clear a profile");
             public static readonly LangEntry ProfileHelpMoveTo = new LangEntry("Profile.Help.MoveTo2", "<color=#fd4>maprofile moveto <name></color> - Move an entity to a profile");
             public static readonly LangEntry ProfileHelpInstall = new LangEntry("Profile.Help.Install", "<color=#fd4>maprofile install <url></color> - Install a profile from a URL");
+
+            public static readonly LangEntry HelpHeader = new LangEntry("Help.Header", "<size=18>Monument Addons Help</size>");
+            public static readonly LangEntry HelpSpawn = new LangEntry("Help.Spawn", "<color=#fd4>maspawn <entity></color> - Spawn an entity");
+            public static readonly LangEntry HelpKill = new LangEntry("Help.Kill", "<color=#fd4>makill</color> - Delete an entity or other addon");
+            public static readonly LangEntry HelpSave = new LangEntry("Help.Save", "<color=#fd4>masave</color> - Save an entity's updated position");
+            public static readonly LangEntry HelpSkin = new LangEntry("Help.Skin", "<color=#fd4>maskin <skin id></color> - Change the skin of an entity");
+            public static readonly LangEntry HelpSetId = new LangEntry("Help.SetId", "<color=#fd4>masetid <id></color> - Set the id of a CCTV");
+            public static readonly LangEntry HelpSetDir = new LangEntry("Help.SetDir", "<color=#fd4>masetdir</color> - Set the direction of a CCTV");
+            public static readonly LangEntry HelpShow = new LangEntry("Help.Show", "<color=#fd4>mashow</color> - Show nearby addons");
+            public static readonly LangEntry HelpShowVanilla = new LangEntry("Help.ShowVanilla", "<color=#fd4>mashowvanilla</color> - Show vanilla spawn points");
+            public static readonly LangEntry HelpSpawnGroup = new LangEntry("Help.SpawnGroup", "<color=#fd4>maspawngroup</color> - Print spawn group help");
+            public static readonly LangEntry HelpSpawnPoint = new LangEntry("Help.SpawnPoint", "<color=#fd4>maspawnpoint</color> - Print spawn point help");
+            public static readonly LangEntry HelpProfile = new LangEntry("Help.Profile", "<color=#fd4>maprofile</color> - Print profile help");
 
             public string Name;
             public string English;

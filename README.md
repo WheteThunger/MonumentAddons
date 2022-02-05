@@ -44,6 +44,7 @@ This does several things.
 
 ## Commands
 
+- `mahelp` -- Prints help information about available commands.
 - `maspawn <entity>` -- Spawns an entity where you are aiming, using the entity prefab name.
   - If you are holding a deployable item, you can simply run `maspawn` without specifying the entity name.
   - You must be at a monument, as determined by Monument Finder.
