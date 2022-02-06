@@ -1972,6 +1972,7 @@ namespace Oxide.Plugins
                         }
 
                         var spawnPointPosition = spawnPoint.transform.position;
+                        Ddraw.ArrowThrough(basePlayer, spawnPointPosition + new Vector3(0, 0.5f, 0), spawnPoint.transform.rotation, 1, 0.15f, color, ShowVanillaDuration);
                         Ddraw.Sphere(basePlayer, spawnPointPosition, 0.5f, color, ShowVanillaDuration);
                         Ddraw.Text(basePlayer, spawnPointPosition + new Vector3(0, tierMask > 0 ? Mathf.Log(tierMask, 2) : 0, 0), sb.ToString(), color, ShowVanillaDuration);
 
@@ -2025,6 +2026,7 @@ namespace Oxide.Plugins
                     sb.AppendLine(GetMessage(player.Id, LangEntry.ShowHeaderEntity, _uniqueNameRegistry.GetUniqueShortName(individualSpawner.entityPrefab.resourcePath)));
 
                     var spawnPointPosition = individualSpawner.transform.position;
+                    Ddraw.ArrowThrough(basePlayer, spawnPointPosition + new Vector3(0, 0.5f, 0), individualSpawner.transform.rotation, 1f, 0.15f, color, ShowVanillaDuration);
                     Ddraw.Sphere(basePlayer, spawnPointPosition, 0.5f, color, ShowVanillaDuration);
                     Ddraw.Text(basePlayer, spawnPointPosition, sb.ToString(), color, ShowVanillaDuration);
 
@@ -3085,6 +3087,13 @@ namespace Oxide.Plugins
 
             public static void Arrow(BasePlayer player, Vector3 origin, Vector3 target, float headSize, Color color, float duration) =>
                 player.SendConsoleCommand("ddraw.arrow", duration, color, origin, target, headSize);
+
+            public static void ArrowThrough(BasePlayer player, Vector3 center, Quaternion rotation, float length, float headSize, Color color, float duration)
+            {
+                var start = center - rotation * new Vector3(0, 0, length / 2);
+                var end = center + rotation * new Vector3(0, 0, length / 2);
+                Arrow(player, start, end, headSize, color, duration);
+            }
 
             public static void Text(BasePlayer player, Vector3 origin, string text, Color color, float duration) =>
                 player.SendConsoleCommand("ddraw.text", duration, color, origin, text);
@@ -5969,6 +5978,7 @@ namespace Oxide.Plugins
                     }
                 }
 
+                Ddraw.ArrowThrough(player, adapter.Position + new Vector3(0, 0.5f, 0), adapter.Rotation, 1f, 0.15f, color, DisplayIntervalDuration);
                 Ddraw.Sphere(player, adapter.Position, 0.5f, color, DisplayIntervalDuration);
                 Ddraw.Text(player, adapter.Position, _sb.ToString(), color, DisplayIntervalDuration);
             }
