@@ -1849,12 +1849,12 @@ namespace Oxide.Plugins
 
             var basePlayer = player.Object as BasePlayer;
 
-            MonoBehaviour parentObject = null;
+            Transform parentObject = null;
 
             RaycastHit hit;
             if (TryRaycast(basePlayer, out hit))
             {
-                parentObject = hit.GetEntity();
+                parentObject = hit.GetEntity()?.transform;
             }
 
             if (parentObject == null)
@@ -1866,10 +1866,20 @@ namespace Oxide.Plugins
                     || !VerifyAtMonument(player, position, out monument))
                     return;
 
-                parentObject = monument.Object;
+                parentObject = monument.Object.transform;
             }
 
             var spawnerList = parentObject.GetComponentsInChildren<ISpawnGroup>();
+            if (spawnerList.Length == 0)
+            {
+                var grandParent = parentObject.transform.parent;
+                if (grandParent != null && grandParent != parentObject.transform.root)
+                {
+                    parentObject = grandParent;
+                    spawnerList = parentObject.GetComponentsInChildren<ISpawnGroup>();
+                }
+            }
+
             if (spawnerList.Length == 0)
             {
                 ReplyToPlayer(player, LangEntry.ShowVanillaNoSpawnPoints, parentObject.name);
