@@ -1982,13 +1982,13 @@ namespace Oxide.Plugins
                         }
 
                         var spawnPointPosition = spawnPoint.transform.position;
-                        Ddraw.ArrowThrough(basePlayer, spawnPointPosition + new Vector3(0, 0.5f, 0), spawnPoint.transform.rotation, 1, 0.15f, color, ShowVanillaDuration);
+                        Ddraw.ArrowThrough(basePlayer, spawnPointPosition + AdapterDisplayManager.ArrowVerticalOffeset, spawnPoint.transform.rotation, 1, 0.15f, color, ShowVanillaDuration);
                         Ddraw.Sphere(basePlayer, spawnPointPosition, 0.5f, color, ShowVanillaDuration);
                         Ddraw.Text(basePlayer, spawnPointPosition + new Vector3(0, tierMask > 0 ? Mathf.Log(tierMask, 2) : 0, 0), sb.ToString(), color, ShowVanillaDuration);
 
                         if (spawnPoint != closestSpawnPoint)
                         {
-                            Ddraw.Arrow(basePlayer, closestSpawnPointPosition, spawnPointPosition, 0.25f, color, ShowVanillaDuration);
+                            Ddraw.Arrow(basePlayer, closestSpawnPointPosition + AdapterDisplayManager.ArrowVerticalOffeset, spawnPointPosition + AdapterDisplayManager.ArrowVerticalOffeset, 0.25f, color, ShowVanillaDuration);
                         }
 
                         sb.Clear();
@@ -2036,7 +2036,7 @@ namespace Oxide.Plugins
                     sb.AppendLine(GetMessage(player.Id, LangEntry.ShowHeaderEntity, _uniqueNameRegistry.GetUniqueShortName(individualSpawner.entityPrefab.resourcePath)));
 
                     var spawnPointPosition = individualSpawner.transform.position;
-                    Ddraw.ArrowThrough(basePlayer, spawnPointPosition + new Vector3(0, 0.5f, 0), individualSpawner.transform.rotation, 1f, 0.15f, color, ShowVanillaDuration);
+                    Ddraw.ArrowThrough(basePlayer, spawnPointPosition + AdapterDisplayManager.ArrowVerticalOffeset, individualSpawner.transform.rotation, 1f, 0.15f, color, ShowVanillaDuration);
                     Ddraw.Sphere(basePlayer, spawnPointPosition, 0.5f, color, ShowVanillaDuration);
                     Ddraw.Text(basePlayer, spawnPointPosition, sb.ToString(), color, ShowVanillaDuration);
 
@@ -5755,6 +5755,7 @@ namespace Oxide.Plugins
             public const int DefaultDisplayDuration = 60;
             public const int HeaderSize = 25;
             public static readonly string Divider = $"<size={HeaderSize}>------------------------------</size>";
+            public static readonly Vector3 ArrowVerticalOffeset = new Vector3(0, 0.5f, 0);
 
             private const int DisplayIntervalDuration = 2;
 
@@ -5984,11 +5985,11 @@ namespace Oxide.Plugins
 
                     foreach (var otherAdapter in spawnGroupAdapter.Adapters)
                     {
-                        Ddraw.Arrow(player, otherAdapter.Position + new Vector3(0, 0.5f, 0), adapter.Position + new Vector3(0, 0.5f, 0), 0.25f, color, DisplayIntervalDuration);
+                        Ddraw.Arrow(player, otherAdapter.Position + ArrowVerticalOffeset, adapter.Position + ArrowVerticalOffeset, 0.25f, color, DisplayIntervalDuration);
                     }
                 }
 
-                Ddraw.ArrowThrough(player, adapter.Position + new Vector3(0, 0.5f, 0), adapter.Rotation, 1f, 0.15f, color, DisplayIntervalDuration);
+                Ddraw.ArrowThrough(player, adapter.Position + ArrowVerticalOffeset, adapter.Rotation, 1f, 0.15f, color, DisplayIntervalDuration);
                 Ddraw.Sphere(player, adapter.Position, 0.5f, color, DisplayIntervalDuration);
                 Ddraw.Text(player, adapter.Position, _sb.ToString(), color, DisplayIntervalDuration);
             }
