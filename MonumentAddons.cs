@@ -410,7 +410,6 @@ namespace Oxide.Plugins
                 var result = copyPaste.Call("TryPasteFromVector3Cancellable", position, yRotation, pasteData.Filename, CopyPasteArgs, onPasteCompleted, onEntityPasted);
                 if (!(result is ValueTuple<object, Action>))
                 {
-                    // throw new PasteException($"CopyPaste returned an unexpected response: {pasteResult}. Is CopyPaste up-to-date?");
                     _pluginInstance?.LogError($"CopyPaste returned an unexpected response for paste \"{pasteData.Filename}\": {result}. Is CopyPaste up-to-date?");
                     return null;
                 }
