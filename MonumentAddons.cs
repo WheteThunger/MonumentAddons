@@ -24,8 +24,8 @@ using CustomSetDataCallback = System.Action<UnityEngine.Component, object>;
 
 namespace Oxide.Plugins
 {
-    [Info("Monument Addons", "WhiteThunder", "0.10.0")]
-    [Description("Allows privileged players to add permanent entities to monuments.")]
+    [Info("Monument Addons", "WhiteThunder", "0.11.0")]
+    [Description("Allows adding entities, spawn points and more to monuments.")]
     internal class MonumentAddons : CovalencePlugin
     {
         #region Fields
