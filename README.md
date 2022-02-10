@@ -12,7 +12,7 @@ Easily spawn permanent entities at monuments, which auto respawn after restarts 
 - Entities are indestructible, have no stability, free electricity, and cannot be picked up
 - Supports vanilla monuments, custom monuments, train tunnels, underwater labs, and cargo ship
 - Allows skinning spawned entities
-- (Advanced) Allows placing spawn points for loot containers, key cards, vehicles, NPCs, and more
+- (Advanced) Allows placing spawn points for loot containers, key cards, vehicles, and more
 - [Sign Artist](https://umod.org/plugins/sign-artist) integration allows persisting sign images
 - [Entity Scale Manager](https://umod.org/plugins/entity-scale-manager) integration allows persisting entity scale
 - [Telekinesis](https://umod.org/plugins/telekinesis) integration allows easily moving and rotating entities
@@ -26,21 +26,66 @@ Easily spawn permanent entities at monuments, which auto respawn after restarts 
 - [Telekinesis](https://umod.org/plugins/telekinesis) -- Allows moving and rotating entities in-place. Very useful for precisely placing entities. Monument Addons integrates with it to automatically save updated positions.
 - [Custom Vending Setup](https://umod.org/plugins/custom-vending-setup) -- Allows customizing monument vending machines. Works with vending machines spawned by this plugin that use the `npcvendingmachine` or `shopkeeper_vm_invis` prefabs.
 
+## What kinds of things can I do with this plugin?
+
+- Add signs to personalize your server or advertise sponsors
+- Add airwolf and boat vendors
+- Add vending machines
+- Add car lifts, recyclers, research tables, workbenches, repair benches
+- Add BBQs, furnaces, refineries, fireplaces, hobo barrels
+- Add CCTVs and computer stations
+- Add instruments, swimming pools, arcade machines
+- Add gambling wheel, slot machines, poker tables
+- Add barricades and walls to block off sections of monuments
+- Periodically spawn loot containers, key cards, vehicles, and more
+- Dynamically change monuments throughout a wipe by enabling/disabling profiles via other plugins
+
+List of spawnable entities: [https://github.com/OrangeWulf/Rust-Docs/blob/master/Entities.md](https://github.com/OrangeWulf/Rust-Docs/blob/master/Entities.md)
+
+## Permissions
+
+- `monumentaddons.admin` -- Allows all commands. Grant this to admins or moderators, not to normal players.
+
 ## Getting started
 
-1. Install the plugin and grant the `monumentaddons.admin` permission to admins or moderators (not to normal players).
-2. Go to any monument, such as a gas station.
-3. Aim somewhere, such as a floor, wall or ceiling.
-4. Run the `maspawn <entity>` command to spawn an entity of your choice. For example, `maspawn modularcarlift.static`. Alternatively, if you are holding a deployable item, you can simply run `maspawn` to spawn the corresponding entity.
+### Installing existing profiles
 
-This does several things.
+Let's face it, you are probably planning to use this plugin the same way as many other server owners. That means there may already be profiles that you can install to do just that.
+
+Several example profiles are included below. Run the corresponding command snippet to install each profile.
+
+- `mainstall OutpostAirwolf` -- Adds an Air Wolf vendor to Outpost, with some ladders to allow access.
+- `mainstall BarnAirwolf` -- Adds an Air Wolf vendor to Large Barn and Ranch.
+- `mainstall FishingVillageAirwolf` -- Adds an Air Wolf vendor to Large Fishing Village and to one of the small Fishing Villages.
+- `mainstall MonumentLifts` -- Adds car lifts to gas station and supermarket.
+- `mainstall TrainStationCCTV` -- Adds 6 CCTVs and one computer station to each underground Train Station.
+
+These example profiles are installed from https://github.com/WheteThunger/MonumentAddons/blob/master/Profiles/.
+Don't see what you're looking for? Want to showcase a profile you created? Fork the repository on [GitHub](https://github.com/WheteThunger/MonumentAddons), commit the changes, and submit a pull request!
+
+### Spawning static entities
+
+1. Go to any monument, such as a gas station.
+2. Aim somewhere, such as a floor, wall or ceiling.
+3. Run the command `maspawn <entity>` to spawn an entity of your choice. For example, `maspawn modularcarlift.static`. Alternatively, if you are holding a deployable item, you can simply run `maspawn` to spawn the corresponding entity.
+
+How this works:
 - It spawns the entity where you are aiming.
 - It spawns the entity at all other identical monuments (for example, at every gas station) using the correct relative position and rotation for those monuments.
 - It saves this information in the plugin data files, so that the entity can be respawned when the plugin is reloaded, when the server is restarted, or when the server is wiped, even if using a new map seed (don't worry, this works well as long as the monuments don't significantly change between Rust updates).
 
-## Permissions
+### Creating spawn points
 
-- `monumentaddons.admin` -- Allows all commands.
+1. Go to any monument, such as a gas station.
+2. Aim somewhere on the ground.
+3. Run the command `maspawngroup create MyFirstSpawnGroup` to create a spawn group **and** a spawn point.
+4. Run the command `maspawngroup add radtown/crate_normal 30`.
+5. Run the command `maspawngroup add radtown/crate_normal_2 70`.
+6. Run the command `maspawngroup add crate_basic 100`.
+7. Aim somewhere else on the ground, and run the command `maspawnpoint create MyFirstSpawnGroup` to create a second spawn point in the spawn group you created earlier.
+8. Aim at the 2nd spawn point, and run the command `maspawnpoint set RandomRadius 1.5`.
+9. Aim at either spawn point, and run the command `maspawngroup set MaxPopulation 2`.
+10. Aim at either spawn point, and run the command `maspawngroup respawn`. Run this as many times as you want to see the loot crates respawn.
 
 ## Commands
 
@@ -59,7 +104,9 @@ This does several things.
 The following commands only work on objects managed by this plugin. The effect of these commands automatically applies to all copies of the object at matching monuments, and also updates the data files.
 
 - `makill` -- Deletes the entity or spawn point that you are aiming at.
+  - For addons that do not have colliders, such as spawn points, the plugin will attempt to find a nearby addon within 2 meters of the surface you are looking at.
 - `masave` -- Saves the current position and rotation of the entity you are aiming at. This is useful if you moved the entity with a plugin such as Edit Tool or Uber Tool. This is not necessary if you are repositioning entities with [Telekinesis](https://umod.org/plugins/telekinesis) since that will be automatically detected.
+  - Also saves the building grade if looking at a foundation, wall, floor, etc.
 - `maskin <skin id>` -- Updates the skin of the entity you are aiming at.
 - `masetid <id>` -- Updates the RC identifier of the CCTV camera you are aiming at.
   - Note: Each CCTV's RC identifier will have a numeric suffix like `1`, `2`, `3` and so on. This is done because some monuments may be duplicated, and each CCTV must have a unique identifier.
@@ -157,52 +204,6 @@ Since underwater labs are procedurally generated, this plugin does not spawn ent
 
 Note that some modules have multiple possible vanilla configurations, so multiple instances of the same module might have slightly different placement of vanilla objects. That happens because Rust spawns semi-random dwelling entities in them, which you can learn about them with the `mashowvanilla` command. You can use that command to get an idea of where dwellings spawn, in order to avoid placing your addons at those locations. After spawning something into a lab module, it's also recommended to inspect other instances of that module to make sure the entity placement isn't overlapping a dwelling entity.
 
-## Example profiles
-
-Several example profiles are included below. Run the corresponding command snippet to install the profile.
-
-Want to showcase a profile you created? Fork the repository on [GitHub](https://github.com/WheteThunger/MonumentAddons), commit the changes, and submit a pull request!
-
-#### Outpost Air Wolf
-
-Adds an Air Wolf vendor to Outpost, with some ladders to allow access.
-
-```
-mainstall OutpostAirwolf
-```
-
-#### Barn Air Wolf
-
-Adds an Air Wolf vendor to Large Barn and Ranch.
-
-```
-mainstall BarnAirwolf
-```
-
-#### Fishing Village Air Wolf
-
-Adds an Air Wolf vendor to the Large Fishing Village and one of the small Fishing Villages.
-
-```
-mainstall FishingVillageAirwolf
-```
-
-#### TrainStationCCTV
-
-Adds 6 CCTVs and one computer station to each underground Train Station.
-
-```
-mainstall TrainStationCCTV
-```
-
-#### MonumentLifts
-
-Adds car lifts to gas station and supermarket.
-
-```
-mainstall MonumentLifts
-```
-
 ## Instructions for sharing profiles
 
 ### How to share a profile via a website
@@ -296,46 +297,6 @@ Use the following steps to set up a custom bandit wheel to allow players to gamb
 
 Notes:
 - If a betting terminal spawns more than 3 seconds after the wheel, the wheel won't know about it. This means that if you add more betting terminals after spawning the wheel, you will likely have to reload the profile to respawn the wheel so that it can find all the betting terminals.
-
-## Example entities
-
-List of spawnable entities: [https://github.com/OrangeWulf/Rust-Docs/blob/master/Entities.md](https://github.com/OrangeWulf/Rust-Docs/blob/master/Entities.md)
-
-Structure/Defense:
-- `barricade.{*}`
-- `door_barricade_{*}`
-- `sam_static`
-- `sentry.{bandit|scientist}`
-- `watchtower`
-
-Utility:
-- `bbq.static`
-- `ceilinglight`
-- `computerstation`
-- `fireplace`
-- `modularcarlift.static`
-- `npcvendingmachine_{*}"`
-- `phonebooth.static`
-- `recycler_static`
-- `repairbench_static`
-- `researchtable_static`
-- `simplelight`
-- `telephone.deployed`
-- `workbench{1|2}.static`
-- `workbench{1|2|3}.deployed`
-
-Fun / role play:
-- `abovegroundpool`
-- `arcademachine`
-- `cardtable.static_config{a|b|c|d}`
-- `chair.static`
-- `paddlingpool`
-- `piano.deployed.static`
-- `sign.post.town.roof`
-- `sign.post.town`
-- `slotmachine`
-- `sofa.deployed`
-- `xmas_tree.deployed`
 
 ## Tips
 
