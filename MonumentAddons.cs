@@ -3270,7 +3270,7 @@ namespace Oxide.Plugins
                     // Unique names are only stored initially if different from short name.
                     // To avoid frequent heap allocations, also cache other short names that are accessed.
                     uniqueName = GetShortName(prefabPath);
-                    _uniqueNameByPrefabPath[prefabPath] = uniqueName;
+                    _uniqueNameByPrefabPath[prefabPath] = uniqueName.ToLower();
                 }
 
                 return uniqueName;
