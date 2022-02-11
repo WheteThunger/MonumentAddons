@@ -2058,10 +2058,22 @@ namespace Oxide.Plugins
                 || !VerifyAtMonument(player, position, out monument))
                 return;
 
-            var spawnerList = monument.Object.GetComponentsInChildren<ISpawnGroup>();
+            var parentObject = monument.Object.transform;
+
+            var spawnerList = parentObject.GetComponentsInChildren<ISpawnGroup>();
             if (spawnerList.Length == 0)
             {
-                ReplyToPlayer(player, LangEntry.ShowVanillaNoSpawnPoints, monument.Object.name);
+                var grandParent = parentObject.transform.parent;
+                if (grandParent != null && grandParent != parentObject.transform.root)
+                {
+                    parentObject = grandParent;
+                    spawnerList = parentObject.GetComponentsInChildren<ISpawnGroup>();
+                }
+            }
+
+            if (spawnerList.Length == 0)
+            {
+                ReplyToPlayer(player, LangEntry.ShowVanillaNoSpawnPoints, parentObject.name);
                 return;
             }
 
