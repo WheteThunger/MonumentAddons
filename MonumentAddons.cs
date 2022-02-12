@@ -31,7 +31,7 @@ namespace Oxide.Plugins
         #region Fields
 
         [PluginReference]
-        private Plugin CopyPaste, EntityScaleManager, MonumentFinder, SignArtist;
+        private Plugin CopyPaste, CustomVendingSetup, EntityScaleManager, MonumentFinder, SignArtist;
 
         private static MonumentAddons _pluginInstance;
         private static Configuration _pluginConfig;
@@ -104,6 +104,11 @@ namespace Oxide.Plugins
             permission.RegisterPermission(PermissionAdmin, this);
 
             Unsubscribe(nameof(OnEntitySpawned));
+
+            if (!_pluginConfig.StoreCustomVendingSetupSettingsInProfiles)
+            {
+                Unsubscribe(nameof(OnCustomVendingSetupDataProvider));
+            }
 
             _adapterListenerManager.Init();
         }
@@ -293,6 +298,32 @@ namespace Oxide.Plugins
             }
         }
 
+        // This hook is exposed by plugin: Custom Vending Setup (CustomVendingSetup).
+        private Dictionary<string, object> OnCustomVendingSetupDataProvider(NPCVendingMachine vendingMachine)
+        {
+            SingleEntityController controller;
+
+            if (!_entityTracker.IsMonumentEntity(vendingMachine, out controller))
+            {
+                return null;
+            }
+
+            var vendingProfile = controller.EntityData.VendingProfile;
+            if (vendingProfile == null)
+            {
+                // Check if there's one to be migrated.
+                var migratedVendingProfile = MigrateVendingProfile(vendingMachine);
+                if (migratedVendingProfile != null)
+                {
+                    controller.EntityData.VendingProfile = migratedVendingProfile;
+                    controller.Profile.Save();
+                    LogWarning($"Successfully migrated vending machine settings from CustomVendingSetup to MonumentAddons profile '{controller.Profile.Name}'.");
+                }
+            }
+
+            return controller.GetVendingDataProvider();
+        }
+
         #endregion
 
         #region Dependencies
@@ -376,6 +407,11 @@ namespace Oxide.Plugins
 
                 SignArtist.Call(apiName, null, signage as ISignage, imageInfo.Url, imageInfo.Raw, textureIndex);
             }
+        }
+
+        private JObject MigrateVendingProfile(NPCVendingMachine vendingMachine)
+        {
+            return CustomVendingSetup?.Call("API_MigrateVendingProfile", vendingMachine) as JObject;
         }
 
         private static class PasteUtils
@@ -4102,6 +4138,8 @@ namespace Oxide.Plugins
 
         private class SingleEntityController : EntityControllerBase
         {
+            private Dictionary<string, object> _vendingDataProvider;
+
             public SingleEntityController(ProfileController profileController, EntityData data)
                 : base(profileController, data) {}
 
@@ -4121,6 +4159,27 @@ namespace Oxide.Plugins
             public void HandleChanges()
             {
                 ProfileController.StartCoroutine(HandleChangesRoutine());
+            }
+
+            public Dictionary<string, object> GetVendingDataProvider()
+            {
+                if (_vendingDataProvider == null)
+                {
+                    _vendingDataProvider = new Dictionary<string, object>
+                    {
+                        ["GetData"] = new Func<JObject>(() =>
+                        {
+                            return EntityData.VendingProfile as JObject;
+                        }),
+                        ["SaveData"] = new Action<JObject>(vendingProfile =>
+                        {
+                            EntityData.VendingProfile = vendingProfile;
+                            Profile.Save();
+                        }),
+                    };
+                }
+
+                return _vendingDataProvider;
             }
 
             private IEnumerator UpdateSkinRoutine()
@@ -6749,6 +6808,9 @@ namespace Oxide.Plugins
 
             [JsonProperty("SignArtistImages", DefaultValueHandling = DefaultValueHandling.Ignore)]
             public SignArtistImage[] SignArtistImages;
+
+            [JsonProperty("VendingProfile", DefaultValueHandling = DefaultValueHandling.Ignore)]
+            public object VendingProfile;
         }
 
         #endregion
@@ -7639,6 +7701,9 @@ namespace Oxide.Plugins
                 ["workbench1"] = "assets/bundled/prefabs/static/workbench1.static.prefab",
                 ["workbench2"] = "assets/bundled/prefabs/static/workbench2.static.prefab",
             };
+
+            [JsonProperty("StoreCustomVendingSetupSettingsInProfiles")]
+            public bool StoreCustomVendingSetupSettingsInProfiles;
         }
 
         private Configuration GetDefaultConfig() => new Configuration();
