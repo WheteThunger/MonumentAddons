@@ -6235,8 +6235,10 @@ namespace Oxide.Plugins
                 WaitUntilLoaded = new WaitUntil(() => ProfileState == ProfileState.Loaded);
                 WaitUntilUnloaded = new WaitUntil(() => ProfileState == ProfileState.Unloaded);
 
-                if (startLoaded || (profile.IsEmpty() && IsEnabled))
+                if (startLoaded)
+                {
                     ProfileState = ProfileState.Loaded;
+                }
             }
 
             public void OnControllerKilled(BaseController controller) =>
@@ -6280,8 +6282,12 @@ namespace Oxide.Plugins
                 if (ProfileState == ProfileState.Loading || ProfileState == ProfileState.Loaded)
                     return;
 
-                ProfileState = ProfileState.Loading;
-                StartCoroutine(LoadRoutine(profileCounts));
+                EnqueueAll(profileCounts);
+
+                if (_spawnQueue.Count == 0)
+                {
+                    ProfileState = ProfileState.Loaded;
+                }
             }
 
             public void PreUnload()
@@ -6463,12 +6469,6 @@ namespace Oxide.Plugins
                 ProfileState = ProfileState.Loaded;
             }
 
-            private IEnumerator LoadRoutine(ProfileCounts profileCounts)
-            {
-                EnqueueAll(profileCounts);
-                yield return WaitUntilLoaded;
-            }
-
             private IEnumerator UnloadRoutine()
             {
                 foreach (var controller in _controllersByData.Values.ToArray())
@@ -6581,7 +6581,7 @@ namespace Oxide.Plugins
 
                     var spawnablesSummary = spawnablesSummaryList.Count > 0
                         ? string.Join(", ", spawnablesSummaryList)
-                        : "Empty";
+                        : "No addons spawned";
 
                     _pluginInstance.Puts($"Loaded profile {profile.Name}{byAuthor} ({spawnablesSummary}).");
                 }
