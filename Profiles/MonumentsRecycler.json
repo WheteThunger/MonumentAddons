@@ -1,0 +1,179 @@
+{
+  "Name": "MonumentsRecycler",
+  "Author": "WhiteThunder/Dana",
+  "SchemaVersion": 2.0,
+  "MonumentData": {
+    "cargoshiptest": {
+      "Entities": [
+        {
+          "Id": "1d7b19de-09ea-434f-9fa1-acbb9ca856d2",
+          "Position": {
+            "x": 0.2172264,
+            "y": 9.574753,
+            "z": 79.05922
+          },
+          "RotationAngles": {
+            "x": 0.0,
+            "y": 180.0,
+            "z": 0.0
+          },
+          "PrefabName": "assets/bundled/prefabs/static/recycler_static.prefab"
+        },
+        {
+          "Id": "25835147-e054-4e99-a445-d36b520c2032",
+          "Position": {
+            "x": 0.2407,
+            "y": 9.5,
+            "z": -36.87305
+          },
+          "PrefabName": "assets/bundled/prefabs/static/recycler_static.prefab"
+        },
+        {
+          "Id": "efdc0102-305d-44a6-a12d-945870eadca2",
+          "Position": {
+            "x": 0.0,
+            "y": 0.57767,
+            "z": 10.0
+          },
+          "RotationAngles": {
+            "x": 0.0,
+            "y": 180.0,
+            "z": 0.0
+          },
+          "PrefabName": "assets/bundled/prefabs/static/recycler_static.prefab"
+        }
+      ]
+    },
+    "OilrigAI": {
+      "Entities": [
+        {
+          "Id": "e8bd948f-1878-452b-8bcb-321577fa64ed",
+          "Position": {
+            "x": 21.01,
+            "y": 22.5,
+            "z": -30.8
+          },
+          "RotationAngles": {
+            "x": 0.0,
+            "y": 180.0,
+            "z": 0.0
+          },
+          "PrefabName": "assets/bundled/prefabs/static/recycler_static.prefab"
+        },
+        {
+          "Id": "f4e7377e-0c49-4f27-b8e2-5aced606107f",
+          "Position": {
+            "x": 32.1,
+            "y": 27.0,
+            "z": -34.5
+          },
+          "RotationAngles": {
+            "x": 0.0,
+            "y": 270.0,
+            "z": 0.0
+          },
+          "PrefabName": "assets/bundled/prefabs/static/recycler_static.prefab"
+        }
+      ]
+    },
+    "OilrigAI2": {
+      "Entities": [
+        {
+          "Id": "2e176f27-44d1-4c22-9434-03cd1aac884a",
+          "Position": {
+            "x": 20.57,
+            "y": 27.1,
+            "z": -44.52
+          },
+          "PrefabName": "assets/bundled/prefabs/static/recycler_static.prefab"
+        },
+        {
+          "Id": "84ebaa95-c951-4597-8839-a4ab311e231c",
+          "Position": {
+            "x": -13.6,
+            "y": 36.1,
+            "z": -3.4
+          },
+          "RotationAngles": {
+            "x": 0.0,
+            "y": 180.0,
+            "z": 0.0
+          },
+          "PrefabName": "assets/bundled/prefabs/static/recycler_static.prefab"
+        }
+      ]
+    },
+    "sphere_tank": {
+      "Entities": [
+        {
+          "Id": "4fc379f5-220c-40d6-9e57-fdd3c27d053f",
+          "Position": {
+            "x": 19.9,
+            "y": 37.8,
+            "z": 16.57
+          },
+          "RotationAngles": {
+            "x": 0.0,
+            "y": 235,
+            "z": 0.0
+          },
+          "PrefabName": "assets/bundled/prefabs/static/recycler_static.prefab"
+        }
+      ]
+    },
+    "fishing_village_a": {
+      "Entities": [
+        {
+          "Id": "698fef04-6530-4f07-ad79-1036ce2c3b97",
+          "Position": {
+            "x": -20.7,
+            "y": 0.2,
+            "z": -9.6
+          },
+          "RotationAngles": {
+            "x": 0.0,
+            "y": 45.0,
+            "z": 0.0
+          },
+          "PrefabName": "assets/bundled/prefabs/static/recycler_static.prefab"
+        }
+      ]
+    },
+    "fishing_village_b": {
+      "Entities": [
+        {
+          "Id": "aa267307-0453-4208-abb3-30e5cc0b28b5",
+          "Position": {
+            "x": -21.0,
+            "y": 0.3,
+            "z": 6.5
+          },
+          "RotationAngles": {
+            "x": 0.0,
+            "y": 130.0,
+            "z": 0.0
+          },
+          "PrefabName": "assets/bundled/prefabs/static/recycler_static.prefab"
+        }
+      ]
+    },
+    "fishing_village_c": {
+      "Entities": [
+        {
+          "Id": "c25a03ca-444a-4098-b612-557c13170a5c",
+          "Position": {
+            "x": -8.5,
+            "y": 2.0,
+            "z": 16.06067
+          },
+          "RotationAngles": {
+            "x": 0.0,
+            "y": 90.0,
+            "z": 0.0
+          },
+          "PrefabName": "assets/bundled/prefabs/static/recycler_static.prefab"
+        }
+      ]
+    }
+  }
+}
