@@ -6311,7 +6311,7 @@ namespace Oxide.Plugins
 
             public void Reload(Profile newProfileData)
             {
-                _coroutineManager.StopAll();
+                Interrupt();
                 StartCoroutine(ReloadRoutine(newProfileData));
             }
 
@@ -6367,8 +6367,14 @@ namespace Oxide.Plugins
                     return;
                 }
 
-                _coroutineManager.StopAll();
+                Interrupt();
                 StartCoroutine(ClearRoutine());
+            }
+
+            private void Interrupt()
+            {
+                _coroutineManager.StopAll();
+                _spawnQueue.Clear();
             }
 
             private BaseController GetController(BaseIdentifiableData data)
