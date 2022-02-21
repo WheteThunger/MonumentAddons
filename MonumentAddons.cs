@@ -6354,6 +6354,7 @@ namespace Oxide.Plugins
                 if (!IsEnabled)
                     return;
 
+                Interrupt();
                 PreUnload();
                 Unload();
             }
