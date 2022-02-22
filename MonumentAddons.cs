@@ -6764,24 +6764,24 @@ namespace Oxide.Plugins
 
         private abstract class BaseIdentifiableData
         {
-            [JsonProperty("Id", Order = -5)]
+            [JsonProperty("Id", Order = -10)]
             public Guid Id;
         }
 
         private abstract class BaseTransformData : BaseIdentifiableData
         {
-            [JsonProperty("Position", Order = -4)]
+            [JsonProperty("SnapToTerrain", Order = -4, DefaultValueHandling = DefaultValueHandling.Ignore)]
+            public bool SnapToTerrain = false;
+
+            [JsonProperty("Position", Order = -3)]
             public Vector3 Position;
 
             // Kept for backwards compatibility.
             [JsonProperty("RotationAngle", DefaultValueHandling = DefaultValueHandling.Ignore)]
             public float DeprecatedRotationAngle { set { RotationAngles = new Vector3(0, value, 0); } }
 
-            [JsonProperty("RotationAngles", Order = -3, DefaultValueHandling = DefaultValueHandling.Ignore)]
+            [JsonProperty("RotationAngles", Order = -2, DefaultValueHandling = DefaultValueHandling.Ignore)]
             public Vector3 RotationAngles;
-
-            [JsonProperty("SnapToTerrain", Order = -2, DefaultValueHandling = DefaultValueHandling.Ignore)]
-            public bool SnapToTerrain = false;
 
             [JsonProperty("OnTerrain")]
             public bool DepredcatedOnTerrain { set { SnapToTerrain = value; } }
@@ -6822,7 +6822,7 @@ namespace Oxide.Plugins
 
         private class EntityData : BaseTransformData
         {
-            [JsonProperty("PrefabName")]
+            [JsonProperty("PrefabName", Order = -5)]
             public string PrefabName;
 
             [JsonProperty("Skin", DefaultValueHandling = DefaultValueHandling.Ignore)]
