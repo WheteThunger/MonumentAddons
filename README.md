@@ -57,7 +57,8 @@ Several example profiles are included below. Run the corresponding command snipp
 - `mainstall OutpostAirwolf` -- Adds an Air Wolf vendor to Outpost, with some ladders to allow access.
 - `mainstall BarnAirwolf` -- Adds an Air Wolf vendor to Large Barn and Ranch.
 - `mainstall FishingVillageAirwolf` -- Adds an Air Wolf vendor to Large Fishing Village and to one of the small Fishing Villages.
-- `mainstall MonumentLifts` -- Adds car lifts to gas station and supermarket.
+- `mainstall MonumentLifts` -- Adds car lifts to gas station and supermarket (same as the MonumentLifts plugin).
+- `mainstall MonumentsRecycler` -- Adds recyclers to Cargo Ship, Oilrigs, Dome and Fishing Villages (same as the MonumentsRecycler plugin).
 - `mainstall TrainStationCCTV` -- Adds 6 CCTVs and one computer station to each underground Train Station.
 
 These example profiles are installed from https://github.com/WheteThunger/MonumentAddons/blob/master/Profiles/.
