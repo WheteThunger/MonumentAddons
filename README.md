@@ -127,6 +127,7 @@ The following commands only work on objects managed by this plugin. The effect o
   - `RespawnDelayMax`: number -- The maximum time in minutes to wait between spawning entities.
   - `SpawnPerTickMin`: number -- The minumum number of entities to try to spawn in a batch.
   - `SpawnPerTickMax`: number -- The maximum number of entities to try to spawn in a batch.
+  - `InitialSpawn`: true/false -- While `true`, the spawn group will spawn entities as soon as the spawn group is created (e.g., when the profile loads, when the plugin loads, or when the server reboots). While `false`, the spawn group will not spawn any entities initially, but will still spawn them later according to the defined schedule.
   - `PreventDuplicates`: true/false -- While `true`, only one of each entity prefab can be present across all spawn points in the spawn group. Vanilla Rust uses this property for spawning modules at desert military bases.
 - `maspawngroup add <entity> <weight>` -- Adds the specified entity prefab to the spawn group you are looking at.
 - `maspawngroup remove <entity>` -- Removes the specified entity prefab from the spawn group you are looking at.
