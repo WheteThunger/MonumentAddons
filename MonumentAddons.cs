@@ -6851,22 +6851,22 @@ namespace Oxide.Plugins
 
         private class SpawnPointData : BaseTransformData
         {
-            [JsonProperty("Exclusive")]
+            [JsonProperty("Exclusive", DefaultValueHandling = DefaultValueHandling.Ignore)]
             public bool Exclusive;
 
-            [JsonProperty("SnapToGround")]
+            [JsonProperty("SnapToGround", DefaultValueHandling = DefaultValueHandling.Ignore)]
             public bool SnapToGround;
 
             [JsonProperty("DropToGround")]
             public bool DeprecatedDropToGround { set { SnapToGround = value; } }
 
-            [JsonProperty("CheckSpace")]
+            [JsonProperty("CheckSpace", DefaultValueHandling = DefaultValueHandling.Ignore)]
             public bool CheckSpace;
 
-            [JsonProperty("RandomRotation")]
+            [JsonProperty("RandomRotation", DefaultValueHandling = DefaultValueHandling.Ignore)]
             public bool RandomRotation;
 
-            [JsonProperty("RandomRadius")]
+            [JsonProperty("RandomRadius", DefaultValueHandling = DefaultValueHandling.Ignore)]
             public float RandomRadius;
         }
 
@@ -6917,7 +6917,7 @@ namespace Oxide.Plugins
             [JsonProperty("InitialSpawn")]
             public bool InitialSpawn = true;
 
-            [JsonProperty("PreventDuplicates")]
+            [JsonProperty("PreventDuplicates", DefaultValueHandling = DefaultValueHandling.Ignore)]
             public bool PreventDuplicates;
 
             [JsonProperty("Prefabs")]
