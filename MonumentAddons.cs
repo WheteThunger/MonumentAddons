@@ -537,7 +537,7 @@ namespace Oxide.Plugins
                     PrefabName = prefabName,
                     Position = localPosition,
                     RotationAngles = localRotationAngles,
-                    OnTerrain = isOnTerrain,
+                    SnapToTerrain = isOnTerrain,
                 };
 
             }
@@ -550,7 +550,7 @@ namespace Oxide.Plugins
                     AddonName = addonDefinition.AddonName,
                     Position = localPosition,
                     RotationAngles = localRotationAngles,
-                    OnTerrain = isOnTerrain,
+                    SnapToTerrain = isOnTerrain,
                 };
             }
 
@@ -1294,7 +1294,7 @@ namespace Oxide.Plugins
                                 Id = Guid.NewGuid(),
                                 Position = localPosition,
                                 RotationAngles = localRotationAngles,
-                                OnTerrain = isOnTerrain,
+                                SnapToTerrain = isOnTerrain,
                                 Exclusive = true,
                                 SnapToGround = true,
                             },
@@ -1612,7 +1612,7 @@ namespace Oxide.Plugins
                         Id = Guid.NewGuid(),
                         Position = localPosition,
                         RotationAngles = localRotationAngles,
-                        OnTerrain = isOnTerrain,
+                        SnapToTerrain = isOnTerrain,
                         Exclusive = true,
                         SnapToGround = true,
                     };
@@ -1787,7 +1787,7 @@ namespace Oxide.Plugins
                 Id = Guid.NewGuid(),
                 Position = localPosition,
                 RotationAngles = localRotationAngles,
-                OnTerrain = isOnTerrain,
+                SnapToTerrain = isOnTerrain,
                 Filename = pasteName,
             };
 
@@ -3626,7 +3626,7 @@ namespace Oxide.Plugins
                 {
                     var intendedPosition = Monument.TransformPoint(TransformData.Position);
 
-                    if (TransformData.OnTerrain)
+                    if (TransformData.SnapToTerrain)
                         intendedPosition.y = TerrainMeta.HeightMap.GetHeight(intendedPosition);
 
                     return intendedPosition;
@@ -3951,7 +3951,7 @@ namespace Oxide.Plugins
                 {
                     EntityData.Position = LocalPosition;
                     EntityData.RotationAngles = LocalRotation.eulerAngles;
-                    EntityData.OnTerrain = IsOnTerrain(Position);
+                    EntityData.SnapToTerrain = IsOnTerrain(Position);
                     hasChanged = true;
                 }
 
@@ -6758,8 +6758,11 @@ namespace Oxide.Plugins
             [JsonProperty("RotationAngles", Order = -3, DefaultValueHandling = DefaultValueHandling.Ignore)]
             public Vector3 RotationAngles;
 
-            [JsonProperty("OnTerrain", Order = -2, DefaultValueHandling = DefaultValueHandling.Ignore)]
-            public bool OnTerrain = false;
+            [JsonProperty("SnapToTerrain", Order = -2, DefaultValueHandling = DefaultValueHandling.Ignore)]
+            public bool SnapToTerrain = false;
+
+            [JsonProperty("OnTerrain")]
+            public bool DepredcatedOnTerrain { set { SnapToTerrain = value; } }
         }
 
         #endregion
