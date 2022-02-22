@@ -473,6 +473,7 @@ namespace Oxide.Plugins
             RespawnDelayMax,
             SpawnPerTickMin,
             SpawnPerTickMax,
+            InitialSpawn,
             PreventDuplicates,
         }
 
@@ -1324,6 +1325,7 @@ namespace Oxide.Plugins
                         sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnGroupSetHelpRespawnDelayMax));
                         sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnGroupSetHelpSpawnPerTickMin));
                         sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnGroupSetHelpSpawnPerTickMax));
+                        sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnGroupSetHelpInitialSpawn));
                         sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnGroupSetHelpPreventDuplicates));
                         player.Reply(sb.ToString());
                         return;
@@ -1343,6 +1345,8 @@ namespace Oxide.Plugins
 
                     var spawnGroupData = spawnGroupController.SpawnGroupData;
                     object setValue = args[2];
+
+                    var showImmediate = true;
 
                     switch (spawnGroupOption)
                     {
@@ -1421,6 +1425,19 @@ namespace Oxide.Plugins
 
                             spawnGroupData.PreventDuplicates = preventDuplicates;
                             setValue = preventDuplicates;
+                            showImmediate = false;
+                            break;
+                        }
+
+                        case SpawnGroupOption.InitialSpawn:
+                        {
+                            bool initialSpawn;
+                            if (!VerifyValidBool(player, args[2], out initialSpawn, LangEntry.ErrorSetSyntax, cmd, SpawnGroupOption.PreventDuplicates))
+                                return;
+
+                            spawnGroupData.InitialSpawn = initialSpawn;
+                            setValue = initialSpawn;
+                            showImmediate = false;
                             break;
                         }
                     }
@@ -1428,7 +1445,7 @@ namespace Oxide.Plugins
                     spawnGroupController.UpdateSpawnGroups();
                     spawnGroupController.Profile.Save();
 
-                    _adapterDisplayManager.ShowAllRepeatedly(basePlayer);
+                    _adapterDisplayManager.ShowAllRepeatedly(basePlayer, immediate: showImmediate);
 
                     ReplyToPlayer(player, LangEntry.SpawnGroupSetSuccess, spawnGroupData.Name, spawnGroupOption, setValue);
                     break;
@@ -5099,8 +5116,10 @@ namespace Oxide.Plugins
 
                 UpdateSpawnPointReferences();
 
-                // Do initial spawn.
-                SpawnGroup.Spawn();
+                if (SpawnGroupData.InitialSpawn)
+                {
+                    SpawnGroup.Spawn();
+                }
             }
 
             public override void Kill()
@@ -6013,6 +6032,9 @@ namespace Oxide.Plugins
 
                     var groupBooleanProperties = new List<string>();
 
+                    if (spawnGroupData.InitialSpawn)
+                        groupBooleanProperties.Add(_pluginInstance.GetMessage(player.UserIDString, LangEntry.ShowLabelInitialSpawn));
+
                     if (spawnGroupData.PreventDuplicates)
                         groupBooleanProperties.Add(_pluginInstance.GetMessage(player.UserIDString, LangEntry.ShowLabelPreventDuplicates));
 
@@ -6890,6 +6912,10 @@ namespace Oxide.Plugins
 
             [JsonProperty("RespawnDelayMax")]
             public float RespawnDelayMax = 2100;
+
+            // Default to true for backwards compatibility.
+            [JsonProperty("InitialSpawn")]
+            public bool InitialSpawn = true;
 
             [JsonProperty("PreventDuplicates")]
             public bool PreventDuplicates;
@@ -7903,6 +7929,7 @@ namespace Oxide.Plugins
             public static readonly LangEntry SpawnGroupSetHelpRespawnDelayMax = new LangEntry("SpawnGroup.Set.Help.RespawnDelayMax", "<color=#fd4>RespawnDelayMax</color>: number");
             public static readonly LangEntry SpawnGroupSetHelpSpawnPerTickMin = new LangEntry("SpawnGroup.Set.Help.SpawnPerTickMin", "<color=#fd4>SpawnPerTickMin</color>: number");
             public static readonly LangEntry SpawnGroupSetHelpSpawnPerTickMax = new LangEntry("SpawnGroup.Set.Help.SpawnPerTickMax", "<color=#fd4>SpawnPerTickMax</color>: number");
+            public static readonly LangEntry SpawnGroupSetHelpInitialSpawn = new LangEntry("SpawnGroup.Set.Help.InitialSpawn", "<color=#fd4>InitialSpawn</color>: true | false");
             public static readonly LangEntry SpawnGroupSetHelpPreventDuplicates = new LangEntry("SpawnGroup.Set.Help.PreventDuplicates", "<color=#fd4>PreventDuplicates</color>: true | false");
 
             public static readonly LangEntry SpawnPointSetHelpExclusive = new LangEntry("SpawnPoint.Set.Help.Exclusive", "<color=#fd4>Exclusive</color>: true | false");
@@ -7944,6 +7971,7 @@ namespace Oxide.Plugins
             public static readonly LangEntry ShowLabelSpawnWhenParentSpawns = new LangEntry("Show.Label.SpawnWhenParentSpawns", "Spawn when parent spawns");
             public static readonly LangEntry ShowLabelSpawnOnServerStart = new LangEntry("Show.Label.SpawnOnServerStart", "Spawn on server start");
             public static readonly LangEntry ShowLabelSpawnOnMapWipe = new LangEntry("Show.Label.SpawnOnMapWipe", "Spawn on map wipe");
+            public static readonly LangEntry ShowLabelInitialSpawn = new LangEntry("Show.Label.InitialSpawn", "Spawn initially");
             public static readonly LangEntry ShowLabelPreventDuplicates = new LangEntry("Show.Label.PreventDuplicates", "Prevent duplicates");
             public static readonly LangEntry ShowLabelPopulation = new LangEntry("Show.Label.Population", "Population: {0} / {1}");
             public static readonly LangEntry ShowLabelRespawnPerTick = new LangEntry("Show.Label.RespawnPerTick", "Spawn per tick: {0} - {1}");
