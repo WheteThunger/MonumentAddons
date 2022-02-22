@@ -2681,6 +2681,21 @@ namespace Oxide.Plugins
             if (entity == null)
                 return default(AdapterFindResult<TAdapter, TController>);
 
+            var spawnPointAdapter = GetSpawnPointAdapter(entity);
+            if (spawnPointAdapter != null)
+            {
+                // First see if the caller wants a SpawnPointAdapter.
+                var spawnAdapter = spawnPointAdapter as TAdapter;
+                if (spawnAdapter == null)
+                {
+                    // Caller does not want a SpawnPointAdapter, so see if they want a SpawnGroupAdapter.
+                    spawnAdapter = spawnPointAdapter.SpawnGroupAdapter as TAdapter;
+                }
+
+                if (spawnAdapter != null)
+                    return new AdapterFindResult<TAdapter, TController>(spawnAdapter, spawnAdapter.Controller as TController);
+            }
+
             return new AdapterFindResult<TAdapter, TController>(entity);
         }
 
@@ -2757,6 +2772,19 @@ namespace Oxide.Plugins
 
                 yield return spawnGroupController;
             }
+        }
+
+        private SpawnPointAdapter GetSpawnPointAdapter(BaseEntity entity)
+        {
+            var spawnPointInstance = entity.GetComponent<SpawnPointInstance>();
+            if (spawnPointInstance == null)
+                return null;
+
+            var spawnPoint = spawnPointInstance.parentSpawnPoint as CustomSpawnPoint;
+            if (spawnPoint == null)
+                return null;
+
+            return spawnPoint.Adapter;
         }
 
         #endregion
@@ -4743,7 +4771,7 @@ namespace Oxide.Plugins
                     | Rust.Layers.Mask.Construction,
             };
 
-            private SpawnPointAdapter _adapter;
+            public SpawnPointAdapter Adapter { get; private set; }
             private SpawnPointData _spawnPointData;
             private Transform _transform;
             private BaseEntity _parentEntity;
@@ -4751,7 +4779,7 @@ namespace Oxide.Plugins
 
             public void Init(SpawnPointAdapter adapter, SpawnPointData spawnPointData)
             {
-                _adapter = adapter;
+                Adapter = adapter;
                 _spawnPointData = spawnPointData;
             }
 
@@ -4843,7 +4871,7 @@ namespace Oxide.Plugins
             public void OnDestroy()
             {
                 KillSpawnedInstances();
-                _adapter.OnSpawnPointKilled(this);
+                Adapter.OnSpawnPointKilled(this);
             }
 
             public void KillSpawnedInstances(string prefabName = null)
@@ -4943,13 +4971,13 @@ namespace Oxide.Plugins
                 return null;
             }
 
-            private SpawnGroupAdapter _spawnGroupAdapter;
+            public SpawnGroupAdapter SpawnGroupAdapter { get; private set; }
             private AIInformationZone _cachedInfoZone;
             private bool _didLookForInfoZone;
 
             public void Init(SpawnGroupAdapter spawnGroupAdapter)
             {
-                _spawnGroupAdapter = spawnGroupAdapter;
+                SpawnGroupAdapter = spawnGroupAdapter;
             }
 
             public void UpdateSpawnClock()
@@ -4959,9 +4987,9 @@ namespace Oxide.Plugins
                     var clockEvent = spawnClock.events[0];
                     var timeUntilSpawn = clockEvent.time - UnityEngine.Time.time;
 
-                    if (timeUntilSpawn > _spawnGroupAdapter.SpawnGroupData.RespawnDelayMax)
+                    if (timeUntilSpawn > SpawnGroupAdapter.SpawnGroupData.RespawnDelayMax)
                     {
-                        clockEvent.time = UnityEngine.Time.time + _spawnGroupAdapter.SpawnGroupData.RespawnDelayMax;
+                        clockEvent.time = UnityEngine.Time.time + SpawnGroupAdapter.SpawnGroupData.RespawnDelayMax;
                         spawnClock.events[0] = clockEvent;
                     }
                 }
@@ -5022,24 +5050,24 @@ namespace Oxide.Plugins
             private void OnDestroy()
             {
                 SingletonComponent<SpawnHandler>.Instance.SpawnGroups.Remove(this);
-                _spawnGroupAdapter.OnSpawnGroupKilled(this);
+                SpawnGroupAdapter.OnSpawnGroupKilled(this);
             }
         }
 
         private class SpawnPointAdapter : BaseTransformAdapter
         {
             public SpawnPointData SpawnPointData { get; private set; }
+            public SpawnGroupAdapter SpawnGroupAdapter { get; private set; }
             public CustomSpawnPoint SpawnPoint { get; private set; }
             public override Vector3 Position => _transform.position;
             public override Quaternion Rotation => _transform.rotation;
 
             private Transform _transform;
-            private SpawnGroupAdapter _spawnGroupAdapter;
 
             public SpawnPointAdapter(SpawnPointData spawnPointData, SpawnGroupAdapter spawnGroupAdapter, BaseController controller, BaseMonument monument) : base(spawnPointData, controller, monument)
             {
                 SpawnPointData = spawnPointData;
-                _spawnGroupAdapter = spawnGroupAdapter;
+                SpawnGroupAdapter = spawnGroupAdapter;
             }
 
             public override void Spawn()
@@ -5070,7 +5098,7 @@ namespace Oxide.Plugins
 
             public void OnSpawnPointKilled(CustomSpawnPoint spawnPoint)
             {
-                _spawnGroupAdapter.OnSpawnPointAdapterKilled(this);
+                SpawnGroupAdapter.OnSpawnPointAdapterKilled(this);
             }
 
             public void KillSpawnedInstances(string prefabName)
