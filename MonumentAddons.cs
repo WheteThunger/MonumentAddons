@@ -2895,7 +2895,7 @@ namespace Oxide.Plugins
 
             while (predicate() && UnityEngine.Time.time < timeoutAt)
             {
-                yield return CoroutineEx.waitForEndOfFrame;
+                yield return null;
             }
         }
 
@@ -3005,7 +3005,7 @@ namespace Oxide.Plugins
         private IEnumerator SpawnAllProfilesRoutine()
         {
             // Delay slightly to allow Monument Finder to finish loading.
-            yield return CoroutineEx.waitForEndOfFrame;
+            yield return null;
             yield return _profileManager.LoadAllProfilesRoutine();
 
             // We don't want to be subscribed to OnEntitySpawned(CargoShip) until the coroutine is done.
@@ -3856,7 +3856,7 @@ namespace Oxide.Plugins
                         continue;
 
                     entityAdapter.UpdatePosition();
-                    yield return CoroutineEx.waitForEndOfFrame;
+                    yield return null;
                 }
             }
         }
@@ -4525,7 +4525,7 @@ namespace Oxide.Plugins
                         continue;
 
                     cctvAdapter.UpdateIdentifier();
-                    yield return CoroutineEx.waitForEndOfFrame;
+                    yield return null;
                 }
             }
 
@@ -4538,7 +4538,7 @@ namespace Oxide.Plugins
                         continue;
 
                     cctvAdapter.UpdateDirection();
-                    yield return CoroutineEx.waitForEndOfFrame;
+                    yield return null;
                 }
             }
         }
