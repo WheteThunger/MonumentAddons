@@ -479,7 +479,7 @@ namespace Oxide.Plugins
         private enum SpawnPointOption
         {
             Exclusive,
-            DropToGround,
+            SnapToGround,
             CheckSpace,
             RandomRotation,
             RandomRadius,
@@ -1296,7 +1296,7 @@ namespace Oxide.Plugins
                                 RotationAngles = localRotationAngles,
                                 OnTerrain = isOnTerrain,
                                 Exclusive = true,
-                                DropToGround = true,
+                                SnapToGround = true,
                             },
                         },
                     };
@@ -1614,7 +1614,7 @@ namespace Oxide.Plugins
                         RotationAngles = localRotationAngles,
                         OnTerrain = isOnTerrain,
                         Exclusive = true,
-                        DropToGround = true,
+                        SnapToGround = true,
                     };
 
                     spawnGroupController.SpawnGroupData.SpawnPoints.Add(spawnPointData);
@@ -1634,7 +1634,7 @@ namespace Oxide.Plugins
                         var sb = new StringBuilder();
                         sb.AppendLine(GetMessage(player.Id, LangEntry.ErrorSetSyntaxGeneric, cmd));
                         sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnPointSetHelpExclusive));
-                        sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnPointSetHelpDropToGround));
+                        sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnPointSetHelpSnapToGround));
                         sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnPointSetHelpCheckSpace));
                         sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnPointSetHelpRandomRotation));
                         sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnPointSetHelpRandomRadius));
@@ -1670,14 +1670,14 @@ namespace Oxide.Plugins
                             break;
                         }
 
-                        case SpawnPointOption.DropToGround:
+                        case SpawnPointOption.SnapToGround:
                         {
-                            bool dropToGround;
-                            if (!VerifyValidBool(player, args[2], out dropToGround, LangEntry.ErrorSetSyntax, cmd, SpawnPointOption.DropToGround))
+                            bool snapToGround;
+                            if (!VerifyValidBool(player, args[2], out snapToGround, LangEntry.ErrorSetSyntax, cmd, SpawnPointOption.SnapToGround))
                                 return;
 
-                            spawnPointData.DropToGround = dropToGround;
-                            setValue = spawnPointData.DropToGround;
+                            spawnPointData.SnapToGround = snapToGround;
+                            setValue = spawnPointData.SnapToGround;
                             break;
                         }
 
@@ -1989,7 +1989,7 @@ namespace Oxide.Plugins
 
                             if (genericSpawnPoint.dropToGround)
                             {
-                                booleanProperties.Add(_pluginInstance.GetMessage(player.Id, LangEntry.ShowLabelSpawnPointDropsToGround));
+                                booleanProperties.Add(_pluginInstance.GetMessage(player.Id, LangEntry.ShowLabelSpawnPointSnapToGround));
                             }
                         }
 
@@ -2175,7 +2175,7 @@ namespace Oxide.Plugins
                         {
                             spawnPointData.Exclusive = true;
                             spawnPointData.RandomRotation = genericSpawnPoint.randomRot;
-                            spawnPointData.DropToGround = genericSpawnPoint.dropToGround;
+                            spawnPointData.SnapToGround = genericSpawnPoint.dropToGround;
                         }
 
                         var radialSpawnPoint = spawnPoint as RadialSpawnPoint;
@@ -4766,7 +4766,7 @@ namespace Oxide.Plugins
                     rotation *= Quaternion.Euler(0f, UnityEngine.Random.Range(0f, 360f), 0f);
                 }
 
-                if (_spawnPointData.DropToGround)
+                if (_spawnPointData.SnapToGround)
                 {
                     DropToGround(ref position, ref rotation);
                 }
@@ -5992,8 +5992,8 @@ namespace Oxide.Plugins
                 if (spawnPointData.RandomRotation)
                     booleanProperties.Add(_pluginInstance.GetMessage(player.UserIDString, LangEntry.ShowLabelSpawnPointRandomRotation));
 
-                if (spawnPointData.DropToGround)
-                    booleanProperties.Add(_pluginInstance.GetMessage(player.UserIDString, LangEntry.ShowLabelSpawnPointDropsToGround));
+                if (spawnPointData.SnapToGround)
+                    booleanProperties.Add(_pluginInstance.GetMessage(player.UserIDString, LangEntry.ShowLabelSpawnPointSnapToGround));
 
                 if (spawnPointData.CheckSpace)
                     booleanProperties.Add(_pluginInstance.GetMessage(player.UserIDString, LangEntry.ShowLabelSpawnPointChecksSpace));
@@ -6829,8 +6829,11 @@ namespace Oxide.Plugins
             [JsonProperty("Exclusive")]
             public bool Exclusive;
 
+            [JsonProperty("SnapToGround")]
+            public bool SnapToGround;
+
             [JsonProperty("DropToGround")]
-            public bool DropToGround;
+            public bool DeprecatedDropToGround { set { SnapToGround = value; } }
 
             [JsonProperty("CheckSpace")]
             public bool CheckSpace;
@@ -7900,7 +7903,7 @@ namespace Oxide.Plugins
             public static readonly LangEntry SpawnGroupSetHelpPreventDuplicates = new LangEntry("SpawnGroup.Set.Help.PreventDuplicates", "<color=#fd4>PreventDuplicates</color>: true | false");
 
             public static readonly LangEntry SpawnPointSetHelpExclusive = new LangEntry("SpawnPoint.Set.Help.Exclusive", "<color=#fd4>Exclusive</color>: true | false");
-            public static readonly LangEntry SpawnPointSetHelpDropToGround = new LangEntry("SpawnPoint.Set.Help.DropToGround", "<color=#fd4>DropToGround</color>: true | false");
+            public static readonly LangEntry SpawnPointSetHelpSnapToGround = new LangEntry("SpawnPoint.Set.Help.SnapToGround", "<color=#fd4>SnapToGround</color>: true | false");
             public static readonly LangEntry SpawnPointSetHelpCheckSpace = new LangEntry("SpawnPoint.Set.Help.CheckSpace", "<color=#fd4>CheckSpace</color>: true | false");
             public static readonly LangEntry SpawnPointSetHelpRandomRotation = new LangEntry("SpawnPoint.Set.Help.RandomRotation", "<color=#fd4>RandomRotation</color>: true | false");
             public static readonly LangEntry SpawnPointSetHelpRandomRadius = new LangEntry("SpawnPoint.Set.Help.RandomRadius", "<color=#fd4>RandomRadius</color>: number");
@@ -7929,7 +7932,7 @@ namespace Oxide.Plugins
             public static readonly LangEntry ShowLabelFlags = new LangEntry("Show.Label.SpawnPoint.Flags", "Flags: {0}");
             public static readonly LangEntry ShowLabelSpawnPointExclusive = new LangEntry("Show.Label.SpawnPoint.Exclusive", "Exclusive");
             public static readonly LangEntry ShowLabelSpawnPointRandomRotation = new LangEntry("Show.Label.SpawnPoint.RandomRotation", "Random rotation");
-            public static readonly LangEntry ShowLabelSpawnPointDropsToGround = new LangEntry("Show.Label.SpawnPoint.DropsToGround", "Drops to ground");
+            public static readonly LangEntry ShowLabelSpawnPointSnapToGround = new LangEntry("Show.Label.SpawnPoint.SnapToGround", "Snap to ground");
             public static readonly LangEntry ShowLabelSpawnPointChecksSpace = new LangEntry("Show.Label.SpawnPoint.ChecksSpace", "Checks space");
             public static readonly LangEntry ShowLabelSpawnPointRandomRadius = new LangEntry("Show.Label.SpawnPoint.RandomRadius", "Random spawn radius: {0:f1}");
 
