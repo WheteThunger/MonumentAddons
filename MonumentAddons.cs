@@ -51,12 +51,14 @@ namespace Oxide.Plugins
         private static readonly int HitLayers = Rust.Layers.Solid
             | Rust.Layers.Mask.Water;
 
-        private readonly Dictionary<string, string> DownloadRequestHeaders = new Dictionary<string, string>
+        private static readonly Dictionary<string, string> JsonRequestHeaders = new Dictionary<string, string>
         {
             { "Content-Type", "application/json" }
         };
 
-        private readonly ProfileManager _profileManager = new ProfileManager();
+        private readonly ProfileStore _profileStore = new ProfileStore();
+        private readonly OriginalProfileStore _originalProfileStore = new OriginalProfileStore();
+        private readonly ProfileManager _profileManager;
         private readonly CoroutineManager _coroutineManager = new CoroutineManager();
         private readonly MonumentEntityTracker _entityTracker = new MonumentEntityTracker();
         private readonly AdapterListenerManager _adapterListenerManager = new AdapterListenerManager();
@@ -84,14 +86,15 @@ namespace Oxide.Plugins
         private Coroutine _startupCoroutine;
         private bool _serverInitialized = false;
 
+        public MonumentAddons()
+        {
+            _profileManager = new ProfileManager(_profileStore);
+            _adapterDisplayManager = new AdapterDisplayManager(_uniqueNameRegistry);
+        }
+
         #endregion
 
         #region Hooks
-
-        public MonumentAddons()
-        {
-            _adapterDisplayManager = new AdapterDisplayManager(_uniqueNameRegistry);
-        }
 
         private void Init()
         {
@@ -99,7 +102,7 @@ namespace Oxide.Plugins
             _pluginData = StoredData.Load();
 
             // Ensure the profile folder is created to avoid errors.
-            Profile.LoadDefaultProfile();
+            _profileStore.EnsureDefaultProfile();
 
             permission.RegisterPermission(PermissionAdmin, this);
 
@@ -238,7 +241,7 @@ namespace Oxide.Plugins
                 Url = url,
                 Raw = raw,
             };
-            controller.Profile.Save();
+            _profileStore.Save(controller.Profile);
         }
 
         private void OnEntityScaled(BaseEntity entity, float scale)
@@ -251,7 +254,7 @@ namespace Oxide.Plugins
 
             controller.EntityData.Scale = scale;
             controller.UpdateScale();
-            controller.Profile.Save();
+            _profileStore.Save(controller.Profile);
         }
 
         // This hook is exposed by plugin: Telekinesis.
@@ -316,7 +319,7 @@ namespace Oxide.Plugins
                 if (migratedVendingProfile != null)
                 {
                     controller.EntityData.VendingProfile = migratedVendingProfile;
-                    controller.Profile.Save();
+                    _profileStore.Save(controller.Profile);
                     LogWarning($"Successfully migrated vending machine settings from CustomVendingSetup to MonumentAddons profile '{controller.Profile.Name}'.");
                 }
             }
@@ -560,8 +563,8 @@ namespace Oxide.Plugins
             profileController.Profile.AddData(monument.AliasOrShortName, addonData);
             profileController.SpawnNewData(addonData, matchingMonuments);
 
-            _adapterDisplayManager.ShowAllRepeatedly(basePlayer);
             ReplyToPlayer(player, LangEntry.SpawnSuccess, matchingMonuments.Count, profileController.Profile.Name, monument.AliasOrShortName);
+            _adapterDisplayManager.ShowAllRepeatedly(basePlayer);
         }
 
         [Command("masave")]
@@ -600,22 +603,13 @@ namespace Oxide.Plugins
 
             var numAdapters = controller.Adapters.Count;
 
-            var spawnPointAdapter = adapter as SpawnPointAdapter;
-            if (spawnPointAdapter != null)
-            {
-                var spawnGroupController = controller as SpawnGroupController;
-                var spawnPointData = spawnPointAdapter.SpawnPointData;
-                spawnGroupController.RemoveSpawnPoint(spawnPointData);
-                spawnGroupController.Profile.RemoveSpawnPoint(spawnGroupController.SpawnGroupData, spawnPointData);
-            }
-            else
-            {
-                controller.TryKillAndRemove();
-            }
+            controller.KillData(adapter.Data);
+            controller.Profile.RemoveData(adapter.Data);
+
+            ReplyToPlayer(player, LangEntry.KillSuccess, GetAddonName(player, adapter.Data), numAdapters, controller.Profile.Name);
 
             var basePlayer = player.Object as BasePlayer;
             _adapterDisplayManager.ShowAllRepeatedly(basePlayer);
-            ReplyToPlayer(player, LangEntry.KillSuccess, GetAddonName(player, adapter.Data), numAdapters, controller.Profile.Name);
         }
 
         [Command("masetid")]
@@ -640,12 +634,13 @@ namespace Oxide.Plugins
             var hadIdentifier = !string.IsNullOrEmpty(controller.EntityData.CCTV.RCIdentifier);
 
             controller.EntityData.CCTV.RCIdentifier = args[0];
-            controller.Profile.Save();
+            _profileStore.Save(controller.Profile);
             controller.UpdateIdentifier();
+
+            ReplyToPlayer(player, LangEntry.CCTVSetIdSuccess, args[0], controller.Adapters.Count, controller.Profile.Name);
 
             var basePlayer = player.Object as BasePlayer;
             _adapterDisplayManager.ShowAllRepeatedly(basePlayer, immediate: hadIdentifier);
-            ReplyToPlayer(player, LangEntry.CCTVSetIdSuccess, args[0], controller.Adapters.Count, controller.Profile.Name);
         }
 
         [Command("masetdir")]
@@ -671,11 +666,12 @@ namespace Oxide.Plugins
 
             controller.EntityData.CCTV.Pitch = lookAngles.x;
             controller.EntityData.CCTV.Yaw = lookAngles.y;
-            controller.Profile.Save();
+            _profileStore.Save(controller.Profile);
             controller.UpdateDirection();
 
-            _adapterDisplayManager.ShowAllRepeatedly(basePlayer);
             ReplyToPlayer(player, LangEntry.CCTVSetDirectionSuccess, controller.Adapters.Count, controller.Profile.Name);
+
+            _adapterDisplayManager.ShowAllRepeatedly(basePlayer);
         }
 
         [Command("maskin")]
@@ -712,12 +708,13 @@ namespace Oxide.Plugins
             var updatedExistingSkin = (controller.EntityData.Skin == 0) != (skinId == 0);
 
             controller.EntityData.Skin = skinId;
-            controller.Profile.Save();
+            _profileStore.Save(controller.Profile);
             controller.UpdateSkin();
+
+            ReplyToPlayer(player, LangEntry.SkinSetSuccess, skinId, controller.Adapters.Count, controller.Profile.Name);
 
             var basePlayer = player.Object as BasePlayer;
             _adapterDisplayManager.ShowAllRepeatedly(basePlayer, immediate: !updatedExistingSkin);
-            ReplyToPlayer(player, LangEntry.SkinSetSuccess, skinId, controller.Adapters.Count, controller.Profile.Name);
         }
 
         private void AddProfileDescription(StringBuilder sb, IPlayer player, ProfileController profileController)
@@ -750,7 +747,7 @@ namespace Oxide.Plugins
                 case "list":
                 {
                     var profileList = ProfileInfo.GetList(_profileManager);
-                    if (profileList.Length == 0)
+                    if (profileList.Count == 0)
                     {
                         ReplyToPlayer(player, LangEntry.ProfileListEmpty);
                         return;
@@ -759,11 +756,10 @@ namespace Oxide.Plugins
                     var playerProfileName = player.IsServer ? null : _pluginData.GetSelectedProfileName(player.Id);
 
                     profileList = profileList
-                        .Where(profile => !profile.Name.EndsWith(Profile.OriginalSuffix))
                         .OrderByDescending(profile => profile.Enabled && profile.Name == playerProfileName)
                         .ThenByDescending(profile => profile.Enabled)
                         .ThenBy(profile => profile.Name)
-                        .ToArray();
+                        .ToList();
 
                     var sb = new StringBuilder();
                     sb.AppendLine(GetMessage(player.Id, LangEntry.ProfileListHeader));
@@ -823,7 +819,10 @@ namespace Oxide.Plugins
                     if (!VerifyProfile(player, args, out controller, LangEntry.ProfileSelectSyntax))
                         return;
 
-                    _pluginData.SetProfileSelected(player.Id, controller.Profile.Name);
+                    var profile = controller.Profile;
+                    var profileName = profile.Name;
+
+                    _pluginData.SetProfileSelected(player.Id, profileName);
                     var wasEnabled = controller.IsEnabled;
                     if (wasEnabled)
                     {
@@ -832,13 +831,13 @@ namespace Oxide.Plugins
                     }
                     else
                     {
-                        if (!RefreshProfileAndVerifyJSONSyntax(player, controller.Profile.Name, out newProfileData))
+                        if (!VerifyCanLoadProfile(player, profileName, out newProfileData))
                             return;
 
                         controller.Enable(newProfileData);
                     }
 
-                    ReplyToPlayer(player, wasEnabled ? LangEntry.ProfileSelectSuccess : LangEntry.ProfileSelectEnableSuccess, controller.Profile.Name);
+                    ReplyToPlayer(player, wasEnabled ? LangEntry.ProfileSelectSuccess : LangEntry.ProfileSelectEnableSuccess, profileName);
                     _adapterDisplayManager.SetPlayerProfile(basePlayer, controller);
                     _adapterDisplayManager.ShowAllRepeatedly(basePlayer);
                     break;
@@ -929,15 +928,8 @@ namespace Oxide.Plugins
                     }
 
                     Profile newProfileData;
-                    try
-                    {
-                        newProfileData = Profile.Load(controller.Profile.Name);
-                    }
-                    catch (JsonReaderException ex)
-                    {
-                        player.Reply("{0}", string.Empty, ex.Message);
+                    if (!VerifyCanLoadProfile(player, controller.Profile.Name, out newProfileData))
                         return;
-                    }
 
                     controller.Reload(newProfileData);
                     ReplyToPlayer(player, LangEntry.ProfileReloadSuccess, controller.Profile.Name);
@@ -969,7 +961,7 @@ namespace Oxide.Plugins
                         return;
                     }
 
-                    if (!RefreshProfileAndVerifyJSONSyntax(player, controller.Profile.Name, out newProfileData))
+                    if (!VerifyCanLoadProfile(player, controller.Profile.Name, out newProfileData))
                         return;
 
                     controller.Enable(newProfileData);
@@ -997,7 +989,6 @@ namespace Oxide.Plugins
 
                     controller.Disable();
                     _pluginData.SetProfileDisabled(profileName);
-                    _pluginData.Save();
                     ReplyToPlayer(player, LangEntry.ProfileDisableSuccess, profileName);
                     break;
                 }
@@ -1023,28 +1014,29 @@ namespace Oxide.Plugins
 
                 case "moveto":
                 {
-                    BaseController controller;
-                    if (!VerifyLookingAtAdapter(player, out controller, LangEntry.ErrorNoSuitableAddonFound))
+                    BaseController addonController;
+                    if (!VerifyLookingAtAdapter(player, out addonController, LangEntry.ErrorNoSuitableAddonFound))
                         return;
 
                     ProfileController newProfileController;
                     if (!VerifyProfile(player, args, out newProfileController, LangEntry.ProfileMoveToSyntax))
                         return;
 
+                    var oldProfileController = addonController.ProfileController;
                     var newProfile = newProfileController.Profile;
-                    var oldProfile = controller.Profile;
+                    var oldProfile = addonController.Profile;
 
-                    var data = controller.Data;
+                    var data = addonController.Data;
                     var addonName = GetAddonName(player, data);
 
-                    if (newProfileController == controller.ProfileController)
+                    if (newProfileController == oldProfileController)
                     {
                         ReplyToPlayer(player, LangEntry.ProfileMoveToAlreadyPresent, addonName, oldProfile.Name);
                         return;
                     }
 
                     string monumentAliasOrShortName;
-                    if (!controller.TryKillAndRemove(out monumentAliasOrShortName))
+                    if (!addonController.TryKillAndRemove(out monumentAliasOrShortName))
                         return;
 
                     newProfile.AddData(monumentAliasOrShortName, data);
@@ -1149,9 +1141,9 @@ namespace Oxide.Plugins
                         profile.Name = urlDerivedProfileName;
                     }
 
-                    if (profile.Name.EndsWith(Profile.OriginalSuffix))
+                    if (OriginalProfileStore.IsOriginalProfile(profile.Name))
                     {
-                        LogError($"Profile \"{profile.Name}\" should not end with \"{Profile.OriginalSuffix}\".");
+                        LogError($"Profile \"{profile.Name}\" should not end with \"{OriginalProfileStore.OriginalSuffix}\".");
                         ReplyToPlayer(player, LangEntry.ProfileInstallError, url);
                         return;
                     }
@@ -1163,8 +1155,8 @@ namespace Oxide.Plugins
                         return;
                     }
 
-                    profile.Save();
-                    profile.SaveAsOriginal();
+                    _profileStore.Save(profile);
+                    _originalProfileStore.Save(profile);
 
                     if (profileController == null)
                         profileController = _profileManager.GetProfileController(profile.Name);
@@ -1307,9 +1299,9 @@ namespace Oxide.Plugins
                     profileController.Profile.AddData(monument.AliasOrShortName, spawnGroupData);
                     profileController.SpawnNewData(spawnGroupData, matchingMonuments);
 
-                    _adapterDisplayManager.ShowAllRepeatedly(basePlayer);
-
                     ReplyToPlayer(player, LangEntry.SpawnGroupCreateSucces, spawnGroupName);
+
+                    _adapterDisplayManager.ShowAllRepeatedly(basePlayer);
                     break;
                 }
 
@@ -1443,11 +1435,11 @@ namespace Oxide.Plugins
                     }
 
                     spawnGroupController.UpdateSpawnGroups();
-                    spawnGroupController.Profile.Save();
-
-                    _adapterDisplayManager.ShowAllRepeatedly(basePlayer, immediate: showImmediate);
+                    _profileStore.Save(spawnGroupController.Profile);
 
                     ReplyToPlayer(player, LangEntry.SpawnGroupSetSuccess, spawnGroupData.Name, spawnGroupOption, setValue);
+
+                    _adapterDisplayManager.ShowAllRepeatedly(basePlayer, immediate: showImmediate);
                     break;
                 }
 
@@ -1488,11 +1480,11 @@ namespace Oxide.Plugins
                     }
 
                     spawnGroupController.UpdateSpawnGroups();
-                    spawnGroupController.Profile.Save();
-
-                    _adapterDisplayManager.ShowAllRepeatedly(basePlayer, immediate: updatedExistingEntry);
+                    _profileStore.Save(spawnGroupController.Profile);
 
                     ReplyToPlayer(player, LangEntry.SpawnGroupAddSuccess, _uniqueNameRegistry.GetUniqueShortName(prefabData.PrefabName), weight, spawnGroupData.Name);
+
+                    _adapterDisplayManager.ShowAllRepeatedly(basePlayer, immediate: updatedExistingEntry);
                     break;
                 }
 
@@ -1532,11 +1524,11 @@ namespace Oxide.Plugins
                     spawnGroupData.Prefabs.Remove(prefabMatch);
                     spawnGroupController.KillSpawnedInstances(prefabMatch.PrefabName);
                     spawnGroupController.UpdateSpawnGroups();
-                    spawnGroupController.Profile.Save();
-
-                    _adapterDisplayManager.ShowAllRepeatedly(basePlayer, immediate: false);
+                    _profileStore.Save(spawnGroupController.Profile);
 
                     ReplyToPlayer(player, LangEntry.SpawnGroupRemoveSuccess, _uniqueNameRegistry.GetUniqueShortName(prefabMatch.PrefabName), spawnGroupData.Name);
+
+                    _adapterDisplayManager.ShowAllRepeatedly(basePlayer, immediate: false);
                     break;
                 }
 
@@ -1635,12 +1627,12 @@ namespace Oxide.Plugins
                     };
 
                     spawnGroupController.SpawnGroupData.SpawnPoints.Add(spawnPointData);
-                    spawnGroupController.Profile.Save();
-                    spawnGroupController.AddSpawnPoint(spawnPointData);
-
-                    _adapterDisplayManager.ShowAllRepeatedly(basePlayer);
+                    _profileStore.Save(spawnGroupController.Profile);
+                    spawnGroupController.CreateSpawnPoint(spawnPointData);
 
                     ReplyToPlayer(player, LangEntry.SpawnPointCreateSuccess, spawnGroupController.SpawnGroupData.Name);
+
+                    _adapterDisplayManager.ShowAllRepeatedly(basePlayer);
                     break;
                 }
 
@@ -1732,11 +1724,11 @@ namespace Oxide.Plugins
                         }
                     }
 
-                    spawnGroupController.Profile.Save();
-
-                    _adapterDisplayManager.ShowAllRepeatedly(basePlayer);
+                    _profileStore.Save(spawnGroupController.Profile);
 
                     ReplyToPlayer(player, LangEntry.SpawnPointSetSuccess, spawnPointOption, setValue);
+
+                    _adapterDisplayManager.ShowAllRepeatedly(basePlayer);
                     break;
                 }
 
@@ -1813,9 +1805,9 @@ namespace Oxide.Plugins
             profileController.Profile.AddData(monument.AliasOrShortName, pasteData);
             profileController.SpawnNewData(pasteData, matchingMonuments);
 
-            _adapterDisplayManager.ShowAllRepeatedly(basePlayer);
-
             ReplyToPlayer(player, LangEntry.PasteSuccess, pasteName, monument.AliasOrShortName, matchingMonuments.Count, profileController.Profile.Name);
+
+            _adapterDisplayManager.ShowAllRepeatedly(basePlayer);
         }
 
         private void AddSpawnGroupInfo(IPlayer player, StringBuilder sb, SpawnGroup spawnGroup, int spawnPointCount)
@@ -2221,7 +2213,7 @@ namespace Oxide.Plugins
                 : string.Empty;
 
             var profileName = $"{monument.AliasOrShortName}{tierSuffix}_vanilla_generated";
-            var profile = Profile.Create(profileName, basePlayer.displayName);
+            var profile = _profileStore.Create(profileName, basePlayer.displayName);
             profile.AddDataList(monument.AliasOrShortName, spawnGroupDataList.Cast<BaseIdentifiableData>());
 
             ReplyToPlayer(player, LangEntry.GenerateSuccess, profileName);
@@ -2280,7 +2272,7 @@ namespace Oxide.Plugins
 
             _customAddonManager.RegisterAddon(addonDefinition);
 
-            return addonDefinition.ToApiResult();
+            return addonDefinition.ToApiResult(_profileStore);
         }
 
         #endregion
@@ -2625,19 +2617,14 @@ namespace Oxide.Plugins
             return false;
         }
 
-        private bool RefreshProfileAndVerifyJSONSyntax(IPlayer player, string profileName, out Profile profile)
+        private bool VerifyCanLoadProfile(IPlayer player, string profileName, out Profile profile)
         {
-            try
+            string errorMessage;
+            if (!_profileStore.TryLoad(profileName, out profile, out errorMessage))
             {
-                profile = Profile.Load(profileName);
-                return true;
+                player.Reply("{0}", string.Empty, errorMessage);
             }
-            catch (JsonReaderException ex)
-            {
-                profile = null;
-                player.Reply("{0}", string.Empty, ex.Message);
-                return false;
-            }
+            return true;
         }
 
         #endregion
@@ -3080,14 +3067,14 @@ namespace Oxide.Plugins
                         return;
                     }
 
-                    ProfileDataMigration.MigrateToLatest(profile);
+                    ProfileDataMigration<Profile>.MigrateToLatest(profile);
 
                     profile.Url = url;
                     successCallback(profile);
                 },
                 owner: this,
                 method: RequestMethod.GET,
-                headers: DownloadRequestHeaders,
+                headers: JsonRequestHeaders,
                 timeout: 5000
             );
         }
@@ -3745,6 +3732,12 @@ namespace Oxide.Plugins
                 }
             }
 
+            // Subclasses can override this if they need to kill child data (e.g., spawn point data).
+            public virtual void KillData(BaseIdentifiableData data)
+            {
+                Kill();
+            }
+
             public void PreUnload()
             {
                 foreach (var adapter in Adapters)
@@ -4016,7 +4009,7 @@ namespace Oxide.Plugins
                 {
                     var singleEntityController = Controller as SingleEntityController;
                     singleEntityController.HandleChanges();
-                    singleEntityController.Profile.Save();
+                    _pluginInstance._profileStore.Save(singleEntityController.Profile);
                 }
 
                 return hasChanged;
@@ -4219,7 +4212,7 @@ namespace Oxide.Plugins
                         ["SaveData"] = new Action<JObject>(vendingProfile =>
                         {
                             EntityData.VendingProfile = vendingProfile;
-                            Profile.Save();
+                            _pluginInstance?._profileStore.Save(Profile);
                         }),
                     };
                 }
@@ -5121,6 +5114,7 @@ namespace Oxide.Plugins
             public override void Spawn()
             {
                 var spawnGroupGameObject = new GameObject();
+                spawnGroupGameObject.transform.SetPositionAndRotation(Monument.Position, Monument.Rotation);
                 spawnGroupGameObject.SetActive(false);
 
                 // Configure the spawn group and create spawn points before enabling the group.
@@ -5139,7 +5133,7 @@ namespace Oxide.Plugins
 
                 foreach (var spawnPointData in SpawnGroupData.SpawnPoints)
                 {
-                    AddSpawnPoint(spawnPointData);
+                    CreateSpawnPoint(spawnPointData);
                 }
 
                 UpdateSpawnPointReferences();
@@ -5265,7 +5259,7 @@ namespace Oxide.Plugins
                     spawnPointAdapter.KillSpawnedInstances(prefabName);
             }
 
-            public void AddSpawnPoint(SpawnPointData spawnPointData)
+            public void CreateSpawnPoint(SpawnPointData spawnPointData)
             {
                 var spawnPointAdapter = new SpawnPointAdapter(spawnPointData, this, Controller, Monument);
                 Adapters.Add(spawnPointAdapter);
@@ -5277,7 +5271,7 @@ namespace Oxide.Plugins
                 }
             }
 
-            public void RemoveSpawnPoint(SpawnPointData spawnPointData)
+            public void KillSpawnPoint(SpawnPointData spawnPointData)
             {
                 var spawnPointAdapter = FindSpawnPoint(spawnPointData);
                 if (spawnPointAdapter == null)
@@ -5312,16 +5306,34 @@ namespace Oxide.Plugins
             public override BaseAdapter CreateAdapter(BaseMonument monument) =>
                 new SpawnGroupAdapter(SpawnGroupData, this, monument);
 
-            public void AddSpawnPoint(SpawnPointData spawnPointData)
+            public override void KillData(BaseIdentifiableData data)
             {
-                foreach (var spawnGroupAdapter in SpawnGroupAdapters)
-                    spawnGroupAdapter.AddSpawnPoint(spawnPointData);
+                if (data == Data)
+                {
+                    base.KillData(data);
+                    return;
+                }
+
+                var spawnPointData = data as SpawnPointData;
+                if (spawnPointData != null)
+                {
+                    KillSpawnPoint(spawnPointData);
+                    return;
+                }
+
+                _pluginInstance?.LogError($"{nameof(SpawnGroupController)}.{nameof(KillData)} not implemented for type {data.GetType()}. Killing {nameof(SpawnGroupController)}.");
             }
 
-            public void RemoveSpawnPoint(SpawnPointData spawnPointData)
+            public void CreateSpawnPoint(SpawnPointData spawnPointData)
             {
                 foreach (var spawnGroupAdapter in SpawnGroupAdapters)
-                    spawnGroupAdapter.RemoveSpawnPoint(spawnPointData);
+                    spawnGroupAdapter.CreateSpawnPoint(spawnPointData);
+            }
+
+            public void KillSpawnPoint(SpawnPointData spawnPointData)
+            {
+                foreach (var spawnGroupAdapter in SpawnGroupAdapters)
+                    spawnGroupAdapter.KillSpawnPoint(spawnPointData);
             }
 
             public void UpdateSpawnGroups()
@@ -5532,7 +5544,7 @@ namespace Oxide.Plugins
 
             public List<CustomAddonAdapter> AdapterUsers = new List<CustomAddonAdapter>();
 
-            public Dictionary<string, object> ToApiResult()
+            public Dictionary<string, object> ToApiResult(ProfileStore profileStore)
             {
                 return new Dictionary<string, object>
                 {
@@ -5554,7 +5566,7 @@ namespace Oxide.Plugins
 
                             var controller = matchingAdapter.Controller as CustomAddonController;
                             controller.CustomAddonData.SetData(data);
-                            controller.Profile.Save();
+                            profileStore.Save(controller.Profile);
 
                             foreach (var adapter in controller.Adapters)
                             {
@@ -6386,7 +6398,8 @@ namespace Oxide.Plugins
             public void Rename(string newName)
             {
                 _pluginData.RenameProfileReferences(Profile.Name, newName);
-                Profile.CopyTo(newName);
+                _pluginInstance._originalProfileStore.CopyTo(Profile, newName);
+                _pluginInstance._profileStore.CopyTo(Profile, newName);
             }
 
             public void Enable(Profile newProfileData)
@@ -6414,12 +6427,29 @@ namespace Oxide.Plugins
                 if (!IsEnabled)
                 {
                     Profile.MonumentDataMap.Clear();
-                    Profile.Save();
+                    _pluginInstance._profileStore.Save(Profile);
                     return;
                 }
 
                 Interrupt();
                 StartCoroutine(ClearRoutine());
+            }
+
+            public void KillData(BaseIdentifiableData data, BaseIdentifiableData parentData)
+            {
+                var controller = GetController(data);
+                if (controller == null && parentData != null)
+                {
+                    controller = GetController(parentData);
+                }
+
+                if (controller == null)
+                {
+                    _pluginInstance?.LogWarning($"Unable to find controller for {data.GetType()} {data.Id} in {Profile.Name}");
+                    return;
+                }
+
+                controller.KillData(data);
             }
 
             private void Interrupt()
@@ -6553,7 +6583,7 @@ namespace Oxide.Plugins
                 yield return WaitUntilUnloaded;
 
                 Profile.MonumentDataMap.Clear();
-                Profile.Save();
+                _pluginInstance._profileStore.Save(Profile);
                 ProfileState = ProfileState.Loaded;
             }
         }
@@ -6565,22 +6595,25 @@ namespace Oxide.Plugins
             public int PasteCount;
         }
 
-        private struct ProfileInfo
+        private class ProfileInfo
         {
-            public static ProfileInfo[] GetList(ProfileManager profileManager)
+            public static List<ProfileInfo> GetList(ProfileManager profileManager)
             {
-                var profileNameList = Profile.GetProfileNames();
-                var profileInfoList = new ProfileInfo[profileNameList.Length];
+                var profileNameList = ProfileStore.GetProfileNames();
+                var profileInfoList = new List<ProfileInfo>(profileNameList.Length);
 
                 for (var i = 0; i < profileNameList.Length; i++)
                 {
                     var profileName = profileNameList[i];
-                    profileInfoList[i] = new ProfileInfo
+                    if (OriginalProfileStore.IsOriginalProfile(profileName))
+                        continue;
+
+                    profileInfoList.Add(new ProfileInfo
                     {
                         Name = profileName,
                         Enabled = _pluginData.EnabledProfiles.Contains(profileName),
                         Profile = profileManager.GetCachedProfileController(profileName)?.Profile
-                    };
+                    });
                 }
 
                 return profileInfoList;
@@ -6593,7 +6626,13 @@ namespace Oxide.Plugins
 
         private class ProfileManager
         {
+            private ProfileStore _profileStore;
             private List<ProfileController> _profileControllers = new List<ProfileController>();
+
+            public ProfileManager(ProfileStore profileStore)
+            {
+                _profileStore = profileStore;
+            }
 
             public IEnumerator LoadAllProfilesRoutine()
             {
@@ -6689,7 +6728,7 @@ namespace Oxide.Plugins
                 if (profileController != null)
                     return profileController;
 
-                var profile = Profile.LoadIfExists(profileName);
+                var profile = _profileStore.LoadIfExists(profileName);
                 if (profile != null)
                 {
                     var controller = new ProfileController(profile);
@@ -6730,12 +6769,12 @@ namespace Oxide.Plugins
                         return true;
                 }
 
-                return Profile.Exists(profileName);
+                return _profileStore.Exists(profileName);
             }
 
             public ProfileController CreateProfile(string profileName, string authorName)
             {
-                var profile = Profile.Create(profileName, authorName);
+                var profile = _profileStore.Create(profileName, authorName);
                 var controller = new ProfileController(profile, startLoaded: true);
                 _profileControllers.Add(controller);
                 return controller;
@@ -7235,6 +7274,23 @@ namespace Oxide.Plugins
                     return SpawnGroups.Remove(spawnGroupData);
                 }
 
+                var spawnPointData = data as SpawnPointData;
+                if (spawnPointData != null)
+                {
+                    foreach (var parentSpawnGroupData in SpawnGroups)
+                    {
+                        if (!parentSpawnGroupData.SpawnPoints.Remove(spawnPointData))
+                            continue;
+
+                        if (parentSpawnGroupData.SpawnPoints.Count == 0)
+                        {
+                            SpawnGroups.Remove(parentSpawnGroupData);
+                        }
+                        return true;
+                    }
+                    return false;
+                }
+
                 var pasteData = data as PasteData;
                 if (pasteData != null)
                 {
@@ -7252,16 +7308,16 @@ namespace Oxide.Plugins
             }
         }
 
-        private static class ProfileDataMigration
+        private static class ProfileDataMigration<T> where T : Profile
         {
-            public static bool MigrateToLatest(Profile data)
+            public static bool MigrateToLatest(T data)
             {
                 // Using single | to avoid short-circuiting.
                 return MigrateV0ToV1(data)
                     | MigrateV1ToV2(data);
             }
 
-            public static bool MigrateV0ToV1(Profile data)
+            public static bool MigrateV0ToV1(T data)
             {
                 if (data.SchemaVersion != 0)
                     return false;
@@ -7293,7 +7349,7 @@ namespace Oxide.Plugins
                 return contentChanged;
             }
 
-            public static bool MigrateV1ToV2(Profile data)
+            public static bool MigrateV1ToV2(T data)
             {
                 if (data.SchemaVersion != 1)
                     return false;
@@ -7324,13 +7380,83 @@ namespace Oxide.Plugins
             }
         }
 
-        private class Profile
+        private class FileStore<T> where T : class, new()
+        {
+            protected string _directoryPath;
+
+            public FileStore(string directoryPath)
+            {
+                _directoryPath = directoryPath + "/";
+            }
+
+            public virtual bool Exists(string filename)
+            {
+                return Interface.Oxide.DataFileSystem.ExistsDatafile(GetFilepath(filename));
+            }
+
+            public virtual T Load(string filename)
+            {
+                return Interface.Oxide.DataFileSystem.ReadObject<T>(GetFilepath(filename)) ?? new T();
+            }
+
+            public T LoadIfExists(string filename)
+            {
+                return Exists(filename)
+                    ? Load(filename)
+                    : default(T);
+            }
+
+            public void Save(string filename, T data)
+            {
+                Interface.Oxide.DataFileSystem.WriteObject(GetFilepath(filename), data);
+            }
+
+            protected virtual string GetFilepath(string filename)
+            {
+                return $"{_directoryPath}{filename}";
+            }
+        }
+
+        private class OriginalProfileStore : FileStore<Profile>
         {
             public const string OriginalSuffix = "_original";
 
+            public static bool IsOriginalProfile(string profileName)
+            {
+                return profileName.EndsWith(OriginalSuffix);
+            }
+
+            public OriginalProfileStore() : base(nameof(MonumentAddons)) {}
+
+            protected override string GetFilepath(string profileName)
+            {
+                return base.GetFilepath(profileName + OriginalSuffix);
+            }
+
+            public void Save(Profile profile)
+            {
+                base.Save(profile.Name, profile);
+            }
+
+            public void CopyTo(Profile profile, string newName)
+            {
+                var original = LoadIfExists(profile.Name);
+                if (original == null)
+                {
+                    return;
+                }
+
+                original.Name = newName;
+                Save(original);
+            }
+        }
+
+        private class ProfileStore : FileStore<Profile>
+        {
             public static string[] GetProfileNames()
             {
-                var filenameList = Interface.Oxide.DataFileSystem.GetFiles(_pluginInstance.Name);
+                var filenameList = Interface.Oxide.DataFileSystem.GetFiles(nameof(MonumentAddons));
+
                 for (var i = 0; i < filenameList.Length; i++)
                 {
                     var filename = filenameList[i];
@@ -7342,34 +7468,29 @@ namespace Oxide.Plugins
                 return filenameList;
             }
 
-            private static string GetActualFileName(string profileName)
+            public ProfileStore() : base(nameof(MonumentAddons)) {}
+
+            public override bool Exists(string profileName)
             {
-                foreach (var name in GetProfileNames())
-                {
-                    if (name.ToLower() == profileName.ToLower())
-                        return name;
-                }
-                return profileName;
+                return OriginalProfileStore.IsOriginalProfile(profileName)
+                    ? false
+                    : base.Exists(profileName);
             }
 
-            private static string GetProfilePath(string profileName) => $"{_pluginInstance.Name}/{profileName}";
-
-            public static bool Exists(string profileName) =>
-                !profileName.EndsWith(OriginalSuffix)
-                && Interface.Oxide.DataFileSystem.ExistsDatafile(GetProfilePath(profileName));
-
-            public static Profile Load(string profileName)
+            public override Profile Load(string profileName)
             {
-                if (profileName.EndsWith(OriginalSuffix))
+                if (OriginalProfileStore.IsOriginalProfile(profileName))
                     return null;
 
-                var profile = Interface.Oxide.DataFileSystem.ReadObject<Profile>(GetProfilePath(profileName)) ?? new Profile();
-                profile.Name = GetActualFileName(profileName);
+                var profile = base.Load(profileName);
+                profile.Name = GetCaseSensitiveFileName(profileName);
 
                 var originalSchemaVersion = profile.SchemaVersion;
 
-                if (ProfileDataMigration.MigrateToLatest(profile))
+                if (ProfileDataMigration<Profile>.MigrateToLatest(profile))
+                {
                     _pluginInstance.LogWarning($"Profile {profile.Name} has been automatically migrated.");
+                }
 
                 // Backfill ids if missing.
                 foreach (var monumentData in profile.MonumentDataMap.Values)
@@ -7377,33 +7498,77 @@ namespace Oxide.Plugins
                     foreach (var entityData in monumentData.Entities)
                     {
                         if (entityData.Id == Guid.Empty)
+                        {
                             entityData.Id = Guid.NewGuid();
+                        }
                     }
                 }
 
                 if (profile.SchemaVersion != originalSchemaVersion)
-                    profile.Save();
+                {
+                    Save(profile.Name, profile);
+                }
 
                 return profile;
             }
 
-            public static Profile LoadIfExists(string profileName) =>
-                Exists(profileName) ? Load(profileName) : null;
+            public bool TryLoad(string profileName, out Profile profile, out string errorMessage)
+            {
+                try
+                {
+                    profile = Load(profileName);
+                    errorMessage = null;
+                    return true;
+                }
+                catch (JsonReaderException ex)
+                {
+                    profile = null;
+                    errorMessage = ex.Message;
+                    return false;
+                }
+            }
 
-            public static Profile LoadDefaultProfile() => Load(DefaultProfileName);
+            public void Save(Profile profile)
+            {
+                base.Save(profile.Name, profile);
+            }
 
-            public static Profile Create(string profileName, string authorName)
+            public Profile Create(string profileName, string authorName)
             {
                 var profile = new Profile
                 {
                     Name = profileName,
                     Author = authorName,
                 };
-                ProfileDataMigration.MigrateToLatest(profile);
-                profile.Save();
+                ProfileDataMigration<Profile>.MigrateToLatest(profile);
+                Save(profile);
                 return profile;
             }
 
+            public void CopyTo(Profile profile, string newName)
+            {
+                profile.Name = newName;
+                Save(profile);
+            }
+
+            public void EnsureDefaultProfile()
+            {
+                Load(DefaultProfileName);
+            }
+
+            private string GetCaseSensitiveFileName(string profileName)
+            {
+                foreach (var name in GetProfileNames())
+                {
+                    if (StringUtils.Equals(name, profileName))
+                        return name;
+                }
+                return profileName;
+            }
+        }
+
+        private class Profile
+        {
             [JsonProperty("Name")]
             public string Name;
 
@@ -7422,36 +7587,6 @@ namespace Oxide.Plugins
             [JsonProperty("MonumentData")]
             public Dictionary<string, MonumentData> MonumentDataMap = new Dictionary<string, MonumentData>();
 
-            public void Save() =>
-                Interface.Oxide.DataFileSystem.WriteObject(GetProfilePath(Name), this);
-
-            public void SaveAsOriginal() =>
-                Interface.Oxide.DataFileSystem.WriteObject(GetProfilePath(Name) + OriginalSuffix, this);
-
-            public Profile LoadOriginalIfExists()
-            {
-                var originalPath = GetProfilePath(Name) + OriginalSuffix;
-                if (!Interface.Oxide.DataFileSystem.ExistsDatafile(originalPath))
-                    return null;
-
-                var original = Interface.Oxide.DataFileSystem.ReadObject<Profile>(originalPath) ?? new Profile();
-                original.Name = Name;
-                return original;
-            }
-
-            public void CopyTo(string newName)
-            {
-                var original = LoadOriginalIfExists();
-                if (original != null)
-                {
-                    original.Name = newName;
-                    original.SaveAsOriginal();
-                }
-
-                Name = newName;
-                Save();
-            }
-
             public bool IsEmpty()
             {
                 if (MonumentDataMap == null || MonumentDataMap.IsEmpty())
@@ -7466,42 +7601,10 @@ namespace Oxide.Plugins
                 return true;
             }
 
-            public Dictionary<string, Dictionary<string, int>> GetEntityAggregates()
-            {
-                var aggregateData = new Dictionary<string, Dictionary<string, int>>();
-
-                foreach (var entry in MonumentDataMap)
-                {
-                    var monumentAliasOrShortName = entry.Key;
-                    var monumentData = entry.Value;
-
-                    if (monumentData.Entities.Count == 0)
-                        continue;
-
-                    Dictionary<string, int> monumentAggregateData;
-                    if (!aggregateData.TryGetValue(monumentAliasOrShortName, out monumentAggregateData))
-                    {
-                        monumentAggregateData = new Dictionary<string, int>();
-                        aggregateData[monumentAliasOrShortName] = monumentAggregateData;
-                    }
-
-                    foreach (var entityData in monumentData.Entities)
-                    {
-                        int count;
-                        if (!monumentAggregateData.TryGetValue(entityData.PrefabName, out count))
-                            count = 0;
-
-                        monumentAggregateData[entityData.PrefabName] = count + 1;
-                    }
-                }
-
-                return aggregateData;
-            }
-
             public void AddData(string monumentAliasOrShortName, BaseIdentifiableData data)
             {
                 EnsureMonumentData(monumentAliasOrShortName).AddData(data);
-                Save();
+                _pluginInstance._profileStore.Save(this);
             }
 
             public void AddDataList(string monumentAliasOrShortName, IEnumerable<BaseIdentifiableData> dataList)
@@ -7510,7 +7613,7 @@ namespace Oxide.Plugins
                 {
                     EnsureMonumentData(monumentAliasOrShortName).AddData(data);
                 }
-                Save();
+                _pluginInstance._profileStore.Save(this);
             }
 
             public bool RemoveData(BaseIdentifiableData data, out string monumentAliasOrShortName)
@@ -7520,7 +7623,7 @@ namespace Oxide.Plugins
                     if (entry.Value.RemoveData(data))
                     {
                         monumentAliasOrShortName = entry.Key;
-                        Save();
+                        _pluginInstance._profileStore.Save(this);
                         return true;
                     }
                 }
@@ -7529,17 +7632,10 @@ namespace Oxide.Plugins
                 return false;
             }
 
-            public bool RemoveSpawnPoint(SpawnGroupData spawnGroupData, SpawnPointData spawnPointData)
+            public bool RemoveData(BaseIdentifiableData data)
             {
-                var removed = spawnGroupData.SpawnPoints.Remove(spawnPointData);
-                if (spawnGroupData.SpawnPoints.Count > 0)
-                {
-                    Save();
-                    return removed;
-                }
-
                 string monumentAliasOrShortName;
-                return RemoveData(spawnGroupData, out monumentAliasOrShortName);
+                return RemoveData(data, out monumentAliasOrShortName);
             }
 
             private MonumentData EnsureMonumentData(string monumentAliasOrShortName)
@@ -7635,9 +7731,11 @@ namespace Oxide.Plugins
                 };
 
                 if (data.DeprecatedMonumentMap != null)
+                {
                     profile.DeprecatedMonumentMap = data.DeprecatedMonumentMap;
+                }
 
-                profile.Save();
+                _pluginInstance._profileStore.Save(profile);
 
                 data.DeprecatedMonumentMap = null;
                 data.EnabledProfiles.Add(DefaultProfileName);
