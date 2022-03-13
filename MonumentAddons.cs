@@ -561,6 +561,7 @@ namespace Oxide.Plugins
             var matchingMonuments = GetMonumentsByAliasOrShortName(monument.AliasOrShortName);
 
             profileController.Profile.AddData(monument.AliasOrShortName, addonData);
+            _profileStore.Save(profileController.Profile);
             profileController.SpawnNewData(addonData, matchingMonuments);
 
             ReplyToPlayer(player, LangEntry.SpawnSuccess, matchingMonuments.Count, profileController.Profile.Name, monument.AliasOrShortName);
@@ -605,6 +606,7 @@ namespace Oxide.Plugins
 
             controller.KillData(adapter.Data);
             controller.Profile.RemoveData(adapter.Data);
+            _profileStore.Save(controller.Profile);
 
             ReplyToPlayer(player, LangEntry.KillSuccess, GetAddonName(player, adapter.Data), numAdapters, controller.Profile.Name);
 
@@ -1036,10 +1038,17 @@ namespace Oxide.Plugins
                     }
 
                     string monumentAliasOrShortName;
-                    if (!addonController.TryKillAndRemove(out monumentAliasOrShortName))
+                    if (!oldProfile.RemoveData(data, out monumentAliasOrShortName))
+                    {
+                        LogError($"Unexpected error: {data.GetType()} {data.Id} was not found in profile {oldProfile.Name}");
                         return;
+                    }
+
+                    _profileStore.Save(oldProfile);
+                    addonController.Kill();
 
                     newProfile.AddData(monumentAliasOrShortName, data);
+                    _profileStore.Save(newProfile);
                     newProfileController.SpawnNewData(data, GetMonumentsByAliasOrShortName(monumentAliasOrShortName));
 
                     ReplyToPlayer(player, LangEntry.ProfileMoveToSuccess, addonName, oldProfile.Name, newProfile.Name);
@@ -1297,6 +1306,7 @@ namespace Oxide.Plugins
                     var matchingMonuments = GetMonumentsByAliasOrShortName(monument.AliasOrShortName);
 
                     profileController.Profile.AddData(monument.AliasOrShortName, spawnGroupData);
+                    _profileStore.Save(profileController.Profile);
                     profileController.SpawnNewData(spawnGroupData, matchingMonuments);
 
                     ReplyToPlayer(player, LangEntry.SpawnGroupCreateSucces, spawnGroupName);
@@ -1803,6 +1813,7 @@ namespace Oxide.Plugins
             var matchingMonuments = GetMonumentsByAliasOrShortName(monument.AliasOrShortName);
 
             profileController.Profile.AddData(monument.AliasOrShortName, pasteData);
+            _profileStore.Save(profileController.Profile);
             profileController.SpawnNewData(pasteData, matchingMonuments);
 
             ReplyToPlayer(player, LangEntry.PasteSuccess, pasteName, monument.AliasOrShortName, matchingMonuments.Count, profileController.Profile.Name);
@@ -2214,7 +2225,13 @@ namespace Oxide.Plugins
 
             var profileName = $"{monument.AliasOrShortName}{tierSuffix}_vanilla_generated";
             var profile = _profileStore.Create(profileName, basePlayer.displayName);
-            profile.AddDataList(monument.AliasOrShortName, spawnGroupDataList.Cast<BaseIdentifiableData>());
+
+            foreach (var data in spawnGroupDataList)
+            {
+                profile.AddData(monument.AliasOrShortName, data);
+            }
+
+            _profileStore.Save(profile);
 
             ReplyToPlayer(player, LangEntry.GenerateSuccess, profileName);
         }
@@ -3746,25 +3763,6 @@ namespace Oxide.Plugins
                 }
             }
 
-            public bool TryKillAndRemove(out string monumentAliasOrShortName)
-            {
-                var profile = ProfileController.Profile;
-                if (!profile.RemoveData(Data, out monumentAliasOrShortName))
-                {
-                    _pluginInstance?.LogError($"Unexpected error: {Data.GetType()} {Data.Id} was not found in profile {profile.Name}");
-                    return false;
-                }
-
-                Kill();
-                return true;
-            }
-
-            public bool TryKillAndRemove()
-            {
-                string monumentAliasOrShortName;
-                return TryKillAndRemove(out monumentAliasOrShortName);
-            }
-
             public IEnumerator KillRoutine()
             {
                 foreach (var adapter in Adapters.ToArray())
@@ -3776,7 +3774,7 @@ namespace Oxide.Plugins
                 }
             }
 
-            protected void Kill()
+            public void Kill()
             {
                 // Stop the controller from spawning more adapters.
                 _wasKilled = true;
@@ -7604,16 +7602,6 @@ namespace Oxide.Plugins
             public void AddData(string monumentAliasOrShortName, BaseIdentifiableData data)
             {
                 EnsureMonumentData(monumentAliasOrShortName).AddData(data);
-                _pluginInstance._profileStore.Save(this);
-            }
-
-            public void AddDataList(string monumentAliasOrShortName, IEnumerable<BaseIdentifiableData> dataList)
-            {
-                foreach (var data in dataList)
-                {
-                    EnsureMonumentData(monumentAliasOrShortName).AddData(data);
-                }
-                _pluginInstance._profileStore.Save(this);
             }
 
             public bool RemoveData(BaseIdentifiableData data, out string monumentAliasOrShortName)
@@ -7623,7 +7611,6 @@ namespace Oxide.Plugins
                     if (entry.Value.RemoveData(data))
                     {
                         monumentAliasOrShortName = entry.Key;
-                        _pluginInstance._profileStore.Save(this);
                         return true;
                     }
                 }
