@@ -6296,7 +6296,7 @@ namespace Oxide.Plugins
 
         #region Profile Management
 
-        private enum ProfileState { Loading, Loaded, Unloading, Unloaded }
+        private enum ProfileStatus { Loading, Loaded, Unloading, Unloaded }
 
         private struct SpawnQueueItem
         {
@@ -6323,7 +6323,7 @@ namespace Oxide.Plugins
         {
             public MonumentAddons PluginInstance { get; private set; }
             public Profile Profile { get; private set; }
-            public ProfileState ProfileState { get; private set; } = ProfileState.Unloaded;
+            public ProfileStatus ProfileStatus { get; private set; } = ProfileStatus.Unloaded;
             public WaitUntil WaitUntilLoaded;
             public WaitUntil WaitUntilUnloaded;
 
@@ -6340,12 +6340,12 @@ namespace Oxide.Plugins
             {
                 PluginInstance = pluginInstance;
                 Profile = profile;
-                WaitUntilLoaded = new WaitUntil(() => ProfileState == ProfileState.Loaded);
-                WaitUntilUnloaded = new WaitUntil(() => ProfileState == ProfileState.Unloaded);
+                WaitUntilLoaded = new WaitUntil(() => ProfileStatus == ProfileStatus.Loaded);
+                WaitUntilUnloaded = new WaitUntil(() => ProfileStatus == ProfileStatus.Unloaded);
 
                 if (startLoaded)
                 {
-                    ProfileState = ProfileState.Loaded;
+                    ProfileStatus = ProfileStatus.Loaded;
                 }
             }
 
@@ -6387,14 +6387,14 @@ namespace Oxide.Plugins
 
             public void Load(ProfileCounts profileCounts = null)
             {
-                if (ProfileState == ProfileState.Loading || ProfileState == ProfileState.Loaded)
+                if (ProfileStatus == ProfileStatus.Loading || ProfileStatus == ProfileStatus.Loaded)
                     return;
 
                 EnqueueAll(profileCounts);
 
                 if (_spawnQueue.Count == 0)
                 {
-                    ProfileState = ProfileState.Loaded;
+                    ProfileStatus = ProfileStatus.Loaded;
                 }
             }
 
@@ -6410,10 +6410,10 @@ namespace Oxide.Plugins
 
             public void Unload()
             {
-                if (ProfileState == ProfileState.Unloading || ProfileState == ProfileState.Unloaded)
+                if (ProfileStatus == ProfileStatus.Unloading || ProfileStatus == ProfileStatus.Unloaded)
                     return;
 
-                ProfileState = ProfileState.Unloading;
+                ProfileStatus = ProfileStatus.Unloading;
                 CoroutineManager.StartGlobalCoroutine(UnloadRoutine());
             }
 
@@ -6435,7 +6435,7 @@ namespace Oxide.Plugins
 
             public void SpawnNewData(BaseIdentifiableData data, ICollection<BaseMonument> monumentList)
             {
-                if (ProfileState == ProfileState.Unloading || ProfileState == ProfileState.Unloaded)
+                if (ProfileStatus == ProfileStatus.Unloading || ProfileStatus == ProfileStatus.Unloaded)
                     return;
 
                 Enqueue(new SpawnQueueItem(data, monumentList));
@@ -6533,7 +6533,7 @@ namespace Oxide.Plugins
                 // If there are more items in the queue, we can assume there's already a coroutine processing them.
                 if (_spawnQueue.Count == 1)
                 {
-                    ProfileState = ProfileState.Loading;
+                    ProfileStatus = ProfileStatus.Loading;
                     StartCoroutine(ProcessSpawnQueue());
                 }
             }
@@ -6599,7 +6599,7 @@ namespace Oxide.Plugins
                     }
                 }
 
-                ProfileState = ProfileState.Loaded;
+                ProfileStatus = ProfileStatus.Loaded;
             }
 
             private IEnumerator UnloadRoutine()
@@ -6609,7 +6609,7 @@ namespace Oxide.Plugins
                     yield return controller.KillRoutine();
                 }
 
-                ProfileState = ProfileState.Unloaded;
+                ProfileStatus = ProfileStatus.Unloaded;
             }
 
             private IEnumerator ReloadRoutine(Profile newProfileData)
@@ -6630,7 +6630,7 @@ namespace Oxide.Plugins
 
                 Profile.MonumentDataMap.Clear();
                 PluginInstance._profileStore.Save(Profile);
-                ProfileState = ProfileState.Loaded;
+                ProfileStatus = ProfileStatus.Loaded;
             }
         }
 
