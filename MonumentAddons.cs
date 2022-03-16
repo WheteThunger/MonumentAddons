@@ -7,6 +7,7 @@ using Oxide.Core.Configuration;
 using Oxide.Core.Libraries;
 using Oxide.Core.Libraries.Covalence;
 using Oxide.Core.Plugins;
+using Oxide.Plugins.MonumentAddonsExtensions;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -15,6 +16,7 @@ using System.Globalization;
 using System.Linq;
 using System.Text;
 using UnityEngine;
+using VLB;
 
 using CustomSpawnCallback = System.Func<UnityEngine.Vector3, UnityEngine.Quaternion, Newtonsoft.Json.Linq.JObject, UnityEngine.Component>;
 using CustomKillCallback = System.Action<UnityEngine.Component>;
@@ -36,6 +38,7 @@ namespace Oxide.Plugins
         private MonumentAddons _pluginInstance;
         private Configuration _pluginConfig;
         private StoredData _pluginData;
+        private ProfileStateData _profileStateData;
 
         private const float MaxRaycastDistance = 100;
         private const float TerrainProximityTolerance = 0.001f;
@@ -82,9 +85,11 @@ namespace Oxide.Plugins
 
         private ItemDefinition _waterDefinition;
         private ProtectionProperties _immortalProtection;
+        private ActionDebounced _saveProfileStateDebounced;
 
         private Coroutine _startupCoroutine;
         private bool _serverInitialized = false;
+        private bool _isLoaded = true;
 
         public MonumentAddons()
         {
@@ -93,13 +98,21 @@ namespace Oxide.Plugins
             _adapterListenerManager = new AdapterListenerManager(this);
             _customAddonManager = new CustomAddonManager(this);
             _controllerFactory = new ControllerFactory(this);
+
+            _saveProfileStateDebounced = new ActionDebounced(timer, 1, () =>
+            {
+                if (!_isLoaded)
+                    return;
+
+                _profileStateData.Save();
+            });
         }
 
         private static class Logger
         {
-            public static void Info(string message) => Interface.Oxide.LogInfo($"[{nameof(MonumentAddons)}] {message}");
-            public static void Error(string message) => Interface.Oxide.LogError($"[{nameof(MonumentAddons)}] {message}");
-            public static void Warning(string message) => Interface.Oxide.LogWarning($"[{nameof(MonumentAddons)}] {message}");
+            public static void Info(string message) => Interface.Oxide.LogInfo($"[Monument Addons] {message}");
+            public static void Error(string message) => Interface.Oxide.LogError($"[Monument Addons] {message}");
+            public static void Warning(string message) => Interface.Oxide.LogWarning($"[Monument Addons] {message}");
         }
 
         #endregion
@@ -110,6 +123,7 @@ namespace Oxide.Plugins
         {
             _pluginInstance = this;
             _pluginData = StoredData.Load(_profileStore);
+            _profileStateData = ProfileStateData.Load(_pluginData);
 
             // Ensure the profile folder is created to avoid errors.
             _profileStore.EnsureDefaultProfile();
@@ -124,6 +138,11 @@ namespace Oxide.Plugins
             }
 
             _adapterListenerManager.Init();
+
+            if (_pluginConfig.EnableEntitySaving)
+            {
+                Logger.Warning("\"EnableEntitySaving: true\" is currently experimental.");
+            }
         }
 
         private void OnServerInitialized()
@@ -137,6 +156,12 @@ namespace Oxide.Plugins
             _uniqueNameRegistry.OnServerInitialized();
             _adapterListenerManager.OnServerInitialized();
 
+            var entitiesToKill = _profileStateData.CleanDisabledProfileState();
+            if (entitiesToKill.Count > 0)
+            {
+                CoroutineManager.StartGlobalCoroutine(KillEntitiesRoutine(entitiesToKill));
+            }
+
             if (CheckDependencies())
                 StartupRoutine();
 
@@ -147,8 +172,16 @@ namespace Oxide.Plugins
         {
             _coroutineManager.Destroy();
             _profileManager.UnloadAllProfiles();
+            _saveProfileStateDebounced.Flush();
 
             UnityEngine.Object.Destroy(_immortalProtection);
+
+            _isLoaded = false;
+        }
+
+        private void OnNewSave()
+        {
+            _profileStateData.Reset();
         }
 
         private void OnPluginLoaded(Plugin plugin)
@@ -326,7 +359,7 @@ namespace Oxide.Plugins
                 {
                     controller.EntityData.VendingProfile = migratedVendingProfile;
                     _profileStore.Save(controller.Profile);
-                    LogWarning($"Successfully migrated vending machine settings from CustomVendingSetup to MonumentAddons profile '{controller.Profile.Name}'.");
+                    Logger.Warning($"Successfully migrated vending machine settings from CustomVendingSetup to MonumentAddons profile '{controller.Profile.Name}'.");
                 }
             }
 
@@ -341,7 +374,7 @@ namespace Oxide.Plugins
         {
             if (MonumentFinder == null)
             {
-                LogError("MonumentFinder is not loaded, get it at http://umod.org.");
+                Logger.Error("MonumentFinder is not loaded, get it at http://umod.org.");
                 return false;
             }
 
@@ -404,7 +437,7 @@ namespace Oxide.Plugins
 
             if (apiName == null)
             {
-                LogError($"Unrecognized sign type: {signage.GetType()}");
+                Logger.Error($"Unrecognized sign type: {signage.GetType()}");
                 return;
             }
 
@@ -421,6 +454,11 @@ namespace Oxide.Plugins
         private JObject MigrateVendingProfile(NPCVendingMachine vendingMachine)
         {
             return CustomVendingSetup?.Call("API_MigrateVendingProfile", vendingMachine) as JObject;
+        }
+
+        private void RefreshVendingProfile(NPCVendingMachine vendingMachine)
+        {
+            CustomVendingSetup?.Call("API_RefreshDataProvider", vendingMachine);
         }
 
         private static class PasteUtils
@@ -607,9 +645,9 @@ namespace Oxide.Plugins
 
             var numAdapters = controller.Adapters.Count;
 
-            controller.KillData(adapter.Data);
             controller.Profile.RemoveData(adapter.Data);
             _profileStore.Save(controller.Profile);
+            controller.KillData(adapter.Data);
 
             ReplyToPlayer(player, LangEntry.KillSuccess, GetAddonName(player, adapter.Data), numAdapters, controller.Profile.Name);
 
@@ -992,8 +1030,8 @@ namespace Oxide.Plugins
                         return;
                     }
 
-                    controller.Disable();
                     _pluginData.SetProfileDisabled(profileName);
+                    controller.Disable();
                     ReplyToPlayer(player, LangEntry.ProfileDisableSuccess, profileName);
                     break;
                 }
@@ -1043,7 +1081,7 @@ namespace Oxide.Plugins
                     string monumentAliasOrShortName;
                     if (!oldProfile.RemoveData(data, out monumentAliasOrShortName))
                     {
-                        LogError($"Unexpected error: {data.GetType()} {data.Id} was not found in profile {oldProfile.Name}");
+                        Logger.Error($"Unexpected error: {data.GetType()} {data.Id} was not found in profile {oldProfile.Name}");
                         return;
                     }
 
@@ -1145,7 +1183,7 @@ namespace Oxide.Plugins
 
                         if (string.IsNullOrEmpty(urlDerivedProfileName))
                         {
-                            LogError($"Unable to determine profile name from url: \"{url}\". Please ask the URL owner to supply a \"Name\" in the file.");
+                            Logger.Error($"Unable to determine profile name from url: \"{url}\". Please ask the URL owner to supply a \"Name\" in the file.");
                             ReplyToPlayer(player, LangEntry.ProfileInstallError, url);
                             return;
                         }
@@ -1155,7 +1193,7 @@ namespace Oxide.Plugins
 
                     if (OriginalProfileStore.IsOriginalProfile(profile.Name))
                     {
-                        LogError($"Profile \"{profile.Name}\" should not end with \"{OriginalProfileStore.OriginalSuffix}\".");
+                        Logger.Error($"Profile \"{profile.Name}\" should not end with \"{OriginalProfileStore.OriginalSuffix}\".");
                         ReplyToPlayer(player, LangEntry.ProfileInstallError, url);
                         return;
                     }
@@ -1175,7 +1213,7 @@ namespace Oxide.Plugins
 
                     if (profileController == null)
                     {
-                        LogError($"Profile \"{profile.Name}\" could not be found on disk after download from url: \"{url}\"");
+                        Logger.Error($"Profile \"{profile.Name}\" could not be found on disk after download from url: \"{url}\"");
                         ReplyToPlayer(player, LangEntry.ProfileInstallError, url);
                         return;
                     }
@@ -2267,26 +2305,26 @@ namespace Oxide.Plugins
 
         private Dictionary<string, object> API_RegisterCustomAddon(Plugin plugin, string addonName, Dictionary<string, object> addonSpec)
         {
-            LogWarning($"API_RegisterCustomAddon is experimental and may be changed or removed in future updates.");
+            Logger.Warning($"API_RegisterCustomAddon is experimental and may be changed or removed in future updates.");
 
             var addonDefinition = CustomAddonDefinition.FromDictionary(addonName, plugin, addonSpec);
 
             if (addonDefinition.Spawn == null)
             {
-                LogError($"Unable to register custom addon \"{addonName}\" for plugin {plugin.Name} due to missing Spawn method.");
+                Logger.Error($"Unable to register custom addon \"{addonName}\" for plugin {plugin.Name} due to missing Spawn method.");
                 return null;
             }
 
             if (addonDefinition.Kill == null)
             {
-                LogError($"Unable to register custom addon \"{addonName}\" for plugin {plugin.Name} due to missing Kill method.");
+                Logger.Error($"Unable to register custom addon \"{addonName}\" for plugin {plugin.Name} due to missing Kill method.");
                 return null;
             }
 
             Plugin otherPlugin;
             if (_customAddonManager.IsRegistered(addonName, out otherPlugin))
             {
-                LogError($"Unable to register custom addon \"{addonName}\" for plugin {plugin.Name} because it's already been registered by plugin {otherPlugin.Name}.");
+                Logger.Error($"Unable to register custom addon \"{addonName}\" for plugin {plugin.Name} because it's already been registered by plugin {otherPlugin.Name}.");
                 return null;
             }
 
@@ -3001,6 +3039,23 @@ namespace Oxide.Plugins
             return mask;
         }
 
+        private static BaseEntity FindValidEntity(uint entityId)
+        {
+            var entity = BaseNetworkable.serverEntities.Find(entityId) as BaseEntity;
+            return entity != null && !entity.IsDestroyed
+                ? entity
+                : null;
+        }
+
+        private static IEnumerator KillEntitiesRoutine(ICollection<BaseEntity> entityList)
+        {
+            foreach (var entity in entityList)
+            {
+                entity.Kill();
+                yield return null;
+            }
+        }
+
         private bool HasAdminPermission(string userId) =>
             permission.UserHasPermission(userId, PermissionAdmin);
 
@@ -3282,11 +3337,10 @@ namespace Oxide.Plugins
                 DestroyProblemComponents(entity);
             }
 
-            public static void PostSpawnShared(MonumentAddons pluginInstance, BaseEntity entity)
+            public static void PostSpawnShared(MonumentAddons pluginInstance, BaseEntity entity, bool enableSaving)
             {
-                // Disable saving after spawn to make sure children that are spawned late also have saving disabled.
-                // For example, the Lift class spawns a sub entity.
-                EnableSavingRecursive(entity, false);
+                // Enable/Disable saving after spawn to account for children that spawn late (e.g., Lift).
+                EnableSavingRecursive(entity, enableSaving);
 
                 var combatEntity = entity as BaseCombatEntity;
                 if (combatEntity != null)
@@ -3469,6 +3523,107 @@ namespace Oxide.Plugins
             }
         }
 
+        private abstract class DictionaryKeyConverter<TKey, TValue> : JsonConverter
+        {
+            public virtual string KeyToString(TKey key) => key.ToString();
+
+            public abstract TKey KeyFromString(string key);
+
+            public override bool CanConvert(Type objectType)
+            {
+                return objectType == typeof(Dictionary<TKey, TValue>);
+            }
+
+            public override object ReadJson(JsonReader reader, Type objectType, object existingValue, JsonSerializer serializer)
+            {
+                var obj = serializer.Deserialize(reader) as JObject;
+                var dict = existingValue as Dictionary<TKey, TValue>;
+
+                foreach (var entry in obj)
+                {
+                    dict[KeyFromString(entry.Key)] = entry.Value.ToObject<TValue>();
+                }
+
+                return dict;
+            }
+
+            public override void WriteJson(JsonWriter writer, object value, JsonSerializer serializer)
+            {
+                var dict = value as Dictionary<TKey, TValue>;
+                if (dict == null)
+                {
+                    writer.WriteStartObject();
+                    writer.WriteEndObject();
+                    return;
+                }
+
+                writer.WriteStartObject();
+
+                foreach (var entry in dict)
+                {
+                    writer.WritePropertyName(KeyToString(entry.Key));
+                    serializer.Serialize(writer, entry.Value);
+                }
+
+                writer.WriteEndObject();
+            }
+        }
+
+        private class ActionDebounced
+        {
+            private PluginTimers _pluginTimers;
+            private float _seconds;
+            private Action _action;
+            private Timer _timer;
+
+            public ActionDebounced(PluginTimers pluginTimers, float seconds, Action action)
+            {
+                _pluginTimers = pluginTimers;
+                _seconds = seconds;
+                _action = action;
+            }
+
+            public void Schedule()
+            {
+                if (_timer == null || _timer.Destroyed)
+                {
+                    _timer = _pluginTimers.Once(_seconds, _action);
+                    return;
+                }
+
+                // Restart the existing timer.
+                _timer.Reset();
+            }
+
+            public void Flush()
+            {
+                if (_timer == null || _timer.Destroyed)
+                    return;
+
+                _timer.Destroy();
+                _action();
+            }
+        }
+
+        private interface IDeepCollection
+        {
+            bool HasItems();
+        }
+
+        private static bool HasDeepItems<TKey, TValue>(Dictionary<TKey, TValue> dict) where TValue : IDeepCollection
+        {
+            if (dict.Count == 0)
+                return false;
+
+            foreach (var value in dict.Values)
+            {
+                if (value.HasItems())
+                    return true;
+            }
+
+            return false;
+        }
+
         #endregion
 
         #endregion
@@ -3558,11 +3713,27 @@ namespace Oxide.Plugins
 
         private class MonumentEntityComponent : FacepunchBehaviour
         {
-            public static void AddToEntity(MonumentEntityTracker entityTracker, BaseEntity entity, IEntityAdapter adapter, BaseMonument monument) =>
-                entity.gameObject.AddComponent<MonumentEntityComponent>().Init(entityTracker, adapter, monument);
+            public static void AddToEntity(MonumentEntityTracker entityTracker, BaseEntity entity, IEntityAdapter adapter, BaseMonument monument)
+            {
+                entity.GetOrAddComponent<MonumentEntityComponent>().Init(entityTracker, adapter, monument);
 
-            public static void RemoveFromEntity(BaseEntity entity) =>
+                var parentSphere = entity.GetParentEntity() as SphereEntity;
+                if (parentSphere != null)
+                {
+                    AddToEntity(entityTracker, parentSphere, adapter, monument);
+                }
+            }
+
+            public static void RemoveFromEntity(BaseEntity entity)
+            {
                 DestroyImmediate(entity.GetComponent<MonumentEntityComponent>());
+
+                var parentSphere = entity.GetParentEntity() as SphereEntity;
+                if (parentSphere != null)
+                {
+                    RemoveFromEntity(parentSphere);
+                }
+            }
 
             public static MonumentEntityComponent GetForEntity(BaseEntity entity) =>
                 entity.GetComponent<MonumentEntityComponent>();
@@ -3650,8 +3821,11 @@ namespace Oxide.Plugins
             public BaseMonument Monument { get; private set; }
 
             public MonumentAddons PluginInstance => Controller.PluginInstance;
+            public ProfileController ProfileController => Controller.ProfileController;
+            public Profile Profile => Controller.Profile;
+
             protected Configuration _pluginConfig => PluginInstance._pluginConfig;
-            protected StoredData _pluginData => PluginInstance._pluginData;
+            protected ProfileStateData _profileStateData => PluginInstance._profileStateData;
 
             // Subclasses can override this to wait more than one frame for spawn/kill operations.
             public IEnumerator WaitInstruction { get; protected set; }
@@ -3826,8 +4000,7 @@ namespace Oxide.Plugins
                 if (entity == null)
                     return null;
 
-                // In case the plugin doesn't clean it up on server shutdown, make sure it doesn't come back so it's not duplicated.
-                EnableSavingRecursive(entity, false);
+                EnableSavingRecursive(entity, enableSaving: _pluginConfig.EnableEntitySaving);
 
                 var dynamicMonument = Monument as DynamicMonument;
                 if (dynamicMonument != null)
@@ -3921,18 +4094,78 @@ namespace Oxide.Plugins
 
             public override void Spawn()
             {
+                var existingEntity = _profileStateData.FindEntity(Profile.Name, Monument, Data.Id);
+                if (existingEntity != null)
+                {
+                    if (existingEntity.PrefabName != EntityData.PrefabName)
+                    {
+                        existingEntity.Kill();
+                    }
+                    else
+                    {
+                        Entity = existingEntity;
+                        _transform = Entity.transform;
+
+                        PreEntitySpawn();
+                        PostEntitySpawn();
+                        HandleChanges();
+                        MonumentEntityComponent.AddToEntity(PluginInstance._entityTracker, Entity, this, Monument);
+
+                        if (_pluginConfig.StoreCustomVendingSetupSettingsInProfiles)
+                        {
+                            var vendingMachine = Entity as NPCVendingMachine;
+                            if (vendingMachine != null)
+                            {
+                                PluginInstance.RefreshVendingProfile(vendingMachine);
+                            }
+                        }
+
+                        var mountable = Entity as BaseMountable;
+                        if (mountable != null)
+                        {
+                            var dynamicMonument = Monument as DynamicMonument;
+                            if (dynamicMonument != null && dynamicMonument.IsMobile)
+                            {
+                                mountable.isMobile = true;
+                                BaseMountable.FixedUpdateMountables.Add(mountable);
+                            }
+                        }
+
+                        return;
+                    }
+                }
+
                 Entity = CreateEntity(EntityData.PrefabName, IntendedPosition, IntendedRotation);
                 _transform = Entity.transform;
 
                 PreEntitySpawn();
                 Entity.Spawn();
                 PostEntitySpawn();
+
+                if (_pluginConfig.EnableEntitySaving && Entity != existingEntity)
+                {
+                    _profileStateData.AddEntity(Profile.Name, Monument, Data.Id, Entity.net.ID);
+                    PluginInstance._saveProfileStateDebounced.Schedule();
+                }
             }
 
             public override void Kill()
             {
                 if (IsDestroyed)
                     return;
+
+                if (_pluginConfig.EnableEntitySaving
+                    // Kill entity if profile was disabled.
+                    && ProfileController.IsEnabled
+                    // Kill entity if data is missing, in case it was removed with `makill`, `maprofile moveto` or `maprofile clear`.
+                    && Profile.HasEntity(Monument.AliasOrShortName, EntityData)
+                    // Kill entity if there is no state tracked for it since we wouldn't recognize it on reload.
+                    && _profileStateData.HasEntity(Profile.Name, Monument, Data.Id, Entity.net.ID))
+                {
+                    // Simply unregister the entity rather than killing it.
+                    MonumentEntityComponent.RemoveFromEntity(Entity);
+                    return;
+                }
 
                 Entity.Kill();
             }
@@ -3945,6 +4178,13 @@ namespace Oxide.Plugins
                 // For example, the scaled sphere parent may be killed if resized to default scale.
                 if (entity == Entity)
                 {
+                    if (entity == null || entity.IsDestroyed)
+                    {
+                        if (_profileStateData.RemoveEntity(Profile.Name, Monument, Data.Id))
+                        {
+                            PluginInstance._saveProfileStateDebounced.Schedule();
+                        }
+                    }
                     Controller.OnAdapterKilled(this);
                 }
 
@@ -3985,11 +4225,16 @@ namespace Oxide.Plugins
 
             public void UpdateSkin()
             {
-                if (Entity.skinID == EntityData.Skin)
+                if (Entity.skinID == EntityData.Skin
+                    || EntityData.Skin == 0 && Entity is NPCVendingMachine)
                     return;
 
                 Entity.skinID = EntityData.Skin;
-                Entity.SendNetworkUpdate();
+
+                if (Entity.IsFullySpawned())
+                {
+                    Entity.SendNetworkUpdate();
+                }
             }
 
             public bool TrySaveAndApplyChanges()
@@ -4034,8 +4279,7 @@ namespace Oxide.Plugins
 
             protected virtual void PreEntitySpawn()
             {
-                if (EntityData.Skin != 0)
-                    Entity.skinID = EntityData.Skin;
+                UpdateSkin();
 
                 EntitySetupUtils.PreSpawnShared(Entity);
 
@@ -4063,10 +4307,10 @@ namespace Oxide.Plugins
 
             protected virtual void PostEntitySpawn()
             {
-                EntitySetupUtils.PostSpawnShared(PluginInstance, Entity);
+                EntitySetupUtils.PostSpawnShared(PluginInstance, Entity, _pluginConfig.EnableEntitySaving);
 
-                if (Entity is NPCVendingMachine && EntityData.Skin != 0)
-                    UpdateSkin();
+                // NPCVendingMachine needs its skin updated after spawn because vanilla sets it to 861142659.
+                UpdateSkin();
 
                 var computerStation = Entity as ComputerStation;
                 if (computerStation != null && computerStation.isStatic)
@@ -4112,8 +4356,10 @@ namespace Oxide.Plugins
                     }, 2);
                 }
 
-                if (EntityData.Scale != 1)
+                if (EntityData.Scale != 1 || Entity.GetParentEntity() is SphereEntity)
+                {
                     UpdateScale();
+                }
             }
 
             private List<CCTV_RC> GetNearbyStaticCameras()
@@ -4222,6 +4468,9 @@ namespace Oxide.Plugins
                         }),
                         ["SaveData"] = new Action<JObject>(vendingProfile =>
                         {
+                            if (!PluginInstance._isLoaded)
+                                return;
+
                             EntityData.VendingProfile = vendingProfile;
                             PluginInstance._profileStore.Save(Profile);
                         }),
@@ -4623,7 +4872,7 @@ namespace Oxide.Plugins
 
             private void SubscribeHooks()
             {
-                if (_dynamicHookNames == null)
+                if (_dynamicHookNames == null || !_pluginInstance._isLoaded)
                     return;
 
                 foreach (var hookName in _dynamicHookNames)
@@ -4632,7 +4881,7 @@ namespace Oxide.Plugins
 
             private void UnsubscribeHooks()
             {
-                if (_dynamicHookNames == null)
+                if (_dynamicHookNames == null || !_pluginInstance._isLoaded)
                     return;
 
                 foreach (var hookName in _dynamicHookNames)
@@ -5489,7 +5738,7 @@ namespace Oxide.Plugins
             private void OnEntityPasted(BaseEntity entity)
             {
                 EntitySetupUtils.PreSpawnShared(entity);
-                EntitySetupUtils.PostSpawnShared(PluginInstance, entity);
+                EntitySetupUtils.PostSpawnShared(PluginInstance, entity, enableSaving: false);
 
                 MonumentEntityComponent.AddToEntity(PluginInstance._entityTracker, entity, this, Monument);
                 _pastedEntities.Add(entity);
@@ -6328,6 +6577,7 @@ namespace Oxide.Plugins
             public WaitUntil WaitUntilUnloaded;
 
             private StoredData _pluginData => PluginInstance._pluginData;
+            private ProfileStateData _profileStateData => PluginInstance._profileStateData;
 
             private CoroutineManager _coroutineManager = new CoroutineManager();
             private Dictionary<BaseIdentifiableData, BaseController> _controllersByData = new Dictionary<BaseIdentifiableData, BaseController>();
@@ -6390,6 +6640,7 @@ namespace Oxide.Plugins
                 if (ProfileStatus == ProfileStatus.Loading || ProfileStatus == ProfileStatus.Loaded)
                     return;
 
+                CleanOrphanedEntities();
                 EnqueueAll(profileCounts);
 
                 if (_spawnQueue.Count == 0)
@@ -6420,6 +6671,7 @@ namespace Oxide.Plugins
             public void Reload(Profile newProfileData)
             {
                 Interrupt();
+                PreUnload();
                 StartCoroutine(ReloadRoutine(newProfileData));
             }
 
@@ -6460,9 +6712,6 @@ namespace Oxide.Plugins
 
             public void Disable()
             {
-                if (!IsEnabled)
-                    return;
-
                 Interrupt();
                 PreUnload();
                 Unload();
@@ -6631,6 +6880,47 @@ namespace Oxide.Plugins
                 Profile.MonumentDataMap.Clear();
                 PluginInstance._profileStore.Save(Profile);
                 ProfileStatus = ProfileStatus.Loaded;
+            }
+
+            private IEnumerator CleanEntitiesRoutine(ProfileState profileState, List<BaseEntity> entitiesToKill)
+            {
+                yield return KillEntitiesRoutine(entitiesToKill);
+
+                if (profileState.CleanStaleEntityRecords() > 0)
+                {
+                    PluginInstance._saveProfileStateDebounced.Schedule();
+                }
+            }
+
+            private void CleanOrphanedEntities()
+            {
+                var profileState = _profileStateData.GetProfileState(Profile.Name);
+                if (profileState == null)
+                    return;
+
+                List<BaseEntity> entitiesToKill = null;
+
+                foreach (var entityEntry in profileState.FindValidEntities())
+                {
+                    if (!Profile.HasEntity(entityEntry.MonumentAliasOrShortName, entityEntry.Guid))
+                    {
+                        if (entitiesToKill == null)
+                        {
+                            entitiesToKill = new List<BaseEntity>();
+                        }
+
+                        entitiesToKill.Add(entityEntry.Entity);
+                    }
+                }
+
+                if (entitiesToKill != null && entitiesToKill.Count > 0)
+                {
+                    CoroutineManager.StartGlobalCoroutine(CleanEntitiesRoutine(profileState, entitiesToKill));
+                }
+                else if (profileState.CleanStaleEntityRecords() > 0)
+                {
+                    PluginInstance._saveProfileStateDebounced.Schedule();
+                }
             }
         }
 
@@ -7277,6 +7567,17 @@ namespace Oxide.Plugins
                 return list;
             }
 
+            public bool HasEntity(Guid guid)
+            {
+                foreach (var entityData in Entities)
+                {
+                    if (entityData.Id == guid)
+                        return true;
+                }
+
+                return false;
+            }
+
             public void AddData(BaseIdentifiableData data)
             {
                 var entityData = data as EntityData;
@@ -7651,6 +7952,16 @@ namespace Oxide.Plugins
                 return true;
             }
 
+            public bool HasEntity(string monumentAliasOrShortName, Guid guid)
+            {
+                return MonumentDataMap.GetOrDefault(monumentAliasOrShortName)?.HasEntity(guid) ?? false;
+            }
+
+            public bool HasEntity(string monumentAliasOrShortName, EntityData entityData)
+            {
+                return MonumentDataMap.GetOrDefault(monumentAliasOrShortName)?.Entities.Contains(entityData) ?? false;
+            }
+
             public void AddData(string monumentAliasOrShortName, BaseIdentifiableData data)
             {
                 EnsureMonumentData(monumentAliasOrShortName).AddData(data);
@@ -7687,6 +7998,402 @@ namespace Oxide.Plugins
                 }
 
                 return monumentData;
+            }
+        }
+
+        #endregion
+
+        #region Data File Utils
+
+        private static class DataFileUtils
+        {
+            public static bool Exists(string filepath)
+            {
+                return Interface.Oxide.DataFileSystem.ExistsDatafile(filepath);
+            }
+
+            public static T Load<T>(string filepath) where T : class, new()
+            {
+                return Interface.Oxide.DataFileSystem.ReadObject<T>(filepath) ?? new T();
+            }
+
+            public static T LoadIfExists<T>(string filepath) where T : class, new()
+            {
+                return Exists(filepath) ? Load<T>(filepath) : null;
+            }
+
+            public static T LoadOrNew<T>(string filepath) where T : class, new()
+            {
+                return LoadIfExists<T>(filepath) ?? new T();
+            }
+
+            public static void Save<T>(string filepath, T data)
+            {
+                Interface.Oxide.DataFileSystem.WriteObject<T>(filepath, data);
+            }
+        }
+
+        private class BaseDataFile
+        {
+            private string _filepath;
+
+            public BaseDataFile(string filepath)
+            {
+                _filepath = filepath;
+            }
+
+            public void Save()
+            {
+                DataFileUtils.Save(_filepath, this);
+            }
+        }
+
+        #endregion
+
+        #region Profile State
+
+        private struct MonumentEntityEntry
+        {
+            public string MonumentAliasOrShortName;
+            public Guid Guid;
+            public BaseEntity Entity;
+
+            public MonumentEntityEntry(string monumentAliasOrShortName, Guid guid, BaseEntity entity)
+            {
+                MonumentAliasOrShortName = monumentAliasOrShortName;
+                Guid = guid;
+                Entity = entity;
+            }
+        }
+
+        private class MonumentState : IDeepCollection
+        {
+            [JsonProperty("Entities")]
+            public Dictionary<Guid, uint> Entities = new Dictionary<Guid, uint>();
+
+            public bool HasItems() => Entities.Count > 0;
+
+            public bool HasEntity(Guid guid, uint entityId)
+            {
+                return Entities.GetOrDefault(guid) == entityId;
+            }
+
+            public BaseEntity FindEntity(Guid guid)
+            {
+                uint entityId;
+                if (!Entities.TryGetValue(guid, out entityId))
+                    return null;
+
+                var entity = BaseNetworkable.serverEntities.Find(entityId) as BaseEntity;
+                if (entity == null || entity.IsDestroyed)
+                    return null;
+
+                return entity;
+            }
+
+            public void AddEntity(Guid guid, uint entityId)
+            {
+                Entities[guid] = entityId;
+            }
+
+            public bool RemoveEntity(Guid guid)
+            {
+                return Entities.Remove(guid);
+            }
+
+            public IEnumerable<ValueTuple<Guid, BaseEntity>> FindValidEntities()
+            {
+                if (Entities.Count == 0)
+                    yield break;
+
+                foreach (var entry in Entities)
+                {
+                    var entity = FindValidEntity(entry.Value);
+                    if (entity == null)
+                        continue;
+
+                    yield return new ValueTuple<Guid, BaseEntity>(entry.Key, entity);
+                }
+            }
+
+            public int CleanStaleEntityRecords()
+            {
+                if (Entities.Count == 0)
+                    return 0;
+
+                var cleanedCount = 0;
+
+                foreach (var entry in Entities.ToList())
+                {
+                    if (FindValidEntity(entry.Value) == null)
+                    {
+                        Entities.Remove(entry.Key);
+                        cleanedCount++;
+                    }
+                }
+
+                return cleanedCount;
+            }
+        }
+
+        private class MonumentStateMapConverter : DictionaryKeyConverter<Vector3, MonumentState>
+        {
+            public override string KeyToString(Vector3 v) => $"{v.x:g9},{v.y:g9},{v.z:g9}";
+
+            public override Vector3 KeyFromString(string key)
+            {
+                var parts = key.Split(',');
+                return new Vector3(float.Parse(parts[0]), float.Parse(parts[1]), float.Parse(parts[2]));
+            }
+        }
+
+        private class Vector3EqualityComparer : IEqualityComparer<Vector3>
+        {
+            public bool Equals(Vector3 a, Vector3 b)
+            {
+                return a == b;
+            }
+
+            public int GetHashCode(Vector3 vector)
+            {
+                return vector.GetHashCode();
+            }
+        }
+
+        private class MonumentStateMap : IDeepCollection
+        {
+            [JsonProperty("ByLocation")]
+            [JsonConverter(typeof(MonumentStateMapConverter))]
+            private Dictionary<Vector3, MonumentState> ByLocation = new Dictionary<Vector3, MonumentState>(new Vector3EqualityComparer());
+
+            public bool ShouldSerializeByLocation() => ByLocation.Count > 0;
+
+            [JsonProperty("ByEntity")]
+            private Dictionary<uint, MonumentState> ByEntity = new Dictionary<uint, MonumentState>();
+
+            public bool ShouldSerializeByEntity() => ByEntity.Count > 0;
+
+            public bool HasItems() => HasDeepItems(ByLocation) || HasDeepItems(ByEntity);
+
+            public IEnumerable<ValueTuple<Guid, BaseEntity>> FindValidEntities()
+            {
+                foreach (var monumentState in ByLocation.Values)
+                {
+                    foreach (var entityEntry in monumentState.FindValidEntities())
+                    {
+                        yield return entityEntry;
+                    }
+                }
+
+                foreach (var monumentEntry in ByEntity)
+                {
+                    var monumentEntityId = monumentEntry.Key;
+                    if (FindValidEntity(monumentEntityId) == null)
+                        continue;
+
+                    foreach (var entityEntry in monumentEntry.Value.FindValidEntities())
+                    {
+                        yield return entityEntry;
+                    }
+                }
+            }
+
+            public int CleanStaleEntityRecords()
+            {
+                var cleanedCount = 0;
+
+                if (ByLocation.Count > 0)
+                {
+                    foreach (var monumentState in ByLocation.Values)
+                    {
+                        cleanedCount += monumentState.CleanStaleEntityRecords();
+                    }
+                }
+
+                if (ByEntity.Count > 0)
+                {
+                    foreach (var monumentEntry in ByEntity.ToList())
+                    {
+                        if (FindValidEntity(monumentEntry.Key) == null)
+                        {
+                            ByEntity.Remove(monumentEntry.Key);
+                            continue;
+                        }
+
+                        cleanedCount += monumentEntry.Value.CleanStaleEntityRecords();
+                    }
+                }
+
+                return cleanedCount;
+            }
+
+            public MonumentState GetMonumentState(BaseMonument monument)
+            {
+                var dynamicMonument = monument as DynamicMonument;
+                if (dynamicMonument != null)
+                {
+                    return ByEntity.GetOrDefault(dynamicMonument.RootEntity.net.ID);
+                }
+
+                return ByLocation.GetOrDefault(monument.Position);
+            }
+
+            public MonumentState GetOrCreateMonumentState(BaseMonument monument)
+            {
+                var dynamicMonument = monument as DynamicMonument;
+                if (dynamicMonument != null)
+                {
+                    return ByEntity.GetOrCreate(dynamicMonument.RootEntity.net.ID);
+                }
+
+                return ByLocation.GetOrCreate(monument.Position);
+            }
+        }
+
+        private class ProfileState : Dictionary<string, MonumentStateMap>, IDeepCollection
+        {
+            public bool HasItems() => HasDeepItems(this);
+
+            public int CleanStaleEntityRecords()
+            {
+                var cleanedCount = 0;
+
+                foreach (var monumentStateMap in Values)
+                {
+                    cleanedCount += monumentStateMap.CleanStaleEntityRecords();
+                }
+
+                return cleanedCount;
+            }
+
+            public IEnumerable<MonumentEntityEntry> FindValidEntities()
+            {
+                if (Count == 0)
+                    yield break;
+
+                foreach (var entry in this)
+                {
+                    var monumentAliasOrShortName = entry.Key;
+                    var monumentStateMap = entry.Value;
+
+                    if (!monumentStateMap.HasItems())
+                        continue;
+
+                    foreach (var entityEntry in monumentStateMap.FindValidEntities())
+                    {
+                        yield return new MonumentEntityEntry(monumentAliasOrShortName, entityEntry.Item1, entityEntry.Item2);
+                    }
+                }
+            }
+        }
+
+        private class ProfileStateMap : Dictionary<string, ProfileState>, IDeepCollection
+        {
+            public ProfileStateMap() : base(StringComparer.InvariantCultureIgnoreCase) {}
+
+            public bool HasItems() => HasDeepItems(this);
+        }
+
+        private class ProfileStateData : BaseDataFile
+        {
+            private static string Filepath => $"{nameof(MonumentAddons)}_State";
+
+            public static ProfileStateData Load(StoredData pluginData)
+            {
+                var data = DataFileUtils.LoadOrNew<ProfileStateData>(Filepath);
+                data._pluginData = pluginData;
+                return data;
+            }
+
+            private StoredData _pluginData;
+
+            public ProfileStateData() : base(Filepath) {}
+
+            [JsonProperty("ProfileState", DefaultValueHandling = DefaultValueHandling.Ignore)]
+            private ProfileStateMap ProfileStateMap = new ProfileStateMap();
+
+            public bool ShouldSerializeProfileStateMap() => ProfileStateMap.HasItems();
+
+            public ProfileState GetProfileState(string profileName)
+            {
+                return ProfileStateMap.GetOrDefault(profileName);
+            }
+
+            public bool HasEntity(string profileName, BaseMonument monument, Guid guid, uint entityId)
+            {
+                return GetProfileState(profileName)
+                    ?.GetOrDefault(monument.AliasOrShortName)
+                    ?.GetMonumentState(monument)
+                    ?.HasEntity(guid, entityId) ?? false;
+            }
+
+            public BaseEntity FindEntity(string profileName, BaseMonument monument, Guid guid)
+            {
+                return GetProfileState(profileName)
+                    ?.GetOrDefault(monument.AliasOrShortName)
+                    ?.GetMonumentState(monument)
+                    ?.FindEntity(guid);
+            }
+
+            public void AddEntity(string profileName, BaseMonument monument, Guid guid, uint entityId)
+            {
+                ProfileStateMap.GetOrCreate(profileName)
+                    .GetOrCreate(monument.AliasOrShortName)
+                    .GetOrCreateMonumentState(monument)
+                    .AddEntity(guid, entityId);
+            }
+
+            public bool RemoveEntity(string profileName, BaseMonument monument, Guid guid)
+            {
+                return GetProfileState(profileName)
+                    ?.GetOrDefault(monument.AliasOrShortName)
+                    ?.GetMonumentState(monument)
+                    ?.RemoveEntity(guid) ?? false;
+            }
+
+            public List<BaseEntity> CleanDisabledProfileState()
+            {
+                var entitiesToKill = new List<BaseEntity>();
+
+                if (ProfileStateMap.Count == 0)
+                    return entitiesToKill;
+
+                var cleanedCount = 0;
+
+                foreach (var entry in ProfileStateMap.ToList())
+                {
+                    var profileName = entry.Key;
+                    var monumentStateMap = entry.Value;
+
+                    if (_pluginData.IsProfileEnabled(profileName))
+                        continue;
+
+                    // Delete entities previously spawned for profiles which are now disabled.
+                    // This addresses the use case where the plugin is unloaded with entity persistence enabled,
+                    // then the data file is manually edited to disable a profile.
+                    foreach (var entityEntry in monumentStateMap.FindValidEntities())
+                    {
+                        entitiesToKill.Add(entityEntry.Entity);
+                    }
+
+                    ProfileStateMap.Remove(profileName);
+                }
+
+                if (cleanedCount > 0)
+                {
+                    Save();
+                }
+
+                return entitiesToKill;
+            }
+
+            public void Reset()
+            {
+                if (!ProfileStateMap.HasItems())
+                    return;
+
+                ProfileStateMap.Clear();
+                Save();
             }
         }
 
@@ -7883,6 +8590,9 @@ namespace Oxide.Plugins
             [JsonProperty("DebugDisplayDistance")]
             public float DebugDisplayDistance = 150;
 
+            [JsonProperty("PersistEntitiesAfterUnload", DefaultValueHandling = DefaultValueHandling.Ignore)]
+            public bool EnableEntitySaving = false;
+
             [JsonProperty("DeployableOverrides")]
             public Dictionary<string, string> DeployableOverrides = new Dictionary<string, string>
             {
@@ -7998,14 +8708,14 @@ namespace Oxide.Plugins
 
                 if (MaybeUpdateConfig(_pluginConfig))
                 {
-                    LogWarning("Configuration appears to be outdated; updating and saving");
+                    Logger.Warning("Configuration appears to be outdated; updating and saving");
                     SaveConfig();
                 }
             }
             catch (Exception e)
             {
-                LogError(e.Message);
-                LogWarning($"Configuration file {Name}.json is invalid; using defaults");
+                Logger.Error(e.Message);
+                Logger.Warning($"Configuration file {Name}.json is invalid; using defaults");
                 LoadDefaultConfig();
             }
         }
@@ -8334,3 +9044,32 @@ namespace Oxide.Plugins
         #endregion
     }
 }
+
+#region Extension Methods
+
+namespace Oxide.Plugins.MonumentAddonsExtensions
+{
+    public static class DictionaryExtensions
+    {
+        public static TValue GetOrDefault<TKey, TValue>(this Dictionary<TKey, TValue> dict, TKey key)
+        {
+            TValue value;
+            return dict.TryGetValue(key, out value)
+                ? value
+                : default(TValue);
+        }
+
+        public static TValue GetOrCreate<TKey, TValue>(this Dictionary<TKey, TValue> dict, TKey key) where TValue : new()
+        {
+            var value = dict.GetOrDefault(key);
+            if (value == null)
+            {
+                value = new TValue();
+                dict[key] = value;
+            }
+            return value;
+        }
+    }
+}
+
+#endregion
