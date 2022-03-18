@@ -466,9 +466,10 @@ namespace Oxide.Plugins
             private static readonly string[] CopyPasteArgs = new string[]
             {
                 "stability", "false",
+                "checkplaced", "false",
             };
 
-            private static VersionNumber _requiredVersion = new VersionNumber(4, 2, 0);
+            private static VersionNumber _requiredVersion = new VersionNumber(4, 1, 32);
 
             public static bool IsCopyPasteCompatible(Plugin copyPaste)
             {
