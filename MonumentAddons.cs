@@ -4140,6 +4140,14 @@ namespace Oxide.Plugins
                             }
                         }
 
+                        if (!_pluginConfig.EnableEntitySaving)
+                        {
+                            // If saving is no longer enabled, remove the entity from the data file.
+                            // This prevents a bug where a subsequent reload would discover the entity before it is destroyed.
+                            _profileStateData.RemoveEntity(Profile.Name, Monument, Data.Id);
+                            PluginInstance._saveProfileStateDebounced.Schedule();
+                        }
+
                         return;
                     }
                 }
