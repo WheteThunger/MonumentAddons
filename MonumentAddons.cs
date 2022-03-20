@@ -3952,17 +3952,21 @@ namespace Oxide.Plugins
 
             public void PreUnload()
             {
-                foreach (var adapter in Adapters)
+                // Stop the controller from spawning more adapters.
+                _wasKilled = true;
+
+                for (var i = Adapters.Count - 1; i >= 0; i--)
                 {
-                    adapter.PreUnload();
+                    Adapters[i].PreUnload();
                 }
             }
 
             public IEnumerator KillRoutine()
             {
-                foreach (var adapter in Adapters.ToArray())
+                for (var i = Adapters.Count - 1; i >= 0; i--)
                 {
                     PluginInstance.TrackStart();
+                    var adapter = Adapters[i];
                     adapter.Kill();
                     PluginInstance.TrackEnd();
                     yield return adapter.WaitInstruction;
@@ -3971,9 +3975,6 @@ namespace Oxide.Plugins
 
             public void Kill()
             {
-                // Stop the controller from spawning more adapters.
-                _wasKilled = true;
-
                 PreUnload();
 
                 if (Adapters.Count > 0)
@@ -4171,7 +4172,7 @@ namespace Oxide.Plugins
                     && _profileStateData.HasEntity(Profile.Name, Monument, Data.Id, Entity.net.ID))
                 {
                     // Simply unregister the entity rather than killing it.
-                    MonumentEntityComponent.RemoveFromEntity(Entity);
+                    UnlinkEntity();
                     return;
                 }
 
@@ -4197,6 +4198,14 @@ namespace Oxide.Plugins
                 }
 
                 PluginInstance.TrackEnd();
+            }
+
+            public override void PreUnload()
+            {
+                if (_pluginConfig.EnableEntitySaving && !IsDestroyed)
+                {
+                    UnlinkEntity();
+                }
             }
 
             public override void UpdatePosition()
@@ -4368,6 +4377,11 @@ namespace Oxide.Plugins
                 {
                     UpdateScale();
                 }
+            }
+
+            private void UnlinkEntity()
+            {
+                MonumentEntityComponent.RemoveFromEntity(Entity);
             }
 
             private List<CCTV_RC> GetNearbyStaticCameras()
@@ -6661,7 +6675,7 @@ namespace Oxide.Plugins
             {
                 _coroutineManager.Destroy();
 
-                foreach (var controller in _controllersByData.Values)
+                foreach (var controller in _controllersByData.Values.ToList())
                 {
                     controller.PreUnload();
                 }
