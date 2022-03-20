@@ -4184,6 +4184,7 @@ namespace Oxide.Plugins
                     return;
                 }
 
+                PreEntityKill();
                 Entity.Kill();
             }
 
@@ -4387,6 +4388,8 @@ namespace Oxide.Plugins
                 }
             }
 
+            protected virtual void PreEntityKill() {}
+
             private void UnlinkEntity()
             {
                 MonumentEntityComponent.RemoveFromEntity(Entity);
@@ -4558,6 +4561,15 @@ namespace Oxide.Plugins
         {
             public SignEntityAdapter(EntityControllerBase controller, EntityData entityData, BaseMonument monument) : base(controller, entityData, monument) {}
 
+            public override void PreUnload()
+            {
+                if (!Entity.IsDestroyed && !Entity.enableSaving)
+                {
+                    // Delete sign files immediately, since the entities may not be explicitly killed on server shutdown.
+                    DeleteSignFiles();
+                }
+            }
+
             public uint[] GetTextureIds() => (Entity as ISignage)?.GetTextureCRCs();
 
             public void SetTextureIds(uint[] textureIds)
@@ -4601,6 +4613,44 @@ namespace Oxide.Plugins
                 var neonSign = Entity as NeonSign;
                 if (neonSign != null)
                     neonSign.UpdateFromInput(neonSign.ConsumptionAmount(), 0);
+            }
+
+            protected override void PreEntityKill()
+            {
+                // Sign files are removed by vanilla only during Die(), so we have to explicitly delete them.
+                DeleteSignFiles();
+            }
+
+            private void DeleteSignFiles()
+            {
+                FileStorage.server.RemoveAllByEntity(Entity.net.ID);
+
+                var signage = Entity as Signage;
+                if (signage != null)
+                {
+                    if (signage.textureIDs != null)
+                    {
+                        Array.Clear(signage.textureIDs, 0, signage.textureIDs.Length);
+                    }
+                    return;
+                }
+
+                var photoFrame = Entity as PhotoFrame;
+                if (photoFrame != null)
+                {
+                    photoFrame._overlayTextureCrc = 0u;
+                    return;
+                }
+
+                var carvablePumpkin = Entity as CarvablePumpkin;
+                if (carvablePumpkin != null)
+                {
+                    if (carvablePumpkin.textureIDs != null)
+                    {
+                        Array.Clear(carvablePumpkin.textureIDs, 0, carvablePumpkin.textureIDs.Length);
+                    }
+                    return;
+                }
             }
         }
 
