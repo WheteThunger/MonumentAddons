@@ -2947,6 +2947,13 @@ namespace Oxide.Plugins
 
         private static void BroadcastEntityTransformChange(BaseEntity entity)
         {
+            if (entity is StabilityEntity)
+            {
+                entity.TerminateOnClient(BaseNetworkable.DestroyMode.None);
+                entity.SendNetworkUpdateImmediate();
+                return;
+            }
+
             var wasSyncPosition = entity.syncPosition;
             entity.syncPosition = true;
             entity.TransformChanged();
