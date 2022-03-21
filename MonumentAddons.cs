@@ -292,7 +292,7 @@ namespace Oxide.Plugins
                 return;
 
             controller.EntityData.Scale = scale;
-            controller.UpdateScale();
+            controller.HandleChanges();
             _profileStore.Save(controller.Profile);
         }
 
@@ -679,7 +679,7 @@ namespace Oxide.Plugins
 
             controller.EntityData.CCTV.RCIdentifier = args[0];
             _profileStore.Save(controller.Profile);
-            controller.UpdateIdentifier();
+            controller.HandleChanges();
 
             ReplyToPlayer(player, LangEntry.CCTVSetIdSuccess, args[0], controller.Adapters.Count, controller.Profile.Name);
 
@@ -711,7 +711,7 @@ namespace Oxide.Plugins
             controller.EntityData.CCTV.Pitch = lookAngles.x;
             controller.EntityData.CCTV.Yaw = lookAngles.y;
             _profileStore.Save(controller.Profile);
-            controller.UpdateDirection();
+            controller.HandleChanges();
 
             ReplyToPlayer(player, LangEntry.CCTVSetDirectionSuccess, controller.Adapters.Count, controller.Profile.Name);
 
@@ -753,7 +753,7 @@ namespace Oxide.Plugins
 
             controller.EntityData.Skin = skinId;
             _profileStore.Save(controller.Profile);
-            controller.UpdateSkin();
+            controller.HandleChanges();
 
             ReplyToPlayer(player, LangEntry.SkinSetSuccess, skinId, controller.Adapters.Count, controller.Profile.Name);
 
@@ -4297,9 +4297,11 @@ namespace Oxide.Plugins
                 return hasChanged;
             }
 
-            public void HandleChanges()
+            public virtual void HandleChanges()
             {
                 UpdatePosition();
+                UpdateSkin();
+                UpdateScale();
                 UpdateBuildingGrade();
             }
 
@@ -4474,16 +4476,6 @@ namespace Oxide.Plugins
             public override BaseAdapter CreateAdapter(BaseMonument monument) =>
                 new SingleEntityAdapter(this, EntityData, monument);
 
-            public void UpdateSkin()
-            {
-                ProfileController.StartCoroutine(UpdateSkinRoutine());
-            }
-
-            public void UpdateScale()
-            {
-                ProfileController.StartCoroutine(UpdateScaleRoutine());
-            }
-
             public void HandleChanges()
             {
                 ProfileController.StartCoroutine(HandleChangesRoutine());
@@ -4511,32 +4503,6 @@ namespace Oxide.Plugins
                 }
 
                 return _vendingDataProvider;
-            }
-
-            private IEnumerator UpdateSkinRoutine()
-            {
-                foreach (var adapter in Adapters.ToList())
-                {
-                    var singleAdapter = adapter as SingleEntityAdapter;
-                    if (singleAdapter.IsDestroyed)
-                        continue;
-
-                    singleAdapter.UpdateSkin();
-                    yield return null;
-                }
-            }
-
-            private IEnumerator UpdateScaleRoutine()
-            {
-                foreach (var adapter in Adapters.ToList())
-                {
-                    var singleAdapter = adapter as SingleEntityAdapter;
-                    if (singleAdapter.IsDestroyed)
-                        continue;
-
-                    singleAdapter.UpdateScale();
-                    yield return null;
-                }
             }
 
             private IEnumerator HandleChangesRoutine()
@@ -4715,6 +4681,9 @@ namespace Oxide.Plugins
                 _idSuffix = idSuffix;
             }
 
+            // Ensure the RC identifiers are freed up as soon as possible to avoid conflicts when reloading.
+            public override void PreUnload() => SetIdentifier(string.Empty);
+
             protected override void PreEntitySpawn()
             {
                 base.PreEntitySpawn();
@@ -4757,8 +4726,13 @@ namespace Oxide.Plugins
                 PluginInstance.TrackEnd();
             }
 
-            // Ensure the RC identifiers are freed up as soon as possible to avoid conflicts when reloading.
-            public override void PreUnload() => SetIdentifier(string.Empty);
+            public override void HandleChanges()
+            {
+                base.HandleChanges();
+
+                UpdateIdentifier();
+                UpdateDirection();
+            }
 
             public void UpdateIdentifier()
             {
@@ -4866,42 +4840,6 @@ namespace Oxide.Plugins
 
             public override BaseAdapter CreateAdapter(BaseMonument monument) =>
                 new CCTVEntityAdapter(this, EntityData, monument, _nextId++);
-
-            public void UpdateIdentifier()
-            {
-                ProfileController.StartCoroutine(UpdateIdentifierRoutine());
-            }
-
-            public void UpdateDirection()
-            {
-                ProfileController.StartCoroutine(UpdateDirectionRoutine());
-            }
-
-            private IEnumerator UpdateIdentifierRoutine()
-            {
-                foreach (var adapter in Adapters.ToList())
-                {
-                    var cctvAdapter = adapter as CCTVEntityAdapter;
-                    if (cctvAdapter.IsDestroyed)
-                        continue;
-
-                    cctvAdapter.UpdateIdentifier();
-                    yield return null;
-                }
-            }
-
-            private IEnumerator UpdateDirectionRoutine()
-            {
-                foreach (var adapter in Adapters.ToList())
-                {
-                    var cctvAdapter = adapter as CCTVEntityAdapter;
-                    if (cctvAdapter.IsDestroyed)
-                        continue;
-
-                    cctvAdapter.UpdateDirection();
-                    yield return null;
-                }
-            }
         }
 
         #endregion
