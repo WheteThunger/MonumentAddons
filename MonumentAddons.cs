@@ -4061,7 +4061,7 @@ namespace Oxide.Plugins
 
             private IEnumerator UpdatePositionRoutine()
             {
-                foreach (var adapter in Adapters.ToArray())
+                foreach (var adapter in Adapters.ToList())
                 {
                     var entityAdapter = adapter as EntityAdapterBase;
                     if (entityAdapter.IsDestroyed)
@@ -4515,7 +4515,7 @@ namespace Oxide.Plugins
 
             private IEnumerator UpdateSkinRoutine()
             {
-                foreach (var adapter in Adapters.ToArray())
+                foreach (var adapter in Adapters.ToList())
                 {
                     var singleAdapter = adapter as SingleEntityAdapter;
                     if (singleAdapter.IsDestroyed)
@@ -4528,7 +4528,7 @@ namespace Oxide.Plugins
 
             private IEnumerator UpdateScaleRoutine()
             {
-                foreach (var adapter in Adapters.ToArray())
+                foreach (var adapter in Adapters.ToList())
                 {
                     var singleAdapter = adapter as SingleEntityAdapter;
                     if (singleAdapter.IsDestroyed)
@@ -4541,7 +4541,7 @@ namespace Oxide.Plugins
 
             private IEnumerator HandleChangesRoutine()
             {
-                foreach (var adapter in Adapters.ToArray())
+                foreach (var adapter in Adapters.ToList())
                 {
                     var singleAdapter = adapter as SingleEntityAdapter;
                     if (singleAdapter.IsDestroyed)
@@ -4879,7 +4879,7 @@ namespace Oxide.Plugins
 
             private IEnumerator UpdateIdentifierRoutine()
             {
-                foreach (var adapter in Adapters.ToArray())
+                foreach (var adapter in Adapters.ToList())
                 {
                     var cctvAdapter = adapter as CCTVEntityAdapter;
                     if (cctvAdapter.IsDestroyed)
@@ -4892,7 +4892,7 @@ namespace Oxide.Plugins
 
             private IEnumerator UpdateDirectionRoutine()
             {
-                foreach (var adapter in Adapters.ToArray())
+                foreach (var adapter in Adapters.ToList())
                 {
                     var cctvAdapter = adapter as CCTVEntityAdapter;
                     if (cctvAdapter.IsDestroyed)
@@ -5532,7 +5532,7 @@ namespace Oxide.Plugins
 
             public void OnSpawnGroupKilled(CustomSpawnGroup spawnGroup)
             {
-                foreach (var spawnPointAdapter in Adapters.ToArray())
+                foreach (var spawnPointAdapter in Adapters.ToList())
                 {
                     spawnPointAdapter.Kill();
                 }
@@ -5711,7 +5711,7 @@ namespace Oxide.Plugins
 
             private IEnumerator SpawnTickRoutine()
             {
-                foreach (var spawnGroupAdapter in SpawnGroupAdapters.ToArray())
+                foreach (var spawnGroupAdapter in SpawnGroupAdapters.ToList())
                 {
                     spawnGroupAdapter.SpawnTick();
                     yield return null;
@@ -5720,7 +5720,7 @@ namespace Oxide.Plugins
 
             private IEnumerator KillSpawnedInstancesRoutine(string prefabName = null)
             {
-                foreach (var spawnGroupAdapter in SpawnGroupAdapters.ToArray())
+                foreach (var spawnGroupAdapter in SpawnGroupAdapters.ToList())
                 {
                     spawnGroupAdapter.KillSpawnedInstances(prefabName);
                     yield return null;
@@ -5797,10 +5797,10 @@ namespace Oxide.Plugins
 
             private IEnumerator KillRoutine()
             {
-                var pastedEntities = _pastedEntities.ToArray();
+                var pastedEntities = _pastedEntities.ToList();
 
                 // Remove the entities in reverse order. Hopefully this makes the top of the building get removed first.
-                for (var i = pastedEntities.Length - 1; i >= 0; i--)
+                for (var i = pastedEntities.Count - 1; i >= 0; i--)
                 {
                     var entity = pastedEntities[i];
                     if (entity != null && !entity.IsDestroyed)
@@ -6933,7 +6933,7 @@ namespace Oxide.Plugins
 
             private IEnumerator UnloadRoutine()
             {
-                foreach (var controller in _controllersByData.Values.ToArray())
+                foreach (var controller in _controllersByData.Values.ToList())
                 {
                     yield return controller.KillRoutine();
                 }
@@ -7056,7 +7056,7 @@ namespace Oxide.Plugins
 
             public IEnumerator LoadAllProfilesRoutine()
             {
-                foreach (var profileName in _pluginData.EnabledProfiles.ToArray())
+                foreach (var profileName in _pluginData.EnabledProfiles.ToList())
                 {
                     ProfileController controller;
                     try
@@ -8510,7 +8510,7 @@ namespace Oxide.Plugins
 
                 if (data.DeprecatedMonumentMap != null)
                 {
-                    foreach (var monumentEntry in data.DeprecatedMonumentMap.ToArray())
+                    foreach (var monumentEntry in data.DeprecatedMonumentMap.ToList())
                     {
                         var alias = monumentEntry.Key;
                         var entityList = monumentEntry.Value;
@@ -8615,7 +8615,7 @@ namespace Oxide.Plugins
                 if (!EnabledProfiles.Remove(profileName))
                     return;
 
-                foreach (var entry in SelectedProfiles.ToArray())
+                foreach (var entry in SelectedProfiles.ToList())
                 {
                     if (entry.Value == profileName)
                         SelectedProfiles.Remove(entry.Key);
@@ -8626,7 +8626,7 @@ namespace Oxide.Plugins
 
             public void RenameProfileReferences(string oldName, string newName)
             {
-                foreach (var entry in SelectedProfiles.ToArray())
+                foreach (var entry in SelectedProfiles.ToList())
                 {
                     if (entry.Value == oldName)
                         SelectedProfiles[entry.Key] = newName;
