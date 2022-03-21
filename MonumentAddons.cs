@@ -108,13 +108,6 @@ namespace Oxide.Plugins
             });
         }
 
-        private static class Logger
-        {
-            public static void Info(string message) => Interface.Oxide.LogInfo($"[Monument Addons] {message}");
-            public static void Error(string message) => Interface.Oxide.LogError($"[Monument Addons] {message}");
-            public static void Warning(string message) => Interface.Oxide.LogWarning($"[Monument Addons] {message}");
-        }
-
         #endregion
 
         #region Hooks
@@ -3183,7 +3176,14 @@ namespace Oxide.Plugins
 
         #region Helper Classes
 
-        private class StringUtils
+        private static class Logger
+        {
+            public static void Info(string message) => Interface.Oxide.LogInfo($"[Monument Addons] {message}");
+            public static void Error(string message) => Interface.Oxide.LogError($"[Monument Addons] {message}");
+            public static void Warning(string message) => Interface.Oxide.LogWarning($"[Monument Addons] {message}");
+        }
+
+        private static class StringUtils
         {
             public static bool Equals(string a, string b) =>
                 string.Compare(a, b, StringComparison.OrdinalIgnoreCase) == 0;
