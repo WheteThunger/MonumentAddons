@@ -641,7 +641,7 @@ namespace Oxide.Plugins
 
             controller.Profile.RemoveData(adapter.Data);
             _profileStore.Save(controller.Profile);
-            controller.KillData(adapter.Data);
+            controller.Kill(adapter.Data);
 
             ReplyToPlayer(player, LangEntry.KillSuccess, GetAddonName(player, adapter.Data), numAdapters, controller.Profile.Name);
 
@@ -3845,10 +3845,15 @@ namespace Oxide.Plugins
                 Monument = monument;
             }
 
+            // Creates all GameObjects/Component that make up the addon.
             public abstract void Spawn();
+
+            // Destroys all GameObjects/Components that make up the addon.
             public abstract void Kill();
 
-            // Called immediately for all adapters when the controller needs to be killed.
+            public virtual void Unregister() {}
+
+            // Called when the addon is scheduled to be killed or unregistered.
             public virtual void PreUnload() {}
         }
 
@@ -3897,7 +3902,7 @@ namespace Oxide.Plugins
             public MonumentAddons PluginInstance => ProfileController.PluginInstance;
             public Profile Profile => ProfileController.Profile;
 
-            private bool _wasKilled;
+            private bool _enabled = true;
 
             public BaseController(ProfileController profileController, BaseIdentifiableData data)
             {
@@ -3932,7 +3937,7 @@ namespace Oxide.Plugins
             {
                 foreach (var monument in monumentList)
                 {
-                    if (_wasKilled)
+                    if (!_enabled)
                     {
                         yield break;
                     }
@@ -3945,15 +3950,27 @@ namespace Oxide.Plugins
             }
 
             // Subclasses can override this if they need to kill child data (e.g., spawn point data).
-            public virtual void KillData(BaseIdentifiableData data)
+            public virtual void Kill(BaseIdentifiableData data)
             {
-                Kill();
+                PreUnload();
+
+                if (Adapters.Count > 0)
+                {
+                    CoroutineManager.StartGlobalCoroutine(KillRoutine());
+                }
+
+                ProfileController.OnControllerKilled(this);
+            }
+
+            public void Kill()
+            {
+                Kill(Data);
             }
 
             public void PreUnload()
             {
                 // Stop the controller from spawning more adapters.
-                _wasKilled = true;
+                _enabled = false;
 
                 for (var i = Adapters.Count - 1; i >= 0; i--)
                 {
@@ -3973,16 +3990,14 @@ namespace Oxide.Plugins
                 }
             }
 
-            public void Kill()
+            public void Unregister()
             {
-                PreUnload();
-
-                if (Adapters.Count > 0)
+                for (var i = Adapters.Count - 1; i >= 0; i--)
                 {
-                    CoroutineManager.StartGlobalCoroutine(KillRoutine());
+                    PluginInstance.TrackStart();
+                    Adapters[i].Unregister();
+                    PluginInstance.TrackEnd();
                 }
-
-                ProfileController.OnControllerKilled(this);
             }
         }
 
@@ -4171,19 +4186,6 @@ namespace Oxide.Plugins
                 if (IsDestroyed)
                     return;
 
-                if (_pluginConfig.EnableEntitySaving
-                    // Kill entity if profile was disabled.
-                    && ProfileController.IsEnabled
-                    // Kill entity if data is missing, in case it was removed with `makill`, `maprofile moveto` or `maprofile clear`.
-                    && Profile.HasEntity(Monument.AliasOrShortName, EntityData)
-                    // Kill entity if there is no state tracked for it since we wouldn't recognize it on reload.
-                    && _profileStateData.HasEntity(Profile.Name, Monument, Data.Id, Entity.net.ID))
-                {
-                    // Simply unregister the entity rather than killing it.
-                    UnlinkEntity();
-                    return;
-                }
-
                 PreEntityKill();
                 Entity.Kill();
             }
@@ -4207,14 +4209,6 @@ namespace Oxide.Plugins
                 }
 
                 PluginInstance.TrackEnd();
-            }
-
-            public override void PreUnload()
-            {
-                if (_pluginConfig.EnableEntitySaving && !IsDestroyed)
-                {
-                    UnlinkEntity();
-                }
             }
 
             public override void UpdatePosition()
@@ -4392,8 +4386,19 @@ namespace Oxide.Plugins
 
             protected virtual void PreEntityKill() {}
 
-            private void UnlinkEntity()
+            public override void Unregister()
             {
+                if (IsDestroyed)
+                    return;
+
+                // Not safe to unregister the entity if the profile no longer declares it.
+                if (!Profile.HasEntity(Monument.AliasOrShortName, EntityData))
+                    return;
+
+                // Not safe to unregister the entity if it's not tracked in the profile state.
+                if (!_profileStateData.HasEntity(Profile.Name, Monument, Data.Id, Entity.net.ID))
+                    return;
+
                 MonumentEntityComponent.RemoveFromEntity(Entity);
             }
 
@@ -4534,6 +4539,8 @@ namespace Oxide.Plugins
                     // Delete sign files immediately, since the entities may not be explicitly killed on server shutdown.
                     DeleteSignFiles();
                 }
+
+                base.PreUnload();
             }
 
             public uint[] GetTextureIds() => (Entity as ISignage)?.GetTextureCRCs();
@@ -4682,7 +4689,12 @@ namespace Oxide.Plugins
             }
 
             // Ensure the RC identifiers are freed up as soon as possible to avoid conflicts when reloading.
-            public override void PreUnload() => SetIdentifier(string.Empty);
+            public override void PreUnload()
+            {
+                SetIdentifier(string.Empty);
+
+                base.PreUnload();
+            }
 
             protected override void PreEntitySpawn()
             {
@@ -5602,11 +5614,11 @@ namespace Oxide.Plugins
             public override BaseAdapter CreateAdapter(BaseMonument monument) =>
                 new SpawnGroupAdapter(SpawnGroupData, this, monument);
 
-            public override void KillData(BaseIdentifiableData data)
+            public override void Kill(BaseIdentifiableData data)
             {
                 if (data == Data)
                 {
-                    base.KillData(data);
+                    base.Kill(data);
                     return;
                 }
 
@@ -5617,7 +5629,7 @@ namespace Oxide.Plugins
                     return;
                 }
 
-                Logger.Error($"{nameof(SpawnGroupController)}.{nameof(KillData)} not implemented for type {data.GetType()}. Killing {nameof(SpawnGroupController)}.");
+                Logger.Error($"{nameof(SpawnGroupController)}.{nameof(Kill)} not implemented for type {data.GetType()}. Killing {nameof(SpawnGroupController)}.");
             }
 
             public void CreateSpawnPoint(SpawnPointData spawnPointData)
@@ -6594,6 +6606,7 @@ namespace Oxide.Plugins
             public WaitUntil WaitUntilLoaded;
             public WaitUntil WaitUntilUnloaded;
 
+            private Configuration _pluginConfig => PluginInstance._pluginConfig;
             private StoredData _pluginData => PluginInstance._pluginData;
             private ProfileStateData _profileStateData => PluginInstance._profileStateData;
 
@@ -6677,19 +6690,33 @@ namespace Oxide.Plugins
                 }
             }
 
-            public void Unload()
+            public void Unregister()
+            {
+                foreach (var controller in _controllersByData.Values.ToList())
+                {
+                    controller.Unregister();
+                }
+            }
+
+            public void Unload(IEnumerator cleanupRoutine = null)
             {
                 if (ProfileStatus == ProfileStatus.Unloading || ProfileStatus == ProfileStatus.Unloaded)
                     return;
 
                 ProfileStatus = ProfileStatus.Unloading;
-                CoroutineManager.StartGlobalCoroutine(UnloadRoutine());
+                CoroutineManager.StartGlobalCoroutine(UnloadRoutine(cleanupRoutine));
             }
 
             public void Reload(Profile newProfileData)
             {
                 Interrupt();
                 PreUnload();
+
+                if (_pluginConfig.EnableEntitySaving)
+                {
+                    Unregister();
+                }
+
                 StartCoroutine(ReloadRoutine(newProfileData));
             }
 
@@ -6732,7 +6759,22 @@ namespace Oxide.Plugins
             {
                 Interrupt();
                 PreUnload();
-                Unload();
+
+                IEnumerator cleanupRoutine = null;
+
+                if (_pluginConfig.EnableEntitySaving)
+                {
+                    Unregister();
+
+                    var entitiesToKill = _profileStateData.FindAndRemoveValidEntities(Profile.Name);
+                    if (entitiesToKill != null && entitiesToKill.Count > 0)
+                    {
+                        PluginInstance._saveProfileStateDebounced.Schedule();
+                        cleanupRoutine = KillEntitiesRoutine(entitiesToKill);
+                    }
+                }
+
+                Unload(cleanupRoutine);
             }
 
             public void Clear()
@@ -6746,23 +6788,6 @@ namespace Oxide.Plugins
 
                 Interrupt();
                 StartCoroutine(ClearRoutine());
-            }
-
-            public void KillData(BaseIdentifiableData data, BaseIdentifiableData parentData)
-            {
-                var controller = GetController(data);
-                if (controller == null && parentData != null)
-                {
-                    controller = GetController(parentData);
-                }
-
-                if (controller == null)
-                {
-                    Logger.Warning($"Unable to find controller for {data.GetType()} {data.Id} in {Profile.Name}");
-                    return;
-                }
-
-                controller.KillData(data);
             }
 
             private void Interrupt()
@@ -6869,11 +6894,16 @@ namespace Oxide.Plugins
                 ProfileStatus = ProfileStatus.Loaded;
             }
 
-            private IEnumerator UnloadRoutine()
+            private IEnumerator UnloadRoutine(IEnumerator cleanupRoutine)
             {
                 foreach (var controller in _controllersByData.Values.ToList())
                 {
                     yield return controller.KillRoutine();
+                }
+
+                if (cleanupRoutine != null)
+                {
+                    yield return cleanupRoutine;
                 }
 
                 ProfileStatus = ProfileStatus.Unloaded;
@@ -6984,6 +7014,7 @@ namespace Oxide.Plugins
             private ProfileStore _profileStore;
             private List<ProfileController> _profileControllers = new List<ProfileController>();
 
+            private Configuration _pluginConfig => _pluginInstance._pluginConfig;
             private StoredData _pluginData => _pluginInstance._pluginData;
 
             public ProfileManager(MonumentAddons pluginInstance, ProfileStore profileStore)
@@ -7043,8 +7074,15 @@ namespace Oxide.Plugins
 
             public void UnloadAllProfiles()
             {
-                foreach (var controller in _profileControllers)
-                    controller.PreUnload();
+                foreach (var profileController in _profileControllers)
+                {
+                    profileController.PreUnload();
+
+                    if (_pluginConfig.EnableEntitySaving)
+                    {
+                        profileController.Unregister();
+                    }
+                }
 
                 CoroutineManager.StartGlobalCoroutine(UnloadAllProfilesRoutine());
             }
@@ -8367,6 +8405,24 @@ namespace Oxide.Plugins
                     ?.GetOrDefault(monument.AliasOrShortName)
                     ?.GetMonumentState(monument)
                     ?.RemoveEntity(guid) ?? false;
+            }
+
+            public List<BaseEntity> FindAndRemoveValidEntities(string profileName)
+            {
+                var profileState = ProfileStateMap.GetOrDefault(profileName);
+                if (profileState == null)
+                    return null;
+
+                var entityList = new List<BaseEntity>();
+
+                foreach (var entityEntry in profileState.FindValidEntities())
+                {
+                    entityList.Add(entityEntry.Entity);
+                }
+
+                ProfileStateMap.Remove(profileName);
+
+                return entityList;
             }
 
             public List<BaseEntity> CleanDisabledProfileState()
