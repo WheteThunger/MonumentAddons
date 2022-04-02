@@ -131,11 +131,6 @@ namespace Oxide.Plugins
             }
 
             _adapterListenerManager.Init();
-
-            if (_pluginConfig.EnableEntitySaving)
-            {
-                Logger.Warning("\"EnableEntitySaving: true\" is currently experimental.");
-            }
         }
 
         private void OnServerInitialized()
@@ -8665,7 +8660,7 @@ namespace Oxide.Plugins
             [JsonProperty("DebugDisplayDistance")]
             public float DebugDisplayDistance = 150;
 
-            [JsonProperty("PersistEntitiesAfterUnload", DefaultValueHandling = DefaultValueHandling.Ignore)]
+            [JsonProperty("PersistEntitiesAfterUnload")]
             public bool EnableEntitySaving = false;
 
             [JsonProperty("DeployableOverrides")]
