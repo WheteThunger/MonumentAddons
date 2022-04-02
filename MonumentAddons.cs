@@ -3693,12 +3693,14 @@ namespace Oxide.Plugins
             public BaseEntity RootEntity { get; private set; }
             public bool IsMobile { get; private set; }
             public override bool IsValid => base.IsValid && !RootEntity.IsDestroyed;
+            public uint EntityId { get; private set; }
 
             protected OBB BoundingBox => RootEntity.WorldSpaceBounds();
 
             public DynamicMonument(BaseEntity entity, bool isMobile) : base(entity)
             {
                 RootEntity = entity;
+                EntityId = entity.net?.ID ?? 0;
                 IsMobile = isMobile;
             }
 
@@ -8287,7 +8289,7 @@ namespace Oxide.Plugins
                 var dynamicMonument = monument as DynamicMonument;
                 if (dynamicMonument != null)
                 {
-                    return ByEntity.GetOrDefault(dynamicMonument.RootEntity.net.ID);
+                    return ByEntity.GetOrDefault(dynamicMonument.EntityId);
                 }
 
                 return ByLocation.GetOrDefault(monument.Position);
@@ -8298,7 +8300,7 @@ namespace Oxide.Plugins
                 var dynamicMonument = monument as DynamicMonument;
                 if (dynamicMonument != null)
                 {
-                    return ByEntity.GetOrCreate(dynamicMonument.RootEntity.net.ID);
+                    return ByEntity.GetOrCreate(dynamicMonument.EntityId);
                 }
 
                 return ByLocation.GetOrCreate(monument.Position);
