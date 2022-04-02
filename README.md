@@ -98,6 +98,7 @@ How this works:
   - Also spawns the entity at other matching monuments (e.g., if at a gas station, will spawn at all gas stations).
     - A monument is considered a match if it has the same short prefab name or the same alias as the monument you are aiming at. The Monument Finder plugin will assign aliases for primarily underground tunnels. For example, `station-sn-0` and `station-we-0` will both use the `TrainStation` alias, allowing all train stations to have the same entities.
   - Saves the entity info to the plugin data file so that reloading the plugin (or restarting the server) will respawn the entity.
+- `mapaste <file>` -- Pastes a building from the CopyPaste plugin, using the specified file name.
 - `mashow <optional_profile_name> <optional_duration_in_seconds>` -- Shows debug information about nearby entities spawned by this plugin, for the specified duration. Defaults to 60 seconds.
   - Debug information is also automatically displayed for at least 60 seconds when using other commands.
   - When specifying a profile name, entities belonging to other profiles will have gray text.
@@ -191,12 +192,16 @@ Profiles allow you to organize entities into groups. Each profile can be indepen
     "wall.frame.shopfront.metal": "assets/bundled/prefabs/static/wall.frame.shopfront.metal.static.prefab",
     "workbench1": "assets/bundled/prefabs/static/workbench1.static.prefab",
     "workbench2": "assets/bundled/prefabs/static/workbench2.static.prefab"
-  }
+  },
+  "StoreCustomVendingSetupSettingsInProfiles": false,
+  "PersistEntitiesAfterUnload": false
 }
 ```
 
 - `DebugDisplayDistance` -- Determines how far away you can see debug information about entities (i.e., when using `mashow`).
 - `DeployableOverrides` -- Determines which entity will be spawned when using `maspawn` if you don't specify the entity name in the command. For example, while you are holding an auto turret, running `maspawn` will spawn the `sentry.bandit.static` prefab instead of the `autoturret_deployed` prefab.
+- `StoreCustomVendingSetupSettingsInProfiles` (`true` or `false`) -- While `true`, vending machine settings for Custom Vending Setup will be stored within Monument Addons profiles data files rather than in Custom Vending Setup data files. This allows you to reposition vending machines without losing their settings. The default value is currently `false`, but in the future, this option will be removed and the behavior will be as if this option were set to `true`.
+- `PersistEntitiesAfterUnload` (`true` or `false`) -- While `true`, entities spawned by `maspawn` will remain after the plugin has unloaded, rather than being removed. Enabling persistence addresses several problems, such as player items getting deleted from recyclers and other containers when profiles are reloaded. Note: This option currently has no effect on Pastes, Spawn Groups or Custom Addons, meaning that those will always be removed when the plugin unloads.
 
 ## Localization
 
