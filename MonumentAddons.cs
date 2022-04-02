@@ -4147,7 +4147,10 @@ namespace Oxide.Plugins
                             if (dynamicMonument != null && dynamicMonument.IsMobile)
                             {
                                 mountable.isMobile = true;
-                                BaseMountable.FixedUpdateMountables.Add(mountable);
+                                if (!BaseMountable.FixedUpdateMountables.Contains(mountable))
+                                {
+                                    BaseMountable.FixedUpdateMountables.Add(mountable);
+                                }
                             }
                         }
 
