@@ -8223,12 +8223,12 @@ namespace Oxide.Plugins
             [JsonConverter(typeof(MonumentStateMapConverter))]
             private Dictionary<Vector3, MonumentState> ByLocation = new Dictionary<Vector3, MonumentState>(new Vector3EqualityComparer());
 
-            public bool ShouldSerializeByLocation() => ByLocation.Count > 0;
+            public bool ShouldSerializeByLocation() => HasDeepItems(ByLocation);
 
             [JsonProperty("ByEntity")]
             private Dictionary<uint, MonumentState> ByEntity = new Dictionary<uint, MonumentState>();
 
-            public bool ShouldSerializeByEntity() => ByEntity.Count > 0;
+            public bool ShouldSerializeByEntity() => HasDeepItems(ByEntity);
 
             public bool HasItems() => HasDeepItems(ByLocation) || HasDeepItems(ByEntity);
 
