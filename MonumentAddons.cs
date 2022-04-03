@@ -3095,9 +3095,12 @@ namespace Oxide.Plugins
             yield return null;
             yield return _profileManager.LoadAllProfilesRoutine();
 
-            // We don't want to be subscribed to OnEntitySpawned(CargoShip) until the coroutine is done.
-            // Otherwise, a cargo ship could spawn while the coroutine is running and could get double entities.
-            Subscribe(nameof(OnEntitySpawned));
+            if (_pluginConfig.EnableDynamicMonuments)
+            {
+                // We don't want to be subscribed to OnEntitySpawned(CargoShip) until the coroutine is done.
+                // Otherwise, a cargo ship could spawn while the coroutine is running and could get double entities.
+                Subscribe(nameof(OnEntitySpawned));
+            }
         }
 
         private void StartupRoutine()
@@ -8664,6 +8667,10 @@ namespace Oxide.Plugins
 
             [JsonProperty("DebugDisplayDistance")]
             public float DebugDisplayDistance = 150;
+
+            [JsonProperty("EnableDynamicMonuments", DefaultValueHandling = DefaultValueHandling.Ignore)]
+            [DefaultValue(true)]
+            public bool EnableDynamicMonuments = true;
 
             [JsonProperty("PersistEntitiesAfterUnload")]
             public bool EnableEntitySaving = false;
