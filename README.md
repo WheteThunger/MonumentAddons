@@ -173,6 +173,8 @@ Profiles allow you to organize entities into groups. Each profile can be indepen
 ```json
 {
   "DebugDisplayDistance": 150.0,
+  "StoreCustomVendingSetupSettingsInProfiles": false,
+  "PersistEntitiesAfterUnload": false,
   "DeployableOverrides": {
     "arcade.machine.chippy": "assets/bundled/prefabs/static/chippyarcademachine.static.prefab",
     "autoturret": "assets/content/props/sentry_scientists/sentry.bandit.static.prefab",
@@ -193,9 +195,7 @@ Profiles allow you to organize entities into groups. Each profile can be indepen
     "wall.frame.shopfront.metal": "assets/bundled/prefabs/static/wall.frame.shopfront.metal.static.prefab",
     "workbench1": "assets/bundled/prefabs/static/workbench1.static.prefab",
     "workbench2": "assets/bundled/prefabs/static/workbench2.static.prefab"
-  },
-  "StoreCustomVendingSetupSettingsInProfiles": false,
-  "PersistEntitiesAfterUnload": false
+  }
 }
 ```
 

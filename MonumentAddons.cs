@@ -8675,6 +8675,9 @@ namespace Oxide.Plugins
             [JsonProperty("PersistEntitiesAfterUnload")]
             public bool EnableEntitySaving = false;
 
+            [JsonProperty("StoreCustomVendingSetupSettingsInProfiles")]
+            public bool StoreCustomVendingSetupSettingsInProfiles;
+
             [JsonProperty("DeployableOverrides")]
             public Dictionary<string, string> DeployableOverrides = new Dictionary<string, string>
             {
@@ -8698,9 +8701,6 @@ namespace Oxide.Plugins
                 ["workbench1"] = "assets/bundled/prefabs/static/workbench1.static.prefab",
                 ["workbench2"] = "assets/bundled/prefabs/static/workbench2.static.prefab",
             };
-
-            [JsonProperty("StoreCustomVendingSetupSettingsInProfiles")]
-            public bool StoreCustomVendingSetupSettingsInProfiles;
         }
 
         private Configuration GetDefaultConfig() => new Configuration();
