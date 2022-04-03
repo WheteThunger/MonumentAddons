@@ -187,6 +187,7 @@ Profiles allow you to organize entities into groups. Each profile can be indepen
     "modularcarlift": "assets/bundled/prefabs/static/modularcarlift.static.prefab",
     "research.table": "assets/bundled/prefabs/static/researchtable_static.prefab",
     "samsite": "assets/prefabs/npc/sam_site_turret/sam_static.prefab",
+    "small.oil.refinery": "assets/bundled/prefabs/static/small_refinery_static.prefab",
     "telephone": "assets/bundled/prefabs/autospawn/phonebooth/phonebooth.static.prefab",
     "vending.machine": "assets/prefabs/deployable/vendingmachine/npcvendingmachine.prefab",
     "wall.frame.shopfront.metal": "assets/bundled/prefabs/static/wall.frame.shopfront.metal.static.prefab",
