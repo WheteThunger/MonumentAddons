@@ -4382,6 +4382,16 @@ namespace Oxide.Plugins
                     }, 2);
                 }
 
+                var candle = Entity as Candle;
+                if (candle != null)
+                {
+                    candle.SetFlag(BaseEntity.Flags.On, true);
+                    candle.CancelInvoke(candle.Burn);
+
+                    // Disallow extinguishing.
+                    candle.SetFlag(BaseEntity.Flags.Busy, true);
+                }
+
                 if (EntityData.Scale != 1 || Entity.GetParentEntity() is SphereEntity)
                 {
                     UpdateScale();
