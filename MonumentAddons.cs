@@ -4396,14 +4396,15 @@ namespace Oxide.Plugins
                 if (fogMachine != null)
                 {
                     fogMachine.SetFlag(BaseEntity.Flags.On, true);
-
-                    PluginInstance.timer.Every(fogMachine.fogLength - 1f, () =>
+                    fogMachine.InvokeRepeating(() => 
                     {
-                        fogMachine.SetFlag(BaseEntity.Flags.Reserved6, b: true);
+                        fogMachine.SetFlag(FogMachine.Emitting, true);
                         fogMachine.Invoke(fogMachine.EnableFogField, 1f);
                         fogMachine.Invoke(fogMachine.DisableNozzle, fogMachine.nozzleBlastDuration);
                         fogMachine.Invoke(fogMachine.FinishFogging, fogMachine.fogLength);
-                    });
+                    }, 
+                    UnityEngine.Random.Range(0f, 5f), 
+                    fogMachine.fogLength - 1);
 
                     // Disallow interaction.
                     fogMachine.SetFlag(BaseEntity.Flags.Busy, true);
@@ -4415,14 +4416,14 @@ namespace Oxide.Plugins
                     // Lanterns
                     if (oven is BaseFuelLightSource)
                     {
-                        oven.SetFlag(BaseEntity.Flags.On, b: true);
+                        oven.SetFlag(BaseEntity.Flags.On, true);
                         oven.SetFlag(BaseEntity.Flags.Busy, true);
                     }
 
                     // jackolantern.angry or jackolantern.happy
                     else if (oven.prefabID == 1889323056 || oven.prefabID == 630866573)
                     {
-                        oven.SetFlag(BaseEntity.Flags.On, b: true);
+                        oven.SetFlag(BaseEntity.Flags.On, true);
                         oven.SetFlag(BaseEntity.Flags.Busy, true);
                     }
                 }
@@ -4430,7 +4431,7 @@ namespace Oxide.Plugins
                 var spooker = Entity as SpookySpeaker;
                 if (spooker != null)
                 {
-                    spooker.SetFlag(BaseEntity.Flags.On, b: true);
+                    spooker.SetFlag(BaseEntity.Flags.On, true);
                     spooker.InvokeRandomized(
                         spooker.SendPlaySound,
                         spooker.soundSpacing,
