@@ -84,7 +84,6 @@ namespace Oxide.Plugins
         private readonly object _cancelHook = false;
 
         private ItemDefinition _waterDefinition;
-        private ItemDefinition _fuelDefinition;
         private ProtectionProperties _immortalProtection;
         private ActionDebounced _saveProfileStateDebounced;
 
@@ -137,7 +136,6 @@ namespace Oxide.Plugins
         private void OnServerInitialized()
         {
             _waterDefinition = ItemManager.FindItemDefinition("water");
-            _fuelDefinition = ItemManager.FindItemDefinition("lowgradefuel");
 
             _immortalProtection = ScriptableObject.CreateInstance<ProtectionProperties>();
             _immortalProtection.name = "MonumentAddonsProtection";
@@ -4397,12 +4395,15 @@ namespace Oxide.Plugins
                 var fogMachine = Entity as FogMachine;
                 if (fogMachine != null)
                 {
-                    // Add fuel and disable its consumption to keep internal code functional 
-                    fogMachine.inventory.AddItem(PluginInstance._fuelDefinition, 1);
-                    fogMachine.fuelPerSec = 0;
-
                     fogMachine.SetFlag(BaseEntity.Flags.On, true);
-                    fogMachine.InvokeRepeating(fogMachine.StartFogging, 0f, fogMachine.fogLength - 1f);
+
+                    PluginInstance.timer.Every(fogMachine.fogLength - 1f, () =>
+                    {
+                        fogMachine.SetFlag(BaseEntity.Flags.Reserved6, b: true);
+                        fogMachine.Invoke(fogMachine.EnableFogField, 1f);
+                        fogMachine.Invoke(fogMachine.DisableNozzle, fogMachine.nozzleBlastDuration);
+                        fogMachine.Invoke(fogMachine.FinishFogging, fogMachine.fogLength);
+                    });
 
                     // Disallow interaction.
                     fogMachine.SetFlag(BaseEntity.Flags.Busy, true);
