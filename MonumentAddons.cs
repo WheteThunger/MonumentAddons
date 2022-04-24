@@ -84,6 +84,7 @@ namespace Oxide.Plugins
         private readonly object _cancelHook = false;
 
         private ItemDefinition _waterDefinition;
+        private ItemDefinition _fuelDefinition;
         private ProtectionProperties _immortalProtection;
         private ActionDebounced _saveProfileStateDebounced;
 
@@ -136,6 +137,7 @@ namespace Oxide.Plugins
         private void OnServerInitialized()
         {
             _waterDefinition = ItemManager.FindItemDefinition("water");
+            _fuelDefinition = ItemManager.FindItemDefinition("lowgradefuel");
 
             _immortalProtection = ScriptableObject.CreateInstance<ProtectionProperties>();
             _immortalProtection.name = "MonumentAddonsProtection";
@@ -4390,6 +4392,52 @@ namespace Oxide.Plugins
 
                     // Disallow extinguishing.
                     candle.SetFlag(BaseEntity.Flags.Busy, true);
+                }
+
+                var fogMachine = Entity as FogMachine;
+                if (fogMachine != null)
+                {
+                    // Add fuel and disable its consumption to keep internal code functional 
+                    fogMachine.inventory.AddItem(PluginInstance._fuelDefinition, 1);
+                    fogMachine.fuelPerSec = 0;
+
+                    fogMachine.SetFlag(BaseEntity.Flags.On, true);
+                    fogMachine.InvokeRepeating(fogMachine.StartFogging, 0f, fogMachine.fogLength - 1f);
+
+                    // Disallow interaction.
+                    fogMachine.SetFlag(BaseEntity.Flags.Busy, true);
+                }
+
+                var oven = Entity as BaseOven;
+                if (oven != null) 
+                {
+                    // Lanterns
+                    if (oven is BaseFuelLightSource)
+                    {
+                        oven.SetFlag(BaseEntity.Flags.On, b: true);
+                        oven.SetFlag(BaseEntity.Flags.Busy, true);
+                    }
+
+                    // jackolantern.angry or jackolantern.happy
+                    else if (oven.prefabID == 1889323056 || oven.prefabID == 630866573)
+                    {
+                        
+                        oven.SetFlag(BaseEntity.Flags.On, b: true);
+                        oven.SetFlag(BaseEntity.Flags.Busy, true);
+                    }
+                }
+
+                var spooker = Entity as SpookySpeaker;
+                if (spooker != null)
+                {
+                    spooker.SetFlag(BaseEntity.Flags.On, b: true);
+                    spooker.InvokeRandomized(
+                        spooker.SendPlaySound,
+                        spooker.soundSpacing,
+                        spooker.soundSpacing,
+                        spooker.soundSpacingRand);
+
+                    spooker.SetFlag(BaseEntity.Flags.Busy, true);
                 }
 
                 if (EntityData.Scale != 1 || Entity.GetParentEntity() is SphereEntity)
