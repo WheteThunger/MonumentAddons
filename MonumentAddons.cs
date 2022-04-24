@@ -4392,6 +4392,55 @@ namespace Oxide.Plugins
                     candle.SetFlag(BaseEntity.Flags.Busy, true);
                 }
 
+                var fogMachine = Entity as FogMachine;
+                if (fogMachine != null)
+                {
+                    fogMachine.SetFlag(BaseEntity.Flags.On, true);
+                    fogMachine.InvokeRepeating(() => 
+                    {
+                        fogMachine.SetFlag(FogMachine.Emitting, true);
+                        fogMachine.Invoke(fogMachine.EnableFogField, 1f);
+                        fogMachine.Invoke(fogMachine.DisableNozzle, fogMachine.nozzleBlastDuration);
+                        fogMachine.Invoke(fogMachine.FinishFogging, fogMachine.fogLength);
+                    }, 
+                    UnityEngine.Random.Range(0f, 5f), 
+                    fogMachine.fogLength - 1);
+
+                    // Disallow interaction.
+                    fogMachine.SetFlag(BaseEntity.Flags.Busy, true);
+                }
+
+                var oven = Entity as BaseOven;
+                if (oven != null) 
+                {
+                    // Lanterns
+                    if (oven is BaseFuelLightSource)
+                    {
+                        oven.SetFlag(BaseEntity.Flags.On, true);
+                        oven.SetFlag(BaseEntity.Flags.Busy, true);
+                    }
+
+                    // jackolantern.angry or jackolantern.happy
+                    else if (oven.prefabID == 1889323056 || oven.prefabID == 630866573)
+                    {
+                        oven.SetFlag(BaseEntity.Flags.On, true);
+                        oven.SetFlag(BaseEntity.Flags.Busy, true);
+                    }
+                }
+
+                var spooker = Entity as SpookySpeaker;
+                if (spooker != null)
+                {
+                    spooker.SetFlag(BaseEntity.Flags.On, true);
+                    spooker.InvokeRandomized(
+                        spooker.SendPlaySound,
+                        spooker.soundSpacing,
+                        spooker.soundSpacing,
+                        spooker.soundSpacingRand);
+
+                    spooker.SetFlag(BaseEntity.Flags.Busy, true);
+                }
+
                 if (EntityData.Scale != 1 || Entity.GetParentEntity() is SphereEntity)
                 {
                     UpdateScale();
