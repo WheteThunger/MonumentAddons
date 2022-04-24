@@ -4421,7 +4421,6 @@ namespace Oxide.Plugins
                     // jackolantern.angry or jackolantern.happy
                     else if (oven.prefabID == 1889323056 || oven.prefabID == 630866573)
                     {
-                        
                         oven.SetFlag(BaseEntity.Flags.On, b: true);
                         oven.SetFlag(BaseEntity.Flags.Busy, true);
                     }
