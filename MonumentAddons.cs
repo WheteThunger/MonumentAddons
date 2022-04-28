@@ -23,6 +23,7 @@ using CustomKillCallback = System.Action<UnityEngine.Component>;
 using CustomUpdateCallback = System.Action<UnityEngine.Component, Newtonsoft.Json.Linq.JObject>;
 using CustomAddDisplayInfoCallback = System.Action<UnityEngine.Component, Newtonsoft.Json.Linq.JObject, System.Text.StringBuilder>;
 using CustomSetDataCallback = System.Action<UnityEngine.Component, object>;
+using System.Text.RegularExpressions;
 
 namespace Oxide.Plugins
 {
@@ -4441,7 +4442,56 @@ namespace Oxide.Plugins
                     spooker.SetFlag(BaseEntity.Flags.Busy, true);
                 }
 
-                if (EntityData.Scale != 1 || Entity.GetParentEntity() is SphereEntity)
+                var telephone = Entity as Telephone;
+                if (telephone != null && telephone.prefabID == 1009655496)
+                {
+                    string phoneName = null;
+                    var gridCoodr = PhoneController.PositionToGridCoord(telephone.Controller.baseEntity.transform.position);
+
+                    var monumentInfo = Monument.Object as MonumentInfo;
+                    if (monumentInfo != null && !string.IsNullOrEmpty(monumentInfo.displayPhrase.translated))
+                    {
+                        phoneName = monumentInfo.displayPhrase.translated;
+
+                        var monuments = PluginInstance.FindMonumentsByShortName(Monument.ShortName);
+                        if (monuments != null && monuments.Count > 1)
+                        {
+                            phoneName += " " + gridCoodr;
+                        }
+                    }
+
+                    var dungeonGridCell = Monument.Object as DungeonGridCell;
+                    if (dungeonGridCell != null)
+                    {
+                        phoneName = "FTL " + Regex.Replace(Monument.AliasOrShortName, "([a-z])([A-Z])", "$1 $2");
+                        phoneName += " " + gridCoodr;
+                    }
+
+                    var dungeonBaseLink = Monument.Object as DungeonBaseLink;
+                    if (dungeonBaseLink != null)
+                    {
+                        var roomName = "";
+                        for (int i = 0; i < dungeonBaseLink.Dungeon.Floors.Count; i++)
+                        {
+                            if (dungeonBaseLink.Dungeon.Floors[i].Links.Contains(dungeonBaseLink))
+                            {
+                                roomName = " L" + (i + 1) + " " + dungeonBaseLink.Type.ToString() + " " + dungeonBaseLink.Dungeon.Floors[i].Links.IndexOf(dungeonBaseLink);
+                                break;
+                            }
+                        }
+
+                        phoneName = "Underwater Lab " + gridCoodr + roomName;
+                    }
+
+                    if (phoneName != null)
+                        telephone.Controller.PhoneName = phoneName;
+                    else 
+                        telephone.Controller.PhoneName = telephone.GetDisplayName() + " " + gridCoodr;
+
+                    TelephoneManager.RegisterTelephone(telephone.Controller);
+                }
+
+                    if (EntityData.Scale != 1 || Entity.GetParentEntity() is SphereEntity)
                 {
                     UpdateScale();
                 }
