@@ -4491,7 +4491,7 @@ namespace Oxide.Plugins
                     TelephoneManager.RegisterTelephone(telephone.Controller);
                 }
 
-                    if (EntityData.Scale != 1 || Entity.GetParentEntity() is SphereEntity)
+                if (EntityData.Scale != 1 || Entity.GetParentEntity() is SphereEntity)
                 {
                     UpdateScale();
                 }
