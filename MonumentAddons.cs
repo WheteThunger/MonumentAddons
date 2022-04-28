@@ -4483,6 +4483,15 @@ namespace Oxide.Plugins
                         phoneName = "Underwater Lab " + gridCoodr + roomName;
                     }
 
+                    var dynamicMonument = Monument as DynamicMonument;
+                    if (dynamicMonument != null)
+                    {
+                        if (dynamicMonument.RootEntity.ShortPrefabName == "cargoshiptest")
+                        {
+                            phoneName = "Cargo Ship " + dynamicMonument.EntityId;
+                        }
+                    }
+
                     if (phoneName != null)
                         telephone.Controller.PhoneName = phoneName;
                     else 
