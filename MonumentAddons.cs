@@ -8965,6 +8965,7 @@ namespace Oxide.Plugins
             {
                 ["arcade.machine.chippy"] = "assets/bundled/prefabs/static/chippyarcademachine.static.prefab",
                 ["autoturret"] = "assets/content/props/sentry_scientists/sentry.bandit.static.prefab",
+                ["bbq"] = "assets/bundled/prefabs/static/bbq.static.prefab",
                 ["boombox"] = "assets/prefabs/voiceaudio/boombox/boombox.static.prefab",
                 ["box.repair.bench"] = "assets/bundled/prefabs/static/repairbench_static.prefab",
                 ["cctv.camera"] = "assets/prefabs/deployable/cctvcamera/cctv.static.prefab",
