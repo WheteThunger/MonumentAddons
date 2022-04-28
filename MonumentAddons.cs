@@ -4606,14 +4606,14 @@ namespace Oxide.Plugins
                 if (fogMachine != null)
                 {
                     fogMachine.SetFlag(BaseEntity.Flags.On, true);
-                    fogMachine.InvokeRepeating(() => 
+                    fogMachine.InvokeRepeating(() =>
                     {
                         fogMachine.SetFlag(FogMachine.Emitting, true);
                         fogMachine.Invoke(fogMachine.EnableFogField, 1f);
                         fogMachine.Invoke(fogMachine.DisableNozzle, fogMachine.nozzleBlastDuration);
                         fogMachine.Invoke(fogMachine.FinishFogging, fogMachine.fogLength);
-                    }, 
-                    UnityEngine.Random.Range(0f, 5f), 
+                    },
+                    UnityEngine.Random.Range(0f, 5f),
                     fogMachine.fogLength - 1);
 
                     // Disallow interaction.
@@ -4621,7 +4621,7 @@ namespace Oxide.Plugins
                 }
 
                 var oven = Entity as BaseOven;
-                if (oven != null) 
+                if (oven != null)
                 {
                     // Lanterns
                     if (oven is BaseFuelLightSource)
