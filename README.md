@@ -55,11 +55,14 @@ Let's face it, you are probably planning to use this plugin the same way as many
 Several example profiles are included below. Run the corresponding command snippet to install each profile.
 
 - `mainstall OutpostAirwolf` -- Adds an Air Wolf vendor to Outpost, with some ladders to allow access.
+- `mainstall OutpostExtended` -- Adds bandtit wheel, slot machines and poker tables to Outpost.
 - `mainstall BarnAirwolf` -- Adds an Air Wolf vendor to Large Barn and Ranch.
 - `mainstall FishingVillageAirwolf` -- Adds an Air Wolf vendor to Large Fishing Village and to one of the small Fishing Villages.
 - `mainstall MonumentLifts` -- Adds car lifts to gas station and supermarket (same as the MonumentLifts plugin).
 - `mainstall MonumentsRecycler` -- Adds recyclers to Cargo Ship, Oilrigs, Dome and Fishing Villages (same as the MonumentsRecycler plugin).
 - `mainstall TrainStationCCTV` -- Adds 6 CCTVs and one computer station to each underground Train Station.
+- `mainstall CargoShipCCTV` -- Adds 7 CCTVs and one computer station to cargo ship (same as the Cargo Ship CCTV plugin).
+- `mainstall OilRigSharks` -- Adds one shark to small rig and two sharks to lage rig.
 
 These example profiles are installed from https://github.com/WheteThunger/MonumentAddons/blob/master/Profiles/.
 Don't see what you're looking for? Want to showcase a profile you created? Fork the repository on [GitHub](https://github.com/WheteThunger/MonumentAddons), commit the changes, and submit a pull request!

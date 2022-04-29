@@ -1,0 +1,81 @@
+{
+  "Name": "OilrigSharks",
+  "Author": "marcuzz",
+  "SchemaVersion": 2.0,
+  "MonumentData": {
+    "OilrigAI": {
+      "SpawnGroups": [
+        {
+          "Id": "b8c55194-6bbf-4245-8ceb-0763f804784c",
+          "Name": "Sharks",
+          "MaxPopulation": 1,
+          "SpawnPerTickMin": 1,
+          "SpawnPerTickMax": 1,
+          "RespawnDelayMin": 1500.0,
+          "RespawnDelayMax": 2100.0,
+          "InitialSpawn": true,
+          "Prefabs": [
+            {
+              "PrefabName": "assets/rust.ai/agents/fish/simpleshark.prefab",
+              "Weight": 100
+            }
+          ],
+          "SpawnPoints": [
+            {
+              "Id": "296d6193-d25c-4d1e-b08e-fdcfb290e17a",
+              "Position": {
+                "x": 15.0,
+                "y": 0.0,
+                "z": -16.0
+              },
+              "Exclusive": true,
+              "SnapToGround": true
+            }
+          ]
+        }
+      ]
+    },
+    "OilrigAI2": {
+      "SpawnGroups": [
+        {
+          "Id": "7623668c-b725-4ac2-8ea3-c013e69368ac",
+          "Name": "Sharks",
+          "MaxPopulation": 2,
+          "SpawnPerTickMin": 2,
+          "SpawnPerTickMax": 2,
+          "RespawnDelayMin": 1500.0,
+          "RespawnDelayMax": 2100.0,
+          "InitialSpawn": true,
+          "Prefabs": [
+            {
+              "PrefabName": "assets/rust.ai/agents/fish/simpleshark.prefab",
+              "Weight": 100
+            }
+          ],
+          "SpawnPoints": [
+            {
+              "Id": "4249e064-9fbe-409c-8e3d-812976ad98e7",
+              "Position": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": -28.0
+              },
+              "Exclusive": true,
+              "SnapToGround": true
+            },
+            {
+              "Id": "1dc494b3-3069-406d-8cfc-341eaba21219",
+              "Position": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 28.0
+              },
+              "Exclusive": true,
+              "SnapToGround": true
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

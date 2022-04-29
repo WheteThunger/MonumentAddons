@@ -1,0 +1,141 @@
+{
+  "Name": "CargoShipCCTV",
+  "Author": "marcuzz",
+  "SchemaVersion": 2.0,
+  "MonumentData": {
+    "cargoshiptest": {
+      "Entities": [
+        {
+          "Id": "95bfc1ed-aee7-4161-b0c9-ec8339675b1e",
+          "PrefabName": "assets/prefabs/deployable/computerstation/computerstation.static.prefab",
+          "Position": {
+            "x": -9.2,
+            "y": 24.5,
+            "z": -39.8
+          },
+          "RotationAngles": {
+            "x": 0.0,
+            "y": 180.0,
+            "z": 0.0
+          }
+        },
+        {
+          "Id": "e21d4099-f510-4588-8f03-8623ea0bbef8",
+          "PrefabName": "assets/prefabs/deployable/cctvcamera/cctv.static.prefab",
+          "Position": {
+            "x": 0.0,
+            "y": 22.0,
+            "z": -37.44
+          },
+          "CCTV": {
+            "RCIdentifier": "CARGODECKA",
+            "Pitch": 50.0
+          }
+        },
+        {
+          "Id": "aa3994bc-d1fd-462b-9284-1e03a154cb14",
+          "PrefabName": "assets/prefabs/deployable/cctvcamera/cctv.static.prefab",
+          "Position": {
+            "x": 0.0,
+            "y": 15.0,
+            "z": -51.065
+          },
+          "RotationAngles": {
+            "x": 0.0,
+            "y": 180.0,
+            "z": 0.0
+          },
+          "CCTV": {
+            "RCIdentifier": "CARGODECKB",
+            "Pitch": 50.0
+          }
+        },
+        {
+          "Id": "fe09aded-8f68-47c0-8867-a214deca652e",
+          "PrefabName": "assets/prefabs/deployable/cctvcamera/cctv.static.prefab",
+          "Position": {
+            "x": 0.0,
+            "y": 21.5,
+            "z": 68.52
+          },
+          "RotationAngles": {
+            "x": 0.0,
+            "y": 180.0,
+            "z": 0.0
+          },
+          "CCTV": {
+            "RCIdentifier": "CARGODECKC",
+            "Pitch": 25.0
+          }
+        },
+        {
+          "Id": "a9de876d-2f67-46d9-82f5-55ad7eddbb9a",
+          "PrefabName": "assets/prefabs/deployable/cctvcamera/cctv.static.prefab",
+          "Position": {
+            "x": 0.0,
+            "y": 4.6,
+            "z": -32.87
+          },
+          "CCTV": {
+            "RCIdentifier": "CARGOHOLDA",
+            "Pitch": 35.0
+          }
+        },
+        {
+          "Id": "2889bc86-c4e7-4474-9b66-6ac604eb1380",
+          "PrefabName": "assets/prefabs/deployable/cctvcamera/cctv.static.prefab",
+          "Position": {
+            "x": 0.0,
+            "y": 4.6,
+            "z": 50.87
+          },
+          "RotationAngles": {
+            "x": 0.0,
+            "y": 180.0,
+            "z": 0.0
+          },
+          "CCTV": {
+            "RCIdentifier": "CARGOHOLDB",
+            "Pitch": 24.0
+          }
+        },
+        {
+          "Id": "d52a7d00-f3aa-4f24-b64e-a4380a67da99",
+          "PrefabName": "assets/prefabs/deployable/cctvcamera/cctv.static.prefab",
+          "Position": {
+            "x": 12.0,
+            "y": 6.08,
+            "z": 27.8
+          },
+          "RotationAngles": {
+            "x": 0.0,
+            "y": 90.0,
+            "z": 0.0
+          },
+          "CCTV": {
+            "RCIdentifier": "CARGOLADDERA",
+            "Yaw": 90.0
+          }
+        },
+        {
+          "Id": "38f98880-dbfd-4935-b7bb-0c9f73c9c65f",
+          "PrefabName": "assets/prefabs/deployable/cctvcamera/cctv.static.prefab",
+          "Position": {
+            "x": -12.0,
+            "y": 6.08,
+            "z": 27.8
+          },
+          "RotationAngles": {
+            "x": 0.0,
+            "y": 270,
+            "z": 0.0
+          },
+          "CCTV": {
+            "RCIdentifier": "CARGOLADDERB",
+            "Yaw": -90
+          }
+        }
+      ]
+    }
+  }
+}
