@@ -60,6 +60,8 @@ Several example profiles are included below. Run the corresponding command snipp
 - `mainstall MonumentLifts` -- Adds car lifts to gas station and supermarket (same as the MonumentLifts plugin).
 - `mainstall MonumentsRecycler` -- Adds recyclers to Cargo Ship, Oilrigs, Dome and Fishing Villages (same as the MonumentsRecycler plugin).
 - `mainstall TrainStationCCTV` -- Adds 6 CCTVs and one computer station to each underground Train Station.
+- `mainstall CargoShipCCTV` -- Adds 7 CCTVs and one computer station to cargo ship (same as the Cargo Ship CCTV plugin).
+- `mainstall OilRigSharks` -- Adds one shark to small rig and two sharks to lage rig.
 
 These example profiles are installed from https://github.com/WheteThunger/MonumentAddons/blob/master/Profiles/.
 Don't see what you're looking for? Want to showcase a profile you created? Fork the repository on [GitHub](https://github.com/WheteThunger/MonumentAddons), commit the changes, and submit a pull request!
