@@ -55,7 +55,6 @@ Let's face it, you are probably planning to use this plugin the same way as many
 Several example profiles are included below. Run the corresponding command snippet to install each profile.
 
 - `mainstall OutpostAirwolf` -- Adds an Air Wolf vendor to Outpost, with some ladders to allow access.
-- `mainstall OutpostExtended` -- Adds an Air Wolf vendor, bandit wheel, slot machines and poker tables to Outpost. Not compatible with OutpostAirwolf profile.
 - `mainstall BarnAirwolf` -- Adds an Air Wolf vendor to Large Barn and Ranch.
 - `mainstall FishingVillageAirwolf` -- Adds an Air Wolf vendor to Large Fishing Village and to one of the small Fishing Villages.
 - `mainstall MonumentLifts` -- Adds car lifts to gas station and supermarket (same as the MonumentLifts plugin).
