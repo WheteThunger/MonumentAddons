@@ -17,6 +17,8 @@ using System.Linq;
 using System.Text;
 using UnityEngine;
 using VLB;
+using static IOEntity;
+using static WireTool;
 
 using CustomSpawnCallback = System.Func<UnityEngine.Vector3, UnityEngine.Quaternion, Newtonsoft.Json.Linq.JObject, UnityEngine.Component>;
 using CustomKillCallback = System.Action<UnityEngine.Component>;
@@ -48,6 +50,9 @@ namespace Oxide.Plugins
 
         private const string PermissionAdmin = "monumentaddons.admin";
 
+        private const string WireToolPlugEffect = "assets/prefabs/tools/wire/effects/plugeffect.prefab";
+        private const string HoseToolPlugEffect = "assets/prefabs/tools/hose/effects/waterplugeffect.prefab";
+
         private const string CargoShipShortName = "cargoshiptest";
         private const string DefaultProfileName = "Default";
         private const string DefaultUrlPattern = "https://github.com/WheteThunger/MonumentAddons/blob/master/Profiles/{0}.json?raw=true";
@@ -71,6 +76,7 @@ namespace Oxide.Plugins
         private readonly UniqueNameRegistry _uniqueNameRegistry = new UniqueNameRegistry();
         private readonly AdapterDisplayManager _adapterDisplayManager;
         private readonly MonumentHelper _monumentHelper;
+        private readonly WireToolManager _wireToolManager;
 
         private readonly Color[] _distinctColors = new Color[]
         {
@@ -101,6 +107,7 @@ namespace Oxide.Plugins
             _customAddonManager = new CustomAddonManager(this);
             _controllerFactory = new ControllerFactory(this);
             _monumentHelper = new MonumentHelper(this);
+            _wireToolManager = new WireToolManager(this, _profileStore, _entityTracker);
 
             _saveProfileStateDebounced = new ActionDebounced(timer, 1, () =>
             {
@@ -165,6 +172,7 @@ namespace Oxide.Plugins
             _coroutineManager.Destroy();
             _profileManager.UnloadAllProfiles();
             _saveProfileStateDebounced.Flush();
+            _wireToolManager.Unload();
 
             UnityEngine.Object.Destroy(_immortalProtection);
 
@@ -2244,6 +2252,38 @@ namespace Oxide.Plugins
             ReplyToPlayer(player, LangEntry.GenerateSuccess, profileName);
         }
 
+        [Command("mawire")]
+        private void CommandWire(IPlayer player, string cmd, string[] args)
+        {
+            if (player.IsServer || !VerifyHasPermission(player))
+                return;
+
+            var basePlayer = player.Object as BasePlayer;
+            if (_wireToolManager.HasPlayer(basePlayer) && args.Length == 0)
+            {
+                _wireToolManager.StopSession(basePlayer);
+                return;
+            }
+
+            var wireColor = WireColour.Default;
+            if (args.Length > 0 && !Enum.TryParse<WireColour>(args[0], ignoreCase: true, result: out wireColor))
+            {
+                ReplyToPlayer(player, LangEntry.WireToolInvalidColor, args[0]);
+                return;
+            }
+
+            var activeItemShortName = basePlayer.GetActiveItem()?.info.shortname;
+            if (activeItemShortName != "wiretool" && activeItemShortName != "hosetool")
+            {
+                ReplyToPlayer(player, LangEntry.WireToolNotEquipped);
+                return;
+            }
+
+            _wireToolManager.StartOrUpdateSession(basePlayer, wireColor);
+
+            ChatMessage(basePlayer, LangEntry.WireToolActivated, wireColor);
+        }
+
         [Command("mahelp")]
         private void CommandHelp(IPlayer player, string cmd, string[] args)
         {
@@ -2810,6 +2850,11 @@ namespace Oxide.Plugins
             return Physics.Raycast(player.eyes.HeadRay(), out hit, maxDistance, HitLayers, QueryTriggerInteraction.Ignore);
         }
 
+        private static bool TrySphereCast(BasePlayer player, out RaycastHit hit, int layerMask, float radius, float maxDistance = MaxRaycastDistance)
+        {
+            return Physics.SphereCast(player.eyes.HeadRay(), radius, out hit, maxDistance, layerMask, QueryTriggerInteraction.Ignore);
+        }
+
         private static bool TryGetHitPosition(BasePlayer player, out Vector3 position)
         {
             RaycastHit hit;
@@ -2821,6 +2866,28 @@ namespace Oxide.Plugins
 
             position = Vector3.zero;
             return false;
+        }
+
+        private static T GetLookEntity<T>(BasePlayer player, float maxDistance = MaxRaycastDistance) where T : BaseEntity
+        {
+            RaycastHit hit;
+            return TryRaycast(player, out hit, maxDistance)
+                ? hit.GetEntity() as T
+                : null;
+        }
+
+        public static T GetLookEntitySphereCast<T>(BasePlayer player, int layerMask, float radius, float maxDistance = MaxRaycastDistance) where T : BaseEntity
+        {
+            RaycastHit hit;
+            return TrySphereCast(player, out hit, layerMask, radius, maxDistance)
+                ? hit.GetEntity() as T
+                : null;
+        }
+
+        private static void SendEffect(BasePlayer player, string effectPrefab)
+        {
+            var effect = new Effect(effectPrefab, player, 0, Vector3.zero, Vector3.forward);
+            EffectNetwork.Send(effect, player.net.connection);
         }
 
         private static bool IsOnTerrain(Vector3 position) =>
@@ -3267,6 +3334,28 @@ namespace Oxide.Plugins
                 return null;
             }
 
+            public static T GetClosestNearbyEntity<T>(Vector3 position, float maxDistance, int layerMask) where T : BaseEntity
+            {
+                var entityList = Facepunch.Pool.GetList<T>();
+                Vis.Entities(position, maxDistance, entityList, layerMask, QueryTriggerInteraction.Ignore);
+
+                T closestEntity = null;
+                float closestDistanceSquared = float.MaxValue;
+
+                foreach (var entity in entityList)
+                {
+                    var distance = (entity.transform.position - position).sqrMagnitude;
+                    if (distance < closestDistanceSquared)
+                    {
+                        closestDistanceSquared = distance;
+                        closestEntity = entity;
+                    }
+                }
+
+                Facepunch.Pool.FreeList(ref entityList);
+                return closestEntity;
+            }
+
             public static void ConnectNearbyVehicleSpawner(VehicleVendor vehicleVendor)
             {
                 if (vehicleVendor.GetVehicleSpawner() != null)
@@ -3513,6 +3602,628 @@ namespace Oxide.Plugins
             }
         }
 
+        private class WireToolManager
+        {
+            private const float DrawDuration = 3;
+            private const float DrawSlotRadius = 0.04f;
+            private const float PreviewDotRadius = 0.01f;
+            private const float InputCooldown = 0.25f;
+            private const float HoldToClearDuration = 0.5f;
+
+            private const float DrawIntervalDuration = 0.01f;
+            private const float DrawIntervalWithBuffer = DrawIntervalDuration + 0.05f;
+            private const float MinAngleDot = 0.999f;
+
+            private class WireSession
+            {
+                public BasePlayer Player { get; private set; }
+                public WireColour WireColor;
+                public IOType WireType;
+                public SingleEntityAdapter Adapter;
+                public IOSlot StartSlot;
+                public int StartSlotIndex;
+                public bool IsSource;
+                public float LastInput;
+                public float SecondaryPressedTime = float.MaxValue;
+                public float LastDrawTime;
+
+                public List<Vector3> Points = new List<Vector3>();
+
+                public WireSession(BasePlayer player)
+                {
+                    Player = player;
+                }
+
+                public void Reset(bool refreshPoints = false)
+                {
+                    Points.Clear();
+                    if (refreshPoints)
+                    {
+                        RefreshPoints();
+                    }
+                    Adapter = null;
+                    SecondaryPressedTime = float.MaxValue;
+                }
+
+                public void StartConnection(SingleEntityAdapter adapter, IOSlot startSlot, int slotIndex, bool isSource)
+                {
+                    WireType = startSlot.type;
+                    Adapter = adapter;
+                    StartSlot = startSlot;
+                    StartSlotIndex = slotIndex;
+                    IsSource = isSource;
+                    startSlot.wireColour = WireColor;
+                }
+
+                public void AddPoint(Vector3 position)
+                {
+                    Points.Add(position);
+                    RefreshPoints();
+                }
+
+                public void RemoveLast()
+                {
+                    if (Points.Count > 0)
+                    {
+                        Points.RemoveAt(Points.Count - 1);
+                        RefreshPoints();
+                    }
+                    else
+                    {
+                        Reset(refreshPoints: true);
+                    }
+                }
+
+                public bool IsOnInputCooldown()
+                {
+                    return LastInput + InputCooldown > UnityEngine.Time.time;
+                }
+
+                public bool IsOnDrawCooldown()
+                {
+                    return LastDrawTime + DrawIntervalDuration > UnityEngine.Time.time;
+                }
+
+                public Vector3 GetStartPoint()
+                {
+                    return GetSlotPoint(StartSlot);
+                }
+
+                public void RefreshPoints()
+                {
+                    var ioEntity = Adapter?.Entity as IOEntity;
+                    if (ioEntity == null)
+                        return;
+
+                    var slot = IsSource
+                        ? ioEntity.outputs[StartSlotIndex]
+                        : ioEntity.inputs[StartSlotIndex];
+
+                    if (slot.type == IOType.Kinetic)
+                    {
+                        // Don't attempt to render wires for kinetic slots since that will kick the player.
+                        return;
+                    }
+
+                    slot.linePoints = new Vector3[Points.Count + 1];
+
+                    if (IsSource)
+                    {
+                        slot.linePoints[0] = slot.handlePosition;
+                        for (var i = 0; i < Points.Count; i++)
+                        {
+                            slot.linePoints[i + 1] = ioEntity.transform.InverseTransformPoint(Points[i]);
+                        }
+                    }
+                    else
+                    {
+                        // TODO: Implement a temporary entity to show a line from destination input
+                    }
+
+                    ioEntity.SendNetworkUpdate();
+                }
+
+                private Vector3 GetSlotPoint(IOSlot slot)
+                {
+                    return Adapter.Entity.transform.TransformPoint(slot.handlePosition);
+                }
+            }
+
+            private MonumentAddons _pluginInstance;
+            private ProfileStore _profileStore;
+            private MonumentEntityTracker _entityTracker;
+            private List<WireSession> _playerSessions = new List<WireSession>();
+            private Timer _timer;
+
+            public WireToolManager(MonumentAddons pluginInstance, ProfileStore profileStore, MonumentEntityTracker entityTracker)
+            {
+                _pluginInstance = pluginInstance;
+                _profileStore = profileStore;
+                _entityTracker = entityTracker;
+            }
+
+            public bool HasPlayer(BasePlayer player)
+            {
+                return GetPlayerSession(player) != null;
+            }
+
+            public void StartOrUpdateSession(BasePlayer player, WireColour wireColor)
+            {
+                int sessionIndex;
+                var session = GetPlayerSession(player, out sessionIndex);
+                if (session == null)
+                {
+                    session = new WireSession(player);
+                    _playerSessions.Add(session);
+                }
+
+                session.WireColor = wireColor;
+
+                if (_timer == null || _timer.Destroyed)
+                {
+                    _timer = _pluginInstance.timer.Every(0, ProcessPlayers);
+                }
+            }
+
+            public void StopSession(BasePlayer player)
+            {
+                int sessionIndex;
+                var session = GetPlayerSession(player, out sessionIndex);
+                if (session == null)
+                    return;
+
+                DestroySession(session, sessionIndex);
+            }
+
+            public void Unload()
+            {
+                for (var i = _playerSessions.Count - 1; i >= 0; i--)
+                {
+                    DestroySession(_playerSessions[i], i);
+                }
+            }
+
+            private WireSession GetPlayerSession(BasePlayer player, out int index)
+            {
+                for (var i = 0; i < _playerSessions.Count; i++)
+                {
+                    var session = _playerSessions[i];
+                    if (session.Player == player)
+                    {
+                        index = i;
+                        return session;
+                    }
+                }
+
+                index = 0;
+                return null;
+            }
+
+            private WireSession GetPlayerSession(BasePlayer player)
+            {
+                int index;
+                return GetPlayerSession(player, out index);
+            }
+
+            private void DestroySession(WireSession session, int index)
+            {
+                session.Reset(refreshPoints: true);
+                _playerSessions.RemoveAt(index);
+
+                if (_playerSessions.Count == 0 && _timer != null)
+                {
+                    _timer.Destroy();
+                    _timer = null;
+                }
+
+                _pluginInstance.ChatMessage(session.Player, LangEntry.WireToolDeactivated);
+            }
+
+            private SingleEntityAdapter GetLookIOAdapter(BasePlayer player, out IOEntity ioEntity)
+            {
+                ioEntity = GetLookEntitySphereCast<IOEntity>(player, Rust.Layers.Solid, 0.1f, 6);
+                if (ioEntity == null)
+                    return null;
+
+                SingleEntityAdapter adapter;
+                SingleEntityController controller;
+                if (!_entityTracker.IsMonumentEntity(ioEntity, out adapter, out controller))
+                {
+                    _pluginInstance.ChatMessage(player, LangEntry.ErrorEntityNotEligible);
+                    return null;
+                }
+
+                if (adapter == null)
+                {
+                    _pluginInstance.ChatMessage(player, LangEntry.ErrorNoSuitableAddonFound);
+                    return null;
+                }
+
+                return adapter;
+            }
+
+            private IOSlot GetClosestIOSlot(IOEntity ioEntity, Ray ray, float minDot, out int index, out float highestDot, bool wantsSourceSlot, bool? wantsOccupiedSlots = false)
+            {
+                IOSlot closestSlot = null;
+                index = 0;
+                highestDot = -1f;
+
+                var transform = ioEntity.transform;
+                var slotList = wantsSourceSlot ? ioEntity.outputs : ioEntity.inputs;
+
+                for (var slotIndex = 0; slotIndex < slotList.Length; slotIndex++)
+                {
+                    var slot = slotList[slotIndex];
+                    if (wantsOccupiedSlots.HasValue && wantsOccupiedSlots.Value == (slot.connectedTo.Get() == null))
+                        continue;
+
+                    var slotPosition = transform.TransformPoint(slot.handlePosition);
+
+                    var dot = Vector3.Dot(ray.direction, (slotPosition - ray.origin).normalized);
+                    if (dot > minDot && dot > highestDot)
+                    {
+                        closestSlot = slot;
+                        index = slotIndex;
+                        highestDot = dot;
+                    }
+                }
+
+                return closestSlot;
+            }
+
+            private IOSlot GetClosestIOSlot(IOEntity ioEntity, Ray ray, float minDot, out int index, out bool isSourceSlot, bool? wantsOccupiedSlots = null)
+            {
+                index = 0;
+                isSourceSlot = false;
+
+                int sourceSlotIndex;
+                float sourceDot;
+                var sourceSlot = GetClosestIOSlot(ioEntity, ray, minDot, out sourceSlotIndex, out sourceDot, wantsSourceSlot: true, wantsOccupiedSlots: wantsOccupiedSlots);
+
+                int destinationSlotIndex;
+                float destinationDot;
+                var destinationSlot = GetClosestIOSlot(ioEntity, ray, minDot, out destinationSlotIndex, out destinationDot, wantsSourceSlot: false, wantsOccupiedSlots: wantsOccupiedSlots);
+
+                if (sourceSlot == null && destinationSlot == null)
+                    return null;
+
+                if (sourceSlot != null && destinationSlot != null)
+                {
+                    if (sourceDot >= destinationDot)
+                    {
+                        isSourceSlot = true;
+                        index = sourceSlotIndex;
+                        return sourceSlot;
+                    }
+                    else
+                    {
+                        index = destinationSlotIndex;
+                        return destinationSlot;
+                    }
+                }
+
+                if (sourceSlot != null)
+                {
+                    isSourceSlot = true;
+                    index = sourceSlotIndex;
+                    return sourceSlot;
+                }
+
+                index = destinationSlotIndex;
+                return destinationSlot;
+            }
+
+            private bool CanPlayerUseTool(BasePlayer player)
+            {
+                if (player == null || player.IsDestroyed || !player.IsConnected || player.IsDead())
+                    return false;
+
+                var activeItemShortName = player.GetActiveItem()?.info.shortname;
+                if (activeItemShortName == null)
+                    return false;
+
+                return activeItemShortName == "wiretool" || activeItemShortName == "hosetool";
+            }
+
+            private Color DetermineSlotColor(IOSlot slot)
+            {
+                if (slot.connectedTo.Get() != null)
+                    return Color.red;
+
+                if (slot.type == IOType.Fluidic)
+                    return Color.cyan;
+
+                if (slot.type == IOType.Kinetic)
+                    return new Color(1, 0.5f, 0);
+
+                return Color.yellow;
+            }
+
+            private void ShowSlots(BasePlayer player, IOEntity ioEntity, bool showSourceSlots, bool denyOccupied = false)
+            {
+                var transform = ioEntity.transform;
+                var slotList = showSourceSlots ? ioEntity.outputs : ioEntity.inputs;
+
+                foreach (var slot in slotList)
+                {
+                    var color = DetermineSlotColor(slot);
+                    var position = transform.TransformPoint(slot.handlePosition);
+
+                    Ddraw.Sphere(player, position, DrawSlotRadius, color, DrawDuration);
+                    Ddraw.Text(player, position, showSourceSlots ? "OUT" : "IN", color, DrawDuration);
+                }
+            }
+
+            private void DrawSessionState(WireSession session)
+            {
+                if (session.Adapter == null || session.IsOnDrawCooldown())
+                    return;
+
+                var player = session.Player;
+                session.LastDrawTime = UnityEngine.Time.time;
+
+                var ioEntity = session.Adapter.Entity as IOEntity;
+                var startPosition = ioEntity.transform.TransformPoint(session.StartSlot.handlePosition);
+                Ddraw.Sphere(player, startPosition, DrawSlotRadius, Color.green, DrawIntervalWithBuffer);
+
+                Vector3 hitPosition;
+                if (TryGetHitPosition(player, out hitPosition))
+                {
+                    var lastPoint = session.Points.Count == 0
+                        ? session.StartSlot.handlePosition
+                        : session.StartSlot.linePoints.LastOrDefault();
+
+                    Ddraw.Sphere(player, hitPosition, PreviewDotRadius, Color.green, DrawIntervalWithBuffer);
+                    Ddraw.Line(player, ioEntity.transform.TransformPoint(lastPoint), hitPosition, Color.green, DrawIntervalWithBuffer);
+                }
+            }
+
+            private void MaybeStartWire(WireSession session, SingleEntityAdapter adapter)
+            {
+                var player = session.Player;
+                var ioEntity = adapter.Entity as IOEntity;
+
+                bool isSourceSlot;
+                int slotIndex;
+                var slot = GetClosestIOSlot(ioEntity, player.eyes.HeadRay(), MinAngleDot, out slotIndex, out isSourceSlot, wantsOccupiedSlots: false);
+                if (slot == null)
+                {
+                    ShowSlots(player, ioEntity, showSourceSlots: true, denyOccupied: true);
+                    ShowSlots(player, ioEntity, showSourceSlots: false, denyOccupied: true);
+                    return;
+                }
+
+                if (slot.connectedTo.Get() != null)
+                {
+                    Ddraw.Sphere(player, adapter.Transform.TransformPoint(slot.handlePosition), DrawSlotRadius, Color.red, DrawDuration);
+                    return;
+                }
+
+                session.StartConnection(adapter, slot, slotIndex, isSource: isSourceSlot);
+                Ddraw.Sphere(player, adapter.Transform.TransformPoint(slot.handlePosition), DrawSlotRadius, Color.green, DrawDuration);
+                SendEffect(player, WireToolPlugEffect);
+            }
+
+            private void MaybeEndWire(WireSession session, SingleEntityAdapter adapter)
+            {
+                var player = session.Player;
+                var ioEntity = adapter.Entity as IOEntity;
+
+                var headRay = player.eyes.HeadRay();
+                int slotIndex;
+                float distanceSquared;
+                var slot = GetClosestIOSlot(ioEntity, headRay, MinAngleDot, out slotIndex, out distanceSquared, wantsSourceSlot: !session.IsSource);
+                if (slot == null)
+                {
+                    slot = GetClosestIOSlot(ioEntity, headRay, MinAngleDot, out slotIndex, out distanceSquared, wantsSourceSlot: session.IsSource);
+                    if (slot != null)
+                    {
+                        Ddraw.Sphere(player, adapter.Transform.TransformPoint(slot.handlePosition), DrawSlotRadius, Color.red, DrawDuration);
+                    }
+
+                    ShowSlots(player, ioEntity, showSourceSlots: !session.IsSource, denyOccupied: true);
+                    return;
+                }
+
+                if (slot.connectedTo.Get() != null)
+                {
+                    Ddraw.Sphere(player, adapter.Transform.TransformPoint(slot.handlePosition), DrawSlotRadius, Color.red, DrawDuration);
+                    return;
+                }
+
+                var adapterProfile = adapter.Controller.Profile;
+                var sessionProfile = session.Adapter.Controller.Profile;
+                if (adapterProfile != sessionProfile)
+                {
+                    Ddraw.Sphere(player, adapter.Transform.TransformPoint(slot.handlePosition), DrawSlotRadius, Color.red, DrawDuration);
+                    _pluginInstance.ChatMessage(player, LangEntry.WireToolProfileMismatch, sessionProfile, adapterProfile.Name);
+                    return;
+                }
+
+                if (!adapter.Monument.IsSameAs(session.Adapter.Monument))
+                {
+                    Ddraw.Sphere(player, adapter.Transform.TransformPoint(slot.handlePosition), DrawSlotRadius, Color.red, DrawDuration);
+                    _pluginInstance.ChatMessage(player, LangEntry.WireToolMonumentMismatch);
+                    return;
+                }
+
+                if (slot.type != session.WireType)
+                {
+                    Ddraw.Sphere(player, adapter.Transform.TransformPoint(slot.handlePosition), DrawSlotRadius, Color.red, DrawDuration);
+                    _pluginInstance.ChatMessage(player, LangEntry.WireToolTypeMismatch, session.WireType, slot.type);
+                    return;
+                }
+
+                var sourceAdapter = session.IsSource ? session.Adapter : adapter;
+                var destinationAdapter = session.IsSource ? adapter : session.Adapter;
+
+                var points = session.Points.Select(adapter.Monument.InverseTransformPoint);
+                if (!session.IsSource)
+                {
+                    points = points.Reverse();
+                }
+
+                var connectionData = new IOConnectionData
+                {
+                    ConnectedToId = destinationAdapter.EntityData.Id,
+                    Slot = session.IsSource ? session.StartSlotIndex : slotIndex,
+                    ConnectedToSlot = session.IsSource ? slotIndex : session.StartSlotIndex,
+                    Points = points.ToArray(),
+                    Color = session.WireColor,
+                };
+
+                sourceAdapter.EntityData.AddIOConnection(connectionData);
+                _profileStore.Save(sourceAdapter.Controller.Profile);
+
+                (sourceAdapter.Controller as SingleEntityController).HandleChanges();
+                session.Reset();
+
+                Ddraw.Sphere(player, adapter.Transform.TransformPoint(slot.handlePosition), DrawSlotRadius, Color.green, DrawDuration);
+                SendEffect(player, WireToolPlugEffect);
+            }
+
+            private void MaybeClearWire(WireSession session)
+            {
+                var player = session.Player;
+                session.SecondaryPressedTime = float.MaxValue;
+
+                IOEntity ioEntity;
+                var adapter = GetLookIOAdapter(player, out ioEntity);
+                if (adapter == null)
+                    return;
+
+                int slotIndex;
+                bool isSourceSlot;
+                var slot = GetClosestIOSlot(ioEntity, player.eyes.HeadRay(), MinAngleDot, out slotIndex, out isSourceSlot, wantsOccupiedSlots: true);
+                if (slot == null)
+                    return;
+
+                SingleEntityAdapter sourceAdapter;
+                int sourceSlotIndex;
+
+                if (isSourceSlot)
+                {
+                    sourceAdapter = adapter;
+                    sourceSlotIndex = slotIndex;
+                }
+                else
+                {
+                    var sourceEntity = slot.connectedTo.Get();
+
+                    SingleEntityController sourceController;
+                    if (!_entityTracker.IsMonumentEntity(sourceEntity, out sourceAdapter, out sourceController))
+                        return;
+
+                    sourceSlotIndex = slot.connectedToSlot;
+                }
+
+                sourceAdapter.EntityData.RemoveIOConnection(sourceSlotIndex);
+                _profileStore.Save(sourceAdapter.Controller.Profile);
+                (sourceAdapter.Controller as SingleEntityController).HandleChanges();
+            }
+
+            private void ProcessPlayers()
+            {
+                for (var i = _playerSessions.Count - 1; i >= 0; i--)
+                {
+                    var session = _playerSessions[i];
+                    var player = session.Player;
+
+                    if (!CanPlayerUseTool(player))
+                    {
+                        DestroySession(session, i);
+                        continue;
+                    }
+
+                    if (session.Adapter != null && (session.Adapter == null || session.Adapter.IsDestroyed))
+                    {
+                        session.Reset();
+                    }
+
+                    var secondaryJustPressed = player.serverInput.WasJustPressed(BUTTON.FIRE_SECONDARY);
+                    var secondaryJustReleased = player.serverInput.WasJustReleased(BUTTON.FIRE_SECONDARY);
+                    var now = UnityEngine.Time.time;
+                    var secondaryPressedDuration = 0f;
+
+                    if (secondaryJustPressed)
+                    {
+                        session.SecondaryPressedTime = now;
+                    }
+                    else if (secondaryJustReleased)
+                    {
+                        session.SecondaryPressedTime = float.MaxValue;
+                    }
+                    else if (session.SecondaryPressedTime != float.MaxValue)
+                    {
+                        secondaryPressedDuration = now - session.SecondaryPressedTime;
+                    }
+
+                    DrawSessionState(session);
+
+                    if (session.IsOnInputCooldown())
+                        continue;
+
+                    if (player.serverInput.WasJustPressed(BUTTON.FIRE_PRIMARY))
+                    {
+                        session.LastInput = now;
+
+                        IOEntity ioEntity;
+                        var adapter = GetLookIOAdapter(player, out ioEntity);
+                        if (adapter != null)
+                        {
+                            if (session.Adapter == null)
+                            {
+                                MaybeStartWire(session, adapter);
+                                continue;
+                            }
+
+                            MaybeEndWire(session, adapter);
+                            continue;
+                        }
+
+                        if (session.Adapter != null)
+                        {
+                            if (session.WireType == IOType.Kinetic)
+                            {
+                                // Placing wires with kinetic slots will kick the player.
+                                continue;
+                            }
+
+                            Vector3 position;
+                            if (TryGetHitPosition(player, out position))
+                            {
+                                session.AddPoint(position);
+                                SendEffect(player, WireToolPlugEffect);
+                            }
+                        }
+
+                        continue;
+                    }
+
+                    if (session.Adapter != null && secondaryJustPressed)
+                    {
+                        // Remove the most recently placed wire.
+                        session.LastInput = now;
+                        session.RemoveLast();
+                    }
+
+                    if (session.Adapter == null
+                        && session.SecondaryPressedTime != float.MaxValue
+                        && secondaryPressedDuration >= HoldToClearDuration)
+                    {
+                        MaybeClearWire(session);
+                        continue;
+                    }
+                }
+
+                if (_playerSessions.Count == 0 && _timer != null && _timer.Destroyed)
+                {
+                    _timer.Destroy();
+                    _timer = null;
+                }
+            }
+        }
+
         private abstract class DictionaryKeyConverter<TKey, TValue> : JsonConverter
         {
             public virtual string KeyToString(TKey key) => key.ToString();
@@ -3625,7 +4336,7 @@ namespace Oxide.Plugins
                 _pluginInstance = pluginInstance;
             }
 
-            public void OnServerInitialized() 
+            public void OnServerInitialized()
             {
                 foreach (var monumentInfo in TerrainMeta.Path.Monuments)
                 {
@@ -3722,7 +4433,7 @@ namespace Oxide.Plugins
                     "entrance_bunker_d",
                 };
 
-            public static void NameTelephone(Telephone telephone, BaseMonument monument, Vector3 position, MonumentHelper monumentHelper) 
+            public static void NameTelephone(Telephone telephone, BaseMonument monument, Vector3 position, MonumentHelper monumentHelper)
             {
                 string phoneName = null;
 
@@ -3760,12 +4471,12 @@ namespace Oxide.Plugins
                 TelephoneManager.RegisterTelephone(telephone.Controller);
             }
 
-            private static string GetFTLCorridorPhoneName(string tunnelName, Vector3 position) 
+            private static string GetFTLCorridorPhoneName(string tunnelName, Vector3 position)
             {
                 return $"{Tunnel} {tunnelName} {PhoneController.PositionToGridCoord(position)}";
             }
 
-            private static string GetFTLPhoneName(string tunnelAlias, DungeonGridCell dungeonGridCell, BaseMonument monument, Vector3 position, MonumentHelper monumentHelper) 
+            private static string GetFTLPhoneName(string tunnelAlias, DungeonGridCell dungeonGridCell, BaseMonument monument, Vector3 position, MonumentHelper monumentHelper)
             {
                 var tunnelName = SplitCamelCase(tunnelAlias);
                 var phoneName = GetFTLCorridorPhoneName(tunnelName, position);
@@ -3782,10 +4493,10 @@ namespace Oxide.Plugins
                 return phoneName;
             }
 
-            private static string GetFTLTrainStationPhoneName(MonumentInfo attachedMonument, string tunnelName, Vector3 position, MonumentHelper monumentHelper) 
+            private static string GetFTLTrainStationPhoneName(MonumentInfo attachedMonument, string tunnelName, Vector3 position, MonumentHelper monumentHelper)
             {
-                var phoneName = string.IsNullOrEmpty(attachedMonument.displayPhrase.translated) 
-                    ? $"{Tunnel} {tunnelName}" 
+                var phoneName = string.IsNullOrEmpty(attachedMonument.displayPhrase.translated)
+                    ? $"{Tunnel} {tunnelName}"
                     : $"{Tunnel} {attachedMonument.displayPhrase.translated} {tunnelName}";
 
                 var shortname = GetShortName(attachedMonument.name);
@@ -3823,7 +4534,7 @@ namespace Oxide.Plugins
                 {
                     return $"{CargoShip} {monument.EntityId}";
                 }
-                
+
                 return $"{phone.GetDisplayName()} {monument.EntityId}";
             }
 
@@ -3871,6 +4582,12 @@ namespace Oxide.Plugins
 
             public abstract Vector3 ClosestPointOnBounds(Vector3 position);
             public abstract bool IsInBounds(Vector3 position);
+
+            public virtual bool IsSameAs(BaseMonument other)
+            {
+                return PrefabName == other.PrefabName
+                    && Position == other.Position;
+            }
         }
 
         private class MonumentAdapter : BaseMonument
@@ -3922,6 +4639,11 @@ namespace Oxide.Plugins
 
             public override bool IsInBounds(Vector3 position) =>
                 BoundingBox.Contains(position);
+
+            public override bool IsSameAs(BaseMonument other)
+            {
+                return RootEntity == (other as DynamicMonument)?.RootEntity;
+            }
         }
 
         #endregion
@@ -4210,6 +4932,17 @@ namespace Oxide.Plugins
                     PluginInstance.TrackEnd();
                 }
             }
+
+            public BaseAdapter FindAdapterForMonument(BaseMonument monument)
+            {
+                foreach (var adapter in Adapters)
+                {
+                    if (adapter.Monument.IsSameAs(monument))
+                        return adapter;
+                }
+
+                return null;
+            }
         }
 
         #endregion
@@ -4305,10 +5038,145 @@ namespace Oxide.Plugins
 
         private class SingleEntityAdapter : EntityAdapterBase
         {
+            private class IOEntityOverrideInfo
+            {
+                public Dictionary<int, Vector3> Inputs = new Dictionary<int, Vector3>();
+                public Dictionary<int, Vector3> Outputs = new Dictionary<int, Vector3>();
+            }
+
+            private static readonly Dictionary<string, IOEntityOverrideInfo> IOOverridesByEntity = new Dictionary<string, IOEntityOverrideInfo>
+            {
+                ["assets/prefabs/io/electric/switches/doormanipulator.prefab"] = new IOEntityOverrideInfo
+                {
+                    Inputs = new Dictionary<int, Vector3>
+                    {
+                        [0] = new Vector3(0, 0.9f, 0),
+                    },
+                },
+                ["assets/prefabs/io/electric/switches/simpleswitch/simpleswitch.prefab"] = new IOEntityOverrideInfo
+                {
+                    Inputs = new Dictionary<int, Vector3>
+                    {
+                        [0] = new Vector3(0, 0.78f, 0.03f),
+                    },
+                    Outputs = new Dictionary<int, Vector3>
+                    {
+                        [0] = new Vector3(0, 1.22f, 0.03f),
+                    },
+                },
+                ["assets/prefabs/io/electric/switches/timerswitch.prefab"] = new IOEntityOverrideInfo
+                {
+                    Inputs = new Dictionary<int, Vector3>
+                    {
+                        [0] = new Vector3(0, 0.795f, 0.03f),
+                        [1] = new Vector3(-0.15f, 1.04f, 0.03f),
+                    },
+                    Outputs = new Dictionary<int, Vector3>
+                    {
+                        [0] = new Vector3(0, 1.295f, 0.025f),
+                    },
+                },
+                ["assets/prefabs/io/electric/switches/orswitch.prefab"] = new IOEntityOverrideInfo
+                {
+                    Inputs = new Dictionary<int, Vector3>
+                    {
+                        [0] = new Vector3(-0.035f, 0.82f, -0.125f),
+                        [1] = new Vector3(-0.035f, 0.82f, -0.175f),
+                    },
+                    Outputs = new Dictionary<int, Vector3>
+                    {
+                        [0] = new Vector3(-0.035f, 1.3f, -0.15f),
+                        [1] = new Vector3(-0.035f, 1.3f, -0.15f),
+                        [2] = new Vector3(-0.035f, 1.3f, -0.15f),
+                        [3] = new Vector3(-0.035f, 1.3f, -0.15f),
+                        [4] = new Vector3(-0.035f, 1.3f, -0.15f),
+                        [5] = new Vector3(-0.035f, 1.3f, -0.15f),
+                        [6] = new Vector3(-0.035f, 1.3f, -0.15f),
+                        [7] = new Vector3(-0.035f, 1.3f, -0.15f),
+                    },
+                },
+                ["assets/prefabs/io/electric/switches/cardreader.prefab"] = new IOEntityOverrideInfo
+                {
+                    Inputs = new Dictionary<int, Vector3>
+                    {
+                        [0] = new Vector3(-0.014f, 1.18f, 0.03f),
+                    },
+                    Outputs = new Dictionary<int, Vector3>
+                    {
+                        [0] = new Vector3(-0.014f, 1.55f, 0.03f),
+                    },
+                },
+                ["assets/prefabs/io/electric/switches/pressbutton/pressbutton.prefab"] = new IOEntityOverrideInfo
+                {
+                    Inputs = new Dictionary<int, Vector3>
+                    {
+                        [0] = new Vector3(0, 1.1f, 0.025f),
+                    },
+                    Outputs = new Dictionary<int, Vector3>
+                    {
+                        [0] = new Vector3(0, 1.38f, 0.025f),
+                    },
+                },
+                ["assets/prefabs/io/kinetic/wheelswitch.prefab"] = new IOEntityOverrideInfo
+                {
+                    Inputs = new Dictionary<int, Vector3>
+                    {
+                        [0] = new Vector3(-0.1f, 0, 0),
+                    },
+                    Outputs = new Dictionary<int, Vector3>
+                    {
+                        [0] = new Vector3(0.1f, 0, 0),
+                    },
+                },
+                ["assets/content/structures/interactive_garage_door/sliding_blast_door.prefab"] = new IOEntityOverrideInfo
+                {
+                    Inputs = new Dictionary<int, Vector3>
+                    {
+                        [0] = new Vector3(0.1f, 0, 0),
+                    },
+                    Outputs = new Dictionary<int, Vector3>
+                    {
+                        [0] = new Vector3(-0.1f, 0, 0),
+                    },
+                },
+                ["assets/prefabs/io/electric/switches/fusebox/fusebox.prefab"] = new IOEntityOverrideInfo
+                {
+                    Inputs = new Dictionary<int, Vector3>
+                    {
+                        [0] = new Vector3(0, 1.06f, 0.06f),
+                    },
+                    Outputs = new Dictionary<int, Vector3>
+                    {
+                        [0] = new Vector3(0, 1.565f, 0.06f),
+                        [1] = new Vector3(0, 1.565f, 0.06f),
+                        [2] = new Vector3(0, 1.565f, 0.06f),
+                        [3] = new Vector3(0, 1.565f, 0.06f),
+                        [4] = new Vector3(0, 1.565f, 0.06f),
+                        [5] = new Vector3(0, 1.565f, 0.06f),
+                        [6] = new Vector3(0, 1.565f, 0.06f),
+                        [7] = new Vector3(0, 1.565f, 0.06f),
+                    },
+                },
+                ["assets/prefabs/io/electric/generators/generator.static.prefab"] = new IOEntityOverrideInfo
+                {
+                    Outputs = new Dictionary<int, Vector3>
+                    {
+                        [0] = new Vector3(0, 0.75f, -0.5f),
+                        [1] = new Vector3(0, 0.75f, -0.3f),
+                        [2] = new Vector3(0, 0.75f, -0.1f),
+                        [3] = new Vector3(0, 0.75f, 0.1f),
+                        [4] = new Vector3(0, 0.75f, 0.3f),
+                        [5] = new Vector3(0, 0.75f, 0.5f),
+                    },
+                },
+            };
+
             public BaseEntity Entity { get; private set; }
             public override bool IsDestroyed => Entity == null || Entity.IsDestroyed;
-            public override Vector3 Position => _transform.position;
-            public override Quaternion Rotation => _transform.rotation;
+            public override Vector3 Position => Transform.position;
+            public override Quaternion Rotation => Transform.rotation;
+
+            public Transform Transform { get; private set; }
 
             private BuildingGrade.Enum IntendedBuildingGrade
             {
@@ -4322,8 +5190,6 @@ namespace Oxide.Plugins
                         : buildingBlock.blockDefinition.defaultGrade.gradeBase.type;
                 }
             }
-
-            private Transform _transform;
 
             public SingleEntityAdapter(EntityControllerBase controller, EntityData entityData, BaseMonument monument) : base(controller, monument, entityData) {}
 
@@ -4339,7 +5205,7 @@ namespace Oxide.Plugins
                     else
                     {
                         Entity = existingEntity;
-                        _transform = Entity.transform;
+                        Transform = Entity.transform;
 
                         PreEntitySpawn();
                         PostEntitySpawn();
@@ -4382,7 +5248,7 @@ namespace Oxide.Plugins
                 }
 
                 Entity = CreateEntity(EntityData.PrefabName, IntendedPosition, IntendedRotation);
-                _transform = Entity.transform;
+                Transform = Entity.transform;
 
                 PreEntitySpawn();
                 Entity.Spawn();
@@ -4511,6 +5377,102 @@ namespace Oxide.Plugins
                 UpdateSkin();
                 UpdateScale();
                 UpdateBuildingGrade();
+                UpdateIOConnections();
+            }
+
+            public void UpdateIOConnections()
+            {
+                var ioEntityData = EntityData.IOEntityData;
+                if (ioEntityData == null)
+                    return;
+
+                var ioEntity = Entity as IOEntity;
+                if (ioEntity == null)
+                    return;
+
+                var hasChanged = false;
+
+                for (var outputSlotIndex = 0; outputSlotIndex < ioEntity.outputs.Length; outputSlotIndex++)
+                {
+                    var sourceSlot = ioEntity.outputs[outputSlotIndex];
+                    var destinationEntity = sourceSlot.connectedTo.Get();
+                    var destinationSlot = destinationEntity?.inputs.ElementAtOrDefault(sourceSlot.connectedToSlot);
+
+                    var connectionData = ioEntityData.FindConnection(outputSlotIndex);
+                    if (connectionData != null)
+                    {
+                        var intendedDestinationEntity = Controller.ProfileController.FindEntity<IOEntity>(connectionData.ConnectedToId, Monument);
+                        var intendedDestinationSlot = intendedDestinationEntity?.inputs.ElementAtOrDefault(connectionData.ConnectedToSlot);
+
+                        if (destinationSlot != intendedDestinationSlot)
+                        {
+                            // Existing destination entity or slot is incorrect.
+                            if (destinationSlot != null)
+                            {
+                                destinationSlot.Clear();
+                                destinationEntity.MarkDirtyForceUpdateOutputs();
+                                destinationEntity.SendNetworkUpdate();
+                            }
+
+                            destinationEntity = intendedDestinationEntity;
+                            destinationSlot = intendedDestinationSlot;
+
+                            sourceSlot.Clear();
+                            hasChanged = true;
+                        }
+
+                        if (destinationEntity == null)
+                        {
+                            // The destination entity cannot be found. Maybe it was destroyed.
+                            continue;
+                        }
+
+                        if (destinationSlot == null)
+                        {
+                            // The destination slot cannot be found. Maybe the index was out of range (bad data).
+                            continue;
+                        }
+
+                        SetupSlot(sourceSlot, destinationEntity, connectionData.ConnectedToSlot, connectionData.Color);
+
+                        if (sourceSlot.type != IOType.Kinetic && destinationSlot.type != IOType.Kinetic)
+                        {
+                            var numPoints = connectionData.Points?.Length ?? 0;
+
+                            sourceSlot.linePoints = new Vector3[numPoints + 2];
+                            sourceSlot.linePoints[0] = sourceSlot.handlePosition;
+                            sourceSlot.linePoints[numPoints + 1] = Transform.InverseTransformPoint(destinationEntity.transform.TransformPoint(destinationSlot.handlePosition));
+
+                            for (var pointIndex = 0; pointIndex < numPoints; pointIndex++)
+                            {
+                                sourceSlot.linePoints[pointIndex + 1] = Transform.InverseTransformPoint(Monument.TransformPoint(connectionData.Points[pointIndex]));
+                            }
+                        }
+
+                        SetupSlot(destinationSlot, ioEntity, connectionData.Slot, connectionData.Color);
+                        destinationEntity.SendNetworkUpdate();
+
+                        hasChanged = true;
+                        continue;
+                    }
+                    else if (destinationSlot != null)
+                    {
+                        // No connection data saved, so clear existing connection.
+                        destinationSlot.Clear();
+                        destinationEntity.MarkDirtyForceUpdateOutputs();
+                        destinationEntity.SendNetworkUpdate();
+
+                        sourceSlot.Clear();
+                        hasChanged = true;
+                    }
+                }
+
+                if (hasChanged)
+                {
+                    ioEntity.MarkDirtyForceUpdateOutputs();
+                    ioEntity.SendNetworkUpdate();
+                    ioEntity.SendChangedToRoot(forceUpdate: true);
+                }
             }
 
             protected virtual void PreEntitySpawn()
@@ -4538,6 +5500,7 @@ namespace Oxide.Plugins
                 {
                     ioEntity.SetFlag(BaseEntity.Flags.On, true);
                     ioEntity.SetFlag(IOEntity.Flag_HasPower, true);
+                    UpdateIOEntitySlots(ioEntity);
                 }
             }
 
@@ -4747,6 +5710,39 @@ namespace Oxide.Plugins
                 buildingBlock.SetHealthToMax();
                 buildingBlock.SendNetworkUpdate();
                 buildingBlock.baseProtection = PluginInstance._immortalProtection;
+            }
+
+            private void UpdateIOEntitySlots(IOEntity ioEntity)
+            {
+                IOEntityOverrideInfo overrideInfo;
+                if (!IOOverridesByEntity.TryGetValue(ioEntity.PrefabName, out overrideInfo))
+                    return;
+
+                for (var i = 0; i < ioEntity.inputs.Length; i++)
+                {
+                    Vector3 overridePosition;
+                    if (overrideInfo.Inputs.TryGetValue(i, out overridePosition))
+                    {
+                        ioEntity.inputs[i].handlePosition = overridePosition;
+                    }
+                }
+
+                for (var i = 0; i < ioEntity.outputs.Length; i++)
+                {
+                    Vector3 overridePosition;
+                    if (overrideInfo.Outputs.TryGetValue(i, out overridePosition))
+                    {
+                        ioEntity.outputs[i].handlePosition = overridePosition;
+                    }
+                }
+            }
+
+            private void SetupSlot(IOSlot slot, IOEntity otherEntity, int otherSlotIndex, WireColour color)
+            {
+                slot.connectedTo.Set(otherEntity);
+                slot.connectedToSlot = otherSlotIndex;
+                slot.wireColour = color;
+                slot.connectedTo.Init();
             }
         }
 
@@ -7076,6 +8072,52 @@ namespace Oxide.Plugins
                 StartCoroutine(ClearRoutine());
             }
 
+            public BaseController FindControllerById(Guid guid)
+            {
+                foreach (var entry in _controllersByData)
+                {
+                    if (entry.Key.Id == guid)
+                        return entry.Value;
+                }
+
+                return null;
+            }
+
+            public BaseAdapter FindAdapter(Guid guid, BaseMonument monument)
+            {
+                return FindControllerById(guid)?.FindAdapterForMonument(monument);
+            }
+
+            public T FindEntity<T>(Guid guid, BaseMonument monument) where T : BaseEntity
+            {
+                return _pluginConfig.EnableEntitySaving
+                    ? _profileStateData.FindEntity(Profile.Name, monument, guid) as T
+                    : (FindAdapter(guid, monument) as SingleEntityAdapter)?.Entity as T;
+            }
+
+            public void SetupConnections()
+            {
+                foreach (var entry in _controllersByData)
+                {
+                    var data = entry.Key;
+                    var controller = entry.Value;
+
+                    var entityData = data as EntityData;
+                    if (entityData == null || entityData.IOEntityData == null)
+                        continue;
+
+                    var singleEntityController = controller as SingleEntityController;
+                    if (singleEntityController == null)
+                        continue;
+
+                    foreach (var adapter in singleEntityController.Adapters)
+                    {
+                        var singleEntityAdapter = adapter as SingleEntityAdapter;
+                        singleEntityAdapter.UpdateIOConnections();
+                    }
+                }
+            }
+
             private void Interrupt()
             {
                 _coroutineManager.StopAll();
@@ -7178,6 +8220,8 @@ namespace Oxide.Plugins
                 }
 
                 ProfileStatus = ProfileStatus.Loaded;
+
+                SetupConnections();
             }
 
             private IEnumerator UnloadRoutine(IEnumerator cleanupRoutine)
@@ -7569,6 +8613,42 @@ namespace Oxide.Plugins
             public bool Raw;
         }
 
+        private class IOConnectionData
+        {
+            [JsonProperty("ConnectedToId")]
+            public Guid ConnectedToId;
+
+            [JsonProperty("Slot")]
+            public int Slot;
+
+            [JsonProperty("ConnectedToSlot")]
+            public int ConnectedToSlot;
+
+            [JsonProperty("Points")]
+            public Vector3[] Points;
+
+            [JsonProperty("Color", DefaultValueHandling = DefaultValueHandling.Ignore)]
+            [JsonConverter(typeof(StringEnumConverter))]
+            public WireColour Color;
+        }
+
+        private class IOEntityData
+        {
+            [JsonProperty("Outputs")]
+            public List<IOConnectionData> Outputs = new List<IOConnectionData>();
+
+            public IOConnectionData FindConnection(int slot)
+            {
+                foreach (var connectionData in Outputs)
+                {
+                    if (connectionData.Slot == slot)
+                        return connectionData;
+                }
+
+                return null;
+            }
+        }
+
         private class EntityData : BaseTransformData
         {
             [JsonProperty("PrefabName", Order = -5)]
@@ -7592,6 +8672,35 @@ namespace Oxide.Plugins
 
             [JsonProperty("VendingProfile", DefaultValueHandling = DefaultValueHandling.Ignore)]
             public object VendingProfile;
+
+            [JsonProperty("IOEntity", DefaultValueHandling = DefaultValueHandling.Ignore)]
+            public IOEntityData IOEntityData;
+
+            public void RemoveIOConnection(int slot)
+            {
+                if (IOEntityData == null)
+                    return;
+
+                for (var i = IOEntityData.Outputs.Count - 1; i >= 0; i--)
+                {
+                    if (IOEntityData.Outputs[i].Slot == slot)
+                    {
+                        IOEntityData.Outputs.RemoveAt(i);
+                        break;
+                    }
+                }
+            }
+
+            public void AddIOConnection(IOConnectionData connectionData)
+            {
+                if (IOEntityData == null)
+                {
+                    IOEntityData = new IOEntityData();
+                }
+
+                RemoveIOConnection(connectionData.Slot);
+                IOEntityData.Outputs.Add(connectionData);
+            }
         }
 
         #endregion
@@ -9290,6 +10399,14 @@ namespace Oxide.Plugins
             public static readonly LangEntry ProfileHelpClear = new LangEntry("Profile.Help.Clear2", "<color=#fd4>maprofile clear <name></color> - Clear a profile");
             public static readonly LangEntry ProfileHelpMoveTo = new LangEntry("Profile.Help.MoveTo2", "<color=#fd4>maprofile moveto <name></color> - Move an entity to a profile");
             public static readonly LangEntry ProfileHelpInstall = new LangEntry("Profile.Help.Install", "<color=#fd4>maprofile install <url></color> - Install a profile from a URL");
+
+            public static readonly LangEntry WireToolInvalidColor = new LangEntry("WireTool.Error.InvalidColor", "Invalid wire color: <color=#fd4>{0}</color>.");
+            public static readonly LangEntry WireToolNotEquipped = new LangEntry("WireTool.Error.NotEquipped", "Error: No Wire Tool or Hose Tool equipped.");
+            public static readonly LangEntry WireToolActivated = new LangEntry("WireTool.Activated", "Monument Addons Wire Tool activated with color <color=#fd4>{0}</color>.");
+            public static readonly LangEntry WireToolDeactivated = new LangEntry("WireTool.Deactivated", "Monument Addons Wire Tool deactivated.");
+            public static readonly LangEntry WireToolTypeMismatch = new LangEntry("WireTool.TypeMismatch", "Error: You can only connect slots of the same type. Looking for <color=#fd4>{0}</color>, but found <color=#fd4>{1}</color>.");
+            public static readonly LangEntry WireToolProfileMismatch = new LangEntry("WireTool.ProfileMismatch", "Error: You can only connect entities in the same profile. Looking for <color=#fd4>{0}</color>, but found <color=#fd4>{1}</color>.");
+            public static readonly LangEntry WireToolMonumentMismatch = new LangEntry("WireTool.MonumentMismatch", "Error: You can only connect entities at the same monument.");
 
             public static readonly LangEntry HelpHeader = new LangEntry("Help.Header", "<size=18>Monument Addons Help</size>");
             public static readonly LangEntry HelpSpawn = new LangEntry("Help.Spawn", "<color=#fd4>maspawn <entity></color> - Spawn an entity");
