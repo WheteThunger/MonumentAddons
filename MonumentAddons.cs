@@ -92,6 +92,8 @@ namespace Oxide.Plugins
         private bool _serverInitialized = false;
         private bool _isLoaded = true;
 
+        private Regex splitCamelCaseRegex = new Regex("([a-z])([A-Z])", RegexOptions.Compiled);
+
         public MonumentAddons()
         {
             _profileManager = new ProfileManager(this, _profileStore);
@@ -4446,25 +4448,41 @@ namespace Oxide.Plugins
                 if (telephone != null && telephone.prefabID == 1009655496)
                 {
                     string phoneName = null;
-                    var gridCoodr = PhoneController.PositionToGridCoord(telephone.Controller.baseEntity.transform.position);
+                    var gridCoordinate = PhoneController.PositionToGridCoord(Position);
 
                     var monumentInfo = Monument.Object as MonumentInfo;
                     if (monumentInfo != null && !string.IsNullOrEmpty(monumentInfo.displayPhrase.translated))
                     {
                         phoneName = monumentInfo.displayPhrase.translated;
 
-                        var monuments = PluginInstance.FindMonumentsByShortName(Monument.ShortName);
-                        if (monuments != null && monuments.Count > 1)
-                        {
-                            phoneName += " " + gridCoodr;
-                        }
+                        if (ShouldAppendCoordinate(Monument))
+                            phoneName += $" {gridCoordinate}";
                     }
 
                     var dungeonGridCell = Monument.Object as DungeonGridCell;
                     if (dungeonGridCell != null)
                     {
-                        phoneName = "FTL " + Regex.Replace(Monument.AliasOrShortName, "([a-z])([A-Z])", "$1 $2");
-                        phoneName += " " + gridCoodr;
+                        var section = PluginInstance.splitCamelCaseRegex.Replace(Monument.AliasOrShortName, "$1 $2");
+                        phoneName = $"FTL {section} {gridCoordinate}";
+
+                        if (Monument.AliasOrShortName == "TrainStation")
+                        {
+                            DungeonGridInfo entrance = TerrainMeta.Path.FindClosest(TerrainMeta.Path.DungeonGridEntrances, Position);
+                            if (entrance != null)
+                            {
+                                Vector3 entrancePosition = entrance.gameObject.transform.position;
+                                var attachedMonument = PluginInstance.GetClosestMonumentAdapter(entrancePosition);
+                                var attachedMonumentInfo = attachedMonument != null ? attachedMonument.Object as MonumentInfo : null;
+                                
+                                if (attachedMonumentInfo != null && !string.IsNullOrEmpty(attachedMonumentInfo.displayPhrase.translated))
+                                {
+                                    phoneName = $"FTL {attachedMonumentInfo.displayPhrase.translated} {section}";
+
+                                    if (ShouldAppendCoordinate(attachedMonument))
+                                        phoneName += $" {gridCoordinate}";
+                                }
+                            }
+                        }
                     }
 
                     var dungeonBaseLink = Monument.Object as DungeonBaseLink;
@@ -4475,31 +4493,33 @@ namespace Oxide.Plugins
                         {
                             if (dungeonBaseLink.Dungeon.Floors[i].Links.Contains(dungeonBaseLink))
                             {
-                                roomName = " L" + (i + 1) + " " + dungeonBaseLink.Type.ToString() + " " + dungeonBaseLink.Dungeon.Floors[i].Links.IndexOf(dungeonBaseLink);
+                                var roomLevel = $"L {1 + i}";
+                                var roomType = dungeonBaseLink.Type.ToString();
+                                var roomNumber = 1 + dungeonBaseLink.Dungeon.Floors[i].Links.IndexOf(dungeonBaseLink);
+                                roomName = $"{roomLevel} {roomType} {roomNumber}";
                                 break;
                             }
                         }
 
-                        phoneName = "Underwater Lab " + gridCoodr + roomName;
+                        phoneName = $"Underwater Lab {gridCoordinate} {roomName}";
                     }
 
                     var dynamicMonument = Monument as DynamicMonument;
                     if (dynamicMonument != null)
                     {
-                        if (dynamicMonument.RootEntity.ShortPrefabName == "cargoshiptest")
+                        if (dynamicMonument.RootEntity is CargoShip)
                         {
-                            phoneName = "Cargo Ship " + dynamicMonument.EntityId;
+                            phoneName = $"Cargo Ship {dynamicMonument.EntityId}";
                         }
                         else 
                         {
-                            phoneName = telephone.GetDisplayName() + " " + dynamicMonument.EntityId;
+                            phoneName = $"{telephone.GetDisplayName()} {dynamicMonument.EntityId}";
                         }
                     }
 
-                    if (phoneName != null)
-                        telephone.Controller.PhoneName = phoneName;
-                    else 
-                        telephone.Controller.PhoneName = telephone.GetDisplayName() + " " + gridCoodr;
+                    telephone.Controller.PhoneName = !string.IsNullOrEmpty(phoneName)
+                        ? phoneName
+                        : $"{telephone.GetDisplayName()} {gridCoordinate}";
 
                     TelephoneManager.RegisterTelephone(telephone.Controller);
                 }
@@ -4508,6 +4528,41 @@ namespace Oxide.Plugins
                 {
                     UpdateScale();
                 }
+            }
+
+            public bool ShouldAppendCoordinate(BaseMonument monument) 
+            {
+                var monumentInfo = monument.Object as MonumentInfo;
+                if (monumentInfo == null) 
+                {
+                    return true;
+                }
+
+                switch (monument.ShortName) 
+                {
+                    case "fishing_village_b":
+                    case "fishing_village_c":
+                    case "harbor_1":
+                    case "harbor_2":
+                    case "power_sub_big_1":
+                    case "power_sub_big_2":
+                    case "power_sub_small_1":
+                    case "power_sub_small_2":
+                    case "water_well_a":
+                    case "water_well_b":
+                    case "water_well_c":
+                    case "water_well_d":
+                    case "water_well_e":
+                        return true;
+                }
+
+                var monuments = PluginInstance.FindMonumentsByShortName(monument.ShortName);
+                if (monuments != null && monuments.Count > 1)
+                {
+                    return true;
+                }
+
+                return false;
             }
 
             protected virtual void PreEntityKill() {}
