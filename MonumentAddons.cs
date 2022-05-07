@@ -4243,7 +4243,7 @@ namespace Oxide.Plugins
             public override Vector3 Position => _transform.position;
             public override Quaternion Rotation => _transform.rotation;
 
-            private Regex _splitCamelCaseRegex = new Regex("([a-z])([A-Z])", RegexOptions.Compiled);
+            private static readonly Regex SplitCamelCaseRegex = new Regex("([a-z])([A-Z])", RegexOptions.Compiled);
 
             private BuildingGrade.Enum IntendedBuildingGrade
             {
@@ -4729,7 +4729,7 @@ namespace Oxide.Plugins
 
             private string SplitCamelCase(string camelCase)
             {
-                return _splitCamelCaseRegex.Replace(camelCase, "$1 $2");
+                return SplitCamelCaseRegex.Replace(camelCase, "$1 $2");
             }
         }
 
