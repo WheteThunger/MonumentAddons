@@ -70,6 +70,7 @@ namespace Oxide.Plugins
         private readonly CustomAddonManager _customAddonManager;
         private readonly UniqueNameRegistry _uniqueNameRegistry = new UniqueNameRegistry();
         private readonly AdapterDisplayManager _adapterDisplayManager;
+        private readonly DungeonEntranceMapper _dungeonEntranceMapper = new DungeonEntranceMapper();
 
         private readonly Color[] _distinctColors = new Color[]
         {
@@ -91,8 +92,6 @@ namespace Oxide.Plugins
         private Coroutine _startupCoroutine;
         private bool _serverInitialized = false;
         private bool _isLoaded = true;
-
-        private Regex splitCamelCaseRegex = new Regex("([a-z])([A-Z])", RegexOptions.Compiled);
 
         public MonumentAddons()
         {
@@ -146,6 +145,7 @@ namespace Oxide.Plugins
 
             _uniqueNameRegistry.OnServerInitialized();
             _adapterListenerManager.OnServerInitialized();
+            _dungeonEntranceMapper.OnServerInitialized();
 
             var entitiesToKill = _profileStateData.CleanDisabledProfileState();
             if (entitiesToKill.Count > 0)
@@ -3634,6 +3634,145 @@ namespace Oxide.Plugins
             return false;
         }
 
+        private class DungeonEntranceMapper
+        {
+            private Dictionary<DungeonGridInfo, MonumentInfo> _entranceToMonument = new Dictionary<DungeonGridInfo, MonumentInfo>();
+
+            public void OnServerInitialized()
+            {
+                foreach (var monumentInfo in TerrainMeta.Path.Monuments)
+                {
+                    if (monumentInfo.DungeonEntrance != null)
+                    {
+                        _entranceToMonument[monumentInfo.DungeonEntrance] = monumentInfo;
+                    }
+                }
+            }
+
+            public MonumentInfo GetMonumentFromTunnel(DungeonGridCell dungeonGridCell)
+            {
+                var entrance = TerrainMeta.Path.FindClosest(TerrainMeta.Path.DungeonGridEntrances, dungeonGridCell.transform.position);
+                if (entrance == null)
+                    return null;
+
+                return GetMonumentFromEntrance(entrance);
+            }
+
+            private MonumentInfo GetMonumentFromEntrance(DungeonGridInfo dungeonGridInfo)
+            {
+                MonumentInfo monumentInfo;
+                return _entranceToMonument.TryGetValue(dungeonGridInfo, out monumentInfo)
+                    ? monumentInfo
+                    : null;
+            }
+        }
+
+        private static class PhoneUtils
+        {
+            public const string Tunnel = "FTL";
+            public const string UnderwaterLab = "Underwater Lab";
+            public const string CargoShip = "Cargo Ship";
+            public static string GetMonumentPhoneName(MonumentInfo monument, bool isUnique, string gridCoordinate)
+            {
+                var phoneName = monument.displayPhrase.translated;
+                var shortname = GetShortName(monument.name);
+
+                if (ShouldAppendCoordinate(shortname, isUnique))
+                    phoneName += $" {gridCoordinate}";
+
+                return phoneName;
+            }
+
+            public static string GetFTLPhoneName(string tunnelName, string gridCoordinate) 
+            {
+                return $"{Tunnel} {tunnelName} {gridCoordinate}";
+            }
+
+            public static string GetFTLTrainStationPhoneName(MonumentInfo attachedMonument, string tunnelName, bool isUnique, string gridCoordinate) 
+            {
+                var phoneName = string.IsNullOrEmpty(attachedMonument.displayPhrase.translated) 
+                    ? $"{Tunnel} {tunnelName}" 
+                    : $"{Tunnel} {attachedMonument.displayPhrase.translated} {tunnelName}";
+
+                var shortname = GetShortName(attachedMonument.name);
+
+                if (ShouldAppendCoordinate(shortname, isUnique))
+                    phoneName += $" {gridCoordinate}";
+
+                return phoneName;
+            }
+
+            public static string GetUnderwaterLabPhoneName(DungeonBaseLink link, string gridCoordinate)
+            {
+                var floors = link.Dungeon.Floors;
+
+                for (int i = 0; i < floors.Count; i++)
+                {
+                    if (floors[i].Links.Contains(link))
+                    {
+                        var roomLevel = $"L{1 + i}";
+                        var roomType = link.Type.ToString();
+                        var roomNumber = 1 + floors[i].Links.IndexOf(link);
+                        var roomName = $"{roomLevel} {roomType} {roomNumber}";
+
+                        return $"{UnderwaterLab} {gridCoordinate} {roomName}";
+                    }
+                }
+
+                return $"{UnderwaterLab} {gridCoordinate}";
+            }
+
+            public static string GetDynamicMonumentPhoneName(DynamicMonument monument, Telephone phone)
+            {
+                if (monument.RootEntity is CargoShip)
+                {
+                    return $"{CargoShip} {monument.EntityId}";
+                }
+                
+                return $"{phone.GetDisplayName()} {monument.EntityId}";
+            }
+
+            public static bool ShouldAppendCoordinate(string shortName, bool isMonumentUnique)
+            {
+                switch (shortName)
+                {
+                    case "fishing_village_b":
+                    case "fishing_village_c":
+                    case "harbor_1":
+                    case "harbor_2":
+                    case "power_sub_big_1":
+                    case "power_sub_big_2":
+                    case "power_sub_small_1":
+                    case "power_sub_small_2":
+                    case "water_well_a":
+                    case "water_well_b":
+                    case "water_well_c":
+                    case "water_well_d":
+                    case "water_well_e":
+                    case "entrance_bunker_a":
+                    case "entrance_bunker_b":
+                    case "entrance_bunker_c":
+                    case "entrance_bunker_d":
+                        return true;
+                    default: 
+                        return !isMonumentUnique;
+                }
+            }
+        }
+
+        private bool IsMonumentUnique(MonumentInfo monument)
+        {
+            var shortName = GetShortName(monument.name);
+            var monuments = FindMonumentsByShortName(shortName);
+
+            if (monuments != null && monuments.Count > 1)
+            {
+                return false;
+            }
+
+            return true;
+        }
+
         #endregion
 
         #endregion
@@ -4103,6 +4242,8 @@ namespace Oxide.Plugins
             public override Vector3 Position => _transform.position;
             public override Quaternion Rotation => _transform.rotation;
 
+            private Regex _splitCamelCaseRegex = new Regex("([a-z])([A-Z])", RegexOptions.Compiled);
+
             private BuildingGrade.Enum IntendedBuildingGrade
             {
                 get
@@ -4453,34 +4594,23 @@ namespace Oxide.Plugins
                     var monumentInfo = Monument.Object as MonumentInfo;
                     if (monumentInfo != null && !string.IsNullOrEmpty(monumentInfo.displayPhrase.translated))
                     {
-                        phoneName = monumentInfo.displayPhrase.translated;
-
-                        if (ShouldAppendCoordinate(Monument))
-                            phoneName += $" {gridCoordinate}";
+                        var isUnique = PluginInstance.IsMonumentUnique(monumentInfo);
+                        phoneName = PhoneUtils.GetMonumentPhoneName(monumentInfo, isUnique, gridCoordinate);
                     }
 
                     var dungeonGridCell = Monument.Object as DungeonGridCell;
                     if (dungeonGridCell != null)
                     {
-                        var section = PluginInstance.splitCamelCaseRegex.Replace(Monument.AliasOrShortName, "$1 $2");
-                        phoneName = $"FTL {section} {gridCoordinate}";
+                        var tunnelName = SplitCamelCase(Monument.AliasOrShortName);
+                        phoneName = PhoneUtils.GetFTLPhoneName(tunnelName, gridCoordinate);
 
                         if (Monument.AliasOrShortName == "TrainStation")
                         {
-                            DungeonGridInfo entrance = TerrainMeta.Path.FindClosest(TerrainMeta.Path.DungeonGridEntrances, Position);
-                            if (entrance != null)
+                            var attachedMonument = PluginInstance._dungeonEntranceMapper.GetMonumentFromTunnel(dungeonGridCell);
+                            if (attachedMonument != null && !attachedMonument.name.Contains("tunnel-entrance/entrance_bunker"))
                             {
-                                Vector3 entrancePosition = entrance.gameObject.transform.position;
-                                var attachedMonument = PluginInstance.GetClosestMonumentAdapter(entrancePosition);
-                                var attachedMonumentInfo = attachedMonument != null ? attachedMonument.Object as MonumentInfo : null;
-                                
-                                if (attachedMonumentInfo != null && !string.IsNullOrEmpty(attachedMonumentInfo.displayPhrase.translated))
-                                {
-                                    phoneName = $"FTL {attachedMonumentInfo.displayPhrase.translated} {section}";
-
-                                    if (ShouldAppendCoordinate(attachedMonument))
-                                        phoneName += $" {gridCoordinate}";
-                                }
+                                var isUnique = PluginInstance.IsMonumentUnique(attachedMonument);
+                                phoneName = PhoneUtils.GetFTLTrainStationPhoneName(attachedMonument, tunnelName, isUnique, gridCoordinate);
                             }
                         }
                     }
@@ -4488,33 +4618,13 @@ namespace Oxide.Plugins
                     var dungeonBaseLink = Monument.Object as DungeonBaseLink;
                     if (dungeonBaseLink != null)
                     {
-                        var roomName = "";
-                        for (int i = 0; i < dungeonBaseLink.Dungeon.Floors.Count; i++)
-                        {
-                            if (dungeonBaseLink.Dungeon.Floors[i].Links.Contains(dungeonBaseLink))
-                            {
-                                var roomLevel = $"L {1 + i}";
-                                var roomType = dungeonBaseLink.Type.ToString();
-                                var roomNumber = 1 + dungeonBaseLink.Dungeon.Floors[i].Links.IndexOf(dungeonBaseLink);
-                                roomName = $"{roomLevel} {roomType} {roomNumber}";
-                                break;
-                            }
-                        }
-
-                        phoneName = $"Underwater Lab {gridCoordinate} {roomName}";
+                        phoneName = PhoneUtils.GetUnderwaterLabPhoneName(dungeonBaseLink, gridCoordinate);
                     }
 
                     var dynamicMonument = Monument as DynamicMonument;
                     if (dynamicMonument != null)
                     {
-                        if (dynamicMonument.RootEntity is CargoShip)
-                        {
-                            phoneName = $"Cargo Ship {dynamicMonument.EntityId}";
-                        }
-                        else 
-                        {
-                            phoneName = $"{telephone.GetDisplayName()} {dynamicMonument.EntityId}";
-                        }
+                        phoneName = PhoneUtils.GetDynamicMonumentPhoneName(dynamicMonument, telephone);
                     }
 
                     telephone.Controller.PhoneName = !string.IsNullOrEmpty(phoneName)
@@ -4528,41 +4638,6 @@ namespace Oxide.Plugins
                 {
                     UpdateScale();
                 }
-            }
-
-            public bool ShouldAppendCoordinate(BaseMonument monument) 
-            {
-                var monumentInfo = monument.Object as MonumentInfo;
-                if (monumentInfo == null) 
-                {
-                    return true;
-                }
-
-                switch (monument.ShortName) 
-                {
-                    case "fishing_village_b":
-                    case "fishing_village_c":
-                    case "harbor_1":
-                    case "harbor_2":
-                    case "power_sub_big_1":
-                    case "power_sub_big_2":
-                    case "power_sub_small_1":
-                    case "power_sub_small_2":
-                    case "water_well_a":
-                    case "water_well_b":
-                    case "water_well_c":
-                    case "water_well_d":
-                    case "water_well_e":
-                        return true;
-                }
-
-                var monuments = PluginInstance.FindMonumentsByShortName(monument.ShortName);
-                if (monuments != null && monuments.Count > 1)
-                {
-                    return true;
-                }
-
-                return false;
             }
 
             protected virtual void PreEntityKill() {}
@@ -4649,6 +4724,11 @@ namespace Oxide.Plugins
                 buildingBlock.SetHealthToMax();
                 buildingBlock.SendNetworkUpdate();
                 buildingBlock.baseProtection = PluginInstance._immortalProtection;
+            }
+
+            private string SplitCamelCase(string camelCase)
+            {
+                return _splitCamelCaseRegex.Replace(camelCase, "$1 $2");
             }
         }
 
