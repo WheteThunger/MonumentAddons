@@ -3672,6 +3672,7 @@ namespace Oxide.Plugins
             public const string Tunnel = "FTL";
             public const string UnderwaterLab = "Underwater Lab";
             public const string CargoShip = "Cargo Ship";
+
             public static string GetMonumentPhoneName(MonumentInfo monument, bool isUnique, string gridCoordinate)
             {
                 var phoneName = monument.displayPhrase.translated;
