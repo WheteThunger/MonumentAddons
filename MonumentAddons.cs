@@ -3675,14 +3675,6 @@ namespace Oxide.Plugins
 
             private static readonly Regex SplitCamelCaseRegex = new Regex("([a-z])([A-Z])", RegexOptions.Compiled);
 
-            public static void RenameTelephone(PhoneController phone, string phoneName, Vector3 position, string monumentShortName, MonumentAddons plugin) 
-            {
-                if (ShouldAppendCoordinate(monumentShortName, plugin))
-                    phoneName += $" {PhoneController.PositionToGridCoord(position)}";
-
-                phone.PhoneName = phoneName;
-            }
-
             public static void NameTelephone(Telephone telephone, SingleEntityAdapter adapter, MonumentAddons plugin) 
             {
                 string phoneName = null;
