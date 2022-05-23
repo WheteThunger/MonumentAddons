@@ -5197,6 +5197,13 @@ namespace Oxide.Plugins
                     SpawnedVehicleComponent.AddToVehicle(Adapter.PluginInstance, instance.gameObject);
                     entity.Invoke(() => DisableVehicleDecay(entity), 5);
                 }
+
+                if (entity is HackableLockedCrate hackableCrate && hackableCrate.shouldDecay)
+                {
+                    hackableCrate.shouldDecay = false;
+                    hackableCrate.CancelInvoke(hackableCrate.DelayedDestroy);
+                    hackableCrate.InvokeRepeating(() => SetHackableCrateDecay(hackableCrate), UnityEngine.Random.Range(0f, 5f), 300f);
+                }
             }
 
             public override void ObjectRetired(SpawnPointInstance instance)
@@ -5320,6 +5327,18 @@ namespace Oxide.Plugins
                     return;
                 }
             }
+
+            private void SetHackableCrateDecay(HackableLockedCrate hackableCrate)
+            {
+                if (hackableCrate == null)
+                    return;
+
+                if (hackableCrate.shouldDecay || !hackableCrate.HasFlag(HackableLockedCrate.Flag_FullyHacked))
+                    return;
+
+                hackableCrate.shouldDecay = true;
+                hackableCrate.RefreshDecay();
+            }   
         }
 
         private class CustomSpawnGroup : SpawnGroup
