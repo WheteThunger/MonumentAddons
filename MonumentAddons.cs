@@ -5198,7 +5198,8 @@ namespace Oxide.Plugins
                     entity.Invoke(() => DisableVehicleDecay(entity), 5);
                 }
 
-                if (entity is HackableLockedCrate hackableCrate && hackableCrate.shouldDecay)
+                var hackableCrate = entity as HackableLockedCrate;
+                if ((object)hackableCrate != null && hackableCrate.shouldDecay)
                 {
                     hackableCrate.shouldDecay = false;
                     hackableCrate.CancelInvoke(hackableCrate.DelayedDestroy);
