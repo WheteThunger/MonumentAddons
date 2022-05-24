@@ -5203,7 +5203,6 @@ namespace Oxide.Plugins
                 {
                     hackableCrate.shouldDecay = false;
                     hackableCrate.CancelInvoke(hackableCrate.DelayedDestroy);
-                    hackableCrate.InvokeRepeating(() => SetHackableCrateDecay(hackableCrate), UnityEngine.Random.Range(0f, 5f), 300f);
                 }
             }
 
@@ -5328,18 +5327,6 @@ namespace Oxide.Plugins
                     return;
                 }
             }
-
-            private void SetHackableCrateDecay(HackableLockedCrate hackableCrate)
-            {
-                if (hackableCrate == null)
-                    return;
-
-                if (hackableCrate.shouldDecay || !hackableCrate.HasFlag(HackableLockedCrate.Flag_FullyHacked))
-                    return;
-
-                hackableCrate.shouldDecay = true;
-                hackableCrate.RefreshDecay();
-            }   
         }
 
         private class CustomSpawnGroup : SpawnGroup
