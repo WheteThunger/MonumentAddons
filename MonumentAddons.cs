@@ -5197,6 +5197,13 @@ namespace Oxide.Plugins
                     SpawnedVehicleComponent.AddToVehicle(Adapter.PluginInstance, instance.gameObject);
                     entity.Invoke(() => DisableVehicleDecay(entity), 5);
                 }
+
+                var hackableCrate = entity as HackableLockedCrate;
+                if ((object)hackableCrate != null && hackableCrate.shouldDecay)
+                {
+                    hackableCrate.shouldDecay = false;
+                    hackableCrate.CancelInvoke(hackableCrate.DelayedDestroy);
+                }
             }
 
             public override void ObjectRetired(SpawnPointInstance instance)
