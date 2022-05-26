@@ -527,7 +527,7 @@ namespace Oxide.Plugins
             Vector3 position;
             BaseMonument monument;
             CustomAddonDefinition addonDefinition;
-            ulong skinId = 0;
+            ulong skinId;
 
             if (player.IsServer
                 || !VerifyHasPermission(player)
