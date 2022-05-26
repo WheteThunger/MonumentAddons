@@ -3675,32 +3675,32 @@ namespace Oxide.Plugins
 
             private static readonly Regex SplitCamelCaseRegex = new Regex("([a-z])([A-Z])", RegexOptions.Compiled);
 
-            public static void NameTelephone(Telephone telephone, SingleEntityAdapter adapter, MonumentAddons plugin) 
+            public static void NameTelephone(Telephone telephone, BaseMonument monument, Vector3 position, MonumentAddons plugin) 
             {
                 string phoneName = null;
 
-                var monumentInfo = adapter.Monument.Object as MonumentInfo;
+                var monumentInfo = monument.Object as MonumentInfo;
                 if (monumentInfo != null && !string.IsNullOrEmpty(monumentInfo.displayPhrase.translated))
                 {
                     phoneName = monumentInfo.displayPhrase.translated;
 
-                    if (ShouldAppendCoordinate(adapter.Monument.ShortName, plugin))
-                        phoneName += $" {PhoneController.PositionToGridCoord(adapter.Position)}";
+                    if (ShouldAppendCoordinate(monument.ShortName, plugin))
+                        phoneName += $" {PhoneController.PositionToGridCoord(position)}";
                 }
 
-                var dungeonGridCell = adapter.Monument.Object as DungeonGridCell;
-                if (dungeonGridCell != null && !string.IsNullOrEmpty(adapter.Monument.Alias))
+                var dungeonGridCell = monument.Object as DungeonGridCell;
+                if (dungeonGridCell != null && !string.IsNullOrEmpty(monument.Alias))
                 {
-                    phoneName = GetFTLPhoneName(adapter.Monument.Alias, dungeonGridCell, adapter, plugin);
+                    phoneName = GetFTLPhoneName(monument.Alias, dungeonGridCell, monument, position, plugin);
                 }
 
-                var dungeonBaseLink = adapter.Monument.Object as DungeonBaseLink;
+                var dungeonBaseLink = monument.Object as DungeonBaseLink;
                 if (dungeonBaseLink != null)
                 {
-                    phoneName = GetUnderwaterLabPhoneName(dungeonBaseLink, adapter.Position);
+                    phoneName = GetUnderwaterLabPhoneName(dungeonBaseLink, position);
                 }
 
-                var dynamicMonument = adapter.Monument as DynamicMonument;
+                var dynamicMonument = monument as DynamicMonument;
                 if (dynamicMonument != null)
                 {
                     phoneName = GetDynamicMonumentPhoneName(dynamicMonument, telephone);
@@ -3708,7 +3708,7 @@ namespace Oxide.Plugins
 
                 telephone.Controller.PhoneName = !string.IsNullOrEmpty(phoneName)
                     ? phoneName
-                    : $"{telephone.GetDisplayName()} {PhoneController.PositionToGridCoord(adapter.Position)}";
+                    : $"{telephone.GetDisplayName()} {PhoneController.PositionToGridCoord(position)}";
 
                 TelephoneManager.RegisterTelephone(telephone.Controller);
             }
@@ -3726,17 +3726,17 @@ namespace Oxide.Plugins
                 return $"{Tunnel} {tunnelName} {PhoneController.PositionToGridCoord(position)}";
             }
 
-            public static string GetFTLPhoneName(string tunnelAlias, DungeonGridCell dungeonGridCell, SingleEntityAdapter adapter, MonumentAddons plugin) 
+            public static string GetFTLPhoneName(string tunnelAlias, DungeonGridCell dungeonGridCell, BaseMonument monument, Vector3 position, MonumentAddons plugin) 
             {
                 var tunnelName = SplitCamelCase(tunnelAlias);
-                var phoneName = GetFTLCorridorPhoneName(tunnelName, adapter.Position);
+                var phoneName = GetFTLCorridorPhoneName(tunnelName, position);
 
-                if (adapter.Monument.AliasOrShortName == "TrainStation")
+                if (monument.AliasOrShortName == "TrainStation")
                 {
                     var attachedMonument = plugin._dungeonEntranceMapper.GetMonumentFromTunnel(dungeonGridCell);
                     if (attachedMonument != null && !attachedMonument.name.Contains("tunnel-entrance/entrance_bunker"))
                     {
-                        phoneName = GetFTLTrainStationPhoneName(attachedMonument, tunnelName, adapter.Position, plugin);
+                        phoneName = GetFTLTrainStationPhoneName(attachedMonument, tunnelName, position, plugin);
                     }
                 }
 
@@ -4646,7 +4646,7 @@ namespace Oxide.Plugins
                 var telephone = Entity as Telephone;
                 if (telephone != null && telephone.prefabID == 1009655496)
                 {
-                    PhoneUtils.NameTelephone(telephone, this, PluginInstance);
+                    PhoneUtils.NameTelephone(telephone, Monument, Position, PluginInstance);
                 }
 
                 if (EntityData.Scale != 1 || Entity.GetParentEntity() is SphereEntity)
