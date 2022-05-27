@@ -3817,29 +3817,31 @@ namespace Oxide.Plugins
 
             public static bool ShouldAppendCoordinate(string monumentShortName, MonumentHelper monumentHelper)
             {
-                switch (monumentShortName)
+                string[] monumentVariants = 
                 {
-                    case "fishing_village_b":
-                    case "fishing_village_c":
-                    case "harbor_1":
-                    case "harbor_2":
-                    case "power_sub_big_1":
-                    case "power_sub_big_2":
-                    case "power_sub_small_1":
-                    case "power_sub_small_2":
-                    case "water_well_a":
-                    case "water_well_b":
-                    case "water_well_c":
-                    case "water_well_d":
-                    case "water_well_e":
-                    case "entrance_bunker_a":
-                    case "entrance_bunker_b":
-                    case "entrance_bunker_c":
-                    case "entrance_bunker_d":
-                        return true;
-                    default: 
-                        return !monumentHelper.IsMonumentUnique(monumentShortName);
-                }
+                    "fishing_village_b",
+                    "fishing_village_c",
+                    "harbor_1",
+                    "harbor_2",
+                    "power_sub_big_1",
+                    "power_sub_big_2",
+                    "power_sub_small_1",
+                    "power_sub_small_2",
+                    "water_well_a",
+                    "water_well_b",
+                    "water_well_c",
+                    "water_well_d",
+                    "water_well_e",
+                    "entrance_bunker_a",
+                    "entrance_bunker_b",
+                    "entrance_bunker_c",
+                    "entrance_bunker_d",
+                };
+
+                if (monumentVariants.Contains(monumentShortName))
+                    return true;
+
+                return !monumentHelper.IsMonumentUnique(monumentShortName);
             }
 
             public static string SplitCamelCase(string camelCase)
