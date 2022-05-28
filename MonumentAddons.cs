@@ -3754,20 +3754,12 @@ namespace Oxide.Plugins
                 TelephoneManager.RegisterTelephone(telephone.Controller);
             }
 
-            public static string GetMonumentPhoneName(string phoneName, Vector3 position, string monumentShortName, MonumentHelper monumentHelper)
-            {
-                if (ShouldAppendCoordinate(monumentShortName, monumentHelper))
-                    phoneName += $" {PhoneController.PositionToGridCoord(position)}";
-
-                return phoneName;
-            }
-
-            public static string GetFTLCorridorPhoneName(string tunnelName, Vector3 position) 
+            private static string GetFTLCorridorPhoneName(string tunnelName, Vector3 position) 
             {
                 return $"{Tunnel} {tunnelName} {PhoneController.PositionToGridCoord(position)}";
             }
 
-            public static string GetFTLPhoneName(string tunnelAlias, DungeonGridCell dungeonGridCell, BaseMonument monument, Vector3 position, MonumentHelper monumentHelper) 
+            private static string GetFTLPhoneName(string tunnelAlias, DungeonGridCell dungeonGridCell, BaseMonument monument, Vector3 position, MonumentHelper monumentHelper) 
             {
                 var tunnelName = SplitCamelCase(tunnelAlias);
                 var phoneName = GetFTLCorridorPhoneName(tunnelName, position);
@@ -3784,7 +3776,7 @@ namespace Oxide.Plugins
                 return phoneName;
             }
 
-            public static string GetFTLTrainStationPhoneName(MonumentInfo attachedMonument, string tunnelName, Vector3 position, MonumentHelper monumentHelper) 
+            private static string GetFTLTrainStationPhoneName(MonumentInfo attachedMonument, string tunnelName, Vector3 position, MonumentHelper monumentHelper) 
             {
                 var phoneName = string.IsNullOrEmpty(attachedMonument.displayPhrase.translated) 
                     ? $"{Tunnel} {tunnelName}" 
@@ -3798,7 +3790,7 @@ namespace Oxide.Plugins
                 return phoneName;
             }
 
-            public static string GetUnderwaterLabPhoneName(DungeonBaseLink link, Vector3 position)
+            private static string GetUnderwaterLabPhoneName(DungeonBaseLink link, Vector3 position)
             {
                 var floors = link.Dungeon.Floors;
                 var gridCoordinate = PhoneController.PositionToGridCoord(position);
@@ -3819,7 +3811,7 @@ namespace Oxide.Plugins
                 return $"{UnderwaterLab} {gridCoordinate}";
             }
 
-            public static string GetDynamicMonumentPhoneName(DynamicMonument monument, Telephone phone)
+            private static string GetDynamicMonumentPhoneName(DynamicMonument monument, Telephone phone)
             {
                 if (monument.RootEntity is CargoShip)
                 {
@@ -3829,7 +3821,7 @@ namespace Oxide.Plugins
                 return $"{phone.GetDisplayName()} {monument.EntityId}";
             }
 
-            public static bool ShouldAppendCoordinate(string monumentShortName, MonumentHelper monumentHelper)
+            private static bool ShouldAppendCoordinate(string monumentShortName, MonumentHelper monumentHelper)
             {
                 if (PolymorphicMonumentVariants.Contains(monumentShortName))
                     return true;
@@ -3837,7 +3829,7 @@ namespace Oxide.Plugins
                 return !monumentHelper.IsMonumentUnique(monumentShortName);
             }
 
-            public static string SplitCamelCase(string camelCase)
+            private static string SplitCamelCase(string camelCase)
             {
                 return SplitCamelCaseRegex.Replace(camelCase, "$1 $2");
             }
