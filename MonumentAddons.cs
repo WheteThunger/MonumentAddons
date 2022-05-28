@@ -6338,13 +6338,21 @@ namespace Oxide.Plugins
 
         private class CustomSpawnPoint : BaseSpawnPoint
         {
+            private const int TrainCarLayerMask = Rust.Layers.Mask.AI
+                | Rust.Layers.Mask.Vehicle_World
+                | Rust.Layers.Mask.Player_Server
+                | Rust.Layers.Mask.Construction;
+
             // When CheckSpace is enabled, override the layer mask for certain entity prefabs.
             private static readonly Dictionary<string, int> CustomBoundsCheckMask = new Dictionary<string, int>
             {
-                ["assets/content/vehicles/workcart/workcart.entity.prefab"] = Rust.Layers.Mask.AI
-                    | Rust.Layers.Mask.Vehicle_World
-                    | Rust.Layers.Mask.Player_Server
-                    | Rust.Layers.Mask.Construction,
+                ["assets/content/vehicles/workcart/workcart.entity.prefab"] = TrainCarLayerMask,
+                ["assets/content/vehicles/workcart/workcart_aboveground.entity.prefab"] = TrainCarLayerMask,
+                ["assets/content/vehicles/workcart/workcart_aboveground2.entity.prefab"] = TrainCarLayerMask,
+                ["assets/content/vehicles/train/trainwagona.entity.prefab"] = TrainCarLayerMask,
+                ["assets/content/vehicles/train/trainwagonb.entity.prefab"] = TrainCarLayerMask,
+                ["assets/content/vehicles/train/trainwagonc.entity.prefab"] = TrainCarLayerMask,
+                ["assets/content/vehicles/train/trainwagond.entity.prefab"] = TrainCarLayerMask,
             };
 
             public SpawnPointAdapter Adapter { get; private set; }
