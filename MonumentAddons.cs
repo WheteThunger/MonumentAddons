@@ -70,7 +70,7 @@ namespace Oxide.Plugins
         private readonly CustomAddonManager _customAddonManager;
         private readonly UniqueNameRegistry _uniqueNameRegistry = new UniqueNameRegistry();
         private readonly AdapterDisplayManager _adapterDisplayManager;
-        private readonly MonumentHelper _monumentHelper = new MonumentHelper();
+        private readonly MonumentHelper _monumentHelper;
 
         private readonly Color[] _distinctColors = new Color[]
         {
@@ -100,6 +100,7 @@ namespace Oxide.Plugins
             _adapterListenerManager = new AdapterListenerManager(this);
             _customAddonManager = new CustomAddonManager(this);
             _controllerFactory = new ControllerFactory(this);
+            _monumentHelper = new MonumentHelper(this);
 
             _saveProfileStateDebounced = new ActionDebounced(timer, 1, () =>
             {
@@ -145,7 +146,7 @@ namespace Oxide.Plugins
 
             _uniqueNameRegistry.OnServerInitialized();
             _adapterListenerManager.OnServerInitialized();
-            _monumentHelper.OnServerInitialized(_pluginInstance);
+            _monumentHelper.OnServerInitialized();
 
             var entitiesToKill = _profileStateData.CleanDisabledProfileState();
             if (entitiesToKill.Count > 0)
@@ -3041,7 +3042,7 @@ namespace Oxide.Plugins
             if (OnCargoShip(player, position, out cargoShipMonument))
                 return cargoShipMonument;
 
-            return _pluginInstance._monumentHelper.GetClosestMonumentAdapter(position);
+            return _monumentHelper.GetClosestMonumentAdapter(position);
         }
 
         private List<BaseMonument> GetMonumentsByAliasOrShortName(string aliasOrShortName)
@@ -3058,11 +3059,11 @@ namespace Oxide.Plugins
                 return cargoShipList.Count > 0 ? cargoShipList : null;
             }
 
-            var monuments = _pluginInstance._monumentHelper.FindMonumentsByAlias(aliasOrShortName);
+            var monuments = _monumentHelper.FindMonumentsByAlias(aliasOrShortName);
             if (monuments.Count > 0)
                 return monuments;
 
-            return _pluginInstance._monumentHelper.FindMonumentsByShortName(aliasOrShortName);
+            return _monumentHelper.FindMonumentsByShortName(aliasOrShortName);
         }
 
         private IEnumerator SpawnAllProfilesRoutine()
@@ -3609,16 +3610,24 @@ namespace Oxide.Plugins
 
         private class MonumentHelper
         {
-            public DungeonEntranceMapper _dungeonEntranceMapper;
-
             private MonumentAddons _pluginInstance;
             private Plugin _monumentFinder => _pluginInstance.MonumentFinder;
-           
-            public void OnServerInitialized(MonumentAddons pluginInstance) 
+            private Dictionary<DungeonGridInfo, MonumentInfo> _entranceToMonument = new Dictionary<DungeonGridInfo, MonumentInfo>();
+
+            public MonumentHelper(MonumentAddons pluginInstance)
             {
                 _pluginInstance = pluginInstance;
-                _dungeonEntranceMapper = new DungeonEntranceMapper();
-                _dungeonEntranceMapper.OnServerInitialized();
+            }
+
+            public void OnServerInitialized() 
+            {
+                foreach (var monumentInfo in TerrainMeta.Path.Monuments)
+                {
+                    if (monumentInfo.DungeonEntrance != null)
+                    {
+                        _entranceToMonument[monumentInfo.DungeonEntrance] = monumentInfo;
+                    }
+                }
             }
 
             public List<BaseMonument> FindMonumentsByAlias(string alias) =>
@@ -3660,37 +3669,21 @@ namespace Oxide.Plugins
                 return monumentList;
             }
 
-            public class DungeonEntranceMapper
+            public MonumentInfo GetMonumentFromTunnel(DungeonGridCell dungeonGridCell)
             {
-                private Dictionary<DungeonGridInfo, MonumentInfo> _entranceToMonument = new Dictionary<DungeonGridInfo, MonumentInfo>();
+                var entrance = TerrainMeta.Path.FindClosest(TerrainMeta.Path.DungeonGridEntrances, dungeonGridCell.transform.position);
+                if (entrance == null)
+                    return null;
 
-                public void OnServerInitialized()
-                {
-                    foreach (var monumentInfo in TerrainMeta.Path.Monuments)
-                    {
-                        if (monumentInfo.DungeonEntrance != null)
-                        {
-                            _entranceToMonument[monumentInfo.DungeonEntrance] = monumentInfo;
-                        }
-                    }
-                }
+                return GetMonumentFromEntrance(entrance);
+            }
 
-                public MonumentInfo GetMonumentFromTunnel(DungeonGridCell dungeonGridCell)
-                {
-                    var entrance = TerrainMeta.Path.FindClosest(TerrainMeta.Path.DungeonGridEntrances, dungeonGridCell.transform.position);
-                    if (entrance == null)
-                        return null;
-
-                    return GetMonumentFromEntrance(entrance);
-                }
-
-                private MonumentInfo GetMonumentFromEntrance(DungeonGridInfo dungeonGridInfo)
-                {
-                    MonumentInfo monumentInfo;
-                    return _entranceToMonument.TryGetValue(dungeonGridInfo, out monumentInfo)
-                        ? monumentInfo
-                        : null;
-                }
+            private MonumentInfo GetMonumentFromEntrance(DungeonGridInfo dungeonGridInfo)
+            {
+                MonumentInfo monumentInfo;
+                return _entranceToMonument.TryGetValue(dungeonGridInfo, out monumentInfo)
+                    ? monumentInfo
+                    : null;
             }
         }
 
@@ -3701,6 +3694,27 @@ namespace Oxide.Plugins
             public const string CargoShip = "Cargo Ship";
 
             private static readonly Regex SplitCamelCaseRegex = new Regex("([a-z])([A-Z])", RegexOptions.Compiled);
+
+            private static readonly string[] PolymorphicMonumentVariants =
+                {
+                    "fishing_village_b",
+                    "fishing_village_c",
+                    "harbor_1",
+                    "harbor_2",
+                    "power_sub_big_1",
+                    "power_sub_big_2",
+                    "power_sub_small_1",
+                    "power_sub_small_2",
+                    "water_well_a",
+                    "water_well_b",
+                    "water_well_c",
+                    "water_well_d",
+                    "water_well_e",
+                    "entrance_bunker_a",
+                    "entrance_bunker_b",
+                    "entrance_bunker_c",
+                    "entrance_bunker_d",
+                };
 
             public static void NameTelephone(Telephone telephone, BaseMonument monument, Vector3 position, MonumentHelper monumentHelper) 
             {
@@ -3760,7 +3774,7 @@ namespace Oxide.Plugins
 
                 if (monument.AliasOrShortName == "TrainStation")
                 {
-                    var attachedMonument = monumentHelper._dungeonEntranceMapper.GetMonumentFromTunnel(dungeonGridCell);
+                    var attachedMonument = monumentHelper.GetMonumentFromTunnel(dungeonGridCell);
                     if (attachedMonument != null && !attachedMonument.name.Contains("tunnel-entrance/entrance_bunker"))
                     {
                         phoneName = GetFTLTrainStationPhoneName(attachedMonument, tunnelName, position, monumentHelper);
@@ -3817,28 +3831,7 @@ namespace Oxide.Plugins
 
             public static bool ShouldAppendCoordinate(string monumentShortName, MonumentHelper monumentHelper)
             {
-                string[] monumentVariants = 
-                {
-                    "fishing_village_b",
-                    "fishing_village_c",
-                    "harbor_1",
-                    "harbor_2",
-                    "power_sub_big_1",
-                    "power_sub_big_2",
-                    "power_sub_small_1",
-                    "power_sub_small_2",
-                    "water_well_a",
-                    "water_well_b",
-                    "water_well_c",
-                    "water_well_d",
-                    "water_well_e",
-                    "entrance_bunker_a",
-                    "entrance_bunker_b",
-                    "entrance_bunker_c",
-                    "entrance_bunker_d",
-                };
-
-                if (monumentVariants.Contains(monumentShortName))
+                if (PolymorphicMonumentVariants.Contains(monumentShortName))
                     return true;
 
                 return !monumentHelper.IsMonumentUnique(monumentShortName);
