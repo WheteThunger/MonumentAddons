@@ -527,12 +527,13 @@ namespace Oxide.Plugins
             Vector3 position;
             BaseMonument monument;
             CustomAddonDefinition addonDefinition;
+            ulong skinId;
 
             if (player.IsServer
                 || !VerifyHasPermission(player)
                 || !VerifyMonumentFinderLoaded(player)
                 || !VerifyProfileSelected(player, out profileController)
-                || !VerifyValidPrefabOrDeployable(player, args, out prefabName, out addonDefinition)
+                || !VerifyValidPrefabOrDeployable(player, args, out prefabName, out addonDefinition, out skinId)
                 || !VerifyHitPosition(player, out position)
                 || !VerifyAtMonument(player, position, out monument))
                 return;
@@ -568,12 +569,12 @@ namespace Oxide.Plugins
                 addonData = new EntityData
                 {
                     Id = Guid.NewGuid(),
+                    Skin = skinId,
                     PrefabName = prefabName,
                     Position = localPosition,
                     RotationAngles = localRotationAngles,
                     SnapToTerrain = isOnTerrain,
                 };
-
             }
             else
             {
@@ -2484,9 +2485,10 @@ namespace Oxide.Plugins
             return false;
         }
 
-        private bool VerifyValidPrefabOrDeployable(IPlayer player, string[] args, out string prefabPath, out CustomAddonDefinition addonDefinition)
+        private bool VerifyValidPrefabOrDeployable(IPlayer player, string[] args, out string prefabPath, out CustomAddonDefinition addonDefinition, out ulong skinId)
         {
             var prefabArg = args.FirstOrDefault();
+            skinId = 0;
 
             // Ignore "True" argument because that simply means the player used a key bind.
             if (!string.IsNullOrWhiteSpace(prefabArg) && prefabArg != "True")
@@ -2497,7 +2499,7 @@ namespace Oxide.Plugins
             addonDefinition = null;
 
             var basePlayer = player.Object as BasePlayer;
-            var deployablePrefab = DeterminePrefabFromPlayerActiveDeployable(basePlayer);
+            var deployablePrefab = DeterminePrefabFromPlayerActiveDeployable(basePlayer, out skinId);
             if (!string.IsNullOrEmpty(deployablePrefab))
             {
                 prefabPath = deployablePrefab;
@@ -3154,11 +3156,15 @@ namespace Oxide.Plugins
             );
         }
 
-        private string DeterminePrefabFromPlayerActiveDeployable(BasePlayer basePlayer)
+        private string DeterminePrefabFromPlayerActiveDeployable(BasePlayer basePlayer, out ulong skinId)
         {
+            skinId = 0;
+
             var activeItem = basePlayer.GetActiveItem();
             if (activeItem == null)
                 return null;
+
+            skinId = activeItem.skin;
 
             string overridePrefabPath;
             if (_pluginConfig.DeployableOverrides.TryGetValue(activeItem.info.shortname, out overridePrefabPath))
