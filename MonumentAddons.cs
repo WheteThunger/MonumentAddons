@@ -305,7 +305,7 @@ namespace Oxide.Plugins
         // This hook is exposed by plugin: Telekinesis.
         private void OnTelekinesisStarted(BasePlayer player, BaseEntity moveEntity, BaseEntity rotateEntity)
         {
-            if (_entityTracker.IsMonumentEntity(moveEntity))
+            if (_entityTracker.IsMonumentEntity(moveEntity) || GetSpawnPointAdapter(moveEntity) != null)
                 _adapterDisplayManager.ShowAllRepeatedly(player);
         }
 
@@ -315,16 +315,45 @@ namespace Oxide.Plugins
             SingleEntityAdapter adapter;
             SingleEntityController controller;
 
-            if (!_entityTracker.IsMonumentEntity(moveEntity, out adapter, out controller))
-                return;
+            int adapterCount;
+            string profileName;
 
-            if (!adapter.TrySaveAndApplyChanges())
+            var spawnPointAdapter = GetSpawnPointAdapter(moveEntity);
+
+            if (spawnPointAdapter != null)
+            {
+                if (!spawnPointAdapter.Monument.IsInBounds(moveEntity.transform.position))
+                    return;
+
+                var localPosition = spawnPointAdapter.Monument.InverseTransformPoint(moveEntity.transform.position);
+
+                spawnPointAdapter.SpawnPointData.Position = localPosition;
+                spawnPointAdapter.SpawnPointData.RotationAngles = moveEntity.transform.eulerAngles;
+                spawnPointAdapter.SpawnPointData.SnapToGround = IsOnTerrain(moveEntity.transform.position);
+                _profileStore.Save(spawnPointAdapter.Profile);
+
+                var spawnGroupController = spawnPointAdapter.Controller as SpawnGroupController;
+                spawnGroupController.UpdateSpawnGroups();
+                spawnGroupController.Respawn();
+
+                adapterCount = spawnGroupController.Adapters.Count;
+                profileName = spawnPointAdapter.Profile.Name;
+            }
+            else if (_entityTracker.IsMonumentEntity(moveEntity, out adapter, out controller))
+            {
+                if (!adapter.TrySaveAndApplyChanges())
+                    return;
+
+                adapterCount = controller.Adapters.Count;
+                profileName = controller.Profile.Name;
+            }
+            else
                 return;
 
             if (player != null)
             {
                 _adapterDisplayManager.ShowAllRepeatedly(player);
-                ChatMessage(player, LangEntry.SaveSuccess, controller.Adapters.Count, controller.Profile.Name);
+                ChatMessage(player, LangEntry.SaveSuccess, adapterCount, profileName);
             }
         }
 
@@ -5619,11 +5648,22 @@ namespace Oxide.Plugins
                 }
             }
 
+            private void UpdateSpawnPointPositions()
+            {
+                foreach (var adapter in Adapters)
+                {
+                    if (!adapter.IsAtIntendedPosition)
+                        adapter.SpawnPoint.transform.SetPositionAndRotation(adapter.IntendedPosition, adapter.IntendedRotation);
+
+                }
+            }
+
             public void UpdateSpawnGroup()
             {
                 UpdateProperties();
                 UpdatePrefabEntries();
                 UpdateSpawnPointReferences();
+                UpdateSpawnPointPositions();
             }
 
             public void SpawnTick()
