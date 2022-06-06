@@ -328,8 +328,9 @@ namespace Oxide.Plugins
                 var localPosition = spawnPointAdapter.Monument.InverseTransformPoint(moveEntity.transform.position);
 
                 spawnPointAdapter.SpawnPointData.Position = localPosition;
-                spawnPointAdapter.SpawnPointData.RotationAngles = moveEntity.transform.eulerAngles;
+                spawnPointAdapter.SpawnPointData.RotationAngles = (Quaternion.Inverse(spawnPointAdapter.Monument.Rotation) * moveEntity.transform.rotation).eulerAngles;
                 spawnPointAdapter.SpawnPointData.SnapToGround = IsOnTerrain(moveEntity.transform.position);
+                spawnPointAdapter.SpawnPointData.SnapToTerrain = IsOnTerrain(moveEntity.transform.position);
                 _profileStore.Save(spawnPointAdapter.Profile);
 
                 var spawnGroupController = spawnPointAdapter.Controller as SpawnGroupController;
