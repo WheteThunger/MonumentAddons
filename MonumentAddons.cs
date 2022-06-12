@@ -550,6 +550,11 @@ namespace Oxide.Plugins
                         localPosition.y -= 1.5f;
                     }
                 }
+                else if (shortPrefabName == "spray.decal")
+                {
+                    localRotationAngles.x += 270;
+                    localRotationAngles.y -= 90;
+                }
 
                 addonData = new EntityData
                 {
