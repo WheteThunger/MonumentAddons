@@ -3327,7 +3327,7 @@ namespace Oxide.Plugins
 
         private static class EntityUtils
         {
-            public static T GetNearbyEntity<T>(BaseEntity originEntity, float maxDistance, int layerMask, string filterShortPrefabName = null) where T : BaseEntity
+            public static T GetNearbyEntity<T>(BaseEntity originEntity, float maxDistance, int layerMask = -1, string filterShortPrefabName = null) where T : BaseEntity
             {
                 var entityList = new List<T>();
                 Vis.Entities(originEntity.transform.position, maxDistance, entityList, layerMask, QueryTriggerInteraction.Ignore);
@@ -3339,7 +3339,7 @@ namespace Oxide.Plugins
                 return null;
             }
 
-            public static T GetClosestNearbyEntity<T>(Vector3 position, float maxDistance, int layerMask) where T : BaseEntity
+            public static T GetClosestNearbyEntity<T>(Vector3 position, float maxDistance, int layerMask = -1) where T : BaseEntity
             {
                 var entityList = Facepunch.Pool.GetList<T>();
                 Vis.Entities(position, maxDistance, entityList, layerMask, QueryTriggerInteraction.Ignore);
@@ -3390,6 +3390,16 @@ namespace Oxide.Plugins
                     return;
 
                 vehicleVendor.spawnerRef.Set(vehicleSpawner);
+            }
+
+            public static void ConnectNearbyDoor(DoorManipulator doorManipulator)
+            {
+                // The door manipulator normally checks on layer 21, but use layerMask -1 to allow finding arctic garage doors.
+                var door = EntityUtils.GetClosestNearbyEntity<Door>(doorManipulator.transform.position, 3);
+                if (door == null || door.IsDestroyed)
+                    return;
+
+                doorManipulator.SetTargetDoor(door);
             }
         }
 
@@ -5617,6 +5627,17 @@ namespace Oxide.Plugins
                         spooker.soundSpacingRand);
 
                     spooker.SetFlag(BaseEntity.Flags.Busy, true);
+                }
+
+                var doorManipulator = Entity as DoorManipulator;
+                if (doorManipulator != null && doorManipulator.targetDoor == null)
+                {
+                    doorManipulator.Invoke(() =>
+                    {
+                        PluginInstance.TrackStart();
+                        EntityUtils.ConnectNearbyDoor(doorManipulator);
+                        PluginInstance.TrackEnd();
+                    }, 1);
                 }
 
                 var telephone = Entity as Telephone;
