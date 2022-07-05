@@ -329,13 +329,11 @@ namespace Oxide.Plugins
 
                 spawnPointAdapter.SpawnPointData.Position = localPosition;
                 spawnPointAdapter.SpawnPointData.RotationAngles = (Quaternion.Inverse(spawnPointAdapter.Monument.Rotation) * moveEntity.transform.rotation).eulerAngles;
-                spawnPointAdapter.SpawnPointData.SnapToGround = IsOnTerrain(moveEntity.transform.position);
                 spawnPointAdapter.SpawnPointData.SnapToTerrain = IsOnTerrain(moveEntity.transform.position);
                 _profileStore.Save(spawnPointAdapter.Profile);
 
                 var spawnGroupController = spawnPointAdapter.Controller as SpawnGroupController;
                 spawnGroupController.UpdateSpawnGroups();
-                spawnGroupController.Respawn();
 
                 adapterCount = spawnGroupController.Adapters.Count;
                 profileName = spawnPointAdapter.Profile.Name;
@@ -5357,6 +5355,28 @@ namespace Oxide.Plugins
                     return;
                 }
             }
+
+            public void MoveSpawnedInstances() 
+            {
+                for (var i = _instances.Count - 1; i >= 0; i--)
+                {
+                    var entity = _instances[i].GetComponent<BaseEntity>();
+                    if (entity != null && !entity.IsDestroyed)
+                    {
+                        var position = Adapter.IntendedPosition;
+                        var rotation = Adapter.IntendedRotation;
+
+                        if (_spawnPointData.SnapToGround)
+                            DropToGround(ref position, ref rotation);
+
+                        if (position != entity.transform.position || rotation != entity.transform.rotation)
+                        {
+                            entity.transform.SetPositionAndRotation(position, rotation);
+                            BroadcastEntityTransformChange(entity);
+                        }
+                    }
+                }
+            }
         }
 
         private class CustomSpawnGroup : SpawnGroup
@@ -5506,6 +5526,16 @@ namespace Oxide.Plugins
             {
                 SpawnPoint.KillSpawnedInstances(prefabName);
             }
+
+            public void UpdatePosition()
+            {
+                if (!IsAtIntendedPosition)
+                {
+                    _transform.SetPositionAndRotation(IntendedPosition, IntendedRotation);
+                    SpawnPoint.MoveSpawnedInstances();
+                }
+                    
+            }
         }
 
         private class SpawnGroupAdapter : BaseAdapter
@@ -5654,8 +5684,7 @@ namespace Oxide.Plugins
                 foreach (var adapter in Adapters)
                 {
                     if (!adapter.IsAtIntendedPosition)
-                        adapter.SpawnPoint.transform.SetPositionAndRotation(adapter.IntendedPosition, adapter.IntendedRotation);
-
+                        adapter.UpdatePosition();
                 }
             }
 
