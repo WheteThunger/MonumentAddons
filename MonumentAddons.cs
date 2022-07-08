@@ -305,8 +305,17 @@ namespace Oxide.Plugins
         // This hook is exposed by plugin: Telekinesis.
         private void OnTelekinesisStarted(BasePlayer player, BaseEntity moveEntity, BaseEntity rotateEntity)
         {
-            if (_entityTracker.IsMonumentEntity(moveEntity) || GetSpawnPointAdapter(moveEntity) != null)
+            if (_entityTracker.IsMonumentEntity(moveEntity))
                 _adapterDisplayManager.ShowAllRepeatedly(player);
+
+            if (GetSpawnPointAdapter(moveEntity) != null) 
+            {
+                _adapterDisplayManager.ShowAllRepeatedly(player);
+
+                var spawnedVehicleComponent = moveEntity.GetComponent<SpawnedVehicleComponent>();
+                if (spawnedVehicleComponent != null)
+                    GameManager.DestroyImmediate(spawnedVehicleComponent);
+            }
         }
 
         // This hook is exposed by plugin: Telekinesis.
@@ -334,6 +343,9 @@ namespace Oxide.Plugins
 
                 var spawnGroupController = spawnPointAdapter.Controller as SpawnGroupController;
                 spawnGroupController.UpdateSpawnGroups();
+
+                if (moveEntity is HotAirBalloon || moveEntity is BaseVehicle) 
+                    SpawnedVehicleComponent.AddToVehicle(this, moveEntity.gameObject);
 
                 adapterCount = spawnGroupController.Adapters.Count;
                 profileName = spawnPointAdapter.Profile.Name;
