@@ -314,7 +314,7 @@ namespace Oxide.Plugins
 
                 var spawnedVehicleComponent = moveEntity.GetComponent<SpawnedVehicleComponent>();
                 if (spawnedVehicleComponent != null)
-                    GameManager.DestroyImmediate(spawnedVehicleComponent);
+                    spawnedVehicleComponent.CancelInvoke(spawnedVehicleComponent.CheckPositionTracked);
             }
         }
 
@@ -343,9 +343,6 @@ namespace Oxide.Plugins
 
                 var spawnGroupController = spawnPointAdapter.Controller as SpawnGroupController;
                 spawnGroupController.UpdateSpawnGroups();
-
-                if (moveEntity is HotAirBalloon || moveEntity is BaseVehicle) 
-                    SpawnedVehicleComponent.AddToVehicle(this, moveEntity.gameObject);
 
                 adapterCount = spawnGroupController.Adapters.Count;
                 profileName = spawnPointAdapter.Profile.Name;
@@ -5126,7 +5123,7 @@ namespace Oxide.Plugins
             private Vector3 _originalPosition;
             private Transform _transform;
 
-            private void Awake()
+            public void Awake()
             {
                 _transform = transform;
                 _originalPosition = _transform.position;
@@ -5134,7 +5131,7 @@ namespace Oxide.Plugins
                 InvokeRandomized(CheckPositionTracked, 10, 10, 1);
             }
 
-            private void CheckPositionTracked()
+            public void CheckPositionTracked()
             {
                 _pluginInstance.TrackStart();
                 CheckPosition();
@@ -5383,6 +5380,15 @@ namespace Oxide.Plugins
 
                         if (position != entity.transform.position || rotation != entity.transform.rotation)
                         {
+                            if (IsVehicle(entity))
+                            {
+                                var spawnedVehicleComponent = entity.GetComponent<SpawnedVehicleComponent>();
+                                if (spawnedVehicleComponent != null)
+                                    spawnedVehicleComponent.CancelInvoke(spawnedVehicleComponent.CheckPositionTracked);
+
+                                Adapter.PluginInstance.NextTick(() => spawnedVehicleComponent.Awake());
+                            }
+
                             entity.transform.SetPositionAndRotation(position, rotation);
                             BroadcastEntityTransformChange(entity);
                         }
