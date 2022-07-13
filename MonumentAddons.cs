@@ -5372,11 +5372,10 @@ namespace Oxide.Plugins
                     var entity = _instances[i].GetComponent<BaseEntity>();
                     if (entity != null && !entity.IsDestroyed)
                     {
-                        var position = Adapter.IntendedPosition;
-                        var rotation = Adapter.IntendedRotation;
+                        Vector3 position;
+                        Quaternion rotation;
 
-                        if (_spawnPointData.SnapToGround)
-                            DropToGround(ref position, ref rotation);
+                        Adapter.SpawnPoint.GetLocation(out position, out rotation);
 
                         if (position != entity.transform.position || rotation != entity.transform.rotation)
                         {
