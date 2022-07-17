@@ -10221,7 +10221,7 @@ namespace Oxide.Plugins
             public bool EnableEntitySaving = false;
 
             [JsonProperty("StoreCustomVendingSetupSettingsInProfiles")]
-            public bool StoreCustomVendingSetupSettingsInProfiles;
+            public bool StoreCustomVendingSetupSettingsInProfiles = true;
 
             [JsonProperty("DeployableOverrides")]
             public Dictionary<string, string> DeployableOverrides = new Dictionary<string, string>

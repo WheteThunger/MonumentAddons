@@ -175,7 +175,7 @@ Profiles allow you to organize entities into groups. Each profile can be indepen
 ```json
 {
   "DebugDisplayDistance": 150.0,
-  "StoreCustomVendingSetupSettingsInProfiles": false,
+  "StoreCustomVendingSetupSettingsInProfiles": true,
   "PersistEntitiesAfterUnload": false,
   "DeployableOverrides": {
     "arcade.machine.chippy": "assets/bundled/prefabs/static/chippyarcademachine.static.prefab",
