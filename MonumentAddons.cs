@@ -283,6 +283,14 @@ namespace Oxide.Plugins
             _profileStore.Save(controller.Profile);
         }
 
+        private object OnSprayRemove(SprayCanSpray spray, BasePlayer player)
+        {
+            if (_entityTracker.IsMonumentEntity(spray))
+                return _cancelHook;
+
+            return null;
+        }
+
         private void OnEntityScaled(BaseEntity entity, float scale)
         {
             SingleEntityController controller;
@@ -6210,6 +6218,15 @@ namespace Oxide.Plugins
             public abstract bool InterestedInAdapter(BaseAdapter adapter);
             public abstract void OnAdapterSpawned(BaseAdapter adapter);
             public abstract void OnAdapterKilled(BaseAdapter adapter);
+
+            protected bool IsEntityAdapter<T>(BaseAdapter adapter)
+            {
+                var entityData = adapter.Data as EntityData;
+                if (entityData == null)
+                    return false;
+
+                return FindBaseEntityForPrefab(entityData.PrefabName) is T;
+            }
         }
 
         private abstract class DynamicHookListener : AdapterListenerBase
@@ -6278,11 +6295,7 @@ namespace Oxide.Plugins
 
             public override bool InterestedInAdapter(BaseAdapter adapter)
             {
-                var entityData = adapter.Data as EntityData;
-                if (entityData == null)
-                    return false;
-
-                return FindBaseEntityForPrefab(entityData.PrefabName) is ISignage;
+                return IsEntityAdapter<ISignage>(adapter);
             }
         }
 
@@ -6298,11 +6311,23 @@ namespace Oxide.Plugins
 
             public override bool InterestedInAdapter(BaseAdapter adapter)
             {
-                var entityData = adapter.Data as EntityData;
-                if (entityData == null)
-                    return false;
+                return IsEntityAdapter<BuildingBlock>(adapter);
+            }
+        }
 
-                return FindBaseEntityForPrefab(entityData.PrefabName) is BuildingBlock;
+        private class SprayDecalListener : DynamicHookListener
+        {
+            public SprayDecalListener(MonumentAddons pluginInstance) : base(pluginInstance)
+            {
+                _dynamicHookNames = new string[]
+                {
+                    nameof(OnSprayRemove),
+                };
+            }
+
+            public override bool InterestedInAdapter(BaseAdapter adapter)
+            {
+                return IsEntityAdapter<SprayCanSpray>(adapter);
             }
         }
 
@@ -6316,6 +6341,7 @@ namespace Oxide.Plugins
                 {
                     new SignEntityListener(pluginInstance),
                     new BuildingBlockEntityListener(pluginInstance),
+                    new SprayDecalListener(pluginInstance),
                 };
             }
 
