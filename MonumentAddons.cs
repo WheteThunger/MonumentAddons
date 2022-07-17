@@ -5677,6 +5677,13 @@ namespace Oxide.Plugins
                     }, 1);
                 }
 
+                var spray = Entity as SprayCanSpray;
+                if (spray != null)
+                {
+                    spray.CancelInvoke(spray.RainCheck);
+                    spray.splashThreshold = int.MaxValue;
+                }
+
                 var telephone = Entity as Telephone;
                 if (telephone != null && telephone.prefabID == 1009655496)
                 {
