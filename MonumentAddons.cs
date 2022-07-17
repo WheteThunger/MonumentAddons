@@ -89,7 +89,7 @@ namespace Oxide.Plugins
             new Color(1, 1, 1),
         };
 
-        private readonly object _cancelHook = false;
+        private readonly object False = false;
 
         private ItemDefinition _waterDefinition;
         private ProtectionProperties _immortalProtection;
@@ -214,7 +214,7 @@ namespace Oxide.Plugins
         private object canRemove(BasePlayer player, BaseEntity entity)
         {
             if (_entityTracker.IsMonumentEntity(entity))
-                return _cancelHook;
+                return False;
 
             return null;
         }
@@ -222,7 +222,7 @@ namespace Oxide.Plugins
         private object CanChangeGrade(BasePlayer player, BuildingBlock block, BuildingGrade.Enum grade)
         {
             if (_entityTracker.IsMonumentEntity(block) && !HasAdminPermission(player))
-                return _cancelHook;
+                return False;
 
             return null;
         }
@@ -232,7 +232,7 @@ namespace Oxide.Plugins
             if (_entityTracker.IsMonumentEntity(signage as BaseEntity) && !HasAdminPermission(player))
             {
                 ChatMessage(player, LangEntry.ErrorNoPermission);
-                return _cancelHook;
+                return False;
             }
 
             return null;
@@ -286,7 +286,7 @@ namespace Oxide.Plugins
         private object OnSprayRemove(SprayCanSpray spray, BasePlayer player)
         {
             if (_entityTracker.IsMonumentEntity(spray))
-                return _cancelHook;
+                return False;
 
             return null;
         }
@@ -317,7 +317,7 @@ namespace Oxide.Plugins
         private object CanStartTelekinesis(BasePlayer player, BaseEntity moveEntity)
         {
             if (_entityTracker.IsMonumentEntity(moveEntity) && !HasAdminPermission(player))
-                return _cancelHook;
+                return False;
 
             return null;
         }
