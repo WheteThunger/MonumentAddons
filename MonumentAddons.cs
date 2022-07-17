@@ -319,6 +319,15 @@ namespace Oxide.Plugins
         {
             if (_entityTracker.IsMonumentEntity(moveEntity))
                 _adapterDisplayManager.ShowAllRepeatedly(player);
+
+            if (GetSpawnPointAdapter(moveEntity) != null) 
+            {
+                _adapterDisplayManager.ShowAllRepeatedly(player);
+
+                var spawnedVehicleComponent = moveEntity.GetComponent<SpawnedVehicleComponent>();
+                if (spawnedVehicleComponent != null)
+                    spawnedVehicleComponent.CancelInvoke(spawnedVehicleComponent.CheckPositionTracked);
+            }
         }
 
         // This hook is exposed by plugin: Telekinesis.
@@ -327,16 +336,44 @@ namespace Oxide.Plugins
             SingleEntityAdapter adapter;
             SingleEntityController controller;
 
-            if (!_entityTracker.IsMonumentEntity(moveEntity, out adapter, out controller))
-                return;
+            int adapterCount;
+            string profileName;
 
-            if (!adapter.TrySaveAndApplyChanges())
+            var spawnPointAdapter = GetSpawnPointAdapter(moveEntity);
+
+            if (spawnPointAdapter != null)
+            {
+                if (!spawnPointAdapter.Monument.IsInBounds(moveEntity.transform.position))
+                    return;
+
+                var localPosition = spawnPointAdapter.Monument.InverseTransformPoint(moveEntity.transform.position);
+
+                spawnPointAdapter.SpawnPointData.Position = localPosition;
+                spawnPointAdapter.SpawnPointData.RotationAngles = (Quaternion.Inverse(spawnPointAdapter.Monument.Rotation) * moveEntity.transform.rotation).eulerAngles;
+                spawnPointAdapter.SpawnPointData.SnapToTerrain = IsOnTerrain(moveEntity.transform.position);
+                _profileStore.Save(spawnPointAdapter.Profile);
+
+                var spawnGroupController = spawnPointAdapter.Controller as SpawnGroupController;
+                spawnGroupController.UpdateSpawnGroups();
+
+                adapterCount = spawnGroupController.Adapters.Count;
+                profileName = spawnPointAdapter.Profile.Name;
+            }
+            else if (_entityTracker.IsMonumentEntity(moveEntity, out adapter, out controller))
+            {
+                if (!adapter.TrySaveAndApplyChanges())
+                    return;
+
+                adapterCount = controller.Adapters.Count;
+                profileName = controller.Profile.Name;
+            }
+            else
                 return;
 
             if (player != null)
             {
                 _adapterDisplayManager.ShowAllRepeatedly(player);
-                ChatMessage(player, LangEntry.SaveSuccess, controller.Adapters.Count, controller.Profile.Name);
+                ChatMessage(player, LangEntry.SaveSuccess, adapterCount, profileName);
             }
         }
 
@@ -6324,7 +6361,7 @@ namespace Oxide.Plugins
             private Vector3 _originalPosition;
             private Transform _transform;
 
-            private void Awake()
+            public void Awake()
             {
                 _transform = transform;
                 _originalPosition = _transform.position;
@@ -6332,7 +6369,7 @@ namespace Oxide.Plugins
                 InvokeRandomized(CheckPositionTracked, 10, 10, 1);
             }
 
-            private void CheckPositionTracked()
+            public void CheckPositionTracked()
             {
                 _pluginInstance.TrackStart();
                 CheckPosition();
@@ -6573,6 +6610,36 @@ namespace Oxide.Plugins
                     return;
                 }
             }
+
+            public void MoveSpawnedInstances() 
+            {
+                for (var i = _instances.Count - 1; i >= 0; i--)
+                {
+                    var entity = _instances[i].GetComponent<BaseEntity>();
+                    if (entity != null && !entity.IsDestroyed)
+                    {
+                        Vector3 position;
+                        Quaternion rotation;
+
+                        Adapter.SpawnPoint.GetLocation(out position, out rotation);
+
+                        if (position != entity.transform.position || rotation != entity.transform.rotation)
+                        {
+                            if (IsVehicle(entity))
+                            {
+                                var spawnedVehicleComponent = entity.GetComponent<SpawnedVehicleComponent>();
+                                if (spawnedVehicleComponent != null)
+                                    spawnedVehicleComponent.CancelInvoke(spawnedVehicleComponent.CheckPositionTracked);
+
+                                Adapter.PluginInstance.NextTick(() => spawnedVehicleComponent.Awake());
+                            }
+
+                            entity.transform.SetPositionAndRotation(position, rotation);
+                            BroadcastEntityTransformChange(entity);
+                        }
+                    }
+                }
+            }
         }
 
         private class CustomSpawnGroup : SpawnGroup
@@ -6722,6 +6789,16 @@ namespace Oxide.Plugins
             {
                 SpawnPoint.KillSpawnedInstances(prefabName);
             }
+
+            public void UpdatePosition()
+            {
+                if (!IsAtIntendedPosition)
+                {
+                    _transform.SetPositionAndRotation(IntendedPosition, IntendedRotation);
+                    SpawnPoint.MoveSpawnedInstances();
+                }
+                    
+            }
         }
 
         private class SpawnGroupAdapter : BaseAdapter
@@ -6865,11 +6942,21 @@ namespace Oxide.Plugins
                 }
             }
 
+            private void UpdateSpawnPointPositions()
+            {
+                foreach (var adapter in Adapters)
+                {
+                    if (!adapter.IsAtIntendedPosition)
+                        adapter.UpdatePosition();
+                }
+            }
+
             public void UpdateSpawnGroup()
             {
                 UpdateProperties();
                 UpdatePrefabEntries();
                 UpdateSpawnPointReferences();
+                UpdateSpawnPointPositions();
             }
 
             public void SpawnTick()
