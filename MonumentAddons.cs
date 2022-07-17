@@ -328,7 +328,7 @@ namespace Oxide.Plugins
             if (_entityTracker.IsMonumentEntity(moveEntity))
                 _adapterDisplayManager.ShowAllRepeatedly(player);
 
-            if (GetSpawnPointAdapter(moveEntity) != null) 
+            if (GetSpawnPointAdapter(moveEntity) != null)
             {
                 _adapterDisplayManager.ShowAllRepeatedly(player);
 
@@ -6644,7 +6644,7 @@ namespace Oxide.Plugins
                 }
             }
 
-            public void MoveSpawnedInstances() 
+            public void MoveSpawnedInstances()
             {
                 for (var i = _instances.Count - 1; i >= 0; i--)
                 {
@@ -6830,7 +6830,7 @@ namespace Oxide.Plugins
                     _transform.SetPositionAndRotation(IntendedPosition, IntendedRotation);
                     SpawnPoint.MoveSpawnedInstances();
                 }
-                    
+
             }
         }
 
