@@ -1,0 +1,67 @@
+{
+  "Name": "outpost",
+  "Author": "[F4F] Tanki 21/10/2020 :'(",
+  "SchemaVersion": 2.0,
+  "MonumentData": {
+    "compound": {
+      "Entities": [
+        {
+          "Id": "87273562-7307-4e29-a3fc-2fd3e762de82",
+          "PrefabName": "assets/bundled/prefabs/static/recycler_static.prefab",
+          "Position": {
+            "x": 1.67775047,
+            "y": 0.254428864,
+            "z": 8.985353
+          },
+          "RotationAngles": {
+            "x": 0.0,
+            "y": 261.125061,
+            "z": 0.0
+          }
+        },
+        {
+          "Id": "f90ac285-6fe7-4daa-bea4-9c877fcad02a",
+          "PrefabName": "assets/prefabs/deployable/chair/chair.deployed.prefab",
+          "Position": {
+            "x": -27.0362759,
+            "y": 1.75022888,
+            "z": 14.663867
+          },
+          "RotationAngles": {
+            "x": 0.0,
+            "y": 78.69951,
+            "z": 0.0
+          }
+        },
+        {
+          "Id": "f4402c96-475d-4f21-a715-cc57e7b8a7c5",
+          "PrefabName": "assets/prefabs/deployable/chair/chair.deployed.prefab",
+          "Position": {
+            "x": -29.3058586,
+            "y": 1.75022888,
+            "z": 8.803422
+          },
+          "RotationAngles": {
+            "x": 0.0,
+            "y": 179.775513,
+            "z": 0.0
+          }
+        },
+        {
+          "Id": "9cfbad6e-879d-484f-b20b-ea976cb07272",
+          "PrefabName": "assets/prefabs/deployable/chair/chair.deployed.prefab",
+          "Position": {
+            "x": -33.2001724,
+            "y": 1.75022888,
+            "z": 9.962877
+          },
+          "RotationAngles": {
+            "x": 0.0,
+            "y": 222.262741,
+            "z": 0.0
+          }
+        }
+      ]
+    }
+  }
+}
