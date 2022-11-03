@@ -9263,11 +9263,34 @@ namespace Oxide.Plugins
 
         private static class ProfileDataMigration<T> where T : Profile
         {
+            private static readonly Dictionary<string, string> _prefabCorrections = new Dictionary<string, string>
+            {
+                ["assets/content/vehicles/locomotive/locomotive.entity.prefab"] = "assets/content/vehicles/trains/locomotive/locomotive.entity.prefab",
+                ["assets/content/vehicles/workcart/workcart.entity.prefab"] = "assets/content/vehicles/trains/workcart/workcart.entity.prefab",
+                ["assets/content/vehicles/workcart/workcart_aboveground.entity.prefab"] = "assets/content/vehicles/trains/workcart/workcart_aboveground.entity.prefab",
+                ["assets/content/vehicles/workcart/workcart_aboveground2.entity.prefab"] = "assets/content/vehicles/trains/workcart/workcart_aboveground2.entity.prefab",
+                ["assets/content/vehicles/train/trainwagona.entity.prefab"] = "assets/content/vehicles/trains/wagons/trainwagona.entity.prefab",
+                ["assets/content/vehicles/train/trainwagonb.entity.prefab"] = "assets/content/vehicles/trains/wagons/trainwagonb.entity.prefab",
+                ["assets/content/vehicles/train/trainwagonc.entity.prefab"] = "assets/content/vehicles/trains/wagons/trainwagonc.entity.prefab",
+                ["assets/content/vehicles/train/trainwagonunloadablefuel.entity.prefab"] = "assets/content/vehicles/trains/wagons/trainwagonunloadablefuel.entity.prefab",
+                ["assets/content/vehicles/train/trainwagonunloadableloot.entity.prefab"] = "assets/content/vehicles/trains/wagons/trainwagonunloadableloot.entity.prefab",
+                ["assets/content/vehicles/train/trainwagonunloadable.entity.prefab"] = "assets/content/vehicles/trains/wagons/trainwagonunloadable.entity.prefab",
+            };
+
+            private static string GetPrefabCorrectionIfExists(string prefabName)
+            {
+                string correctedPrefabName;
+                return _prefabCorrections.TryGetValue(prefabName, out correctedPrefabName)
+                    ? correctedPrefabName
+                    : prefabName;
+            }
+
             public static bool MigrateToLatest(T data)
             {
                 // Using single | to avoid short-circuiting.
                 return MigrateV0ToV1(data)
-                    | MigrateV1ToV2(data);
+                    | MigrateV1ToV2(data)
+                    | MigrateIncorrectPrefabs(data);
             }
 
             public static bool MigrateV0ToV1(T data)
@@ -9327,6 +9350,39 @@ namespace Oxide.Plugins
                     }
 
                     data.DeprecatedMonumentMap = null;
+                }
+
+                return contentChanged;
+            }
+
+            public static bool MigrateIncorrectPrefabs(T data)
+            {
+                var contentChanged = false;
+
+                foreach (var monumentData in data.MonumentDataMap.Values)
+                {
+                    foreach (var entityData in monumentData.Entities)
+                    {
+                        var correctedPrefabName = GetPrefabCorrectionIfExists(entityData.PrefabName);
+                        if (correctedPrefabName != entityData.PrefabName)
+                        {
+                            entityData.PrefabName = correctedPrefabName;
+                            contentChanged = true;
+                        }
+                    }
+
+                    foreach (var spawnGroupData in monumentData.SpawnGroups)
+                    {
+                        foreach (var prefabData in spawnGroupData.Prefabs)
+                        {
+                            var correctedPrefabName = GetPrefabCorrectionIfExists(prefabData.PrefabName);
+                            if (correctedPrefabName != prefabData.PrefabName)
+                            {
+                                prefabData.PrefabName = correctedPrefabName;
+                                contentChanged = true;
+                            }
+                        }
+                    }
                 }
 
                 return contentChanged;
@@ -9440,7 +9496,8 @@ namespace Oxide.Plugins
 
                 var originalSchemaVersion = profile.SchemaVersion;
 
-                if (ProfileDataMigration<Profile>.MigrateToLatest(profile))
+                var migrated = ProfileDataMigration<Profile>.MigrateToLatest(profile);
+                if (migrated)
                 {
                     Logger.Warning($"Profile {profile.Name} has been automatically migrated.");
                 }
@@ -9457,7 +9514,7 @@ namespace Oxide.Plugins
                     }
                 }
 
-                if (profile.SchemaVersion != originalSchemaVersion)
+                if (migrated)
                 {
                     Save(profile.Name, profile);
                 }
