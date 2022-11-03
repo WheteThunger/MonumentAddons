@@ -6442,13 +6442,18 @@ namespace Oxide.Plugins
             // When CheckSpace is enabled, override the layer mask for certain entity prefabs.
             private static readonly Dictionary<string, int> CustomBoundsCheckMask = new Dictionary<string, int>
             {
-                ["assets/content/vehicles/workcart/workcart.entity.prefab"] = TrainCarLayerMask,
-                ["assets/content/vehicles/workcart/workcart_aboveground.entity.prefab"] = TrainCarLayerMask,
-                ["assets/content/vehicles/workcart/workcart_aboveground2.entity.prefab"] = TrainCarLayerMask,
-                ["assets/content/vehicles/train/trainwagona.entity.prefab"] = TrainCarLayerMask,
-                ["assets/content/vehicles/train/trainwagonb.entity.prefab"] = TrainCarLayerMask,
-                ["assets/content/vehicles/train/trainwagonc.entity.prefab"] = TrainCarLayerMask,
-                ["assets/content/vehicles/train/trainwagond.entity.prefab"] = TrainCarLayerMask,
+                ["assets/content/vehicles/trains/locomotive/locomotive.entity.prefab"] = TrainCarLayerMask,
+                ["assets/content/vehicles/sedan_a/sedanrail.entity.prefab"] = TrainCarLayerMask,
+                ["assets/content/vehicles/trains/workcart/workcart.entity.prefab"] = TrainCarLayerMask,
+                ["assets/content/vehicles/trains/workcart/workcart_aboveground.entity.prefab"] = TrainCarLayerMask,
+                ["assets/content/vehicles/trains/workcart/workcart_aboveground2.entity.prefab"] = TrainCarLayerMask,
+                ["assets/content/vehicles/trains/wagons/trainwagona.entity.prefab"] = TrainCarLayerMask,
+                ["assets/content/vehicles/trains/wagons/trainwagonb.entity.prefab"] = TrainCarLayerMask,
+                ["assets/content/vehicles/trains/wagons/trainwagonc.entity.prefab"] = TrainCarLayerMask,
+                ["assets/content/vehicles/trains/wagons/trainwagonunloadablefuel.entity.prefab"] = TrainCarLayerMask,
+                ["assets/content/vehicles/trains/wagons/trainwagonunloadableloot.entity.prefab"] = TrainCarLayerMask,
+                ["assets/content/vehicles/trains/wagons/trainwagonunloadable.entity.prefab"] = TrainCarLayerMask,
+                ["assets/content/vehicles/trains/caboose/traincaboose.entity.prefab"] = TrainCarLayerMask,
             };
 
             public SpawnPointAdapter Adapter { get; private set; }
