@@ -135,11 +135,6 @@ namespace Oxide.Plugins
 
             Unsubscribe(nameof(OnEntitySpawned));
 
-            if (!_pluginConfig.StoreCustomVendingSetupSettingsInProfiles)
-            {
-                Unsubscribe(nameof(OnCustomVendingSetupDataProvider));
-            }
-
             _adapterListenerManager.Init();
         }
 
@@ -5272,13 +5267,10 @@ namespace Oxide.Plugins
                         HandleChanges();
                         MonumentEntityComponent.AddToEntity(PluginInstance._entityTracker, Entity, this, Monument);
 
-                        if (_pluginConfig.StoreCustomVendingSetupSettingsInProfiles)
+                        var vendingMachine = Entity as NPCVendingMachine;
+                        if (vendingMachine != null)
                         {
-                            var vendingMachine = Entity as NPCVendingMachine;
-                            if (vendingMachine != null)
-                            {
-                                PluginInstance.RefreshVendingProfile(vendingMachine);
-                            }
+                            PluginInstance.RefreshVendingProfile(vendingMachine);
                         }
 
                         var mountable = Entity as BaseMountable;
@@ -10224,9 +10216,6 @@ namespace Oxide.Plugins
 
             [JsonProperty("PersistEntitiesAfterUnload")]
             public bool EnableEntitySaving = false;
-
-            [JsonProperty("StoreCustomVendingSetupSettingsInProfiles")]
-            public bool StoreCustomVendingSetupSettingsInProfiles = true;
 
             [JsonProperty("DeployableOverrides")]
             public Dictionary<string, string> DeployableOverrides = new Dictionary<string, string>

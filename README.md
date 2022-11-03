@@ -175,7 +175,6 @@ Profiles allow you to organize entities into groups. Each profile can be indepen
 ```json
 {
   "DebugDisplayDistance": 150.0,
-  "StoreCustomVendingSetupSettingsInProfiles": true,
   "PersistEntitiesAfterUnload": false,
   "DeployableOverrides": {
     "arcade.machine.chippy": "assets/bundled/prefabs/static/chippyarcademachine.static.prefab",
@@ -204,7 +203,6 @@ Profiles allow you to organize entities into groups. Each profile can be indepen
 
 - `DebugDisplayDistance` -- Determines how far away you can see debug information about entities (i.e., when using `mashow`).
 - `DeployableOverrides` -- Determines which entity will be spawned when using `maspawn` if you don't specify the entity name in the command. For example, while you are holding an auto turret, running `maspawn` will spawn the `sentry.bandit.static` prefab instead of the `autoturret_deployed` prefab.
-- `StoreCustomVendingSetupSettingsInProfiles` (`true` or `false`) -- While `true`, vending machine settings for Custom Vending Setup will be stored within Monument Addons profiles data files rather than in Custom Vending Setup data files. This allows you to reposition vending machines without losing their settings. The default value is currently `false`, but in the future, this option will be removed and the behavior will be as if this option were set to `true`.
 - `PersistEntitiesAfterUnload` (`true` or `false`) -- While `true`, entities spawned by `maspawn` will remain after the plugin has unloaded, rather than being removed. Enabling persistence addresses several problems, such as player items getting deleted from recyclers and other containers when profiles are reloaded. Note: This option currently has no effect on Pastes, Spawn Groups or Custom Addons, meaning that those will always be removed when the plugin unloads.
 
 ## Localization
