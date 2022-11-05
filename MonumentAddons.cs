@@ -5690,6 +5690,17 @@ namespace Oxide.Plugins
                     PhoneUtils.NameTelephone(telephone, Monument, Position, PluginInstance._monumentHelper);
                 }
 
+                var microphoneStand = Entity as MicrophoneStand;
+                if ((object)microphoneStand != null)
+                {
+                    microphoneStand.Invoke(() =>
+                    {
+                        PluginInstance.TrackStart();
+                        microphoneStand.PostMapEntitySpawn();
+                        PluginInstance.TrackEnd();
+                    }, 1);
+                }
+
                 if (EntityData.Scale != 1 || Entity.GetParentEntity() is SphereEntity)
                 {
                     UpdateScale();
