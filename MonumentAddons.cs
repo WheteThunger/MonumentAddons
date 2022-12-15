@@ -128,6 +128,8 @@ namespace Oxide.Plugins
             _pluginData = StoredData.Load(_profileStore);
             _profileStateData = ProfileStateData.Load(_pluginData);
 
+            _pluginConfig.Init();
+
             // Ensure the profile folder is created to avoid errors.
             _profileStore.EnsureDefaultProfile();
 
@@ -2889,6 +2891,10 @@ namespace Oxide.Plugins
         #endregion
 
         #region Helper Methods
+
+        public static void LogInfo(string message) => Interface.Oxide.LogInfo($"[Monument Addons] {message}");
+        public static void LogError(string message) => Interface.Oxide.LogError($"[Monument Addons] {message}");
+        public static void LogWarning(string message) => Interface.Oxide.LogWarning($"[Monument Addons] {message}");
 
         private static bool TryRaycast(BasePlayer player, out RaycastHit hit, float maxDistance = MaxRaycastDistance)
         {
@@ -5716,6 +5722,24 @@ namespace Oxide.Plugins
                         storageContainer2.isLockable = false;
                         storageContainer2.isMonitorable = false;
                     }, 0);
+                }
+
+                var christmasTree = Entity as ChristmasTree;
+                if ((object)christmasTree != null)
+                {
+                    foreach (var itemShortName in _pluginConfig.XmasTreeDecorations)
+                    {
+                        var item = ItemManager.CreateByName(itemShortName);
+                        if (item == null)
+                            continue;
+
+                        if (!item.MoveToContainer(christmasTree.inventory))
+                        {
+                            item.Remove();
+                        }
+                    }
+
+                    christmasTree.inventory.SetLocked(true);
                 }
 
                 if (EntityData.Scale != 1 || Entity.GetParentEntity() is SphereEntity)
@@ -10339,6 +10363,40 @@ namespace Oxide.Plugins
                 ["workbench1"] = "assets/bundled/prefabs/static/workbench1.static.prefab",
                 ["workbench2"] = "assets/bundled/prefabs/static/workbench2.static.prefab",
             };
+
+            [JsonProperty("Xmas tree decorations (item shortnames)")]
+            public string[] XmasTreeDecorations = new string[]
+            {
+                "xmas.decoration.baubels",
+                "xmas.decoration.candycanes",
+                "xmas.decoration.gingerbreadmen",
+                "xmas.decoration.lights",
+                "xmas.decoration.pinecone",
+                "xmas.decoration.star",
+                "xmas.decoration.tinsel",
+            };
+
+            public void Init()
+            {
+                if (XmasTreeDecorations != null)
+                {
+                    foreach (var itemShortName in XmasTreeDecorations)
+                    {
+                        var itemDefinition = ItemManager.FindItemDefinition(itemShortName);
+                        if (itemDefinition == null)
+                        {
+                            LogError(($"Invalid item short name in config: {itemShortName}"));
+                            continue;
+                        }
+
+                        if (itemDefinition.GetComponent<ItemModXMasTreeDecoration>() == null)
+                        {
+                            LogError(($"Item is not an Xmas tree decoration: {itemShortName}"));
+                            continue;
+                        }
+                    }
+                }
+            }
         }
 
         private Configuration GetDefaultConfig() => new Configuration();

@@ -197,7 +197,15 @@ Profiles allow you to organize entities into groups. Each profile can be indepen
     "wall.frame.shopfront.metal": "assets/bundled/prefabs/static/wall.frame.shopfront.metal.static.prefab",
     "workbench1": "assets/bundled/prefabs/static/workbench1.static.prefab",
     "workbench2": "assets/bundled/prefabs/static/workbench2.static.prefab"
-  }
+  },
+  "Xmas tree decorations (item short names)": [
+    "xmas.decoration.gingerbreadmen",
+    "xmas.decoration.star",
+    "xmas.decoration.tinsel",
+    "xmas.decoration.candycanes",
+    "xmas.decoration.pinecone",
+    "xmas.decoration.lights"
+  ]
 }
 ```
 
@@ -206,6 +214,7 @@ Profiles allow you to organize entities into groups. Each profile can be indepen
   - While `false` (default), when the plugin unloads, it will despawn all entities spawned via `maspawn`. When the plugin subsequently reloads, those entities will be respawned from scratch. This means, for entities that maintain state (such as player items temporarily residing in recyclers), that state will be lost whenever the plugin unloads. The most practical consequence of using this mode is that player items inside containers will be lost when a profile is reloaded, when the plugin is reloaded, or when the server reboots. Despite that limitation, `false` is the most simple and stable value for this option because it ensures consistent reproducibility across plugin reloads.
   - While `true`, when the plugin unloads, all entities spawned by via `maspawn` will remain, in order to preserve their state (e.g., items inside a recycler). When the plugin subsequently reloads, it will find the existing entities, reconcile how they differ from the enabled profiles, and despawn/respawn/reposition/modify them as needed. The plugin will try to avoid despawning/respawning an entity that is already present, in order to preserve the entity's state. Despite this sounding like the more obvious mode of the plugin, it is more complex and less stable than the default mode, and should therefore be enabled with caution. In extremely rare circumstances, this may mode cause duplicate entities to be spawned after server reboots, if the plugin is unable to determine that existing entities correspond to ones declared in profiles.
 - `Deployable overrides` -- Determines which entity will be spawned when using `maspawn` if you don't specify the entity name in the command. For example, while you are holding an auto turret, running `maspawn` will spawn the `sentry.bandit.static` prefab instead of the `autoturret_deployed` prefab.
+- `Xmas tree decorations (item short names)` -- Determines which decorations will be automatically added to `xmas_tree.deployed` entities spawned via `maspawn`.
 
 ## Localization
 
