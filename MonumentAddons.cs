@@ -5716,12 +5716,8 @@ namespace Oxide.Plugins
                 var storageContainer = Entity as StorageContainer;
                 if ((object)storageContainer != null)
                 {
-                    var storageContainer2 = storageContainer;
-                    storageContainer.Invoke(() =>
-                    {
-                        storageContainer2.isLockable = false;
-                        storageContainer2.isMonitorable = false;
-                    }, 0);
+                    storageContainer.isLockable = false;
+                    storageContainer.isMonitorable = false;
                 }
 
                 var christmasTree = Entity as ChristmasTree;
