@@ -5566,11 +5566,12 @@ namespace Oxide.Plugins
                 var computerStation = Entity as ComputerStation;
                 if (computerStation != null && computerStation.isStatic)
                 {
+                    var computerStation2 = computerStation;
                     computerStation.CancelInvoke(computerStation.GatherStaticCameras);
                     computerStation.Invoke(() =>
                     {
                         PluginInstance.TrackStart();
-                        GatherStaticCameras(computerStation);
+                        GatherStaticCameras(computerStation2);
                         PluginInstance.TrackEnd();
                     }, 1);
                 }
@@ -5587,10 +5588,11 @@ namespace Oxide.Plugins
                 var vehicleSpawner = Entity as VehicleSpawner;
                 if (vehicleSpawner != null)
                 {
+                    var vehicleSpawner2 = vehicleSpawner;
                     vehicleSpawner.Invoke(() =>
                     {
                         PluginInstance.TrackStart();
-                        EntityUtils.ConnectNearbyVehicleVendor(vehicleSpawner);
+                        EntityUtils.ConnectNearbyVehicleVendor(vehicleSpawner2);
                         PluginInstance.TrackEnd();
                     }, 1);
                 }
@@ -5598,11 +5600,12 @@ namespace Oxide.Plugins
                 var vehicleVendor = Entity as VehicleVendor;
                 if (vehicleVendor != null)
                 {
-                    // Use a slightly longer delay than the vendor check check since this can short-circuit as an optimization.
+                    // Use a slightly longer delay than the vendor check since this can short-circuit as an optimization.
+                    var vehicleVendor2 = vehicleVendor;
                     vehicleVendor.Invoke(() =>
                     {
                         PluginInstance.TrackStart();
-                        EntityUtils.ConnectNearbyVehicleSpawner(vehicleVendor);
+                        EntityUtils.ConnectNearbyVehicleSpawner(vehicleVendor2);
                         PluginInstance.TrackEnd();
                     }, 2);
                 }
@@ -5620,13 +5623,14 @@ namespace Oxide.Plugins
                 var fogMachine = Entity as FogMachine;
                 if (fogMachine != null)
                 {
+                    var fogMachine2 = fogMachine;
                     fogMachine.SetFlag(BaseEntity.Flags.On, true);
                     fogMachine.InvokeRepeating(() =>
                     {
-                        fogMachine.SetFlag(FogMachine.Emitting, true);
-                        fogMachine.Invoke(fogMachine.EnableFogField, 1f);
-                        fogMachine.Invoke(fogMachine.DisableNozzle, fogMachine.nozzleBlastDuration);
-                        fogMachine.Invoke(fogMachine.FinishFogging, fogMachine.fogLength);
+                        fogMachine2.SetFlag(FogMachine.Emitting, true);
+                        fogMachine2.Invoke(fogMachine2.EnableFogField, 1f);
+                        fogMachine2.Invoke(fogMachine2.DisableNozzle, fogMachine2.nozzleBlastDuration);
+                        fogMachine2.Invoke(fogMachine2.FinishFogging, fogMachine2.fogLength);
                     },
                     UnityEngine.Random.Range(0f, 5f),
                     fogMachine.fogLength - 1);
@@ -5669,10 +5673,11 @@ namespace Oxide.Plugins
                 var doorManipulator = Entity as DoorManipulator;
                 if (doorManipulator != null && doorManipulator.targetDoor == null)
                 {
+                    var doorManipulator2 = doorManipulator;
                     doorManipulator.Invoke(() =>
                     {
                         PluginInstance.TrackStart();
-                        EntityUtils.ConnectNearbyDoor(doorManipulator);
+                        EntityUtils.ConnectNearbyDoor(doorManipulator2);
                         PluginInstance.TrackEnd();
                     }, 1);
                 }
@@ -5693,12 +5698,24 @@ namespace Oxide.Plugins
                 var microphoneStand = Entity as MicrophoneStand;
                 if ((object)microphoneStand != null)
                 {
+                    var microphoneStand2 = microphoneStand;
                     microphoneStand.Invoke(() =>
                     {
                         PluginInstance.TrackStart();
-                        microphoneStand.PostMapEntitySpawn();
+                        microphoneStand2.PostMapEntitySpawn();
                         PluginInstance.TrackEnd();
                     }, 1);
+                }
+
+                var storageContainer = Entity as StorageContainer;
+                if ((object)storageContainer != null)
+                {
+                    var storageContainer2 = storageContainer;
+                    storageContainer.Invoke(() =>
+                    {
+                        storageContainer2.isLockable = false;
+                        storageContainer2.isMonitorable = false;
+                    }, 0);
                 }
 
                 if (EntityData.Scale != 1 || Entity.GetParentEntity() is SphereEntity)
