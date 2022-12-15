@@ -174,9 +174,9 @@ Profiles allow you to organize entities into groups. Each profile can be indepen
 
 ```json
 {
-  "DebugDisplayDistance": 150.0,
-  "PersistEntitiesAfterUnload": false,
-  "DeployableOverrides": {
+  "Debug display distance": 150.0,
+  "Persist entities while the plugin is unloaded": false,
+  "Deployable overrides": {
     "arcade.machine.chippy": "assets/bundled/prefabs/static/chippyarcademachine.static.prefab",
     "autoturret": "assets/content/props/sentry_scientists/sentry.bandit.static.prefab",
     "bbq": "assets/bundled/prefabs/static/bbq.static.prefab",
@@ -201,9 +201,11 @@ Profiles allow you to organize entities into groups. Each profile can be indepen
 }
 ```
 
-- `DebugDisplayDistance` -- Determines how far away you can see debug information about entities (i.e., when using `mashow`).
-- `DeployableOverrides` -- Determines which entity will be spawned when using `maspawn` if you don't specify the entity name in the command. For example, while you are holding an auto turret, running `maspawn` will spawn the `sentry.bandit.static` prefab instead of the `autoturret_deployed` prefab.
-- `PersistEntitiesAfterUnload` (`true` or `false`) -- While `true`, entities spawned by `maspawn` will remain after the plugin has unloaded, rather than being removed. Enabling persistence addresses several problems, such as player items getting deleted from recyclers and other containers when profiles are reloaded. Note: This option currently has no effect on Pastes, Spawn Groups or Custom Addons, meaning that those will always be removed when the plugin unloads.
+- `Debug display distance` -- Determines how far away you can see debug information about entities (i.e., when using `mashow`).
+- `Persist entities while the plugin is unloaded` (`true` or `false`) -- Determines whether entities spawned by `maspawn` will remain while the plugin is unloaded. Please carefully read and understand the documentation about this option before enabling it. Note: This option currently has no effect on Pastes, Spawn Groups or Custom Addons, meaning that those will always be despawned/respawned when the plugin reloads.
+  - While `false` (default), when the plugin unloads, it will despawn all entities spawned via `maspawn`. When the plugin subsequently reloads, those entities will be respawned from scratch. This means, for entities that maintain state (such as player items temporarily residing in recyclers), that state will be lost whenever the plugin unloads. The most practical consequence of using this mode is that player items inside containers will be lost when a profile is reloaded, when the plugin is reloaded, or when the server reboots. Despite that limitation, `false` is the most simple and stable value for this option because it ensures consistent reproducibility across plugin reloads.
+  - While `true`, when the plugin unloads, all entities spawned by via `maspawn` will remain, in order to preserve their state (e.g., items inside a recycler). When the plugin subsequently reloads, it will find the existing entities, reconcile how they differ from the enabled profiles, and despawn/respawn/reposition/modify them as needed. The plugin will try to avoid despawning/respawning an entity that is already present, in order to preserve the entity's state. Despite this sounding like the more obvious mode of the plugin, it is more complex and less stable than the default mode, and should therefore be enabled with caution. In extremely rare circumstances, this may mode cause duplicate entities to be spawned after server reboots, if the plugin is unable to determine that existing entities correspond to ones declared in profiles.
+- `Deployable overrides` -- Determines which entity will be spawned when using `maspawn` if you don't specify the entity name in the command. For example, while you are holding an auto turret, running `maspawn` will spawn the `sentry.bandit.static` prefab instead of the `autoturret_deployed` prefab.
 
 ## Localization
 

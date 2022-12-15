@@ -10292,17 +10292,30 @@ namespace Oxide.Plugins
             [JsonProperty("Debug", DefaultValueHandling = DefaultValueHandling.Ignore)]
             public bool Debug = false;
 
-            [JsonProperty("DebugDisplayDistance")]
-            public float DebugDisplayDistance = 150;
+            [JsonProperty("EnableDynamicMonuments")]
+            [DefaultValue(true)]
+            private bool DeprecatedEnableDynamicMonuments { set { EnableDynamicMonuments = value; } }
 
-            [JsonProperty("EnableDynamicMonuments", DefaultValueHandling = DefaultValueHandling.Ignore)]
+            [JsonProperty("Enable dynamic monuments", DefaultValueHandling = DefaultValueHandling.Ignore)]
             [DefaultValue(true)]
             public bool EnableDynamicMonuments = true;
 
+            [JsonProperty("DebugDisplayDistance")]
+            private float DeprecatedDebugDisplayDistance { set { DebugDisplayDistance = value; } }
+
+            [JsonProperty("Debug display distance")]
+            public float DebugDisplayDistance = 150;
+
             [JsonProperty("PersistEntitiesAfterUnload")]
+            private bool DeprecatedEnableEntitySaving { set { EnableEntitySaving = value; } }
+
+            [JsonProperty("Persist entities while the plugin is unloaded")]
             public bool EnableEntitySaving = false;
 
             [JsonProperty("DeployableOverrides")]
+            public Dictionary<string, string> DeprecatedDeployableOverrides { set { DeployableOverrides = value; } }
+
+            [JsonProperty("Deployable overrides")]
             public Dictionary<string, string> DeployableOverrides = new Dictionary<string, string>
             {
                 ["arcade.machine.chippy"] = "assets/bundled/prefabs/static/chippyarcademachine.static.prefab",
