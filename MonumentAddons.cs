@@ -2379,13 +2379,13 @@ namespace Oxide.Plugins
             sb.AppendLine(GetMessage(player.Id, LangEntry.HelpSkin));
             sb.AppendLine(GetMessage(player.Id, LangEntry.HelpSetId));
             sb.AppendLine(GetMessage(player.Id, LangEntry.HelpSetDir));
+            sb.AppendLine(GetMessage(player.Id, LangEntry.HelpSkull));
             sb.AppendLine(GetMessage(player.Id, LangEntry.HelpSpawnGroup));
             sb.AppendLine(GetMessage(player.Id, LangEntry.HelpSpawnPoint));
             sb.AppendLine(GetMessage(player.Id, LangEntry.HelpPaste));
             sb.AppendLine(GetMessage(player.Id, LangEntry.HelpShow));
             sb.AppendLine(GetMessage(player.Id, LangEntry.HelpShowVanilla));
             sb.AppendLine(GetMessage(player.Id, LangEntry.HelpProfile));
-            sb.AppendLine(GetMessage(player.Id, LangEntry.HelpSkull));
             player.Reply(sb.ToString());
         }
 
