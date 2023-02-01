@@ -737,6 +737,42 @@ namespace Oxide.Plugins
             _adapterDisplayManager.ShowAllRepeatedly(basePlayer);
         }
 
+        [Command("maskull")]
+        private void CommandSkull(IPlayer player, string cmd, string[] args)
+        {
+            if (player.IsServer || !VerifyHasPermission(player))
+                return;
+
+            SingleEntityController controller;
+            SingleEntityAdapter adapter;
+            if (!VerifyLookingAtAdapter(player, out adapter, out controller, LangEntry.ErrorNoSuitableAddonFound))
+                return;
+
+            if (!controller.EntityData.PrefabName.Contains("assets/prefabs/misc/halloween/trophy skulls/"))
+            {
+                ReplyToPlayer(player, LangEntry.ErrorNoSuitableAddonFound);
+                return;
+            }
+
+            if (args.Length == 0)
+            {
+                ReplyToPlayer(player, LangEntry.SkullNameSyntax, cmd);
+                return;
+            }
+
+            var skullName = args[0];
+            var updatedSkullName = controller.EntityData.SkullName != skullName;
+
+            controller.EntityData.SkullName = skullName;
+            _profileStore.Save(controller.Profile);
+            controller.HandleChanges();
+
+            ReplyToPlayer(player, LangEntry.SkullNameSetSuccess, skullName, controller.Adapters.Count, controller.Profile.Name);
+
+            var basePlayer = player.Object as BasePlayer;
+            _adapterDisplayManager.ShowAllRepeatedly(basePlayer, immediate: !updatedSkullName);
+        }
+
         [Command("maskin")]
         private void CommandSkin(IPlayer player, string cmd, string[] args)
         {
@@ -2353,42 +2389,6 @@ namespace Oxide.Plugins
             player.Reply(sb.ToString());
         }
 
-        [Command("maskull")]
-        private void CommandSkull(IPlayer player, string cmd, string[] args) 
-        {
-            if (player.IsServer || !VerifyHasPermission(player))
-                return;
-
-            SingleEntityController controller;
-            SingleEntityAdapter adapter;
-            if (!VerifyLookingAtAdapter(player, out adapter, out controller, LangEntry.ErrorNoSuitableAddonFound))
-                return;
-
-            if (!controller.EntityData.PrefabName.Contains("assets/prefabs/misc/halloween/trophy skulls/")) 
-            {
-                ReplyToPlayer(player, LangEntry.ErrorNoSuitableAddonFound);
-                return;
-            }
-
-            if (args.Length == 0)
-            {
-                ReplyToPlayer(player, LangEntry.SkullNameSyntax, cmd);
-                return;
-            }
-
-            var skullName = args[0];
-            var updatedSkullName = controller.EntityData.SkullName != skullName;
-
-            controller.EntityData.SkullName = args[0];
-            _profileStore.Save(controller.Profile);
-            controller.HandleChanges();
-
-            ReplyToPlayer(player, LangEntry.SkullNameSetSuccess, skullName, controller.Adapters.Count, controller.Profile.Name);
-
-            var basePlayer = player.Object as BasePlayer;
-            _adapterDisplayManager.ShowAllRepeatedly(basePlayer, immediate: !updatedSkullName);
-        }
-
         #endregion
 
         #region API
@@ -2421,30 +2421,6 @@ namespace Oxide.Plugins
             _customAddonManager.RegisterAddon(addonDefinition);
 
             return addonDefinition.ToApiResult(_profileStore);
-        }
-
-        private bool API_ChangeSkullName(string id, string profileName, string skullName) 
-        {
-            Guid guid;
-            if (!Guid.TryParse(id, out guid))
-                return false;
-
-            var profile = _profileManager.GetProfileController(profileName);
-            if (profile == null || !profile.IsEnabled)
-                return false;
-
-            var controller = profile.FindControllerById(guid) as SingleEntityController;
-            if (controller == null)
-                return false;
-
-            if (!controller.EntityData.PrefabName.Contains("assets/prefabs/misc/halloween/trophy skulls/"))
-                return false;
-
-            controller.EntityData.SkullName = skullName;
-            _profileStore.Save(controller.Profile);
-            controller.HandleChanges();
-
-            return true;
         }
 
         #endregion
@@ -5504,19 +5480,21 @@ namespace Oxide.Plugins
                 if (skullTrophy == null)
                     return;
 
-                var skull = ItemManager.CreateByPartialName("skull.human");
-                skull.name = HumanBodyResourceDispenser.CreateSkullName(skullName);
+                if (skullTrophy.inventory == null)
+                    return;
 
-                if (skullTrophy.inventory != null && skullTrophy.inventory.itemList.Count == 1)
+                if (skullTrophy.inventory.itemList.Count == 1)
                 {
                     var item = skullTrophy.inventory.itemList[0];
                     item.RemoveFromContainer();
                     item.Remove();
                 }
 
+                var skull = ItemManager.CreateByPartialName("skull.human");
+                skull.name = HumanBodyResourceDispenser.CreateSkullName(skullName);
                 skullTrophy.inventory.Insert(skull);
 
-                // Setting flag here so vanilla functionality is perserved for trophies without name set
+                // Setting flag here so vanilla functionality is preserved for trophies without name set
                 skullTrophy.SetFlag(BaseEntity.Flags.Busy, true);
             }
 
@@ -10648,12 +10626,12 @@ namespace Oxide.Plugins
             public static readonly LangEntry SkinSetSuccess = new LangEntry("Skin.Set.Success2", "Updated skin ID to <color=#fd4>{0}</color> at <color=#fd4>{1}</color> matching monument(s) and saved to profile <color=#fd4>{2}</color>.");
             public static readonly LangEntry SkinErrorRedirect = new LangEntry("Skin.Error.Redirect", "Error: Skin <color=#fd4>{0}</color> is a redirect skin and cannot be set directly. Instead, spawn the entity as <color=#fd4>{1}</color>.");
 
-            public static readonly LangEntry SkullNameSyntax = new LangEntry("SkullName.Syntax", "Syntax: <color=#fd4>{0} <skull name></color>");
-            public static readonly LangEntry SkullNameSetSuccess = new LangEntry("SkullName.Set.Success", "Updated skull name to <color=#fd4>{0}</color> at <color=#fd4>{1}</color> matching monument(s) and saved to profile <color=#fd4>{2}</color>.");
-
             public static readonly LangEntry CCTVSetIdSyntax = new LangEntry("CCTV.SetId.Error.Syntax", "Syntax: <color=#fd4>{0} <id></color>");
             public static readonly LangEntry CCTVSetIdSuccess = new LangEntry("CCTV.SetId.Success2", "Updated CCTV id to <color=#fd4>{0}</color> at <color=#fd4>{1}</color> matching monument(s) and saved to profile <color=#fd4>{2}</color>.");
             public static readonly LangEntry CCTVSetDirectionSuccess = new LangEntry("CCTV.SetDirection.Success2", "Updated CCTV direction at <color=#fd4>{0}</color> matching monument(s) and saved to profile <color=#fd4>{1}</color>.");
+
+            public static readonly LangEntry SkullNameSyntax = new LangEntry("SkullName.Syntax", "Syntax: <color=#fd4>{0} <skull name></color>");
+            public static readonly LangEntry SkullNameSetSuccess = new LangEntry("SkullName.Set.Success", "Updated skull name to <color=#fd4>{0}</color> at <color=#fd4>{1}</color> matching monument(s) and saved to profile <color=#fd4>{2}</color>.");
 
             public static readonly LangEntry ProfileListEmpty = new LangEntry("Profile.List.Empty", "You have no profiles. Create one with <color=#fd4>maprofile create <name></maprofile>");
             public static readonly LangEntry ProfileListHeader = new LangEntry("Profile.List.Header", "<size=18>Monument Addons Profiles</size>");
@@ -10729,13 +10707,13 @@ namespace Oxide.Plugins
             public static readonly LangEntry HelpSkin = new LangEntry("Help.Skin", "<color=#fd4>maskin <skin id></color> - Change the skin of an entity");
             public static readonly LangEntry HelpSetId = new LangEntry("Help.SetId", "<color=#fd4>masetid <id></color> - Set the id of a CCTV");
             public static readonly LangEntry HelpSetDir = new LangEntry("Help.SetDir", "<color=#fd4>masetdir</color> - Set the direction of a CCTV");
+            public static readonly LangEntry HelpSkull = new LangEntry("Help.Skull", "<color=#fd4>maskull <name></color> - Set skull trophy display name");
             public static readonly LangEntry HelpSpawnGroup = new LangEntry("Help.SpawnGroup", "<color=#fd4>maspawngroup</color> - Print spawn group help");
             public static readonly LangEntry HelpSpawnPoint = new LangEntry("Help.SpawnPoint", "<color=#fd4>maspawnpoint</color> - Print spawn point help");
             public static readonly LangEntry HelpPaste = new LangEntry("Help.Paste", "<color=#fd4>mapaste <file></color> - Paste a building");
             public static readonly LangEntry HelpShow = new LangEntry("Help.Show", "<color=#fd4>mashow</color> - Show nearby addons");
             public static readonly LangEntry HelpShowVanilla = new LangEntry("Help.ShowVanilla", "<color=#fd4>mashowvanilla</color> - Show vanilla spawn points");
-            public static readonly LangEntry HelpProfile = new LangEntry("Help.Profile", "<color=#fd4>maprofile</color> - Print profile help");
-            public static readonly LangEntry HelpSkull = new LangEntry("Help.Skull", "<color=#fd4>maskull <name></color> - Set skull trophy display name");
+            public static readonly LangEntry HelpProfile = new LangEntry("Help.Profile", "<color=#fd4>maprofile</color> - Print profile help");        
 
             public string Name;
             public string English;
