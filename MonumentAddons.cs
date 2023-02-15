@@ -748,7 +748,8 @@ namespace Oxide.Plugins
             if (!VerifyLookingAtAdapter(player, out adapter, out controller, LangEntry.ErrorNoSuitableAddonFound))
                 return;
 
-            if (!controller.EntityData.PrefabName.Contains("assets/prefabs/misc/halloween/trophy skulls/"))
+            var skullTrophy = adapter.Entity as SkullTrophy;
+            if (skullTrophy == null)
             {
                 ReplyToPlayer(player, LangEntry.ErrorNoSuitableAddonFound);
                 return;
@@ -5492,7 +5493,8 @@ namespace Oxide.Plugins
 
                 var skull = ItemManager.CreateByPartialName("skull.human");
                 skull.name = HumanBodyResourceDispenser.CreateSkullName(skullName);
-                skullTrophy.inventory.Insert(skull);
+                if (!skull.MoveToContainer(skullTrophy.inventory))
+                    skull.Remove();
 
                 // Setting flag here so vanilla functionality is preserved for trophies without name set
                 skullTrophy.SetFlag(BaseEntity.Flags.Busy, true);
@@ -10630,7 +10632,7 @@ namespace Oxide.Plugins
             public static readonly LangEntry CCTVSetIdSuccess = new LangEntry("CCTV.SetId.Success2", "Updated CCTV id to <color=#fd4>{0}</color> at <color=#fd4>{1}</color> matching monument(s) and saved to profile <color=#fd4>{2}</color>.");
             public static readonly LangEntry CCTVSetDirectionSuccess = new LangEntry("CCTV.SetDirection.Success2", "Updated CCTV direction at <color=#fd4>{0}</color> matching monument(s) and saved to profile <color=#fd4>{1}</color>.");
 
-            public static readonly LangEntry SkullNameSyntax = new LangEntry("SkullName.Syntax", "Syntax: <color=#fd4>{0} <skull name></color>");
+            public static readonly LangEntry SkullNameSyntax = new LangEntry("SkullName.Syntax", "Syntax: <color=#fd4>{0} <name></color>");
             public static readonly LangEntry SkullNameSetSuccess = new LangEntry("SkullName.Set.Success", "Updated skull name to <color=#fd4>{0}</color> at <color=#fd4>{1}</color> matching monument(s) and saved to profile <color=#fd4>{2}</color>.");
 
             public static readonly LangEntry ProfileListEmpty = new LangEntry("Profile.List.Empty", "You have no profiles. Create one with <color=#fd4>maprofile create <name></maprofile>");
