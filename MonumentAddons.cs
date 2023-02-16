@@ -797,6 +797,43 @@ namespace Oxide.Plugins
             _adapterDisplayManager.ShowAllRepeatedly(basePlayer);
         }
 
+        [Command("maskull")]
+        private void CommandSkull(IPlayer player, string cmd, string[] args)
+        {
+            if (player.IsServer || !VerifyHasPermission(player))
+                return;
+
+            EntityController controller;
+            EntityAdapter adapter;
+            if (!VerifyLookingAtAdapter(player, out adapter, out controller, LangEntry.ErrorNoSuitableAddonFound))
+                return;
+
+            var skullTrophy = adapter.Entity as SkullTrophy;
+            if (skullTrophy == null)
+            {
+                ReplyToPlayer(player, LangEntry.ErrorNoSuitableAddonFound);
+                return;
+            }
+
+            if (args.Length == 0)
+            {
+                ReplyToPlayer(player, LangEntry.SkullNameSyntax, cmd);
+                return;
+            }
+
+            var skullName = args[0];
+            var updatedSkullName = controller.EntityData.SkullName != skullName;
+
+            controller.EntityData.SkullName = skullName;
+            _profileStore.Save(controller.Profile);
+            controller.StartHandleChangesRoutine();
+
+            ReplyToPlayer(player, LangEntry.SkullNameSetSuccess, skullName, controller.Adapters.Count, controller.Profile.Name);
+
+            var basePlayer = player.Object as BasePlayer;
+            _adapterDisplayManager.ShowAllRepeatedly(basePlayer, immediate: !updatedSkullName);
+        }
+
         [Command("maskin")]
         private void CommandSkin(IPlayer player, string cmd, string[] args)
         {
@@ -2659,6 +2696,7 @@ namespace Oxide.Plugins
             sb.AppendLine(GetMessage(player.Id, LangEntry.HelpSkin));
             sb.AppendLine(GetMessage(player.Id, LangEntry.HelpSetId));
             sb.AppendLine(GetMessage(player.Id, LangEntry.HelpSetDir));
+            sb.AppendLine(GetMessage(player.Id, LangEntry.HelpSkull));
             sb.AppendLine(GetMessage(player.Id, LangEntry.HelpCardReaderLevel));
             sb.AppendLine(GetMessage(player.Id, LangEntry.HelpPuzzle));
             sb.AppendLine(GetMessage(player.Id, LangEntry.HelpSpawnGroup));
@@ -5881,10 +5919,40 @@ namespace Oxide.Plugins
                 UpdateSkin();
                 UpdateScale();
                 UpdateBuildingGrade();
+                UpdateSkullName();
                 UpdatePuzzle();
                 UpdateCardReaderLevel();
                 UpdateIOConnections();
                 MaybeProvidePower();
+            }
+
+            public void UpdateSkullName()
+            {
+                var skullName = EntityData.SkullName;
+                if (skullName == null)
+                    return;
+
+                var skullTrophy = Entity as SkullTrophy;
+                if (skullTrophy == null)
+                    return;
+
+                if (skullTrophy.inventory == null)
+                    return;
+
+                if (skullTrophy.inventory.itemList.Count == 1)
+                {
+                    var item = skullTrophy.inventory.itemList[0];
+                    item.RemoveFromContainer();
+                    item.Remove();
+                }
+
+                var skull = ItemManager.CreateByPartialName("skull.human");
+                skull.name = HumanBodyResourceDispenser.CreateSkullName(skullName);
+                if (!skull.MoveToContainer(skullTrophy.inventory))
+                    skull.Remove();
+
+                // Setting flag here so vanilla functionality is preserved for trophies without name set
+                skullTrophy.SetFlag(BaseEntity.Flags.Busy, true);
             }
 
             public void UpdateIOConnections()
@@ -6236,6 +6304,12 @@ namespace Oxide.Plugins
                 if (EntityData.Scale != 1 || Entity.GetParentEntity() is SphereEntity)
                 {
                     UpdateScale();
+                }
+
+                var skullTrophy = Entity as SkullTrophy;
+                if (skullTrophy != null)
+                {
+                    UpdateSkullName();
                 }
             }
 
@@ -9857,6 +9931,9 @@ namespace Oxide.Plugins
             [JsonProperty("IOEntity", DefaultValueHandling = DefaultValueHandling.Ignore)]
             public IOEntityData IOEntityData;
 
+            [JsonProperty("SkullName", DefaultValueHandling = DefaultValueHandling.Ignore)]
+            public string SkullName;
+
             public void RemoveIOConnection(int slot)
             {
                 if (IOEntityData == null)
@@ -11679,6 +11756,9 @@ namespace Oxide.Plugins
             public static readonly LangEntry CCTVSetIdSuccess = new LangEntry("CCTV.SetId.Success2", "Updated CCTV id to <color=#fd4>{0}</color> at <color=#fd4>{1}</color> matching monument(s) and saved to profile <color=#fd4>{2}</color>.");
             public static readonly LangEntry CCTVSetDirectionSuccess = new LangEntry("CCTV.SetDirection.Success2", "Updated CCTV direction at <color=#fd4>{0}</color> matching monument(s) and saved to profile <color=#fd4>{1}</color>.");
 
+            public static readonly LangEntry SkullNameSyntax = new LangEntry("SkullName.Syntax", "Syntax: <color=#fd4>{0} <name></color>");
+            public static readonly LangEntry SkullNameSetSuccess = new LangEntry("SkullName.Set.Success", "Updated skull name to <color=#fd4>{0}</color> at <color=#fd4>{1}</color> matching monument(s) and saved to profile <color=#fd4>{2}</color>.");
+
             public static readonly LangEntry CardReaderSetLevelSyntax = new LangEntry("CardReader.SetLevel.Error.Syntax", "Syntax: <color=#fd4>{0} <1-3></color>");
             public static readonly LangEntry CardReaderSetLevelSuccess = new LangEntry("CardReader.SetLevel.Success", "Updated card reader access level to <color=#fd4>{0}</color>.");
 
@@ -11762,6 +11842,7 @@ namespace Oxide.Plugins
             public static readonly LangEntry HelpSkin = new LangEntry("Help.Skin", "<color=#fd4>maskin <skin id></color> - Change the skin of an entity");
             public static readonly LangEntry HelpSetId = new LangEntry("Help.SetId", "<color=#fd4>masetid <id></color> - Set the id of a CCTV");
             public static readonly LangEntry HelpSetDir = new LangEntry("Help.SetDir", "<color=#fd4>masetdir</color> - Set the direction of a CCTV");
+            public static readonly LangEntry HelpSkull = new LangEntry("Help.Skull", "<color=#fd4>maskull <name></color> - Set skull trophy display name");
             public static readonly LangEntry HelpCardReaderLevel = new LangEntry("Help.CardReaderLevel", "<color=#fd4>macardlevel <1-3></color> - Set a card reader's access level.");
             public static readonly LangEntry HelpPuzzle = new LangEntry("Help.Puzzle", "<color=#fd4>mapuzzle</color> - Print puzzle help");
             public static readonly LangEntry HelpSpawnGroup = new LangEntry("Help.SpawnGroup", "<color=#fd4>maspawngroup</color> - Print spawn group help");
