@@ -1,0 +1,92 @@
+{
+  "Name": "SafeZoneRecyclers",
+  "Author": "HunterZ",
+  "SchemaVersion": 2.0,
+  "MonumentData": {
+    "fishing_village_a": {
+      "Entities": [
+        {
+          "Id": "cc7bb6ff-fc4c-4bd2-b309-e273e0852f03",
+          "PrefabName": "assets/bundled/prefabs/static/recycler_static.prefab",
+          "Position": {
+            "x": -20.0,
+            "y": 2.066,
+            "z": -19.6
+          },
+          "RotationAngles": {
+            "x": 0.0,
+            "y": 94.7,
+            "z": 0.0
+          }
+        }
+      ]
+    },
+    "fishing_village_b": {
+      "Entities": [
+        {
+          "Id": "c9614658-f9f7-4b73-aef0-89b643c56be1",
+          "PrefabName": "assets/bundled/prefabs/static/recycler_static.prefab",
+          "Position": {
+            "x": -6.75,
+            "y": 2.075,
+            "z": 5.4
+          },
+          "RotationAngles": {
+            "x": 0.0,
+            "y": 90.0,
+            "z": 0.0
+          }
+        }
+      ]
+    },
+    "fishing_village_c": {
+      "Entities": [
+        {
+          "Id": "b28cd901-a45e-4c23-bb6a-4610308f5647",
+          "PrefabName": "assets/bundled/prefabs/static/recycler_static.prefab",
+          "Position": {
+            "x": -7.35,
+            "y": 2.086,
+            "z": -8.25
+          }
+        }
+      ]
+    },
+    "stables_a": {
+      "Entities": [
+        {
+          "Id": "5e031220-f573-410f-97ab-59326777498c",
+          "PrefabName": "assets/bundled/prefabs/static/recycler_static.prefab",
+          "Position": {
+            "x": -2.67,
+            "y": 3.26,
+            "z": -14.25
+          },
+          "RotationAngles": {
+            "x": 0.0,
+            "y": 180.0,
+            "z": 0.0
+          }
+        }
+      ]
+    },
+    "stables_b": {
+      "Entities": [
+        {
+          "Id": "ae774a75-8e8f-4dac-9b3e-ec9015fa2721",
+          "PrefabName": "assets/bundled/prefabs/static/recycler_static.prefab",
+          "Position": {
+            "x": 1.5,
+            "y": 3.15,
+            "z": -4.5
+          },
+          "RotationAngles": {
+            "x": 0.0,
+            "y": 180.0,
+            "z": 0.0
+          }
+        }
+      ]
+    }
+  }
+}
