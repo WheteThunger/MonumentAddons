@@ -5692,7 +5692,9 @@ namespace Oxide.Plugins
                 if (spray != null)
                 {
                     spray.CancelInvoke(spray.RainCheck);
+                    #if !CARBON
                     spray.splashThreshold = int.MaxValue;
+                    #endif
                 }
 
                 var telephone = Entity as Telephone;
