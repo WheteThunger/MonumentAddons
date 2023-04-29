@@ -29,7 +29,7 @@ using System.Text.RegularExpressions;
 
 namespace Oxide.Plugins
 {
-    [Info("Monument Addons", "WhiteThunder", "0.13.0")]
+    [Info("Monument Addons", "WhiteThunder", "0.13.1")]
     [Description("Allows adding entities, spawn points and more to monuments.")]
     internal class MonumentAddons : CovalencePlugin
     {
@@ -3133,9 +3133,9 @@ namespace Oxide.Plugins
             return mask;
         }
 
-        private static BaseEntity FindValidEntity(uint entityId)
+        private static BaseEntity FindValidEntity(ulong entityId)
         {
-            var entity = BaseNetworkable.serverEntities.Find(entityId) as BaseEntity;
+            var entity = BaseNetworkable.serverEntities.Find(new NetworkableId(entityId)) as BaseEntity;
             return entity != null && !entity.IsDestroyed
                 ? entity
                 : null;
@@ -4684,14 +4684,14 @@ namespace Oxide.Plugins
             public BaseEntity RootEntity { get; private set; }
             public bool IsMobile { get; private set; }
             public override bool IsValid => base.IsValid && !RootEntity.IsDestroyed;
-            public uint EntityId { get; private set; }
+            public NetworkableId EntityId { get; private set; }
 
             protected OBB BoundingBox => RootEntity.WorldSpaceBounds();
 
             public DynamicMonument(BaseEntity entity, bool isMobile) : base(entity)
             {
                 RootEntity = entity;
-                EntityId = entity.net?.ID ?? 0;
+                EntityId = entity.net?.ID ?? new NetworkableId();
                 IsMobile = isMobile;
             }
 
@@ -4740,7 +4740,7 @@ namespace Oxide.Plugins
             public static MonumentEntityComponent GetForEntity(BaseEntity entity) =>
                 entity.GetComponent<MonumentEntityComponent>();
 
-            public static MonumentEntityComponent GetForEntity(uint id) =>
+            public static MonumentEntityComponent GetForEntity(NetworkableId id) =>
                 BaseNetworkable.serverEntities.Find(id)?.GetComponent<MonumentEntityComponent>();
 
             public IEntityAdapter Adapter;
@@ -9778,31 +9778,31 @@ namespace Oxide.Plugins
         private class MonumentState : IDeepCollection
         {
             [JsonProperty("Entities")]
-            public Dictionary<Guid, uint> Entities = new Dictionary<Guid, uint>();
+            public Dictionary<Guid, ulong> Entities = new Dictionary<Guid, ulong>();
 
             public bool HasItems() => Entities.Count > 0;
 
-            public bool HasEntity(Guid guid, uint entityId)
+            public bool HasEntity(Guid guid, NetworkableId entityId)
             {
-                return Entities.GetOrDefault(guid) == entityId;
+                return Entities.GetOrDefault(guid) == entityId.Value;
             }
 
             public BaseEntity FindEntity(Guid guid)
             {
-                uint entityId;
+                ulong entityId;
                 if (!Entities.TryGetValue(guid, out entityId))
                     return null;
 
-                var entity = BaseNetworkable.serverEntities.Find(entityId) as BaseEntity;
+                var entity = BaseNetworkable.serverEntities.Find(new NetworkableId(entityId)) as BaseEntity;
                 if (entity == null || entity.IsDestroyed)
                     return null;
 
                 return entity;
             }
 
-            public void AddEntity(Guid guid, uint entityId)
+            public void AddEntity(Guid guid, NetworkableId entityId)
             {
-                Entities[guid] = entityId;
+                Entities[guid] = entityId.Value;
             }
 
             public bool RemoveEntity(Guid guid)
@@ -9878,7 +9878,7 @@ namespace Oxide.Plugins
             public bool ShouldSerializeByLocation() => HasDeepItems(ByLocation);
 
             [JsonProperty("ByEntity")]
-            private Dictionary<uint, MonumentState> ByEntity = new Dictionary<uint, MonumentState>();
+            private Dictionary<ulong, MonumentState> ByEntity = new Dictionary<ulong, MonumentState>();
 
             public bool ShouldSerializeByEntity() => HasDeepItems(ByEntity);
 
@@ -9941,7 +9941,7 @@ namespace Oxide.Plugins
                 var dynamicMonument = monument as DynamicMonument;
                 if (dynamicMonument != null)
                 {
-                    return ByEntity.GetOrDefault(dynamicMonument.EntityId);
+                    return ByEntity.GetOrDefault(dynamicMonument.EntityId.Value);
                 }
 
                 return ByLocation.GetOrDefault(monument.Position);
@@ -9952,7 +9952,7 @@ namespace Oxide.Plugins
                 var dynamicMonument = monument as DynamicMonument;
                 if (dynamicMonument != null)
                 {
-                    return ByEntity.GetOrCreate(dynamicMonument.EntityId);
+                    return ByEntity.GetOrCreate(dynamicMonument.EntityId.Value);
                 }
 
                 return ByLocation.GetOrCreate(monument.Position);
@@ -10028,7 +10028,7 @@ namespace Oxide.Plugins
                 return ProfileStateMap.GetOrDefault(profileName);
             }
 
-            public bool HasEntity(string profileName, BaseMonument monument, Guid guid, uint entityId)
+            public bool HasEntity(string profileName, BaseMonument monument, Guid guid, NetworkableId entityId)
             {
                 return GetProfileState(profileName)
                     ?.GetOrDefault(monument.AliasOrShortName)
@@ -10044,7 +10044,7 @@ namespace Oxide.Plugins
                     ?.FindEntity(guid);
             }
 
-            public void AddEntity(string profileName, BaseMonument monument, Guid guid, uint entityId)
+            public void AddEntity(string profileName, BaseMonument monument, Guid guid, NetworkableId entityId)
             {
                 ProfileStateMap.GetOrCreate(profileName)
                     .GetOrCreate(monument.AliasOrShortName)
