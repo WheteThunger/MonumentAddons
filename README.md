@@ -128,9 +128,9 @@ The following commands only work on objects managed by this plugin. The effect o
 - `maspawngroup set <option> <value>` -- Sets a property of the spawn group you are looking at.
   - `Name`: string -- This name must be unique for the given profile + monument. This name can be used to create additional spawn points for this spawn group using `maspawnpoint create <group_name>`.
   - `MaxPopulation`: number -- The maximum number of entities that can be spawned across all spawn points in this spawn group.
-  - `RespawnDelayMin`: number -- The minimum time in minutes to wait between spawning entities.
-  - `RespawnDelayMax`: number -- The maximum time in minutes to wait between spawning entities.
-  - `SpawnPerTickMin`: number -- The minumum number of entities to try to spawn in a batch.
+  - `RespawnDelayMin`: number -- The minimum time in seconds to wait between spawning entities.
+  - `RespawnDelayMax`: number -- The maximum time in seconds to wait between spawning entities.
+  - `SpawnPerTickMin`: number -- The minimum number of entities to try to spawn in a batch.
   - `SpawnPerTickMax`: number -- The maximum number of entities to try to spawn in a batch.
   - `InitialSpawn`: true/false -- While `true`, the spawn group will spawn entities as soon as the spawn group is created (e.g., when the profile loads, when the plugin loads, or when the server reboots). While `false`, the spawn group will not spawn any entities initially, but will still spawn them later according to the defined schedule.
   - `PreventDuplicates`: true/false -- While `true`, only one of each entity prefab can be present across all spawn points in the spawn group. Vanilla Rust uses this property for spawning modules at desert military bases.
