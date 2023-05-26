@@ -77,6 +77,7 @@ namespace Oxide.Plugins
         private readonly AdapterDisplayManager _adapterDisplayManager;
         private readonly MonumentHelper _monumentHelper;
         private readonly WireToolManager _wireToolManager;
+        private readonly IOManager _ioManager = new IOManager();
 
         private readonly Color[] _distinctColors = new Color[]
         {
@@ -151,6 +152,7 @@ namespace Oxide.Plugins
             _uniqueNameRegistry.OnServerInitialized();
             _adapterListenerManager.OnServerInitialized();
             _monumentHelper.OnServerInitialized();
+            _ioManager.OnServerInitialized();
 
             var entitiesToKill = _profileStateData.CleanDisabledProfileState();
             if (entitiesToKill.Count > 0)
@@ -297,7 +299,7 @@ namespace Oxide.Plugins
                 return;
 
             controller.EntityData.Scale = scale;
-            controller.HandleChanges();
+            controller.StartHandleChangesRoutine();
             _profileStore.Save(controller.Profile);
         }
 
@@ -669,7 +671,11 @@ namespace Oxide.Plugins
 
             controller.Profile.RemoveData(adapter.Data);
             _profileStore.Save(controller.Profile);
-            controller.Kill(adapter.Data);
+            var killRoutine = controller.Kill(adapter.Data);
+            if (killRoutine != null)
+            {
+                controller.ProfileController.StartCallbackRoutine(killRoutine, controller.ProfileController.SetupIO);
+            }
 
             ReplyToPlayer(player, LangEntry.KillSuccess, GetAddonName(player, adapter.Data), numAdapters, controller.Profile.Name);
 
@@ -700,7 +706,7 @@ namespace Oxide.Plugins
 
             controller.EntityData.CCTV.RCIdentifier = args[0];
             _profileStore.Save(controller.Profile);
-            controller.HandleChanges();
+            controller.StartHandleChangesRoutine();
 
             ReplyToPlayer(player, LangEntry.CCTVSetIdSuccess, args[0], controller.Adapters.Count, controller.Profile.Name);
 
@@ -732,7 +738,7 @@ namespace Oxide.Plugins
             controller.EntityData.CCTV.Pitch = lookAngles.x;
             controller.EntityData.CCTV.Yaw = lookAngles.y;
             _profileStore.Save(controller.Profile);
-            controller.HandleChanges();
+            controller.StartHandleChangesRoutine();
 
             ReplyToPlayer(player, LangEntry.CCTVSetDirectionSuccess, controller.Adapters.Count, controller.Profile.Name);
 
@@ -774,7 +780,7 @@ namespace Oxide.Plugins
 
             controller.EntityData.Skin = skinId;
             _profileStore.Save(controller.Profile);
-            controller.HandleChanges();
+            controller.StartHandleChangesRoutine();
 
             ReplyToPlayer(player, LangEntry.SkinSetSuccess, skinId, controller.Adapters.Count, controller.Profile.Name);
 
@@ -1108,7 +1114,11 @@ namespace Oxide.Plugins
                     }
 
                     _profileStore.Save(oldProfile);
-                    addonController.Kill();
+                    var killRoutine = addonController.Kill();
+                    if (killRoutine != null)
+                    {
+                        oldProfileController.StartCallbackRoutine(killRoutine, oldProfileController.SetupIO);
+                    }
 
                     newProfile.AddData(monumentAliasOrShortName, data);
                     _profileStore.Save(newProfile);
@@ -1595,7 +1605,7 @@ namespace Oxide.Plugins
                     var prefabMatch = matchingPrefabs[0];
 
                     spawnGroupData.Prefabs.Remove(prefabMatch);
-                    spawnGroupController.KillSpawnedInstances(prefabMatch.PrefabName);
+                    spawnGroupController.StartKillSpawnedInstancesRoutine(prefabMatch.PrefabName);
                     spawnGroupController.UpdateSpawnGroups();
                     _profileStore.Save(spawnGroupController.Profile);
 
@@ -1612,7 +1622,7 @@ namespace Oxide.Plugins
                     if (!VerifyLookingAtAdapter(player, out spawnGroupController, LangEntry.ErrorNoSpawnPointFound))
                         return;
 
-                    spawnGroupController.SpawnTick();
+                    spawnGroupController.StartSpawnRoutine();
                     _adapterDisplayManager.ShowAllRepeatedly(basePlayer);
                     break;
                 }
@@ -1623,7 +1633,7 @@ namespace Oxide.Plugins
                     if (!VerifyLookingAtAdapter(player, out spawnGroupController, LangEntry.ErrorNoSpawnPointFound))
                         return;
 
-                    spawnGroupController.Respawn();
+                    spawnGroupController.StartRespawnRoutine();
                     _adapterDisplayManager.ShowAllRepeatedly(basePlayer);
                     break;
                 }
@@ -3634,6 +3644,12 @@ namespace Oxide.Plugins
             public static Coroutine StartGlobalCoroutine(IEnumerator enumerator) =>
                 ServerMgr.Instance?.StartCoroutine(enumerator);
 
+            private static IEnumerator CallbackRoutine(Coroutine dependency, Action action)
+            {
+                yield return dependency;
+                action();
+            }
+
             // Object for tracking all coroutines for spawning or updating entities.
             // This allows easily stopping all those coroutines by simply destroying the game object.
             private MonoBehaviour _coroutineComponent;
@@ -3641,9 +3657,16 @@ namespace Oxide.Plugins
             public Coroutine StartCoroutine(IEnumerator enumerator)
             {
                 if (_coroutineComponent == null)
+                {
                     _coroutineComponent = new GameObject().AddComponent<EmptyMonoBehavior>();
+                }
 
                 return _coroutineComponent.StartCoroutine(enumerator);
+            }
+
+            public Coroutine StartCallbackRoutine(Coroutine coroutine, Action callback)
+            {
+                return StartCoroutine(CallbackRoutine(coroutine, callback));
             }
 
             public void StopAll()
@@ -4136,7 +4159,7 @@ namespace Oxide.Plugins
                 sourceAdapter.EntityData.AddIOConnection(connectionData);
                 _profileStore.Save(sourceAdapter.Controller.Profile);
 
-                (sourceAdapter.Controller as SingleEntityController).HandleChanges();
+                (sourceAdapter.Controller as SingleEntityController).StartHandleChangesRoutine();
                 session.Reset();
 
                 Ddraw.Sphere(player, adapter.Transform.TransformPoint(slot.handlePosition), DrawSlotRadius, Color.green, DrawDuration);
@@ -4160,15 +4183,24 @@ namespace Oxide.Plugins
                     return;
 
                 SingleEntityAdapter sourceAdapter;
+                SingleEntityAdapter destinationAdapter;
                 int sourceSlotIndex;
 
                 if (isSourceSlot)
                 {
                     sourceAdapter = adapter;
                     sourceSlotIndex = slotIndex;
+
+                    var destinationEntity = slot.connectedTo.Get();
+
+                    SingleEntityController destinationController;
+                    if (!_entityTracker.IsMonumentEntity(destinationEntity, out destinationAdapter, out destinationController))
+                        return;
                 }
                 else
                 {
+                    destinationAdapter = adapter;
+
                     var sourceEntity = slot.connectedTo.Get();
 
                     SingleEntityController sourceController;
@@ -4180,7 +4212,9 @@ namespace Oxide.Plugins
 
                 sourceAdapter.EntityData.RemoveIOConnection(sourceSlotIndex);
                 _profileStore.Save(sourceAdapter.Controller.Profile);
-                (sourceAdapter.Controller as SingleEntityController).HandleChanges();
+                var handleChangesRoutine = (sourceAdapter.Controller as SingleEntityController).StartHandleChangesRoutine();
+                destinationAdapter.ProfileController.StartCallbackRoutine(handleChangesRoutine,
+                    () => (destinationAdapter.Controller as SingleEntityController).StartHandleChangesRoutine());
             }
 
             private void ProcessPlayers()
@@ -4828,6 +4862,7 @@ namespace Oxide.Plugins
 
             protected Configuration _pluginConfig => PluginInstance._pluginConfig;
             protected ProfileStateData _profileStateData => PluginInstance._profileStateData;
+            protected IOManager _ioManager => PluginInstance._ioManager;
 
             // Subclasses can override this to wait more than one frame for spawn/kill operations.
             public IEnumerator WaitInstruction { get; protected set; }
@@ -4944,21 +4979,24 @@ namespace Oxide.Plugins
             }
 
             // Subclasses can override this if they need to kill child data (e.g., spawn point data).
-            public virtual void Kill(BaseIdentifiableData data)
+            public virtual Coroutine Kill(BaseIdentifiableData data)
             {
                 PreUnload();
 
+                Coroutine coroutine = null;
+
                 if (Adapters.Count > 0)
                 {
-                    CoroutineManager.StartGlobalCoroutine(KillRoutine());
+                    coroutine = CoroutineManager.StartGlobalCoroutine(KillRoutine());
                 }
 
                 ProfileController.OnControllerKilled(this);
+                return coroutine;
             }
 
-            public void Kill()
+            public Coroutine Kill()
             {
-                Kill(Data);
+                return Kill(Data);
             }
 
             public void PreUnload()
@@ -5112,6 +5150,7 @@ namespace Oxide.Plugins
                     Inputs = new Dictionary<int, Vector3>
                     {
                         [0] = new Vector3(0, 0.9f, 0),
+                        [1] = new Vector3(0, 0.85f, 0),
                     },
                 },
                 ["assets/prefabs/io/electric/switches/simpleswitch/simpleswitch.prefab"] = new IOEntityOverrideInfo
@@ -5422,7 +5461,7 @@ namespace Oxide.Plugins
                 if (hasChanged)
                 {
                     var singleEntityController = Controller as SingleEntityController;
-                    singleEntityController.HandleChanges();
+                    singleEntityController.StartHandleChangesRoutine();
                     PluginInstance._profileStore.Save(singleEntityController.Profile);
                 }
 
@@ -5436,6 +5475,7 @@ namespace Oxide.Plugins
                 UpdateScale();
                 UpdateBuildingGrade();
                 UpdateIOConnections();
+                MaybeProvidePower();
             }
 
             public void UpdateIOConnections()
@@ -5467,9 +5507,7 @@ namespace Oxide.Plugins
                             // Existing destination entity or slot is incorrect.
                             if (destinationSlot != null)
                             {
-                                destinationSlot.Clear();
-                                destinationEntity.MarkDirtyForceUpdateOutputs();
-                                destinationEntity.SendNetworkUpdate();
+                                ClearIOSlot(destinationEntity, destinationSlot);
                             }
 
                             destinationEntity = intendedDestinationEntity;
@@ -5491,7 +5529,7 @@ namespace Oxide.Plugins
                             continue;
                         }
 
-                        SetupSlot(sourceSlot, destinationEntity, connectionData.ConnectedToSlot, connectionData.Color);
+                        SetupIOSlot(sourceSlot, destinationEntity, connectionData.ConnectedToSlot, connectionData.Color);
 
                         if (sourceSlot.type != IOType.Kinetic && destinationSlot.type != IOType.Kinetic)
                         {
@@ -5507,18 +5545,16 @@ namespace Oxide.Plugins
                             }
                         }
 
-                        SetupSlot(destinationSlot, ioEntity, connectionData.Slot, connectionData.Color);
+                        SetupIOSlot(destinationSlot, ioEntity, connectionData.Slot, connectionData.Color);
                         destinationEntity.SendNetworkUpdate();
 
-                        hasChanged = true;
                         continue;
                     }
-                    else if (destinationSlot != null)
+
+                    if (destinationSlot != null)
                     {
                         // No connection data saved, so clear existing connection.
-                        destinationSlot.Clear();
-                        destinationEntity.MarkDirtyForceUpdateOutputs();
-                        destinationEntity.SendNetworkUpdate();
+                        ClearIOSlot(destinationEntity, destinationSlot);
 
                         sourceSlot.Clear();
                         hasChanged = true;
@@ -5531,6 +5567,15 @@ namespace Oxide.Plugins
                     ioEntity.SendNetworkUpdate();
                     ioEntity.SendChangedToRoot(forceUpdate: true);
                 }
+            }
+
+            public void MaybeProvidePower()
+            {
+                var ioEntity = Entity as IOEntity;
+                if ((object)ioEntity == null)
+                    return;
+
+                _ioManager.MaybeProvidePower(ioEntity);
             }
 
             protected virtual void PreEntitySpawn()
@@ -5556,9 +5601,7 @@ namespace Oxide.Plugins
                 var ioEntity = Entity as IOEntity;
                 if (ioEntity != null)
                 {
-                    ioEntity.SetFlag(BaseEntity.Flags.On, true);
-                    ioEntity.SetFlag(IOEntity.Flag_HasPower, true);
-                    UpdateIOEntitySlots(ioEntity);
+                    UpdateIOEntitySlotPositions(ioEntity);
                 }
             }
 
@@ -5832,7 +5875,7 @@ namespace Oxide.Plugins
                 buildingBlock.baseProtection = PluginInstance._immortalProtection;
             }
 
-            private void UpdateIOEntitySlots(IOEntity ioEntity)
+            private void UpdateIOEntitySlotPositions(IOEntity ioEntity)
             {
                 IOEntityOverrideInfo overrideInfo;
                 if (!IOOverridesByEntity.TryGetValue(ioEntity.PrefabName, out overrideInfo))
@@ -5857,12 +5900,20 @@ namespace Oxide.Plugins
                 }
             }
 
-            private void SetupSlot(IOSlot slot, IOEntity otherEntity, int otherSlotIndex, WireColour color)
+            private void SetupIOSlot(IOSlot slot, IOEntity otherEntity, int otherSlotIndex, WireColour color)
             {
                 slot.connectedTo.Set(otherEntity);
                 slot.connectedToSlot = otherSlotIndex;
                 slot.wireColour = color;
                 slot.connectedTo.Init();
+            }
+
+            private void ClearIOSlot(IOEntity ioEntity, IOSlot slot)
+            {
+                slot.Clear();
+
+                ioEntity.MarkDirtyForceUpdateOutputs();
+                ioEntity.SendNetworkUpdate();
             }
         }
 
@@ -5876,9 +5927,9 @@ namespace Oxide.Plugins
             public override BaseAdapter CreateAdapter(BaseMonument monument) =>
                 new SingleEntityAdapter(this, EntityData, monument);
 
-            public void HandleChanges()
+            public Coroutine StartHandleChangesRoutine()
             {
-                ProfileController.StartCoroutine(HandleChangesRoutine());
+                return ProfileController.StartCoroutine(HandleChangesRoutine());
             }
 
             public Dictionary<string, object> GetVendingDataProvider()
@@ -5971,16 +6022,6 @@ namespace Oxide.Plugins
                 }
 
                 Entity.SetFlag(BaseEntity.Flags.Locked, true);
-            }
-
-            protected override void PostEntitySpawn()
-            {
-                base.PostEntitySpawn();
-
-                // This must be done after spawning to allow the animation to work.
-                var neonSign = Entity as NeonSign;
-                if (neonSign != null)
-                    neonSign.UpdateFromInput(neonSign.ConsumptionAmount(), 0);
             }
 
             protected override void PreEntityKill()
@@ -7097,22 +7138,22 @@ namespace Oxide.Plugins
             public override BaseAdapter CreateAdapter(BaseMonument monument) =>
                 new SpawnGroupAdapter(SpawnGroupData, this, monument);
 
-            public override void Kill(BaseIdentifiableData data)
+            public override Coroutine Kill(BaseIdentifiableData data)
             {
                 if (data == Data)
                 {
-                    base.Kill(data);
-                    return;
+                    return base.Kill(data);
                 }
 
                 var spawnPointData = data as SpawnPointData;
                 if (spawnPointData != null)
                 {
                     KillSpawnPoint(spawnPointData);
-                    return;
+                    return null;
                 }
 
                 Logger.Error($"{nameof(SpawnGroupController)}.{nameof(Kill)} not implemented for type {data.GetType()}. Killing {nameof(SpawnGroupController)}.");
+                return null;
             }
 
             public void CreateSpawnPoint(SpawnPointData spawnPointData)
@@ -7133,13 +7174,13 @@ namespace Oxide.Plugins
                     spawnGroupAdapter.UpdateSpawnGroup();
             }
 
-            public void SpawnTick() =>
+            public void StartSpawnRoutine() =>
                 ProfileController.StartCoroutine(SpawnTickRoutine());
 
-            public void KillSpawnedInstances(string prefabName) =>
+            public void StartKillSpawnedInstancesRoutine(string prefabName) =>
                 ProfileController.StartCoroutine(KillSpawnedInstancesRoutine(prefabName));
 
-            public void Respawn() =>
+            public void StartRespawnRoutine() =>
                 ProfileController.StartCoroutine(RespawnRoutine());
 
             private IEnumerator SpawnTickRoutine()
@@ -7676,6 +7717,130 @@ namespace Oxide.Plugins
 
         #endregion
 
+        #region IO Manager
+
+        private class IOManager
+        {
+            private const int FreePowerAmount = 1000;
+
+            private static bool HasInput(IOEntity ioEntity, IOType ioType)
+            {
+                foreach (var input in ioEntity.inputs)
+                {
+                    if (input.type == ioType)
+                        return true;
+                }
+
+                return false;
+            }
+
+            private static bool HasConnectedInput(IOEntity ioEntity, int inputSlot)
+            {
+                return inputSlot < ioEntity.inputs.Length
+                    && ioEntity.inputs[inputSlot].connectedTo.Get() != null;
+            }
+
+            private readonly int[] _defaultInputSlots = { 0 };
+
+            private readonly Type[] _dontPowerPrefabsOfType =
+            {
+                typeof(ANDSwitch),
+                typeof(CustomDoorManipulator),
+                typeof(DoorManipulator),
+                typeof(ORSwitch),
+                typeof(RFBroadcaster),
+                typeof(TeslaCoil),
+                typeof(XORSwitch),
+
+                // Has inputs to move the lift but does not consume power.
+                typeof(Elevator),
+
+                // Has inputs to toggle on/off but does not consume power.
+                typeof(FuelGenerator),
+
+                // Has audio input only.
+                typeof(AudioVisualisationEntityLight),
+                typeof(ConnectedSpeaker),
+
+                // Has no power input.
+                typeof(FogMachine),
+                typeof(SnowMachine),
+                typeof(StrobeLight),
+            };
+
+            private readonly Dictionary<string, int[]> _inputSlotsByPrefabName = new Dictionary<string, int[]>
+            {
+                ["assets/prefabs/deployable/playerioents/gates/combiner/electrical.combiner.deployed.prefab"] = new[] { 0, 1 },
+                ["assets/prefabs/deployable/playerioents/fluidswitch/fluidswitch.prefab"] = new[] { 2 },
+                ["assets/prefabs/deployable/playerioents/industrialconveyor/industrialconveyor.deployed.prefab"] = new[] { 1 },
+                ["assets/prefabs/deployable/playerioents/industrialcrafter/industrialcrafter.deployed.prefab"] = new[] { 1 },
+                ["assets/prefabs/deployable/playerioents/poweredwaterpurifier/poweredwaterpurifier.deployed.prefab"] = new[] { 1 },
+            };
+
+            private readonly Dictionary<uint, int[]> _inputSlotsByPrefabId = new Dictionary<uint, int[]>();
+
+            private List<uint> _dontPowerPrefabIds = new List<uint>();
+
+            public void OnServerInitialized()
+            {
+                foreach (var prefabPath in GameManifest.Current.entities)
+                {
+                    var ioEntity = GameManager.server.FindPrefab(prefabPath)?.GetComponent<IOEntity>();
+                    if (ioEntity == null || !HasInput(ioEntity, IOType.Electric))
+                        continue;
+
+                    if (_dontPowerPrefabsOfType.Contains(ioEntity.GetType()))
+                    {
+                        _dontPowerPrefabIds.Add(ioEntity.prefabID);
+                    }
+                }
+
+                foreach (var entry in _inputSlotsByPrefabName)
+                {
+                    var ioEntity = GameManager.server.FindPrefab(entry.Key)?.GetComponent<IOEntity>();
+                    if (ioEntity == null)
+                        continue;
+
+                    _inputSlotsByPrefabId[ioEntity.prefabID] = entry.Value;
+                }
+            }
+
+            public bool MaybeProvidePower(IOEntity ioEntity)
+            {
+                if (_dontPowerPrefabIds.Contains(ioEntity.prefabID))
+                    return false;
+
+                var providedPower = false;
+
+                var inputSlotList = DeterminePowerInputSlots(ioEntity);
+
+                foreach (var inputSlot in inputSlotList)
+                {
+                    if (inputSlot >= ioEntity.inputs.Length
+                        || HasConnectedInput(ioEntity, inputSlot))
+                        continue;
+
+                    if (ioEntity.inputs[inputSlot].type != IOType.Electric)
+                        continue;
+
+                    ioEntity.UpdateFromInput(FreePowerAmount, inputSlot);
+                    providedPower = true;
+                }
+
+                return providedPower;
+            }
+
+            private int[] DeterminePowerInputSlots(IOEntity ioEntity)
+            {
+                int[] inputSlots;
+                return _inputSlotsByPrefabId.TryGetValue(ioEntity.prefabID, out inputSlots)
+                    ? inputSlots
+                    : _defaultInputSlots;
+            }
+        }
+
+        #endregion
+
         #region Adapter Display Manager
 
         private class AdapterDisplayManager
@@ -8116,8 +8281,11 @@ namespace Oxide.Plugins
             public void OnControllerKilled(BaseController controller) =>
                 _controllersByData.Remove(controller.Data);
 
-            public void StartCoroutine(IEnumerator enumerator) =>
+            public Coroutine StartCoroutine(IEnumerator enumerator) =>
                 _coroutineManager.StartCoroutine(enumerator);
+
+            public Coroutine StartCallbackRoutine(Coroutine coroutine, Action callback) =>
+                _coroutineManager.StartCallbackRoutine(coroutine, callback);
 
             public IEnumerable<T> GetControllers<T>() where T : BaseController
             {
@@ -8296,15 +8464,16 @@ namespace Oxide.Plugins
                     : (FindAdapter(guid, monument) as SingleEntityAdapter)?.Entity as T;
             }
 
-            public void SetupConnections()
+            public void SetupIO()
             {
+                // Setup connections first.
                 foreach (var entry in _controllersByData)
                 {
                     var data = entry.Key;
                     var controller = entry.Value;
 
                     var entityData = data as EntityData;
-                    if (entityData == null || entityData.IOEntityData == null)
+                    if (entityData?.IOEntityData == null)
                         continue;
 
                     var singleEntityController = controller as SingleEntityController;
@@ -8313,8 +8482,20 @@ namespace Oxide.Plugins
 
                     foreach (var adapter in singleEntityController.Adapters)
                     {
-                        var singleEntityAdapter = adapter as SingleEntityAdapter;
-                        singleEntityAdapter.UpdateIOConnections();
+                        (adapter as SingleEntityAdapter)?.UpdateIOConnections();
+                    }
+                }
+
+                // Provide free power to unconnected entities.
+                foreach (var entry in _controllersByData)
+                {
+                    var singleEntityController = entry.Value as SingleEntityController;
+                    if (singleEntityController == null)
+                        continue;
+
+                    foreach (var adapter in singleEntityController.Adapters)
+                    {
+                        (adapter as SingleEntityAdapter)?.MaybeProvidePower();
                     }
                 }
             }
@@ -8422,7 +8603,7 @@ namespace Oxide.Plugins
 
                 ProfileStatus = ProfileStatus.Loaded;
 
-                SetupConnections();
+                SetupIO();
             }
 
             private IEnumerator UnloadRoutine(IEnumerator cleanupRoutine)

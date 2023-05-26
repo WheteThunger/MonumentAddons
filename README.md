@@ -320,6 +320,22 @@ Use the following steps to set up a custom bandit wheel to allow players to gamb
 Notes:
 - If a betting terminal spawns more than 3 seconds after the wheel, the wheel won't know about it. This means that if you add more betting terminals after spawning the wheel, you will likely have to reload the profile to respawn the wheel so that it can find all the betting terminals.
 
+### Custom puzzles
+
+Recommended entities with which to build puzzles:
+
+- `generator_static` (not `generator.small`)
+- `cardreader`
+- `pressbutton` (not `button`)
+- `orswitch` (not `orswitch.entity`)
+- `doormanipulator` (not `doorcontroller.deployed`)
+- `timerswitch` (not `timer`)
+- `xorswitch` (not `xorswitch.entity`)
+- `door.hinged.security.green`, `door.hinged.security.blue`, `door.hinged.security.red`, `door.hinged.underwater_labs.security`, `door.hinged.garage_security`
+- `fusebox`
+
+Note: Kinetic IO elements such as `wheelswitch` and `sliding_blast_door` are not currently able to be controlled by electricity.
+
 ## Tips
 
 - Bind `maspawn` and `makill` to keys while setting up entities to save time. Remember that running `maspawn` without specifying the entity name will spawn whichever deployable you are currently holding. Note: You may need to rotate the placement guide in some cases because the server cannot detect which way you have it rotated.
