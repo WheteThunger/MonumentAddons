@@ -3524,6 +3524,7 @@ namespace Oxide.Plugins
                     return;
 
                 doorManipulator.SetTargetDoor(door);
+                door.SetFlag(BaseEntity.Flags.Locked, true);
             }
         }
 
@@ -5559,7 +5560,7 @@ namespace Oxide.Plugins
             public override void PreUnload()
             {
                 var targetDoor = (Entity as DoorManipulator)?.targetDoor;
-                if (targetDoor != null && !Plugin._entityTracker.IsMonumentEntity(targetDoor))
+                if (targetDoor != null)
                 {
                     targetDoor.SetFlag(BaseEntity.Flags.Locked, false);
                 }
