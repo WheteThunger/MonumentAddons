@@ -3358,7 +3358,7 @@ namespace Oxide.Plugins
 
         private static class StringUtils
         {
-            public static bool Equals(string a, string b) =>
+            public static bool EqualsCaseInsensitive(string a, string b) =>
                 string.Compare(a, b, StringComparison.OrdinalIgnoreCase) == 0;
 
             public static bool Contains(string haystack, string needle) =>
@@ -3370,26 +3370,24 @@ namespace Oxide.Plugins
             public static List<string> FindPrefabMatches(string partialName, UniqueNameRegistry uniqueNameRegistry)
             {
                 return FindMatches(
-                    partialName,
                     GameManifest.Current.entities,
                     prefabPath => StringUtils.Contains(prefabPath, partialName),
-                    prefabPath => StringUtils.Equals(prefabPath, partialName),
+                    prefabPath => StringUtils.EqualsCaseInsensitive(prefabPath, partialName),
                     prefabPath => StringUtils.Contains(uniqueNameRegistry.GetUniqueShortName(prefabPath), partialName),
-                    prefabPath => StringUtils.Equals(uniqueNameRegistry.GetUniqueShortName(prefabPath), partialName)
+                    prefabPath => StringUtils.EqualsCaseInsensitive(uniqueNameRegistry.GetUniqueShortName(prefabPath), partialName)
                 );
             }
 
             public static List<CustomAddonDefinition> FindCustomAddonMatches(string partialName, IEnumerable<CustomAddonDefinition> customAddons)
             {
                 return FindMatches(
-                    partialName,
                     customAddons,
                     addonDefinition => StringUtils.Contains(addonDefinition.AddonName, partialName),
-                    addonDefinition => StringUtils.Equals(addonDefinition.AddonName, partialName)
+                    addonDefinition => StringUtils.EqualsCaseInsensitive(addonDefinition.AddonName, partialName)
                 );
             }
 
-            public static List<T> FindMatches<T>(string partialName, IEnumerable<T> sourceList, params Func<T, bool>[] predicateList)
+            public static List<T> FindMatches<T>(IEnumerable<T> sourceList, params Func<T, bool>[] predicateList)
             {
                 List<T> results = null;
 
@@ -9327,12 +9325,11 @@ namespace Oxide.Plugins
             public List<WeightedPrefabData> FindPrefabMatches(string partialName, UniqueNameRegistry uniqueNameRegistry)
             {
                 return SearchUtils.FindMatches(
-                    partialName,
                     Prefabs,
                     prefabData => StringUtils.Contains(prefabData.PrefabName, partialName),
-                    prefabData => StringUtils.Equals(prefabData.PrefabName, partialName),
+                    prefabData => StringUtils.EqualsCaseInsensitive(prefabData.PrefabName, partialName),
                     prefabData => StringUtils.Contains(uniqueNameRegistry.GetUniqueShortName(prefabData.PrefabName), partialName),
-                    prefabData => StringUtils.Equals(uniqueNameRegistry.GetUniqueShortName(prefabData.PrefabName), partialName)
+                    prefabData => StringUtils.EqualsCaseInsensitive(uniqueNameRegistry.GetUniqueShortName(prefabData.PrefabName), partialName)
                 );
             }
         }
@@ -9938,7 +9935,7 @@ namespace Oxide.Plugins
             {
                 foreach (var name in GetProfileNames())
                 {
-                    if (StringUtils.Equals(name, profileName))
+                    if (StringUtils.EqualsCaseInsensitive(name, profileName))
                         return name;
                 }
 
