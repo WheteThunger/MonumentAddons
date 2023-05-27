@@ -405,7 +405,7 @@ namespace Oxide.Plugins
                 {
                     controller.EntityData.VendingProfile = migratedVendingProfile;
                     _profileStore.Save(controller.Profile);
-                    Logger.Warning($"Successfully migrated vending machine settings from CustomVendingSetup to MonumentAddons profile '{controller.Profile.Name}'.");
+                    LogWarning($"Successfully migrated vending machine settings from CustomVendingSetup to MonumentAddons profile '{controller.Profile.Name}'.");
                 }
             }
 
@@ -420,7 +420,7 @@ namespace Oxide.Plugins
         {
             if (MonumentFinder == null)
             {
-                Logger.Error("MonumentFinder is not loaded, get it at http://umod.org.");
+                LogError("MonumentFinder is not loaded, get it at http://umod.org.");
                 return false;
             }
 
@@ -456,7 +456,7 @@ namespace Oxide.Plugins
 
             if (apiName == null)
             {
-                Logger.Error($"Unrecognized sign type: {signage.GetType()}");
+                LogError($"Unrecognized sign type: {signage.GetType()}");
                 return;
             }
 
@@ -508,14 +508,14 @@ namespace Oxide.Plugins
                 var result = copyPaste.Call("TryPasteFromVector3Cancellable", position, yRotation, pasteData.Filename, CopyPasteArgs, onPasteCompleted, onEntityPasted);
                 if (!(result is ValueTuple<object, Action>))
                 {
-                    Logger.Error($"CopyPaste returned an unexpected response for paste \"{pasteData.Filename}\": {result}. Is CopyPaste up-to-date?");
+                    LogError($"CopyPaste returned an unexpected response for paste \"{pasteData.Filename}\": {result}. Is CopyPaste up-to-date?");
                     return null;
                 }
 
                 var pasteResult = (ValueTuple<object, Action>)result;
                 if (!true.Equals(pasteResult.Item1))
                 {
-                    Logger.Error($"CopyPaste returned an unexpected response for paste \"{pasteData.Filename}\": {pasteResult.Item1}.");
+                    LogError($"CopyPaste returned an unexpected response for paste \"{pasteData.Filename}\": {pasteResult.Item1}.");
                     return null;
                 }
 
@@ -1159,7 +1159,7 @@ namespace Oxide.Plugins
                     string monumentAliasOrShortName;
                     if (!oldProfile.RemoveData(data, out monumentAliasOrShortName))
                     {
-                        Logger.Error($"Unexpected error: {data.GetType()} {data.Id} was not found in profile {oldProfile.Name}");
+                        LogError($"Unexpected error: {data.GetType()} {data.Id} was not found in profile {oldProfile.Name}");
                         return;
                     }
 
@@ -1266,7 +1266,7 @@ namespace Oxide.Plugins
 
                         if (string.IsNullOrEmpty(urlDerivedProfileName))
                         {
-                            Logger.Error($"Unable to determine profile name from url: \"{url}\". Please ask the URL owner to supply a \"Name\" in the file.");
+                            LogError($"Unable to determine profile name from url: \"{url}\". Please ask the URL owner to supply a \"Name\" in the file.");
                             ReplyToPlayer(player, LangEntry.ProfileInstallError, url);
                             return;
                         }
@@ -1276,7 +1276,7 @@ namespace Oxide.Plugins
 
                     if (OriginalProfileStore.IsOriginalProfile(profile.Name))
                     {
-                        Logger.Error($"Profile \"{profile.Name}\" should not end with \"{OriginalProfileStore.OriginalSuffix}\".");
+                        LogError($"Profile \"{profile.Name}\" should not end with \"{OriginalProfileStore.OriginalSuffix}\".");
                         ReplyToPlayer(player, LangEntry.ProfileInstallError, url);
                         return;
                     }
@@ -1298,7 +1298,7 @@ namespace Oxide.Plugins
 
                     if (profileController == null)
                     {
-                        Logger.Error($"Profile \"{profile.Name}\" could not be found on disk after download from url: \"{url}\"");
+                        LogError($"Profile \"{profile.Name}\" could not be found on disk after download from url: \"{url}\"");
                         ReplyToPlayer(player, LangEntry.ProfileInstallError, url);
                         return;
                     }
@@ -2428,26 +2428,26 @@ namespace Oxide.Plugins
 
         private Dictionary<string, object> API_RegisterCustomAddon(Plugin plugin, string addonName, Dictionary<string, object> addonSpec)
         {
-            Logger.Warning($"API_RegisterCustomAddon is experimental and may be changed or removed in future updates.");
+            LogWarning($"API_RegisterCustomAddon is experimental and may be changed or removed in future updates.");
 
             var addonDefinition = CustomAddonDefinition.FromDictionary(addonName, plugin, addonSpec);
 
             if (addonDefinition.Spawn == null)
             {
-                Logger.Error($"Unable to register custom addon \"{addonName}\" for plugin {plugin.Name} due to missing Spawn method.");
+                LogError($"Unable to register custom addon \"{addonName}\" for plugin {plugin.Name} due to missing Spawn method.");
                 return null;
             }
 
             if (addonDefinition.Kill == null)
             {
-                Logger.Error($"Unable to register custom addon \"{addonName}\" for plugin {plugin.Name} due to missing Kill method.");
+                LogError($"Unable to register custom addon \"{addonName}\" for plugin {plugin.Name} due to missing Kill method.");
                 return null;
             }
 
             Plugin otherPlugin;
             if (_customAddonManager.IsRegistered(addonName, out otherPlugin))
             {
-                Logger.Error($"Unable to register custom addon \"{addonName}\" for plugin {plugin.Name} because it's already been registered by plugin {otherPlugin.Name}.");
+                LogError($"Unable to register custom addon \"{addonName}\" for plugin {plugin.Name} because it's already been registered by plugin {otherPlugin.Name}.");
                 return null;
             }
 
@@ -3348,13 +3348,6 @@ namespace Oxide.Plugins
         #endregion
 
         #region Helper Classes
-
-        private static class Logger
-        {
-            public static void Info(string message) => Interface.Oxide.LogInfo($"[Monument Addons] {message}");
-            public static void Error(string message) => Interface.Oxide.LogError($"[Monument Addons] {message}");
-            public static void Warning(string message) => Interface.Oxide.LogWarning($"[Monument Addons] {message}");
-        }
 
         private static class StringUtils
         {
@@ -6300,7 +6293,7 @@ namespace Oxide.Plugins
 
                 if (RemoteControlEntity.IDInUse(newIdentifier))
                 {
-                    Logger.Warning($"CCTV ID in use: {newIdentifier}");
+                    LogWarning($"CCTV ID in use: {newIdentifier}");
                     return;
                 }
 
@@ -7263,7 +7256,7 @@ namespace Oxide.Plugins
                     return null;
                 }
 
-                Logger.Error($"{nameof(SpawnGroupController)}.{nameof(Kill)} not implemented for type {data.GetType()}. Killing {nameof(SpawnGroupController)}.");
+                LogError($"{nameof(SpawnGroupController)}.{nameof(Kill)} not implemented for type {data.GetType()}. Killing {nameof(SpawnGroupController)}.");
                 return null;
             }
 
@@ -7431,13 +7424,13 @@ namespace Oxide.Plugins
             {
                 if (!PasteUtils.IsCopyPasteCompatible(Plugin.CopyPaste))
                 {
-                    Logger.Error($"Unable to paste \"{PasteData.Filename}\" for profile \"{Profile.Name}\" because CopyPaste is not loaded or its version is incompatible.");
+                    LogError($"Unable to paste \"{PasteData.Filename}\" for profile \"{Profile.Name}\" because CopyPaste is not loaded or its version is incompatible.");
                     yield break;
                 }
 
                 if (!PasteUtils.DoesPasteExist(PasteData.Filename))
                 {
-                    Logger.Error($"Unable to paste \"{PasteData.Filename}\" for profile \"{Profile.Name}\" because the file does not exist.");
+                    LogError($"Unable to paste \"{PasteData.Filename}\" for profile \"{Profile.Name}\" because the file does not exist.");
                     yield break;
                 }
 
@@ -7502,14 +7495,14 @@ namespace Oxide.Plugins
                         {
                             if (Update == null)
                             {
-                                Logger.Error($"Unable to set data for custom addon \"{AddonName}\" due to missing Update method.");
+                                LogError($"Unable to set data for custom addon \"{AddonName}\" due to missing Update method.");
                                 return;
                             }
 
                             var matchingAdapter = AdapterUsers.FirstOrDefault(adapter => adapter.Component == component);
                             if (matchingAdapter == null)
                             {
-                                Logger.Error($"Unable to set data for custom addon \"{AddonName}\" because it has no spawned instances.");
+                                LogError($"Unable to set data for custom addon \"{AddonName}\" because it has no spawned instances.");
                                 return;
                             }
 
@@ -8882,14 +8875,14 @@ namespace Oxide.Plugins
                     catch (Exception ex)
                     {
                         _pluginData.SetProfileDisabled(profileName);
-                        Logger.Error($"Disabled profile {profileName} due to error: {ex.Message}");
+                        LogError($"Disabled profile {profileName} due to error: {ex.Message}");
                         continue;
                     }
 
                     if (controller == null)
                     {
                         _pluginData.SetProfileDisabled(profileName);
-                        Logger.Warning($"Disabled profile {profileName} because its data file was not found.");
+                        LogWarning($"Disabled profile {profileName} because its data file was not found.");
                         continue;
                     }
 
@@ -8921,7 +8914,7 @@ namespace Oxide.Plugins
                         ? string.Join(", ", spawnablesSummaryList)
                         : "No addons spawned";
 
-                    Logger.Info($"Loaded profile {profile.Name}{byAuthor} ({spawnablesSummary}).");
+                    LogInfo($"Loaded profile {profile.Name}{byAuthor} ({spawnablesSummary}).");
                 }
             }
 
@@ -9583,7 +9576,7 @@ namespace Oxide.Plugins
                     return;
                 }
 
-                Logger.Error($"AddData not implemented for type: {data.GetType()}");
+                LogError($"AddData not implemented for type: {data.GetType()}");
             }
 
             public bool RemoveData(BaseIdentifiableData data)
@@ -9623,7 +9616,7 @@ namespace Oxide.Plugins
                 if (customAddonData != null)
                     return CustomAddons.Remove(customAddonData);
 
-                Logger.Error($"RemoveData not implemented for type: {data.GetType()}");
+                LogError($"RemoveData not implemented for type: {data.GetType()}");
                 return false;
             }
         }
@@ -9864,7 +9857,7 @@ namespace Oxide.Plugins
                 var migrated = ProfileDataMigration<Profile>.MigrateToLatest(profile);
                 if (migrated)
                 {
-                    Logger.Warning($"Profile {profile.Name} has been automatically migrated.");
+                    LogWarning($"Profile {profile.Name} has been automatically migrated.");
                 }
 
                 // Backfill ids if missing.
@@ -10538,7 +10531,7 @@ namespace Oxide.Plugins
 
                 if (StoredDataMigration.MigrateToLatest(profileStore, data))
                 {
-                    Logger.Warning("Data file has been automatically migrated.");
+                    LogWarning("Data file has been automatically migrated.");
                 }
 
                 if (data.DataFileVersion != originalDataFileVersion)
@@ -10808,14 +10801,14 @@ namespace Oxide.Plugins
 
                 if (MaybeUpdateConfig(_config))
                 {
-                    Logger.Warning("Configuration appears to be outdated; updating and saving");
+                    LogWarning("Configuration appears to be outdated; updating and saving");
                     SaveConfig();
                 }
             }
             catch (Exception e)
             {
-                Logger.Error(e.Message);
-                Logger.Warning($"Configuration file {Name}.json is invalid; using defaults");
+                LogError(e.Message);
+                LogWarning($"Configuration file {Name}.json is invalid; using defaults");
                 LoadDefaultConfig();
             }
         }
