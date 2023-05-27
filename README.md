@@ -117,6 +117,7 @@ The following commands only work on objects managed by this plugin. The effect o
 - `masetid <id>` -- Updates the RC identifier of the CCTV camera you are aiming at.
   - Note: Each CCTV's RC identifier will have a numeric suffix like `1`, `2`, `3` and so on. This is done because some monuments may be duplicated, and each CCTV must have a unique identifier.
 - `masetdir` -- Updates the direction of the CCTV you are aiming at, so that it points toward you.
+- `macardlevel <1-3>` (1 = green, 2 = blue, 3 = red) -- Sets the access level of the card reader you are aiming at.
 
 ### Spawn points and spawn groups
 

@@ -800,6 +800,44 @@ namespace Oxide.Plugins
             }
         }
 
+        [Command("macardlevel")]
+        private void CommandLevel(IPlayer player, string cmd, string[] args)
+        {
+            if (player.IsServer || !VerifyHasPermission(player))
+                return;
+
+            SingleEntityAdapter adapter;
+            SingleEntityController controller;
+            if (!VerifyLookingAtAdapter(player, out adapter, out controller, LangEntry.ErrorNoSuitableAddonFound))
+                return;
+
+            var cardReader = adapter.Entity as CardReader;
+            if ((object)cardReader == null)
+            {
+                ReplyToPlayer(player, LangEntry.ErrorNoSuitableAddonFound);
+                return;
+            }
+
+            int accessLevel;
+            if (args.Length < 1 || !int.TryParse(args[0], result: out accessLevel) || accessLevel < 1 || accessLevel > 3)
+            {
+                ReplyToPlayer(player, LangEntry.CardReaderSetLevelSyntax, cmd);
+                return;
+            }
+
+            if (cardReader.accessLevel != accessLevel)
+            {
+                adapter.EntityData.CardReaderLevel = (ushort)accessLevel;
+                _profileStore.Save(controller.Profile);
+                controller.StartHandleChangesRoutine();
+            }
+
+            ReplyToPlayer(player, LangEntry.CardReaderSetLevelSuccess, adapter.EntityData.CardReaderLevel);
+
+            var basePlayer = player.Object as BasePlayer;
+            _adapterDisplayManager.ShowAllRepeatedly(basePlayer);
+        }
+
         [Command("maprofile")]
         private void CommandProfile(IPlayer player, string cmd, string[] args)
         {
@@ -2374,6 +2412,7 @@ namespace Oxide.Plugins
             sb.AppendLine(GetMessage(player.Id, LangEntry.HelpSkin));
             sb.AppendLine(GetMessage(player.Id, LangEntry.HelpSetId));
             sb.AppendLine(GetMessage(player.Id, LangEntry.HelpSetDir));
+            sb.AppendLine(GetMessage(player.Id, LangEntry.HelpCardReaderLevel));
             sb.AppendLine(GetMessage(player.Id, LangEntry.HelpSpawnGroup));
             sb.AppendLine(GetMessage(player.Id, LangEntry.HelpSpawnPoint));
             sb.AppendLine(GetMessage(player.Id, LangEntry.HelpPaste));
@@ -5477,6 +5516,7 @@ namespace Oxide.Plugins
                 UpdateSkin();
                 UpdateScale();
                 UpdateBuildingGrade();
+                UpdateCardReaderLevel();
                 UpdateIOConnections();
                 MaybeProvidePower();
             }
@@ -5581,9 +5621,19 @@ namespace Oxide.Plugins
                 _ioManager.MaybeProvidePower(ioEntity);
             }
 
+            public override void PreUnload()
+            {
+                var targetDoor = (Entity as DoorManipulator)?.targetDoor;
+                if (targetDoor != null && !Plugin._entityTracker.IsMonumentEntity(targetDoor))
+                {
+                    targetDoor.SetFlag(BaseEntity.Flags.Locked, false);
+                }
+            }
+
             protected virtual void PreEntitySpawn()
             {
                 UpdateSkin();
+                UpdateCardReaderLevel();
 
                 EntitySetupUtils.PreSpawnShared(Entity);
 
@@ -5723,15 +5773,22 @@ namespace Oxide.Plugins
                 }
 
                 var doorManipulator = Entity as DoorManipulator;
-                if (doorManipulator != null && doorManipulator.targetDoor == null)
+                if (doorManipulator != null)
                 {
-                    var doorManipulator2 = doorManipulator;
-                    doorManipulator.Invoke(() =>
+                    if (doorManipulator.targetDoor != null)
                     {
-                        Plugin.TrackStart();
-                        EntityUtils.ConnectNearbyDoor(doorManipulator2);
-                        Plugin.TrackEnd();
-                    }, 1);
+                        doorManipulator.targetDoor.SetFlag(BaseEntity.Flags.Locked, true);
+                    }
+                    else
+                    {
+                        var doorManipulator2 = doorManipulator;
+                        doorManipulator.Invoke(() =>
+                        {
+                            Plugin.TrackStart();
+                            EntityUtils.ConnectNearbyDoor(doorManipulator2);
+                            Plugin.TrackEnd();
+                        }, 1);
+                    }
                 }
 
                 var spray = Entity as SprayCanSpray;
@@ -5884,6 +5941,22 @@ namespace Oxide.Plugins
                 buildingBlock.SetHealthToMax();
                 buildingBlock.SendNetworkUpdate();
                 buildingBlock.baseProtection = Plugin._immortalProtection;
+            }
+
+            private void UpdateCardReaderLevel()
+            {
+                var cardReader = Entity as CardReader;
+                if ((object)cardReader == null)
+                    return;
+
+                var accessLevel = EntityData.CardReaderLevel;
+                if (EntityData.CardReaderLevel == 0 || accessLevel == cardReader.accessLevel)
+                    return;
+
+                cardReader.accessLevel = accessLevel;
+                cardReader.SetFlag(cardReader.AccessLevel1, accessLevel == 1);
+                cardReader.SetFlag(cardReader.AccessLevel2, accessLevel == 2);
+                cardReader.SetFlag(cardReader.AccessLevel3, accessLevel == 3);
             }
 
             private void UpdateIOEntitySlotPositions(IOEntity ioEntity)
@@ -8011,6 +8084,12 @@ namespace Oxide.Plugins
                             Ddraw.Arrow(player, adapter.Position + new Vector3(0, 1.5f, 0), vehicleSpawner.transform.position, 0.25f, color, DisplayIntervalDuration);
                         }
                     }
+
+                    var doorManipulator = singleEntityAdapter.Entity as DoorManipulator;
+                    if (doorManipulator != null && doorManipulator.targetDoor != null)
+                    {
+                        Ddraw.Arrow(player, adapter.Position, doorManipulator.targetDoor.transform.position, 0.2f, color, DisplayIntervalDuration);
+                    }
                 }
 
                 var cctvIdentifier = entityData.CCTV?.RCIdentifier;
@@ -9091,6 +9170,9 @@ namespace Oxide.Plugins
             [JsonProperty("Scale", DefaultValueHandling = DefaultValueHandling.Ignore)]
             [DefaultValue(1f)]
             public float Scale = 1;
+
+            [JsonProperty("CardReaderLevel", DefaultValueHandling = DefaultValueHandling.Ignore)]
+            public ushort CardReaderLevel;
 
             [JsonProperty("BuildingBlock", DefaultValueHandling = DefaultValueHandling.Ignore)]
             public BuildingBlockInfo BuildingBlock;
@@ -10874,6 +10956,9 @@ namespace Oxide.Plugins
             public static readonly LangEntry CCTVSetIdSuccess = new LangEntry("CCTV.SetId.Success2", "Updated CCTV id to <color=#fd4>{0}</color> at <color=#fd4>{1}</color> matching monument(s) and saved to profile <color=#fd4>{2}</color>.");
             public static readonly LangEntry CCTVSetDirectionSuccess = new LangEntry("CCTV.SetDirection.Success2", "Updated CCTV direction at <color=#fd4>{0}</color> matching monument(s) and saved to profile <color=#fd4>{1}</color>.");
 
+            public static readonly LangEntry CardReaderSetLevelSyntax = new LangEntry("CardReader.SetLevel.Error.Syntax", "Syntax: <color=#fd4>{0} <1-3></color>");
+            public static readonly LangEntry CardReaderSetLevelSuccess = new LangEntry("CardReader.SetLevel.Success", "Updated card reader access level to <color=#fd4>{0}</color>.");
+
             public static readonly LangEntry ProfileListEmpty = new LangEntry("Profile.List.Empty", "You have no profiles. Create one with <color=#fd4>maprofile create <name></maprofile>");
             public static readonly LangEntry ProfileListHeader = new LangEntry("Profile.List.Header", "<size=18>Monument Addons Profiles</size>");
             public static readonly LangEntry ProfileListItemEnabled = new LangEntry("Profile.List.Item.Enabled2", "<color=#fd4>{0}</color>{1} - <color=#6e6>ENABLED</color>");
@@ -10948,6 +11033,7 @@ namespace Oxide.Plugins
             public static readonly LangEntry HelpSkin = new LangEntry("Help.Skin", "<color=#fd4>maskin <skin id></color> - Change the skin of an entity");
             public static readonly LangEntry HelpSetId = new LangEntry("Help.SetId", "<color=#fd4>masetid <id></color> - Set the id of a CCTV");
             public static readonly LangEntry HelpSetDir = new LangEntry("Help.SetDir", "<color=#fd4>masetdir</color> - Set the direction of a CCTV");
+            public static readonly LangEntry HelpCardReaderLevel = new LangEntry("Help.CardReaderLevel", "<color=#fd4>macardlevel <1-3></color> - Set a card reader's access level.");
             public static readonly LangEntry HelpSpawnGroup = new LangEntry("Help.SpawnGroup", "<color=#fd4>maspawngroup</color> - Print spawn group help");
             public static readonly LangEntry HelpSpawnPoint = new LangEntry("Help.SpawnPoint", "<color=#fd4>maspawnpoint</color> - Print spawn point help");
             public static readonly LangEntry HelpPaste = new LangEntry("Help.Paste", "<color=#fd4>mapaste <file></color> - Paste a building");
