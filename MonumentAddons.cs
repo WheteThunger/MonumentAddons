@@ -3371,7 +3371,7 @@ namespace Oxide.Plugins
             {
                 return FindMatches(
                     GameManifest.Current.entities,
-                    prefabPath => StringUtils.Contains(prefabPath, partialName),
+                    prefabPath => StringUtils.Contains(prefabPath, partialName) && FindBaseEntityForPrefab(prefabPath) != null,
                     prefabPath => StringUtils.EqualsCaseInsensitive(prefabPath, partialName),
                     prefabPath => StringUtils.Contains(uniqueNameRegistry.GetUniqueShortName(prefabPath), partialName),
                     prefabPath => StringUtils.EqualsCaseInsensitive(uniqueNameRegistry.GetUniqueShortName(prefabPath), partialName)
