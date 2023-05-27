@@ -5309,6 +5309,19 @@ namespace Oxide.Plugins
                         [5] = new Vector3(0, 0.75f, 0.5f),
                     },
                 },
+                ["assets/prefabs/io/electric/switches/splitter.prefab"] = new IOEntityOverrideInfo
+                {
+                    Inputs = new Dictionary<int, Vector3>
+                    {
+                        [0] = new Vector3(-0.03f, 1.44f, 0f),
+                    },
+                    Outputs = new Dictionary<int, Vector3>
+                    {
+                        [0] = new Vector3(-0.03f, 0.8f,0.108f),
+                        [1] = new Vector3(-0.03f, 0.8f, 0),
+                        [2] = new Vector3(-0.03f, 0.8f, -0.112f),
+                    },
+                },
             };
 
             public BaseEntity Entity { get; private set; }
