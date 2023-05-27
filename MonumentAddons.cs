@@ -537,6 +537,7 @@ namespace Oxide.Plugins
             SpawnPerTickMax,
             InitialSpawn,
             PreventDuplicates,
+            PauseScheduleWhileFull,
         }
 
         private enum SpawnPointOption
@@ -1459,6 +1460,7 @@ namespace Oxide.Plugins
                         sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnGroupSetHelpSpawnPerTickMax));
                         sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnGroupSetHelpInitialSpawn));
                         sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnGroupSetHelpPreventDuplicates));
+                        sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnGroupSetHelpPauseScheduleWhileFull));
                         player.Reply(sb.ToString());
                         return;
                     }
@@ -1549,6 +1551,18 @@ namespace Oxide.Plugins
                             break;
                         }
 
+                        case SpawnGroupOption.InitialSpawn:
+                        {
+                            bool initialSpawn;
+                            if (!VerifyValidBool(player, args[2], out initialSpawn, LangEntry.ErrorSetSyntax, cmd, SpawnGroupOption.PreventDuplicates))
+                                return;
+
+                            spawnGroupData.InitialSpawn = initialSpawn;
+                            setValue = initialSpawn;
+                            showImmediate = false;
+                            break;
+                        }
+
                         case SpawnGroupOption.PreventDuplicates:
                         {
                             bool preventDuplicates;
@@ -1561,14 +1575,14 @@ namespace Oxide.Plugins
                             break;
                         }
 
-                        case SpawnGroupOption.InitialSpawn:
+                        case SpawnGroupOption.PauseScheduleWhileFull:
                         {
-                            bool initialSpawn;
-                            if (!VerifyValidBool(player, args[2], out initialSpawn, LangEntry.ErrorSetSyntax, cmd, SpawnGroupOption.PreventDuplicates))
+                            bool pauseScheduleWhileFull;
+                            if (!VerifyValidBool(player, args[2], out pauseScheduleWhileFull, LangEntry.ErrorSetSyntax, cmd, SpawnGroupOption.PauseScheduleWhileFull))
                                 return;
 
-                            spawnGroupData.InitialSpawn = initialSpawn;
-                            setValue = initialSpawn;
+                            spawnGroupData.PauseScheduleWhileFull = pauseScheduleWhileFull;
+                            setValue = pauseScheduleWhileFull;
                             showImmediate = false;
                             break;
                         }
@@ -6713,6 +6727,8 @@ namespace Oxide.Plugins
             public override void ObjectRetired(SpawnPointInstance instance)
             {
                 _instances.Remove(instance);
+
+                Adapter.SpawnGroupAdapter.SpawnGroup.HandleObjectRetired();
             }
 
             public override bool IsAvailableTo(GameObjectRef prefabRef)
@@ -6874,6 +6890,8 @@ namespace Oxide.Plugins
             private AIInformationZone _cachedInfoZone;
             private bool _didLookForInfoZone;
 
+            private SpawnGroupData SpawnGroupData => SpawnGroupAdapter.SpawnGroupData;
+
             public void Init(SpawnGroupAdapter spawnGroupAdapter)
             {
                 SpawnGroupAdapter = spawnGroupAdapter;
@@ -6881,16 +6899,25 @@ namespace Oxide.Plugins
 
             public void UpdateSpawnClock()
             {
-                if (spawnClock.events.Count > 0)
-                {
-                    var clockEvent = spawnClock.events[0];
-                    var timeUntilSpawn = clockEvent.time - UnityEngine.Time.time;
+                if (spawnClock.events.Count == 0)
+                    return;
 
-                    if (timeUntilSpawn > SpawnGroupAdapter.SpawnGroupData.RespawnDelayMax)
-                    {
-                        clockEvent.time = UnityEngine.Time.time + SpawnGroupAdapter.SpawnGroupData.RespawnDelayMax;
-                        spawnClock.events[0] = clockEvent;
-                    }
+                var clockEvent = spawnClock.events[0];
+                var timeUntilSpawn = clockEvent.time - UnityEngine.Time.time;
+
+                if (timeUntilSpawn > SpawnGroupData.RespawnDelayMax)
+                {
+                    clockEvent.time = UnityEngine.Time.time + SpawnGroupData.RespawnDelayMax;
+                    spawnClock.events[0] = clockEvent;
+                }
+            }
+
+            public void HandleObjectRetired()
+            {
+                // Add one to current population because it was just decremented.
+                if (SpawnGroupData.PauseScheduleWhileFull && currentPopulation + 1 >= maxPopulation)
+                {
+                    ResetSpawnClock();
                 }
             }
 
@@ -6944,6 +6971,19 @@ namespace Oxide.Plugins
                 }
 
                 return _cachedInfoZone;
+            }
+
+            private void ResetSpawnClock()
+            {
+                if (spawnClock.events.Count == 0)
+                    return;
+
+                var clockEvent = spawnClock.events[0];
+                clockEvent.delta = GetSpawnDelta();
+                var variance = GetSpawnVariance();
+                clockEvent.variance = variance;
+                clockEvent.time = UnityEngine.Time.time + clockEvent.delta + UnityEngine.Random.Range(-variance, variance);
+                spawnClock.events[0] = clockEvent;
             }
 
             private void OnDestroy()
@@ -7019,7 +7059,7 @@ namespace Oxide.Plugins
         private class SpawnGroupAdapter : BaseAdapter
         {
             public SpawnGroupData SpawnGroupData { get; }
-            public List<SpawnPointAdapter> Adapters { get; } = new List<SpawnPointAdapter>();
+            public List<SpawnPointAdapter> SpawnPointAdapters { get; } = new List<SpawnPointAdapter>();
             public CustomSpawnGroup SpawnGroup { get; private set; }
 
             public SpawnGroupAdapter(SpawnGroupData spawnGroupData, BaseController controller, BaseMonument monument) : base(spawnGroupData, controller, monument)
@@ -7069,7 +7109,7 @@ namespace Oxide.Plugins
 
             public override void PreUnload()
             {
-                foreach (var adapter in Adapters)
+                foreach (var adapter in SpawnPointAdapters)
                 {
                     adapter.PreUnload();
                 }
@@ -7077,14 +7117,14 @@ namespace Oxide.Plugins
 
             public void OnSpawnPointAdapterKilled(SpawnPointAdapter spawnPointAdapter)
             {
-                Adapters.Remove(spawnPointAdapter);
+                SpawnPointAdapters.Remove(spawnPointAdapter);
 
                 if (SpawnGroup != null)
                 {
                     UpdateSpawnPointReferences();
                 }
 
-                if (Adapters.Count == 0)
+                if (SpawnPointAdapters.Count == 0)
                 {
                     Controller.OnAdapterKilled(this);
                 }
@@ -7092,7 +7132,7 @@ namespace Oxide.Plugins
 
             public void OnSpawnGroupKilled(CustomSpawnGroup spawnGroup)
             {
-                foreach (var spawnPointAdapter in Adapters.ToList())
+                foreach (var spawnPointAdapter in SpawnPointAdapters.ToList())
                 {
                     spawnPointAdapter.Kill();
                 }
@@ -7147,20 +7187,20 @@ namespace Oxide.Plugins
 
             private void UpdateSpawnPointReferences()
             {
-                if (!SpawnGroup.gameObject.activeSelf || SpawnGroup.spawnPoints.Length == Adapters.Count)
+                if (!SpawnGroup.gameObject.activeSelf || SpawnGroup.spawnPoints.Length == SpawnPointAdapters.Count)
                     return;
 
-                SpawnGroup.spawnPoints = new BaseSpawnPoint[Adapters.Count];
+                SpawnGroup.spawnPoints = new BaseSpawnPoint[SpawnPointAdapters.Count];
 
-                for (var i = 0; i < Adapters.Count; i++)
+                for (var i = 0; i < SpawnPointAdapters.Count; i++)
                 {
-                    SpawnGroup.spawnPoints[i] = Adapters[i].SpawnPoint;
+                    SpawnGroup.spawnPoints[i] = SpawnPointAdapters[i].SpawnPoint;
                 }
             }
 
             private void UpdateSpawnPointPositions()
             {
-                foreach (var adapter in Adapters)
+                foreach (var adapter in SpawnPointAdapters)
                 {
                     if (!adapter.IsAtIntendedPosition)
                     {
@@ -7184,14 +7224,14 @@ namespace Oxide.Plugins
 
             public void KillSpawnedInstances(string prefabName)
             {
-                foreach (var spawnPointAdapter in Adapters)
+                foreach (var spawnPointAdapter in SpawnPointAdapters)
                     spawnPointAdapter.KillSpawnedInstances(prefabName);
             }
 
             public void CreateSpawnPoint(SpawnPointData spawnPointData)
             {
                 var spawnPointAdapter = new SpawnPointAdapter(spawnPointData, this, Controller, Monument);
-                Adapters.Add(spawnPointAdapter);
+                SpawnPointAdapters.Add(spawnPointAdapter);
                 spawnPointAdapter.Spawn();
 
                 if (SpawnGroup.gameObject.activeSelf)
@@ -7207,7 +7247,7 @@ namespace Oxide.Plugins
 
             private SpawnPointAdapter FindSpawnPoint(SpawnPointData spawnPointData)
             {
-                foreach (var spawnPointAdapter in Adapters)
+                foreach (var spawnPointAdapter in SpawnPointAdapters)
                 {
                     if (spawnPointAdapter.SpawnPointData == spawnPointData)
                         return spawnPointAdapter;
@@ -8154,6 +8194,11 @@ namespace Oxide.Plugins
                         groupBooleanProperties.Add(_plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelPreventDuplicates));
                     }
 
+                    if (spawnGroupData.PauseScheduleWhileFull)
+                    {
+                        groupBooleanProperties.Add(_plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelPauseScheduleWhileFull));
+                    }
+
                     if (groupBooleanProperties.Count > 0)
                     {
                         _sb.AppendLine(_plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelFlags, string.Join(" | ", groupBooleanProperties)));
@@ -8167,16 +8212,18 @@ namespace Oxide.Plugins
                         _sb.AppendLine(_plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelRespawnDelay, FormatTime(spawnGroupData.RespawnDelayMin), FormatTime(spawnGroupData.RespawnDelayMax)));
                     }
 
-                    var nextSpawnTime = GetTimeToNextSpawn(spawnGroupAdapter.SpawnGroup);
+                    var spawnGroup = spawnGroupAdapter.SpawnGroup;
+
+                    var nextSpawnTime = GetTimeToNextSpawn(spawnGroup);
                     if (nextSpawnTime != float.PositiveInfinity)
                     {
-                        _sb.AppendLine(_plugin.GetMessage(
-                            player.UserIDString,
-                            LangEntry.ShowLabelNextSpawn,
-                            nextSpawnTime <= 0
+                        var nextSpawnMessage = spawnGroupData.PauseScheduleWhileFull && spawnGroup.currentPopulation >= spawnGroup.maxPopulation
+                            ? _plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelNextSpawnPaused)
+                            : nextSpawnTime <= 0
                                 ? _plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelNextSpawnQueued)
-                                : FormatTime(Mathf.CeilToInt(nextSpawnTime))
-                        ));
+                                : FormatTime(Mathf.CeilToInt(nextSpawnTime));
+
+                        _sb.AppendLine(_plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelNextSpawn, nextSpawnMessage));
                     }
 
                     if (spawnGroupData.Prefabs.Count > 0)
@@ -8195,7 +8242,7 @@ namespace Oxide.Plugins
                         _sb.AppendLine(_plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelNoEntities));
                     }
 
-                    foreach (var otherAdapter in spawnGroupAdapter.Adapters)
+                    foreach (var otherAdapter in spawnGroupAdapter.SpawnPointAdapters)
                     {
                         Ddraw.Arrow(player, otherAdapter.Position + ArrowVerticalOffeset, adapter.Position + ArrowVerticalOffeset, 0.25f, color, DisplayIntervalDuration);
                     }
@@ -8267,7 +8314,7 @@ namespace Oxide.Plugins
                         SpawnPointAdapter closestSpawnPointAdapter = null;
                         var closestDistanceSquared = float.MaxValue;
 
-                        foreach (var spawnPointAdapter in spawnGroupAdapter.Adapters)
+                        foreach (var spawnPointAdapter in spawnGroupAdapter.SpawnPointAdapters)
                         {
                             var adapterDistanceSquared = (spawnPointAdapter.Position - playerPosition).sqrMagnitude;
                             if (adapterDistanceSquared < closestDistanceSquared)
@@ -8279,7 +8326,7 @@ namespace Oxide.Plugins
 
                         if (closestDistanceSquared <= DisplayDistanceSquared)
                         {
-                            foreach (var spawnPointAdapter in spawnGroupAdapter.Adapters)
+                            foreach (var spawnPointAdapter in spawnGroupAdapter.SpawnPointAdapters)
                             {
                                 ShowSpawnPointInfo(player, spawnPointAdapter, spawnGroupAdapter, playerInfo, showGroupInfo: spawnPointAdapter == closestSpawnPointAdapter);
                             }
@@ -8420,7 +8467,7 @@ namespace Oxide.Plugins
                         var spawnGroupAdapter = adapter as SpawnGroupAdapter;
                         if (spawnGroupAdapter != null)
                         {
-                            foreach (var childAdapter in spawnGroupAdapter.Adapters.OfType<T>())
+                            foreach (var childAdapter in spawnGroupAdapter.SpawnPointAdapters.OfType<T>())
                             {
                                 yield return childAdapter;
                             }
@@ -9256,6 +9303,9 @@ namespace Oxide.Plugins
 
             [JsonProperty("RespawnDelayMax")]
             public float RespawnDelayMax = 2100;
+
+            [JsonProperty("PauseScheduleWhileFull")]
+            public bool PauseScheduleWhileFull;
 
             // Default to true for backwards compatibility.
             [JsonProperty("InitialSpawn")]
@@ -10867,6 +10917,7 @@ namespace Oxide.Plugins
             public static readonly LangEntry SpawnGroupSetHelpSpawnPerTickMax = new LangEntry("SpawnGroup.Set.Help.SpawnPerTickMax", "<color=#fd4>SpawnPerTickMax</color>: number");
             public static readonly LangEntry SpawnGroupSetHelpInitialSpawn = new LangEntry("SpawnGroup.Set.Help.InitialSpawn", "<color=#fd4>InitialSpawn</color>: true | false");
             public static readonly LangEntry SpawnGroupSetHelpPreventDuplicates = new LangEntry("SpawnGroup.Set.Help.PreventDuplicates", "<color=#fd4>PreventDuplicates</color>: true | false");
+            public static readonly LangEntry SpawnGroupSetHelpPauseScheduleWhileFull = new LangEntry("SpawnGroup.Set.Help.PauseScheduleWhileFull","<color=#fd4>PauseScheduleWhileFull</color>: true | false");
 
             public static readonly LangEntry SpawnPointSetHelpExclusive = new LangEntry("SpawnPoint.Set.Help.Exclusive", "<color=#fd4>Exclusive</color>: true | false");
             public static readonly LangEntry SpawnPointSetHelpSnapToGround = new LangEntry("SpawnPoint.Set.Help.SnapToGround", "<color=#fd4>SnapToGround</color>: true | false");
@@ -10909,11 +10960,13 @@ namespace Oxide.Plugins
             public static readonly LangEntry ShowLabelSpawnOnMapWipe = new LangEntry("Show.Label.SpawnOnMapWipe", "Spawn on map wipe");
             public static readonly LangEntry ShowLabelInitialSpawn = new LangEntry("Show.Label.InitialSpawn", "InitialSpawn");
             public static readonly LangEntry ShowLabelPreventDuplicates = new LangEntry("Show.Label.PreventDuplicates2", "PreventDuplicates");
+            public static readonly LangEntry ShowLabelPauseScheduleWhileFull = new LangEntry("Show.Label.PauseScheduleWhileFull", "PauseScheduleWhileFull");
             public static readonly LangEntry ShowLabelPopulation = new LangEntry("Show.Label.Population", "Population: {0} / {1}");
             public static readonly LangEntry ShowLabelRespawnPerTick = new LangEntry("Show.Label.RespawnPerTick", "Spawn per tick: {0} - {1}");
             public static readonly LangEntry ShowLabelRespawnDelay = new LangEntry("Show.Label.RespawnDelay", "Respawn delay: {0} - {1}");
             public static readonly LangEntry ShowLabelNextSpawn = new LangEntry("Show.Label.NextSpawn", "Next spawn: {0}");
             public static readonly LangEntry ShowLabelNextSpawnQueued = new LangEntry("Show.Label.NextSpawn.Queued", "Queued");
+            public static readonly LangEntry ShowLabelNextSpawnPaused = new LangEntry("Show.Label.NextSpawn.Paused", "Paused");
             public static readonly LangEntry ShowLabelEntities = new LangEntry("Show.Label.Entities", "Entities:");
             public static readonly LangEntry ShowLabelEntityDetail = new LangEntry("Show.Label.Entities.Detail2", "{0} | weight: {1} ({2:P1})");
             public static readonly LangEntry ShowLabelNoEntities = new LangEntry("Show.Label.NoEntities", "No entities configured. Run /maspawngroup add <entity> <weight>");
