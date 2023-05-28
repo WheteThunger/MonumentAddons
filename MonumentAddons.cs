@@ -8938,8 +8938,8 @@ namespace Oxide.Plugins
             public void Rename(string newName)
             {
                 _pluginData.RenameProfileReferences(Profile.Name, newName);
-                Plugin._originalProfileStore.CopyTo(Profile, newName);
-                Plugin._profileStore.CopyTo(Profile, newName);
+                Plugin._originalProfileStore.MoveTo(Profile, newName);
+                Plugin._profileStore.MoveTo(Profile, newName);
             }
 
             public void Enable(Profile newProfileData)
@@ -10251,6 +10251,11 @@ namespace Oxide.Plugins
                 Interface.Oxide.DataFileSystem.WriteObject(GetFilepath(filename), data);
             }
 
+            public void Delete(string filename)
+            {
+                Interface.Oxide.DataFileSystem.DeleteDataFile(GetFilepath(filename));
+            }
+
             protected virtual string GetFilepath(string filename)
             {
                 return $"{_directoryPath}{filename}";
@@ -10278,14 +10283,16 @@ namespace Oxide.Plugins
                 base.Save(profile.Name, profile);
             }
 
-            public void CopyTo(Profile profile, string newName)
+            public void MoveTo(Profile profile, string newName)
             {
                 var original = LoadIfExists(profile.Name);
                 if (original == null)
                     return;
 
+                var oldName = original.Name;
                 original.Name = newName;
                 Save(original);
+                Delete(oldName);
             }
         }
 
@@ -10382,10 +10389,12 @@ namespace Oxide.Plugins
                 return profile;
             }
 
-            public void CopyTo(Profile profile, string newName)
+            public void MoveTo(Profile profile, string newName)
             {
+                var oldName = profile.Name;
                 profile.Name = newName;
                 Save(profile);
+                Delete(oldName);
             }
 
             public void EnsureDefaultProfile()
@@ -11500,7 +11509,7 @@ namespace Oxide.Plugins
             public static readonly LangEntry ProfileAlreadyExists = new LangEntry("Profile.Error.AlreadyExists", "Error: Profile <color=#fd4>{0}</color> already exists.");
             public static readonly LangEntry ProfileCreateSuccess = new LangEntry("Profile.Create.Success", "Successfully created and <color=#6cf>SELECTED</color> profile <color=#fd4>{0}</color>.");
             public static readonly LangEntry ProfileRenameSyntax = new LangEntry("Profile.Rename.Syntax", "Syntax: <color=#fd4>maprofile rename <old name> <new name></color>");
-            public static readonly LangEntry ProfileRenameSuccess = new LangEntry("Profile.Rename.Success", "Successfully renamed profile <color=#fd4>{0}</color> to <color=#fd4>{1}</color>. You must manually delete the old <color=#fd4>{0}</color> data file.");
+            public static readonly LangEntry ProfileRenameSuccess = new LangEntry("Profile.Rename.Success2", "Successfully renamed profile <color=#fd4>{0}</color> to <color=#fd4>{1}</color>");
             public static readonly LangEntry ProfileClearSyntax = new LangEntry("Profile.Clear.Syntax", "Syntax: <color=#fd4>maprofile clear <name></color>");
             public static readonly LangEntry ProfileClearSuccess = new LangEntry("Profile.Clear.Success", "Successfully cleared profile <color=#fd4>{0}</color>.");
             public static readonly LangEntry ProfileMoveToSyntax = new LangEntry("Profile.MoveTo.Syntax", "Syntax: <color=#fd4>maprofile moveto <name></color>");
