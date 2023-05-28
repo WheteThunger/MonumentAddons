@@ -13,6 +13,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Globalization;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using UnityEngine;
 using VLB;
@@ -527,6 +528,13 @@ namespace Oxide.Plugins
 
         #region Commands
 
+        private enum PuzzleOption
+        {
+            PlayersBlockReset,
+            PlayerDetectionRadius,
+            SecondsBetweenResets,
+        }
+
         private enum SpawnGroupOption
         {
             Name,
@@ -601,7 +609,7 @@ namespace Oxide.Plugins
                     localRotationAngles.y -= 90;
                 }
 
-                addonData = new EntityData
+                var entityData = new EntityData
                 {
                     Id = Guid.NewGuid(),
                     Skin = skinId,
@@ -610,6 +618,18 @@ namespace Oxide.Plugins
                     RotationAngles = localRotationAngles,
                     SnapToTerrain = isOnTerrain,
                 };
+
+                if (shortPrefabName.StartsWith("generator.static"))
+                {
+                    entityData.Puzzle = new PuzzleData
+                    {
+                        PlayersBlockReset = true,
+                        PlayerDetectionRadius = 30,
+                        SecondsBetweenResets = 1800,
+                    };
+                }
+
+                addonData = entityData;
             }
             else
             {
@@ -837,6 +857,181 @@ namespace Oxide.Plugins
 
             var basePlayer = player.Object as BasePlayer;
             _adapterDisplayManager.ShowAllRepeatedly(basePlayer);
+        }
+
+        [Command("mapuzzle")]
+        private void CommandPuzzle(IPlayer player, string cmd, string[] args)
+        {
+            if (player.IsServer || !VerifyHasPermission(player))
+                return;
+
+            if (args.Length == 0)
+            {
+                SubCommandPuzzleHelp(player, cmd);
+                return;
+            }
+
+            var basePlayer = player.Object as BasePlayer;
+
+            switch (args[0].ToLower())
+            {
+                case "reset":
+                {
+                    EntityAdapter adapter;
+                    EntityController controller;
+                    if (!VerifyLookingAtAdapter(player, out adapter, out controller, LangEntry.ErrorNoSuitableAddonFound))
+                        return;
+
+                    var ioEntity = adapter.Entity as IOEntity;
+                    var puzzleReset = ioEntity != null ? FindConnectedPuzzleReset(ioEntity) : null;
+                    if (puzzleReset == null)
+                    {
+                        ReplyToPlayer(player, LangEntry.PuzzleNotConnected, _uniqueNameRegistry.GetUniqueShortName(adapter.Entity.PrefabName));
+                        return;
+                    }
+
+                    puzzleReset.DoReset();
+                    puzzleReset.ResetTimer();
+                    ReplyToPlayer(player, LangEntry.PuzzleResetSuccess);
+                    break;
+                }
+
+                case "add":
+                case "remove":
+                {
+                    var isAdd = args[0] == "add";
+                    if (args.Length < 2)
+                    {
+                        ReplyToPlayer(player, isAdd ? LangEntry.PuzzleAddSpawnGroupSyntax : LangEntry.PuzzleRemoveSpawnGroupSyntax, cmd);
+                        return;
+                    }
+
+                    EntityAdapter adapter;
+                    EntityController controller;
+                    PuzzleReset puzzleReset;
+                    if (!VerifyLookingAtAdapter(player, out adapter, out controller, LangEntry.ErrorNoSuitableAddonFound)
+                        || !VerifyEntityComponent(player, adapter.Entity, out puzzleReset, LangEntry.PuzzleNotPresent))
+                        return;
+
+                    SpawnGroupController spawnGroupController;
+                    if (!VerifySpawnGroupFound(player, args[1], adapter.Monument, out spawnGroupController))
+                        return;
+
+                    var spawnGroupData = spawnGroupController.SpawnGroupData;
+                    var spawnGroupId = spawnGroupData.Id;
+                    var puzzleData = controller.EntityData.EnsurePuzzleData(puzzleReset);
+
+                    if (!isAdd)
+                    {
+                        puzzleData.RemoveSpawnGroupId(spawnGroupId);
+                    }
+                    else if (!puzzleData.HasSpawnGroupId(spawnGroupId))
+                    {
+                        puzzleData.AddSpawnGroupId(spawnGroupId);
+                    }
+
+                    controller.StartHandleChangesRoutine();
+                    _profileStore.Save(controller.Profile);
+
+                    ReplyToPlayer(player, isAdd ? LangEntry.PuzzleAddSpawnGroupSuccess : LangEntry.PuzzleRemoveSpawnGroupSuccess, spawnGroupData.Name);
+
+                    _adapterDisplayManager.ShowAllRepeatedly(basePlayer, immediate: false);
+                    break;
+                }
+
+                case "set":
+                {
+                    if (args.Length < 3)
+                    {
+                        var sb = new StringBuilder();
+                        sb.AppendLine(GetMessage(player.Id, LangEntry.ErrorSetSyntaxGeneric, cmd));
+                        sb.AppendLine(GetMessage(player.Id, LangEntry.PuzzleSetHelpMaxPlayersBlockReset));
+                        sb.AppendLine(GetMessage(player.Id, LangEntry.PuzzleSetHelpPlayerDetectionRadius));
+                        sb.AppendLine(GetMessage(player.Id, LangEntry.PuzzleSetHelpSecondsBetweenResets));
+                        player.Reply(sb.ToString());
+                        return;
+                    }
+
+                    PuzzleOption puzzleOption;
+                    if (!VerifyValidEnumValue(player, args[1], out puzzleOption))
+                        return;
+
+                    EntityAdapter adapter;
+                    EntityController controller;
+                    PuzzleReset puzzleReset;
+                    if (!VerifyLookingAtAdapter(player, out adapter, out controller, LangEntry.ErrorNoSuitableAddonFound)
+                        || !VerifyEntityComponent(player, adapter.Entity, out puzzleReset, LangEntry.PuzzleNotPresent))
+                        return;
+
+                    var puzzleData = controller.EntityData.EnsurePuzzleData(puzzleReset);
+
+                    object setValue = args[2];
+                    var showImmediate = true;
+
+                    switch (puzzleOption)
+                    {
+                        case PuzzleOption.PlayersBlockReset:
+                        {
+                            bool playerBlockReset;
+                            if (!VerifyValidBool(player, args[2], out playerBlockReset, LangEntry.ErrorSetSyntax, cmd, PuzzleOption.PlayersBlockReset))
+                                return;
+
+                            puzzleData.PlayersBlockReset = playerBlockReset;
+                            setValue = playerBlockReset;
+                            showImmediate = false;
+                            break;
+                        }
+
+                        case PuzzleOption.PlayerDetectionRadius:
+                        {
+                            float playerDetectionRadius;
+                            if (!VerifyValidFloat(player, args[2], out playerDetectionRadius, LangEntry.ErrorSetSyntax, cmd, PuzzleOption.PlayerDetectionRadius))
+                                return;
+
+                            puzzleData.PlayersBlockReset = true;
+                            puzzleData.PlayerDetectionRadius = playerDetectionRadius;
+                            setValue = playerDetectionRadius;
+                            break;
+                        }
+
+                        case PuzzleOption.SecondsBetweenResets:
+                        {
+                            float secondsBetweenResets;
+                            if (!VerifyValidFloat(player, args[2], out secondsBetweenResets, LangEntry.ErrorSetSyntax, cmd, PuzzleOption.SecondsBetweenResets))
+                                return;
+
+                            puzzleData.SecondsBetweenResets = secondsBetweenResets;
+                            setValue = secondsBetweenResets;
+                            break;
+                        }
+                    }
+
+                    controller.StartHandleChangesRoutine();
+                    _profileStore.Save(controller.Profile);
+
+                    ReplyToPlayer(player, LangEntry.PuzzleSetSuccess, puzzleOption, setValue);
+
+                    _adapterDisplayManager.ShowAllRepeatedly(basePlayer, immediate: showImmediate);
+                    break;
+                }
+
+                default:
+                {
+                    SubCommandPuzzleHelp(player, cmd);
+                    break;
+                }
+            }
+        }
+
+        private void SubCommandPuzzleHelp(IPlayer player, string cmd)
+        {
+            var sb = new StringBuilder();
+            sb.AppendLine(GetMessage(player.Id, LangEntry.PuzzleHelpHeader, cmd));
+            sb.AppendLine(GetMessage(player.Id, LangEntry.PuzzleHelpReset, cmd));
+            sb.AppendLine(GetMessage(player.Id, LangEntry.PuzzleHelpSet, cmd));
+            sb.AppendLine(GetMessage(player.Id, LangEntry.PuzzleHelpAdd, cmd));
+            sb.AppendLine(GetMessage(player.Id, LangEntry.PuzzleHelpRemove, cmd));
+            player.Reply(sb.ToString());
         }
 
         [Command("maprofile")]
@@ -1466,11 +1661,8 @@ namespace Oxide.Plugins
                     }
 
                     SpawnGroupOption spawnGroupOption;
-                    if (!TryParseEnum(args[1], out spawnGroupOption))
-                    {
-                        ReplyToPlayer(player, LangEntry.ErrorSetUnknownOption, args[1]);
+                    if (!VerifyValidEnumValue(player, args[1], out spawnGroupOption))
                         return;
-                    }
 
                     SpawnPointAdapter spawnPointAdapter;
                     SpawnGroupController spawnGroupController;
@@ -1806,11 +1998,8 @@ namespace Oxide.Plugins
                     }
 
                     SpawnPointOption spawnPointOption;
-                    if (!TryParseEnum(args[1], out spawnPointOption))
-                    {
-                        ReplyToPlayer(player, LangEntry.ErrorSetUnknownOption, args[1]);
+                    if (!VerifyValidEnumValue(player, args[1], out spawnPointOption))
                         return;
-                    }
 
                     SpawnPointAdapter spawnPointAdapter;
                     SpawnGroupController spawnGroupController;
@@ -2427,6 +2616,7 @@ namespace Oxide.Plugins
             sb.AppendLine(GetMessage(player.Id, LangEntry.HelpSetId));
             sb.AppendLine(GetMessage(player.Id, LangEntry.HelpSetDir));
             sb.AppendLine(GetMessage(player.Id, LangEntry.HelpCardReaderLevel));
+            sb.AppendLine(GetMessage(player.Id, LangEntry.HelpPuzzle));
             sb.AppendLine(GetMessage(player.Id, LangEntry.HelpSpawnGroup));
             sb.AppendLine(GetMessage(player.Id, LangEntry.HelpSpawnPoint));
             sb.AppendLine(GetMessage(player.Id, LangEntry.HelpPaste));
@@ -2509,6 +2699,15 @@ namespace Oxide.Plugins
                 return true;
 
             ReplyToPlayer(player, errorLangEntry, args);
+            return false;
+        }
+
+        private bool VerifyValidEnumValue<T>(IPlayer player, string arg, out T enumValue) where T : struct
+        {
+            if (TryParseEnum(arg, out enumValue))
+                return true;
+
+            ReplyToPlayer(player, LangEntry.ErrorSetUnknownOption, arg);
             return false;
         }
 
@@ -2715,9 +2914,9 @@ namespace Oxide.Plugins
             return result;
         }
 
-        private bool VerifySpawnGroupFound(IPlayer player, string partialGroupName, BaseMonument closestMonument, out SpawnGroupController spawnGroupController)
+        private bool VerifySpawnGroupFound(IPlayer player, string partialGroupName, BaseMonument monument, out SpawnGroupController spawnGroupController)
         {
-            var matches = FindSpawnGroups(partialGroupName, closestMonument.AliasOrShortName, partialMatch: true).ToList();
+            var matches = FindSpawnGroups(partialGroupName, monument.AliasOrShortName, partialMatch: true).ToList();
 
             spawnGroupController = matches.FirstOrDefault();
 
@@ -2807,6 +3006,15 @@ namespace Oxide.Plugins
                 return true;
 
             ReplyToPlayer(player, LangEntry.SpawnGroupCreateNameInUse, spawnGroupName, monument.AliasOrShortName, profile.Name);
+            return false;
+        }
+
+        private bool VerifyEntityComponent<T>(IPlayer player, BaseEntity entity, out T component, LangEntry errorLangEntry) where T : UnityEngine.Component
+        {
+            if (entity.gameObject.TryGetComponent(out component))
+                return true;
+
+            ReplyToPlayer(player, errorLangEntry);
             return false;
         }
 
@@ -2930,12 +3138,14 @@ namespace Oxide.Plugins
                 if (profile != null && spawnGroupController.Profile != profile)
                     continue;
 
+                var spawnGroupName = spawnGroupController.SpawnGroupData.Name;
+
                 if (partialMatch)
                 {
-                    if (spawnGroupController.SpawnGroupData.Name.IndexOf(partialGroupName, StringComparison.InvariantCultureIgnoreCase) == -1)
+                    if (spawnGroupName.IndexOf(partialGroupName, StringComparison.InvariantCultureIgnoreCase) == -1)
                         continue;
                 }
-                else if (!spawnGroupController.SpawnGroupData.Name.Equals(partialGroupName, StringComparison.InvariantCultureIgnoreCase))
+                else if (!spawnGroupName.Equals(partialGroupName, StringComparison.InvariantCultureIgnoreCase))
                     continue;
 
                 // Can only select a spawn group for the same monument.
@@ -2945,6 +3155,34 @@ namespace Oxide.Plugins
 
                 yield return spawnGroupController;
             }
+        }
+
+        private PuzzleReset FindConnectedPuzzleReset(IOEntity ioEntity, HashSet<IOEntity> visited = null)
+        {
+            var puzzleReset = ioEntity.GetComponent<PuzzleReset>();
+            if (puzzleReset != null)
+                return puzzleReset;
+
+            foreach (var slot in ioEntity.inputs)
+            {
+                var otherEntity = slot.connectedTo.Get();
+                if (otherEntity == null)
+                    continue;
+
+                if (visited == null)
+                {
+                    visited = new HashSet<IOEntity> { ioEntity };
+                }
+
+                if (!visited.Add(otherEntity))
+                    continue;
+
+                puzzleReset = FindConnectedPuzzleReset(otherEntity, visited);
+                if (puzzleReset != null)
+                    return puzzleReset;
+            }
+
+            return null;
         }
 
         private SpawnPointAdapter GetSpawnPointAdapter(BaseEntity entity)
@@ -3140,18 +3378,18 @@ namespace Oxide.Plugins
             }
         }
 
-        private static bool TryParseEnum<TEnum>(string arg, out TEnum enumValue) where TEnum : struct
+        private static bool TryParseEnum<T>(string arg, out T enumValue) where T : struct
         {
-            foreach (var value in Enum.GetValues(typeof(TEnum)))
+            foreach (var value in Enum.GetValues(typeof(T)))
             {
                 if (value.ToString().IndexOf(arg, StringComparison.InvariantCultureIgnoreCase) >= 0)
                 {
-                    enumValue = (TEnum)value;
+                    enumValue = (T)value;
                     return true;
                 }
             }
 
-            enumValue = default(TEnum);
+            enumValue = default(T);
             return false;
         }
 
@@ -5269,6 +5507,8 @@ namespace Oxide.Plugins
 
             public Transform Transform { get; private set; }
 
+            private PuzzleResetHandler _puzzleResetHandler;
+
             private BuildingGrade.Enum IntendedBuildingGrade
             {
                 get
@@ -5452,6 +5692,7 @@ namespace Oxide.Plugins
                 UpdateSkin();
                 UpdateScale();
                 UpdateBuildingGrade();
+                UpdatePuzzle();
                 UpdateCardReaderLevel();
                 UpdateIOConnections();
                 MaybeProvidePower();
@@ -5559,10 +5800,32 @@ namespace Oxide.Plugins
 
             public override void PreUnload()
             {
+                if (_puzzleResetHandler != null)
+                {
+                    _puzzleResetHandler.Destroy();
+                }
+
                 var targetDoor = (Entity as DoorManipulator)?.targetDoor;
                 if (targetDoor != null)
                 {
                     targetDoor.SetFlag(BaseEntity.Flags.Locked, false);
+                }
+            }
+
+            public void HandlePuzzleReset()
+            {
+                var spawnGroupIdList = EntityData.Puzzle?.SpawnGroupIds;
+                if (spawnGroupIdList == null)
+                    return;
+
+                foreach (var spawnGroupId in spawnGroupIdList)
+                {
+                    var spawnGroupAdapter = ProfileController.FindAdapter(spawnGroupId, Monument) as SpawnGroupAdapter;
+                    if (spawnGroupAdapter == null)
+                        continue;
+
+                    spawnGroupAdapter.SpawnGroup.Clear();
+                    spawnGroupAdapter.SpawnGroup.DelayedSpawn();
                 }
             }
 
@@ -5597,6 +5860,8 @@ namespace Oxide.Plugins
             protected virtual void PostEntitySpawn()
             {
                 EntitySetupUtils.PostSpawnShared(Plugin, Entity, _config.EnableEntitySaving);
+
+                UpdatePuzzle();
 
                 // NPCVendingMachine needs its skin updated after spawn because vanilla sets it to 861142659.
                 UpdateSkin();
@@ -5925,6 +6190,28 @@ namespace Oxide.Plugins
                 buildingBlock.SetHealthToMax();
                 buildingBlock.SendNetworkUpdate();
                 buildingBlock.baseProtection = Plugin._immortalProtection;
+            }
+
+            private void UpdatePuzzle()
+            {
+                if (EntityData.Puzzle == null)
+                    return;
+
+                var puzzleReset = (Entity as IOEntity)?.GetComponent<PuzzleReset>();
+                if (puzzleReset == null)
+                    return;
+
+                puzzleReset.playersBlockReset = EntityData.Puzzle.PlayersBlockReset;
+                puzzleReset.playerDetectionRadius = EntityData.Puzzle.PlayerDetectionRadius;
+                puzzleReset.timeBetweenResets = EntityData.Puzzle.SecondsBetweenResets;
+
+                if (EntityData.Puzzle.SpawnGroupIds?.Count > 0)
+                {
+                    if (_puzzleResetHandler == null)
+                    {
+                        _puzzleResetHandler = PuzzleResetHandler.Create(this, puzzleReset);
+                    }
+                }
             }
 
             private void UpdateCardReaderLevel()
@@ -6577,6 +6864,29 @@ namespace Oxide.Plugins
         #endregion
 
         #region SpawnGroup Adapter/Controller
+
+        private class PuzzleResetHandler : FacepunchBehaviour
+        {
+            public static PuzzleResetHandler Create(EntityAdapter adapter, PuzzleReset puzzleReset)
+            {
+                var gameObject = new GameObject();
+                gameObject.transform.SetParent(puzzleReset.transform);
+                var component = gameObject.AddComponent<PuzzleResetHandler>();
+                component._adapter = adapter;
+                puzzleReset.resetObjects = new[] { gameObject };
+                return component;
+            }
+
+            private EntityAdapter _adapter;
+
+            // Called by Rust via Unity SendMessage.
+            private void OnPuzzleReset()
+            {
+                _adapter.HandlePuzzleReset();
+            }
+
+            public void Destroy() => Destroy(gameObject);
+        }
 
         private class SpawnedVehicleComponent : FacepunchBehaviour
         {
@@ -8079,7 +8389,69 @@ namespace Oxide.Plugins
                 }
             }
 
-            private void ShowEntityInfo(BasePlayer player, EntityAdapter adapter, PlayerInfo playerInfo)
+            private void ShowPuzzleInfo(BasePlayer player, EntityAdapter adapter, PuzzleReset puzzleReset, Vector3 playerPosition, PlayerInfo playerInfo)
+            {
+                _sb.AppendLine(Divider);
+                _sb.AppendLine($"<size=25>{_plugin.GetMessage(player.UserIDString, LangEntry.ShowHeaderPuzzle)}</size>");
+                _sb.AppendLine(_plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelPuzzlePlayersBlockReset, puzzleReset.playersBlockReset));
+
+                if (puzzleReset.playersBlockReset)
+                {
+                    var playersInRadius = PuzzleReset.AnyPlayersWithinDistance(puzzleReset.playerDetectionOrigin, puzzleReset.playerDetectionRadius);
+                    _sb.AppendLine(_plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelPuzzlePlayerDetectionRadius, puzzleReset.playerDetectionRadius) + (playersInRadius ? " (!)" : ""));
+                }
+
+                _sb.AppendLine(_plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelPuzzleTimeBetweenResets, FormatTime(puzzleReset.timeBetweenResets)));
+
+                var resetTimeElapsedField = typeof(PuzzleReset).GetField("resetTimeElapsed", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+                if (resetTimeElapsedField != null)
+                {
+                    var resetTimeElapsed = (float)resetTimeElapsedField.GetValue(puzzleReset);
+                    var timeRemaining = puzzleReset.GetResetSpacing() - resetTimeElapsed;
+                    var nextResetMessage = timeRemaining > 0
+                        ? FormatTime(timeRemaining)
+                        : _plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelPuzzleNextResetOverdue);
+
+                    _sb.AppendLine(_plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelPuzzleNextReset, nextResetMessage));
+                }
+
+                var profileController = adapter.ProfileController;
+
+                var spawnGroupIdList = adapter.EntityData.Puzzle?.SpawnGroupIds;
+                if (spawnGroupIdList != null)
+                {
+                    List<string> spawnGroupNameList = null;
+
+                    foreach (var spawnGroupId in spawnGroupIdList)
+                    {
+                        var spawnGroupAdapter = profileController.FindAdapter(spawnGroupId, adapter.Monument) as SpawnGroupAdapter;
+                        if (spawnGroupAdapter == null)
+                            continue;
+
+                        if (spawnGroupNameList == null)
+                        {
+                            spawnGroupNameList = Facepunch.Pool.GetList<string>();
+                        }
+
+                        spawnGroupNameList.Add(spawnGroupAdapter.SpawnGroupData.Name);
+
+                        float closestDistanceSquared;
+                        var spawnPointAdapter = FindClosestSpawnPointAdapter(spawnGroupAdapter, playerPosition, out closestDistanceSquared);
+                        if (spawnPointAdapter != null)
+                        {
+                            Ddraw.Arrow(player, adapter.Position + ArrowVerticalOffeset, spawnPointAdapter.Position + ArrowVerticalOffeset, 0.25f, DetermineColor(spawnPointAdapter, playerInfo, profileController), DisplayIntervalDuration);
+                        }
+                    }
+
+                    if (spawnGroupNameList != null)
+                    {
+                        _sb.AppendLine(_plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelPuzzleSpawnGroups, string.Join(", ", spawnGroupNameList)));
+                        Facepunch.Pool.FreeList(ref spawnGroupNameList);
+                    }
+                }
+            }
+
+            private void ShowEntityInfo(BasePlayer player, EntityAdapter adapter, Vector3 playerPosition, PlayerInfo playerInfo)
             {
                 var entityData = adapter.EntityData;
                 var controller = adapter.Controller;
@@ -8126,6 +8498,12 @@ namespace Oxide.Plugins
                     {
                         _sb.AppendLine(_plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelRCIdentifier, identifier));
                     }
+                }
+
+                var puzzleReset = (adapter.Entity as IOEntity)?.GetComponent<PuzzleReset>();
+                if (puzzleReset != null)
+                {
+                    ShowPuzzleInfo(player, adapter, puzzleReset, playerPosition, playerInfo);
                 }
 
                 Ddraw.Text(player, adapter.Position, _sb.ToString(), color, DisplayIntervalDuration);
@@ -8287,6 +8665,24 @@ namespace Oxide.Plugins
                 Ddraw.Text(player, adapter.Position, _sb.ToString(), color, DisplayIntervalDuration);
             }
 
+            private SpawnPointAdapter FindClosestSpawnPointAdapter(SpawnGroupAdapter spawnGroupAdapter, Vector3 origin, out float closestDistanceSquared)
+            {
+                SpawnPointAdapter closestSpawnPointAdapter = null;
+                closestDistanceSquared = float.MaxValue;
+
+                foreach (var spawnPointAdapter in spawnGroupAdapter.SpawnPointAdapters)
+                {
+                    var adapterDistanceSquared = (spawnPointAdapter.Position - origin).sqrMagnitude;
+                    if (adapterDistanceSquared < closestDistanceSquared)
+                    {
+                        closestSpawnPointAdapter = spawnPointAdapter;
+                        closestDistanceSquared = adapterDistanceSquared;
+                    }
+                }
+
+                return closestSpawnPointAdapter;
+            }
+
             private void ShowNearbyAdapters(BasePlayer player, Vector3 playerPosition, PlayerInfo playerInfo)
             {
                 var isAdmin = player.IsAdmin;
@@ -8303,7 +8699,7 @@ namespace Oxide.Plugins
                     {
                         if ((playerPosition - entityAdapter.Position).sqrMagnitude <= DisplayDistanceSquared)
                         {
-                            ShowEntityInfo(player, entityAdapter, playerInfo);
+                            ShowEntityInfo(player, entityAdapter, playerPosition, playerInfo);
                         }
 
                         continue;
@@ -8312,18 +8708,8 @@ namespace Oxide.Plugins
                     var spawnGroupAdapter = adapter as SpawnGroupAdapter;
                     if (spawnGroupAdapter != null)
                     {
-                        SpawnPointAdapter closestSpawnPointAdapter = null;
-                        var closestDistanceSquared = float.MaxValue;
-
-                        foreach (var spawnPointAdapter in spawnGroupAdapter.SpawnPointAdapters)
-                        {
-                            var adapterDistanceSquared = (spawnPointAdapter.Position - playerPosition).sqrMagnitude;
-                            if (adapterDistanceSquared < closestDistanceSquared)
-                            {
-                                closestSpawnPointAdapter = spawnPointAdapter;
-                                closestDistanceSquared = adapterDistanceSquared;
-                            }
-                        }
+                        float closestDistanceSquared;
+                        var closestSpawnPointAdapter = FindClosestSpawnPointAdapter(spawnGroupAdapter, playerPosition, out closestDistanceSquared);
 
                         if (closestDistanceSquared <= DisplayDistanceSquared)
                         {
@@ -9194,6 +9580,43 @@ namespace Oxide.Plugins
             }
         }
 
+        private class PuzzleData
+        {
+            [JsonProperty("PlayersBlockReset")]
+            public bool PlayersBlockReset;
+
+            [JsonProperty("PlayerDetectionRadius")]
+            public float PlayerDetectionRadius;
+
+            [JsonProperty("SecondsBetweenResets")]
+            public float SecondsBetweenResets;
+
+            [JsonProperty("SpawnGroupIds", DefaultValueHandling = DefaultValueHandling.Ignore)]
+            public List<Guid> SpawnGroupIds;
+
+            public bool ShouldSerializeSpawnGroupIds() => SpawnGroupIds?.Count > 0;
+
+            public bool HasSpawnGroupId(Guid spawnGroupId)
+            {
+                return SpawnGroupIds?.Contains(spawnGroupId) ?? false;
+            }
+
+            public void AddSpawnGroupId(Guid spawnGroupId)
+            {
+                if (SpawnGroupIds == null)
+                {
+                    SpawnGroupIds = new List<Guid>();
+                }
+
+                SpawnGroupIds.Add(spawnGroupId);
+            }
+
+            public void RemoveSpawnGroupId(Guid spawnGroupId)
+            {
+                SpawnGroupIds?.Remove(spawnGroupId);
+            }
+        }
+
         private class EntityData : BaseTransformData
         {
             [JsonProperty("PrefabName", Order = -5)]
@@ -9201,6 +9624,9 @@ namespace Oxide.Plugins
 
             [JsonProperty("Skin", DefaultValueHandling = DefaultValueHandling.Ignore)]
             public ulong Skin;
+
+            [JsonProperty("Puzzle", DefaultValueHandling = DefaultValueHandling.Ignore)]
+            public PuzzleData Puzzle;
 
             [JsonProperty("Scale", DefaultValueHandling = DefaultValueHandling.Ignore)]
             [DefaultValue(1f)]
@@ -9248,6 +9674,21 @@ namespace Oxide.Plugins
 
                 RemoveIOConnection(connectionData.Slot);
                 IOEntityData.Outputs.Add(connectionData);
+            }
+
+            public PuzzleData EnsurePuzzleData(PuzzleReset puzzleReset)
+            {
+                if (Puzzle == null)
+                {
+                    Puzzle = new PuzzleData
+                    {
+                        PlayersBlockReset = puzzleReset.playersBlockReset,
+                        PlayerDetectionRadius = puzzleReset.playerDetectionRadius,
+                        SecondsBetweenResets = puzzleReset.timeBetweenResets,
+                    };
+                }
+
+                return Puzzle;
             }
         }
 
@@ -9621,6 +10062,7 @@ namespace Oxide.Plugins
                         if (parentSpawnGroupData.SpawnPoints.Count == 0)
                         {
                             SpawnGroups.Remove(parentSpawnGroupData);
+                            CleanSpawnGroupReferences(parentSpawnGroupData.Id);
                         }
 
                         return true;
@@ -9639,6 +10081,14 @@ namespace Oxide.Plugins
 
                 LogError($"RemoveData not implemented for type: {data.GetType()}");
                 return false;
+            }
+
+            private void CleanSpawnGroupReferences(Guid id)
+            {
+                foreach (var entityData in Entities)
+                {
+                    entityData.Puzzle?.SpawnGroupIds?.Remove(id);
+                }
             }
         }
 
@@ -10893,7 +11343,7 @@ namespace Oxide.Plugins
             public static readonly LangEntry SpawnGroupRemoveSuccess = new LangEntry("SpawnGroup.Remove.Success", "Successfully removed entity <color=#fd4>{0}</color> from spawn group <color=#fd4>{1}</color>.");
 
             public static readonly LangEntry SpawnGroupNotFound = new LangEntry("SpawnGroup.NotFound", "No spawn group found with name: <color=#fd4>{0}</color>");
-            public static readonly LangEntry SpawnGroupMultipeMatches = new LangEntry("SpawnGroup.MultipeMatches", "Multiple spawn groupds found matching name: <color=#fd4>{0}</color>");
+            public static readonly LangEntry SpawnGroupMultipeMatches = new LangEntry("SpawnGroup.MultipeMatches2", "Multiple spawn groups found matching name: <color=#fd4>{0}</color>");
             public static readonly LangEntry SpawnPointCreateSyntax = new LangEntry("SpawnPoint.Create.Syntax", "Syntax: <color=#fd4>{0} create <group_name></color>");
             public static readonly LangEntry SpawnPointCreateSuccess = new LangEntry("SpawnPoint.Create.Success", "Successfully added spawn point to spawn group <color=#fd4>{0}</color>.");
             public static readonly LangEntry SpawnPointSetSuccess = new LangEntry("SpawnPoint.Set.Success", "Successfully updated spawn point with option <color=#fd4>{0}</color>: <color=#fd4>{1}</color>.");
@@ -10926,6 +11376,25 @@ namespace Oxide.Plugins
             public static readonly LangEntry SpawnPointSetHelpRandomRotation = new LangEntry("SpawnPoint.Set.Help.RandomRotation", "<color=#fd4>RandomRotation</color>: true | false");
             public static readonly LangEntry SpawnPointSetHelpRandomRadius = new LangEntry("SpawnPoint.Set.Help.RandomRadius", "<color=#fd4>RandomRadius</color>: number");
 
+            public static readonly LangEntry PuzzleAddSpawnGroupSyntax = new LangEntry("Puzzle.AddSpawnGroup.Syntax", "Syntax: <color=#fd4>{0} add <group_name></color>");
+            public static readonly LangEntry PuzzleAddSpawnGroupSuccess = new LangEntry("Puzzle.AddSpawnGroup.Success", "Successfully added spawn group <color=#fd4>{0}</color> to puzzle.");
+            public static readonly LangEntry PuzzleRemoveSpawnGroupSyntax = new LangEntry("Puzzle.RemoveSpawnGroup.Syntax", "Syntax: <color=#fd4>{0} remove <group_name></color>");
+            public static readonly LangEntry PuzzleRemoveSpawnGroupSuccess = new LangEntry("Puzzle.RemoveSpawnGroup.Success", "Successfully removed spawn group <color=#fd4>{0}</color> from puzzle.");
+            public static readonly LangEntry PuzzleNotPresent = new LangEntry("Puzzle.Error.NotPresent", "That is not a puzzle entity.");
+            public static readonly LangEntry PuzzleNotConnected = new LangEntry("Puzzle.Error.NotConnected", "Entity <color=#fd4>{0}</color> is not connected to a puzzle.");
+            public static readonly LangEntry PuzzleResetSuccess = new LangEntry("Puzzle.Reset.Success", "Puzzle successfully reset.");
+            public static readonly LangEntry PuzzleSetSuccess = new LangEntry("Puzzle.Set.Success", "Successfully updated puzzle with option <color=#fd4>{0}</color>: <color=#fd4>{1}</color>.");
+
+            public static readonly LangEntry PuzzleHelpHeader = new LangEntry("Puzzle.Help.Header", "<size=18>Monument Addons Puzzle Commands</size>");
+            public static readonly LangEntry PuzzleHelpReset = new LangEntry("Puzzle.Help.Reset", "<color=#fd4>{0} reset</color> - Reset the puzzle connected to the entity you are looking at");
+            public static readonly LangEntry PuzzleHelpSet = new LangEntry("Puzzle.Help.Set", "<color=#fd4>{0} set <option> <value></color> - Set a property of a puzzle");
+            public static readonly LangEntry PuzzleHelpAdd = new LangEntry("Puzzle.Help.Add", "<color=#fd4>{0} add <group_name></color> - Associate a spawn group with a puzzle");
+            public static readonly LangEntry PuzzleHelpRemove = new LangEntry("Puzzle.Help.Remove", "<color=#fd4>{0} remove <group_name></color> - Disassociate a spawn group with a puzzle");
+
+            public static readonly LangEntry PuzzleSetHelpMaxPlayersBlockReset = new LangEntry("Puzzle.Set.Help.MaxPlayersBlockReset", "<color=#fd4>PlayersBlockReset</color>: true | false");
+            public static readonly LangEntry PuzzleSetHelpPlayerDetectionRadius = new LangEntry("Puzzle.Set.Help.PlayerDetectionRadius", "<color=#fd4>PlayerDetectionRadius</color>: number");
+            public static readonly LangEntry PuzzleSetHelpSecondsBetweenResets = new LangEntry("Puzzle.Set.Help.SecondsBetweenResets", "<color=#fd4>SecondsBetweenResets</color>: number");
+
             public static readonly LangEntry ShowVanillaNoSpawnPoints = new LangEntry("Show.Vanilla.NoSpawnPoints", "No spawn points found in <color=#fd4>{0}</color>.");
             public static readonly LangEntry GenerateSuccess = new LangEntry("Generate.Success", "Successfully generated profile <color=#fd4>{0}</color>.");
 
@@ -10939,6 +11408,7 @@ namespace Oxide.Plugins
             public static readonly LangEntry ShowLabelRCIdentifier = new LangEntry("Show.Label.RCIdentifier", "RC Identifier: {0}");
 
             public static readonly LangEntry ShowHeaderEntity = new LangEntry("Show.Header.Entity", "Entity: {0}");
+            public static readonly LangEntry ShowHeaderPuzzle = new LangEntry("Show.Header.Puzzle", "Puzzle");
             public static readonly LangEntry ShowHeaderSpawnGroup = new LangEntry("Show.Header.SpawnGroup", "Spawn Group: {0}");
             public static readonly LangEntry ShowHeaderVanillaSpawnGroup = new LangEntry("Show.Header.Vanilla.SpawnGroup", "Vanilla Spawn Group: {0}");
             public static readonly LangEntry ShowHeaderSpawnPoint = new LangEntry("Show.Header.SpawnPoint", "Spawn Point ({0})");
@@ -10971,6 +11441,13 @@ namespace Oxide.Plugins
             public static readonly LangEntry ShowLabelEntities = new LangEntry("Show.Label.Entities", "Entities:");
             public static readonly LangEntry ShowLabelEntityDetail = new LangEntry("Show.Label.Entities.Detail2", "{0} | weight: {1} ({2:P1})");
             public static readonly LangEntry ShowLabelNoEntities = new LangEntry("Show.Label.NoEntities", "No entities configured. Run /maspawngroup add <entity> <weight>");
+
+            public static readonly LangEntry ShowLabelPuzzlePlayersBlockReset = new LangEntry("Show.Label.Puzzle.PlayersBlockReset", "Players block reset progress: {0}");
+            public static readonly LangEntry ShowLabelPuzzlePlayerDetectionRadius = new LangEntry("Show.Label.Puzzle.PlayerDetectionRadius", "Player detection radius: {0}");
+            public static readonly LangEntry ShowLabelPuzzleTimeBetweenResets = new LangEntry("Show.Label.Puzzle.TimeBetweenResets", "Time between resets: {0}");
+            public static readonly LangEntry ShowLabelPuzzleNextReset = new LangEntry("Show.Label.Puzzle.NextReset", "Time until next reset: {0}");
+            public static readonly LangEntry ShowLabelPuzzleNextResetOverdue = new LangEntry("Show.Label.Puzzle.NextReset.Overdue", "Any moment now");
+            public static readonly LangEntry ShowLabelPuzzleSpawnGroups = new LangEntry("Show.Label.Puzzle.SpawnGroups", "Resets spawn groups: {0}");
 
             public static readonly LangEntry SkinGet = new LangEntry("Skin.Get", "Skin ID: <color=#fd4>{0}</color>. Run <color=#fd4>{1} <skin id></color> to change it.");
             public static readonly LangEntry SkinSetSyntax = new LangEntry("Skin.Set.Syntax", "Syntax: <color=#fd4>{0} <skin id></color>");
@@ -11059,6 +11536,7 @@ namespace Oxide.Plugins
             public static readonly LangEntry HelpSetId = new LangEntry("Help.SetId", "<color=#fd4>masetid <id></color> - Set the id of a CCTV");
             public static readonly LangEntry HelpSetDir = new LangEntry("Help.SetDir", "<color=#fd4>masetdir</color> - Set the direction of a CCTV");
             public static readonly LangEntry HelpCardReaderLevel = new LangEntry("Help.CardReaderLevel", "<color=#fd4>macardlevel <1-3></color> - Set a card reader's access level.");
+            public static readonly LangEntry HelpPuzzle = new LangEntry("Help.Puzzle", "<color=#fd4>mapuzzle</color> - Print puzzle help");
             public static readonly LangEntry HelpSpawnGroup = new LangEntry("Help.SpawnGroup", "<color=#fd4>maspawngroup</color> - Print spawn group help");
             public static readonly LangEntry HelpSpawnPoint = new LangEntry("Help.SpawnPoint", "<color=#fd4>maspawnpoint</color> - Print spawn point help");
             public static readonly LangEntry HelpPaste = new LangEntry("Help.Paste", "<color=#fd4>mapaste <file></color> - Paste a building");

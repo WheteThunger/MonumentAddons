@@ -12,6 +12,7 @@ Easily spawn permanent entities at monuments, which auto respawn after restarts 
 - Entities are indestructible, have no stability, free electricity, and cannot be picked up
 - Supports vanilla monuments, custom monuments, train tunnels, underwater labs, and cargo ship
 - Allows skinning spawned entities
+- (Advanced) Allows building monument puzzles
 - (Advanced) Allows placing spawn points for loot containers, key cards, vehicles, and more
 - [Sign Artist](https://umod.org/plugins/sign-artist) integration allows persisting sign images
 - [Entity Scale Manager](https://umod.org/plugins/entity-scale-manager) integration allows persisting entity scale
@@ -70,6 +71,8 @@ Don't see what you're looking for? Want to showcase a profile you created? Fork 
 
 ### Spawning static entities
 
+Follow these steps to spawn static entities.
+
 1. Go to any monument, such as a gas station.
 2. Aim somewhere, such as a floor, wall or ceiling.
 3. Run the command `maspawn <entity>` to spawn an entity of your choice. For example, `maspawn modularcarlift.static`. Alternatively, if you are holding a deployable item, you can simply run `maspawn` to spawn the corresponding entity.
@@ -79,7 +82,24 @@ How this works:
 - It spawns the entity at all other identical monuments (for example, at every gas station) using the correct relative position and rotation for those monuments.
 - It saves this information in the plugin data files, so that the entity can be respawned when the plugin is reloaded, when the server is restarted, or when the server is wiped, even if using a new map seed (don't worry, this works well as long as the monuments don't significantly change between Rust updates).
 
+### Creating puzzles
+
+Follow these steps to create an example puzzle.
+
+1. Go to any monument, such as a gas station.
+2. Aim at the floor, then run the command `maspawn generator.static`. This will be the root of your puzzle, automatically resetting it on a schedule. It's recommended to place the generator near the center of the puzzle so it can evenly detect nearby players for the purpose of delaying the puzzle from resetting.
+3. Aim at a wall, outside the puzzle room, then run the command `maspawn fusebox`.
+4. Aim at the floor in a doorway, then run the command `maspawn security.blue`. Reposition the door with Telekinesis if needed.
+5. Aim at the wall next to the front side of the doorway, then run the commands `maspawn cardreader` and `maspawn doormanipulator`.
+6. Aim at the wall next to the back side of the doorway, then run the commands `maspawn pressbutton`, and `maspawn orswitch`.
+7. Aim at the card reader, then run the command `macardlevel 2` to make it a blue card reader.
+8. Equip a wire tool, then run the command `mawire`.
+9. Connect `generator.static` -> `fusebox` -> `cardreader` -> `orswitch` -> `doormanipulator`.
+10. Connect `pressbutton` -> `orswitch`.
+
 ### Creating spawn points
+
+Follow these steps to create example spawn points.
 
 1. Go to any monument, such as a gas station.
 2. Aim somewhere on the ground.
@@ -117,7 +137,18 @@ The following commands only work on objects managed by this plugin. The effect o
 - `masetid <id>` -- Updates the RC identifier of the CCTV camera you are aiming at.
   - Note: Each CCTV's RC identifier will have a numeric suffix like `1`, `2`, `3` and so on. This is done because some monuments may be duplicated, and each CCTV must have a unique identifier.
 - `masetdir` -- Updates the direction of the CCTV you are aiming at, so that it points toward you.
-- `macardlevel <1-3>` (1 = green, 2 = blue, 3 = red) -- Sets the access level of the card reader you are aiming at.
+
+### Puzzles
+
+- `mawire <optional color>` -- Temporarily enhances your currently held wire tool, allowing you to connect electrical entities spawned via `maspawn`. Allowed colors: `Default`, `Red`, `Green`, `Blue`, `Yellow`, `Pink`, `Purple`, `Orange`, `White`, `LightBlue`.
+- `macardlevel <1-3>` (1 = green, 2 = blue, 3 = red) -- Sets the access level of the card reader you are aiming at. For example, `macardlevel 2` will make the card reader visually blue and require a blue key card.
+- `mapuzzle reset` -- Resets the puzzle connected to the entity you are looking at. For example, when looking at a static generator (i.e., `generator.static`) or an entity connected directly or indirectly to a static generator.
+- `mapuzzle set <option> <value>` -- Sets a property of the puzzle entity you are looking at. This applies only to static generators (i.e., `generator.static`).
+  - `PlayersBlockReset`: true/false -- While `true`, the puzzle will not make progress toward the next reset while any players are within the distance `PlayerDetectionRadius`.
+  - `PlayerDetectionRadius`: number -- The distance in which players can block the puzzle from making progress toward its next reset.
+  - `SecondsBetweenReset`: number -- The number of seconds between puzzle resets. Note: Reset progress does not advance while `PlayersBlockReset` is enabled and players are nearby.
+- `mapuzzle add <group_name>` -- Associates a spawn group with the puzzle entity you are aiming at (i.e., `generator.static`). Whenever a puzzle resets, associated spawn groups will despawn and respawn entities, allowing you to synchronize loot, NPCs and puzzle doors. To associate a spawn group, it must be created by the plugin, stored under the same profile, and be at the same monument.
+- `mapuzzle remove <group_name>` -- Disassociates a spawn group with the puzzle entity you are aiming at (i.e., `generator.static`).
 
 ### Spawn points and spawn groups
 
@@ -216,7 +247,7 @@ Profiles allow you to organize entities into groups. Each profile can be indepen
 - `Debug display distance` -- Determines how far away you can see debug information about entities (i.e., when using `mashow`).
 - `Persist entities while the plugin is unloaded` (`true` or `false`) -- Determines whether entities spawned by `maspawn` will remain while the plugin is unloaded. Please carefully read and understand the documentation about this option before enabling it. Note: This option currently has no effect on Pastes, Spawn Groups or Custom Addons, meaning that those will always be despawned/respawned when the plugin reloads.
   - While `false` (default), when the plugin unloads, it will despawn all entities spawned via `maspawn`. When the plugin subsequently reloads, those entities will be respawned from scratch. This means, for entities that maintain state (such as player items temporarily residing in recyclers), that state will be lost whenever the plugin unloads. The most practical consequence of using this mode is that player items inside containers will be lost when a profile is reloaded, when the plugin is reloaded, or when the server reboots. Despite that limitation, `false` is the most simple and stable value for this option because it ensures consistent reproducibility across plugin reloads.
-  - While `true`, when the plugin unloads, all entities spawned by via `maspawn` will remain, in order to preserve their state (e.g., items inside a recycler). When the plugin subsequently reloads, it will find the existing entities, reconcile how they differ from the enabled profiles, and despawn/respawn/reposition/modify them as needed. The plugin will try to avoid despawning/respawning an entity that is already present, in order to preserve the entity's state. Despite this sounding like the more obvious mode of the plugin, it is more complex and less stable than the default mode, and should therefore be enabled with caution. In extremely rare circumstances, this may mode cause duplicate entities to be spawned after server reboots, if the plugin is unable to determine that existing entities correspond to ones declared in profiles.
+  - While `true`, when the plugin unloads, all entities spawned by via `maspawn` will remain, in order to preserve their state (e.g., items inside a recycler). When the plugin subsequently reloads, it will find the existing entities, reconcile how they differ from the enabled profiles, and despawn/respawn/reposition/modify them as needed. The plugin will try to avoid despawning/respawning an entity that is already present, in order to preserve the entity's state. Despite this sounding like the more obvious mode of the plugin, it is more complex and less stable than the default mode, and should therefore be enabled with caution.
 - `Deployable overrides` -- Determines which entity will be spawned when using `maspawn` if you don't specify the entity name in the command. For example, while you are holding an auto turret, running `maspawn` will spawn the `sentry.bandit.static` prefab instead of the `autoturret_deployed` prefab.
 - `Xmas tree decorations (item short names)` -- Determines which decorations will be automatically added to `xmas_tree.deployed` entities spawned via `maspawn`.
 
@@ -322,19 +353,18 @@ Use the following steps to set up a custom bandit wheel to allow players to gamb
 Notes:
 - If a betting terminal spawns more than 3 seconds after the wheel, the wheel won't know about it. This means that if you add more betting terminals after spawning the wheel, you will likely have to reload the profile to respawn the wheel so that it can find all the betting terminals.
 
-### Custom puzzles
+### Common puzzle entities
 
-Recommended entities with which to build puzzles:
-
-- `generator_static` (not `generator.small`)
+- `generator.static` (not `generator.small`)
+- `fusebox`
 - `cardreader`
 - `pressbutton` (not `button`)
-- `orswitch` (not `orswitch.entity`)
 - `doormanipulator` (not `doorcontroller.deployed`)
+- `simpleswitch` (not `switch`)
+- `orswitch` (not `orswitch.entity`)
 - `timerswitch` (not `timer`)
 - `xorswitch` (not `xorswitch.entity`)
 - `door.hinged.security.green`, `door.hinged.security.blue`, `door.hinged.security.red`, `door.hinged.underwater_labs.security`, `door.hinged.garage_security`
-- `fusebox`
 
 Note: Kinetic IO elements such as `wheelswitch` and `sliding_blast_door` are not currently able to be controlled by electricity.
 
@@ -351,4 +381,4 @@ Note: Kinetic IO elements such as `wheelswitch` and `sliding_blast_door` are not
 
 ## Uninstallation
 
-Simply remove the plugin. Spawned entities are automatically removed when the plugin unloads.
+Ensure the plugin is loaded with `Persist entities while the plugin is unloaded` set to `false`, then simply remove the plugin. All addons will be automatically removed.
