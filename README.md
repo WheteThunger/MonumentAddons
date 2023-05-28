@@ -200,6 +200,7 @@ Profiles allow you to organize entities into groups. Each profile can be indepen
 - `maprofile create <name>` -- Creates a new profile, enables it and selects it.
 - `maprofile rename <name> <new name>` -- Renames the specified profile.
 - `maprofile clear <name>` -- Removes all addons from the specified profile.
+- `maprofile delete <name>` -- Deletes the specified profile. The profile must first be empty or disabled.
 - `maprofile moveto <name>` -- Moves the addon you are looking at to the specified profile.
 - `maprofile install <url>` -- Installs a profile from a URL.
   - Abbreviated command: `mainstall <url>`.

@@ -101,7 +101,7 @@ namespace Oxide.Plugins
 
         public MonumentAddons()
         {
-            _profileManager = new ProfileManager(this, _profileStore);
+            _profileManager = new ProfileManager(this, _originalProfileStore, _profileStore);
             _adapterDisplayManager = new AdapterDisplayManager(this, _uniqueNameRegistry);
             _adapterListenerManager = new AdapterListenerManager(this);
             _customAddonManager = new CustomAddonManager(this);
@@ -1302,8 +1302,7 @@ namespace Oxide.Plugins
                         return;
                     }
 
-                    _data.SetProfileDisabled(profileName);
-                    controller.Disable();
+                    _profileManager.DisableProfile(controller);
                     ReplyToPlayer(player, LangEntry.ProfileDisableSuccess, profileName);
                     break;
                 }
@@ -1326,6 +1325,30 @@ namespace Oxide.Plugins
                     }
 
                     ReplyToPlayer(player, LangEntry.ProfileClearSuccess, controller.Profile.Name);
+                    break;
+                }
+
+                case "delete":
+                {
+                    if (args.Length <= 1)
+                    {
+                        ReplyToPlayer(player, LangEntry.ProfileDeleteSyntax);
+                        return;
+                    }
+
+                    ProfileController controller;
+                    if (!VerifyProfile(player, args, out controller, LangEntry.ProfileDeleteSyntax))
+                        return;
+
+                    var profileName = controller.Profile.Name;
+                    if (controller.IsEnabled && !controller.Profile.IsEmpty())
+                    {
+                        ReplyToPlayer(player, LangEntry.ProfileDeleteBlocked, profileName);
+                        return;
+                    }
+
+                    _profileManager.DeleteProfile(controller);
+                    ReplyToPlayer(player, LangEntry.ProfileDeleteSuccess, profileName);
                     break;
                 }
 
@@ -1413,6 +1436,7 @@ namespace Oxide.Plugins
             sb.AppendLine(GetMessage(player.Id, LangEntry.ProfileHelpCreate));
             sb.AppendLine(GetMessage(player.Id, LangEntry.ProfileHelpRename));
             sb.AppendLine(GetMessage(player.Id, LangEntry.ProfileHelpClear));
+            sb.AppendLine(GetMessage(player.Id, LangEntry.ProfileHelpDelete));
             sb.AppendLine(GetMessage(player.Id, LangEntry.ProfileHelpMoveTo));
             sb.AppendLine(GetMessage(player.Id, LangEntry.ProfileHelpInstall));
             player.Reply(sb.ToString());
@@ -9267,16 +9291,18 @@ namespace Oxide.Plugins
 
         private class ProfileManager
         {
-            private MonumentAddons _plugin;
-            private ProfileStore _profileStore;
+            private readonly MonumentAddons _plugin;
+            private OriginalProfileStore _originalProfileStore;
+            private readonly ProfileStore _profileStore;
             private List<ProfileController> _profileControllers = new List<ProfileController>();
 
             private Configuration _config => _plugin._config;
             private StoredData _pluginData => _plugin._data;
 
-            public ProfileManager(MonumentAddons plugin, ProfileStore profileStore)
+            public ProfileManager(MonumentAddons plugin, OriginalProfileStore originalProfileStore, ProfileStore profileStore)
             {
                 _plugin = plugin;
+                _originalProfileStore = originalProfileStore;
                 _profileStore = profileStore;
             }
 
@@ -9437,6 +9463,24 @@ namespace Oxide.Plugins
                 var controller = new ProfileController(_plugin, profile, startLoaded: true);
                 _profileControllers.Add(controller);
                 return controller;
+            }
+
+            public void DisableProfile(ProfileController profileController)
+            {
+                _pluginData.SetProfileDisabled(profileController.Profile.Name);
+                profileController.Disable();
+            }
+
+            public void DeleteProfile(ProfileController profileController)
+            {
+                if (profileController.IsEnabled)
+                {
+                    DisableProfile(profileController);
+                }
+
+                _profileControllers.Remove(profileController);
+                _originalProfileStore.Delete(profileController.Profile.Name);
+                _profileStore.Delete(profileController.Profile.Name);
             }
 
             public IEnumerable<ProfileController> GetEnabledProfileControllers()
@@ -11512,6 +11556,10 @@ namespace Oxide.Plugins
             public static readonly LangEntry ProfileRenameSuccess = new LangEntry("Profile.Rename.Success2", "Successfully renamed profile <color=#fd4>{0}</color> to <color=#fd4>{1}</color>");
             public static readonly LangEntry ProfileClearSyntax = new LangEntry("Profile.Clear.Syntax", "Syntax: <color=#fd4>maprofile clear <name></color>");
             public static readonly LangEntry ProfileClearSuccess = new LangEntry("Profile.Clear.Success", "Successfully cleared profile <color=#fd4>{0}</color>.");
+            public static readonly LangEntry ProfileDeleteSyntax = new LangEntry("Profile.Delete.Syntax", "Syntax: <color=#fd4>maprofile delete <name></color>");
+            public static readonly LangEntry ProfileDeleteBlocked = new LangEntry("Profile.Delete.Blocked", "Profile <color=#fd4>{0}</color> must be empty or disabled before it can be deleted.");
+            public static readonly LangEntry ProfileDeleteSuccess = new LangEntry("Profile.Delete.Success", "Successfully deleted profile <color=#fd4>{0}</color>.");
+
             public static readonly LangEntry ProfileMoveToSyntax = new LangEntry("Profile.MoveTo.Syntax", "Syntax: <color=#fd4>maprofile moveto <name></color>");
             public static readonly LangEntry ProfileMoveToAlreadyPresent = new LangEntry("Profile.MoveTo.AlreadyPresent", "Error: <color=#fd4>{0}</color> is already part of profile <color=#fd4>{1}</color>.");
             public static readonly LangEntry ProfileMoveToSuccess = new LangEntry("Profile.MoveTo.Success", "Successfully moved <color=#fd4>{0}</color> from profile <color=#fd4>{1}</color> to <color=#fd4>{2}</color>.");
@@ -11526,6 +11574,7 @@ namespace Oxide.Plugins
             public static readonly LangEntry ProfileHelpCreate = new LangEntry("Profile.Help.Create", "<color=#fd4>maprofile create <name></color> - Create a new profile");
             public static readonly LangEntry ProfileHelpRename = new LangEntry("Profile.Help.Rename", "<color=#fd4>maprofile rename <name> <new name></color> - Rename a profile");
             public static readonly LangEntry ProfileHelpClear = new LangEntry("Profile.Help.Clear2", "<color=#fd4>maprofile clear <name></color> - Clear a profile");
+            public static readonly LangEntry ProfileHelpDelete = new LangEntry("Profile.Help.Delete", "<color=#fd4>maprofile delete <name></color> - Delete a profile");
             public static readonly LangEntry ProfileHelpMoveTo = new LangEntry("Profile.Help.MoveTo2", "<color=#fd4>maprofile moveto <name></color> - Move an entity to a profile");
             public static readonly LangEntry ProfileHelpInstall = new LangEntry("Profile.Help.Install", "<color=#fd4>maprofile install <url></color> - Install a profile from a URL");
 
