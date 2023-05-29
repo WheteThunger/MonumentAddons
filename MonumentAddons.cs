@@ -689,21 +689,34 @@ namespace Oxide.Plugins
             if (!VerifyLookingAtAdapter(player, out adapter, out controller, LangEntry.ErrorNoSuitableAddonFound))
                 return;
 
+            // Capture adapter count before killing the controller.
             var numAdapters = controller.Adapters.Count;
+
             string monumentAliasOrShortName;
             controller.Profile.RemoveData(adapter.Data, out monumentAliasOrShortName);
-            _profileStore.Save(controller.Profile);
+            var profile = controller.Profile;
+            _profileStore.Save(profile);
+
+            var profileController = controller.ProfileController;
             var killRoutine = controller.Kill(adapter.Data);
             if (killRoutine != null)
             {
-                controller.ProfileController.StartCallbackRoutine(killRoutine, controller.ProfileController.SetupIO);
+                profileController.StartCallbackRoutine(killRoutine, profileController.SetupIO);
             }
 
-            ReplyToPlayer(player, LangEntry.KillSuccess, GetAddonName(player, adapter.Data), numAdapters, controller.Profile.Name);
-
             var basePlayer = player.Object as BasePlayer;
-            _undoManager.AddUndo(basePlayer, new KillUndoAction(this, controller.Data, controller.ProfileController, monumentAliasOrShortName));
+            var spawnGroupData = controller.Data as SpawnGroupData;
+            var spawnPointData = adapter.Data as SpawnPointData;
+            if (spawnGroupData != null && spawnPointData != null)
+            {
+                _undoManager.AddUndo(basePlayer, new UndoKillSpawnPoint(this, profileController, monumentAliasOrShortName, spawnGroupData, spawnPointData));
+            }
+            else
+            {
+                _undoManager.AddUndo(basePlayer, new UndoKill(this, profileController, monumentAliasOrShortName, controller.Data));
+            }
 
+            ReplyToPlayer(player, LangEntry.KillSuccess, GetAddonName(player, adapter.Data), numAdapters, profile.Name);
             _adapterDisplayManager.ShowAllRepeatedly(basePlayer);
         }
 
@@ -5089,40 +5102,40 @@ namespace Oxide.Plugins
 
         #endregion
 
-        private abstract class BaseUndoAction
+        private abstract class BaseUndo
         {
             private const float ExpireAfterSeconds = 300;
 
-            public virtual bool IsValid => !IsExpired;
+            public virtual bool IsValid => !IsExpired && ProfileExists;
 
             protected readonly MonumentAddons _plugin;
+            protected readonly ProfileController _profileController;
+            protected readonly string _monumentAliasOrShortName;
             private readonly float _undoTime;
-            private bool IsExpired => _undoTime + ExpireAfterSeconds < UnityEngine.Time.realtimeSinceStartup;
 
-            protected BaseUndoAction(MonumentAddons plugin)
+            protected Profile Profile => _profileController.Profile;
+            private bool IsExpired => _undoTime + ExpireAfterSeconds < UnityEngine.Time.realtimeSinceStartup;
+            private bool ProfileExists => _plugin._profileStore.Exists(Profile.Name);
+
+            protected BaseUndo(MonumentAddons plugin, ProfileController profileController, string monumentAliasOrShortName)
             {
                 _plugin = plugin;
                 _undoTime = UnityEngine.Time.realtimeSinceStartup;
+                _profileController = profileController;
+                _monumentAliasOrShortName = monumentAliasOrShortName;
             }
 
             public abstract void Undo(BasePlayer player);
         }
 
-        private class KillUndoAction : BaseUndoAction
+        private class UndoKill : BaseUndo
         {
-            public override bool IsValid => base.IsValid && _plugin._profileStore.Exists(Profile.Name);
+            protected readonly BaseData _data;
 
-            private readonly BaseData _data;
-            private readonly ProfileController _profileController;
-            private readonly string _monumentAliasOrShortName;
-
-            private Profile Profile => _profileController.Profile;
-
-            public KillUndoAction(MonumentAddons plugin, BaseData data, ProfileController profileController, string monumentAliasOrShortName) : base(plugin)
+            public UndoKill(MonumentAddons plugin, ProfileController profileController, string monumentAliasOrShortName, BaseData data)
+                : base(plugin, profileController, monumentAliasOrShortName)
             {
                 _data = data;
-                _profileController = profileController;
-                _monumentAliasOrShortName = monumentAliasOrShortName;
             }
 
             public override void Undo(BasePlayer player)
@@ -5130,10 +5143,13 @@ namespace Oxide.Plugins
                 Profile.AddData(_monumentAliasOrShortName, _data);
                 _plugin._profileStore.Save(Profile);
 
-                var matchingMonuments = _plugin.GetMonumentsByAliasOrShortName(_monumentAliasOrShortName);
-                if (matchingMonuments?.Count > 0)
+                if (_profileController.IsEnabled)
                 {
-                    _profileController.SpawnNewData(_data, matchingMonuments);
+                    var matchingMonuments = _plugin.GetMonumentsByAliasOrShortName(_monumentAliasOrShortName);
+                    if (matchingMonuments?.Count > 0)
+                    {
+                        _profileController.SpawnNewData(_data, matchingMonuments);
+                    }
                 }
 
                 var iPlayer = player.IPlayer;
@@ -5141,18 +5157,51 @@ namespace Oxide.Plugins
             }
         }
 
+        private class UndoKillSpawnPoint : UndoKill
+        {
+            private readonly SpawnGroupData _spawnGroupData;
+            private readonly SpawnPointData _spawnPointData;
+
+            public UndoKillSpawnPoint(MonumentAddons plugin, ProfileController profileController, string monumentAliasOrShortName, SpawnGroupData spawnGroupData, SpawnPointData spawnPointData)
+                : base(plugin, profileController, monumentAliasOrShortName, spawnGroupData)
+            {
+                _spawnGroupData = spawnGroupData;
+                _spawnPointData = spawnPointData;
+            }
+
+            public override void Undo(BasePlayer player)
+            {
+                if (!Profile.HasSpawnGroup(_monumentAliasOrShortName, _spawnGroupData.Id))
+                {
+                    base.Undo(player);
+                    return;
+                }
+
+                _spawnGroupData.SpawnPoints.Add(_spawnPointData);
+                _plugin._profileStore.Save(Profile);
+
+                if (_profileController.IsEnabled)
+                {
+                    (_profileController.FindControllerById(_spawnGroupData.Id) as SpawnGroupController)?.CreateSpawnPoint(_spawnPointData);
+                }
+
+                var iPlayer = player.IPlayer;
+                _plugin.ReplyToPlayer(iPlayer, LangEntry.UndoKillSuccess, _plugin.GetAddonName(iPlayer, _spawnPointData), _monumentAliasOrShortName, Profile.Name);
+            }
+        }
+
         private class UndoManager
         {
-            private static void CleanStack(Stack<BaseUndoAction> stack)
+            private static void CleanStack(Stack<BaseUndo> stack)
             {
-                BaseUndoAction undoAction;
+                BaseUndo undoAction;
                 while (stack.TryPeek(out undoAction) && !undoAction.IsValid)
                 {
                     stack.Pop();
                 }
             }
 
-            private readonly Dictionary<ulong, Stack<BaseUndoAction>> _undoStackByPlayer = new Dictionary<ulong, Stack<BaseUndoAction>>();
+            private readonly Dictionary<ulong, Stack<BaseUndo>> _undoStackByPlayer = new Dictionary<ulong, Stack<BaseUndo>>();
 
             public bool TryUndo(BasePlayer player)
             {
@@ -5160,7 +5209,7 @@ namespace Oxide.Plugins
                 if (undoStack == null)
                     return false;
 
-                BaseUndoAction undoAction;
+                BaseUndo undoAction;
                 if (!undoStack.TryPop(out undoAction))
                     return false;
 
@@ -5168,26 +5217,26 @@ namespace Oxide.Plugins
                 return true;
             }
 
-            public void AddUndo(BasePlayer player, BaseUndoAction undoAction)
+            public void AddUndo(BasePlayer player, BaseUndo undoAction)
             {
                 EnsureUndoStack(player).Push(undoAction);
             }
 
-            private Stack<BaseUndoAction> EnsureUndoStack(BasePlayer player)
+            private Stack<BaseUndo> EnsureUndoStack(BasePlayer player)
             {
                 var undoStack = GetUndoStack(player);
                 if (undoStack == null)
                 {
-                    undoStack = new Stack<BaseUndoAction>();
+                    undoStack = new Stack<BaseUndo>();
                     _undoStackByPlayer[player.userID] = undoStack;
                 }
 
                 return undoStack;
             }
 
-            private Stack<BaseUndoAction> GetUndoStack(BasePlayer player)
+            private Stack<BaseUndo> GetUndoStack(BasePlayer player)
             {
-                Stack<BaseUndoAction> stack;
+                Stack<BaseUndo> stack;
                 if (!_undoStackByPlayer.TryGetValue(player.userID, out stack))
                     return null;
 
@@ -10177,6 +10226,17 @@ namespace Oxide.Plugins
                 return false;
             }
 
+            public bool HasSpawnGroup(Guid guid)
+            {
+                foreach (var spawnGroupData in SpawnGroups)
+                {
+                    if (spawnGroupData.Id == guid)
+                        return true;
+                }
+
+                return false;
+            }
+
             public void AddData(BaseData data)
             {
                 var entityData = data as EntityData;
@@ -10631,6 +10691,11 @@ namespace Oxide.Plugins
             public bool HasEntity(string monumentAliasOrShortName, EntityData entityData)
             {
                 return MonumentDataMap.GetOrDefault(monumentAliasOrShortName)?.Entities.Contains(entityData) ?? false;
+            }
+
+            public bool HasSpawnGroup(string monumentAliasOrShortName, Guid guid)
+            {
+                return MonumentDataMap.GetOrDefault(monumentAliasOrShortName)?.HasSpawnGroup(guid) ?? false;
             }
 
             public void AddData(string monumentAliasOrShortName, BaseData data)
@@ -11805,12 +11870,7 @@ namespace Oxide.Plugins
             if (entityData != null)
                 return _uniqueNameRegistry.GetUniqueShortName(entityData.PrefabName);
 
-            var spawnPointData = data as SpawnPointData;
-            if (spawnPointData != null)
-                return GetMessage(player.Id, LangEntry.AddonTypeSpawnPoint);
-
-            var spawnGroupData = data as SpawnGroupData;
-            if (spawnGroupData != null)
+            if (data is SpawnPointData || data is SpawnGroupData)
                 return GetMessage(player.Id, LangEntry.AddonTypeSpawnPoint);
 
             var pasteData = data as PasteData;
