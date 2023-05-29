@@ -162,7 +162,7 @@ The following commands only work on objects managed by this plugin. The effect o
   - `Name`: string -- This name must be unique for the given profile + monument. This name can be used to create additional spawn points for this spawn group using `maspawnpoint create <group_name>`.
   - `MaxPopulation`: number -- The maximum number of entities that can be spawned across all spawn points in this spawn group.
   - `RespawnDelayMin`: number -- The minimum time in seconds to wait between spawning entities.
-  - `RespawnDelayMax`: number -- The maximum time in seconds to wait between spawning entities.
+  - `RespawnDelayMax`: number -- The maximum time in seconds to wait between spawning entities. Set to `0` to disable automated respawns, which is useful if you are associating the spawn group with a puzzle.
   - `SpawnPerTickMin`: number -- The minimum number of entities to try to spawn in a batch.
   - `SpawnPerTickMax`: number -- The maximum number of entities to try to spawn in a batch.
   - `InitialSpawn`: true/false -- While `true`, the spawn group will spawn entities as soon as the spawn group is created (e.g., when the profile loads, when the plugin loads, or when the server reboots). While `false`, the spawn group will not spawn any entities initially, but will still spawn them later according to the defined schedule.

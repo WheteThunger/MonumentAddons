@@ -1744,6 +1744,7 @@ namespace Oxide.Plugins
                             if (!VerifyValidFloat(player, args[2], out respawnDelayMin, LangEntry.ErrorSetSyntax, cmd, SpawnGroupOption.RespawnDelayMin))
                                 return;
 
+                            showImmediate = respawnDelayMin == 0 || spawnGroupData.RespawnDelayMax != 0;
                             spawnGroupData.RespawnDelayMin = respawnDelayMin;
                             spawnGroupData.RespawnDelayMax = Math.Max(respawnDelayMin, spawnGroupData.RespawnDelayMax);
                             setValue = respawnDelayMin;
@@ -1756,6 +1757,7 @@ namespace Oxide.Plugins
                             if (!VerifyValidFloat(player, args[2], out respawnDelayMax, LangEntry.ErrorSetSyntax, cmd, SpawnGroupOption.RespawnDelayMax))
                                 return;
 
+                            showImmediate = (respawnDelayMax == 0) == (spawnGroupData.RespawnDelayMax == 0);
                             spawnGroupData.RespawnDelayMax = respawnDelayMax;
                             spawnGroupData.RespawnDelayMin = Math.Min(spawnGroupData.RespawnDelayMin, respawnDelayMax);
                             setValue = respawnDelayMax;
@@ -7389,16 +7391,26 @@ namespace Oxide.Plugins
 
             public void UpdateSpawnClock()
             {
-                if (spawnClock.events.Count == 0)
-                    return;
-
-                var clockEvent = spawnClock.events[0];
-                var timeUntilSpawn = clockEvent.time - UnityEngine.Time.time;
-
-                if (timeUntilSpawn > SpawnGroupData.RespawnDelayMax)
+                if (!WantsTimedSpawn())
                 {
-                    clockEvent.time = UnityEngine.Time.time + SpawnGroupData.RespawnDelayMax;
-                    spawnClock.events[0] = clockEvent;
+                    spawnClock.events.Clear();
+                    return;
+                }
+
+                if (spawnClock.events.Count == 0)
+                {
+                    spawnClock.Add(GetSpawnDelta(), GetSpawnVariance(), Spawn);
+                }
+                else
+                {
+                    var clockEvent = spawnClock.events[0];
+                    var timeUntilSpawn = clockEvent.time - UnityEngine.Time.time;
+
+                    if (timeUntilSpawn > SpawnGroupData.RespawnDelayMax)
+                    {
+                        clockEvent.time = UnityEngine.Time.time + SpawnGroupData.RespawnDelayMax;
+                        spawnClock.events[0] = clockEvent;
+                    }
                 }
             }
 
@@ -7479,7 +7491,7 @@ namespace Oxide.Plugins
             private void OnDestroy()
             {
                 SingletonComponent<SpawnHandler>.Instance.SpawnGroups.Remove(this);
-                SpawnGroupAdapter.OnSpawnGroupKilled(this);
+                SpawnGroupAdapter.OnSpawnGroupKilled();
             }
         }
 
@@ -7620,7 +7632,7 @@ namespace Oxide.Plugins
                 }
             }
 
-            public void OnSpawnGroupKilled(CustomSpawnGroup spawnGroup)
+            public void OnSpawnGroupKilled()
             {
                 foreach (var spawnPointAdapter in SpawnPointAdapters.ToList())
                 {
@@ -7635,11 +7647,14 @@ namespace Oxide.Plugins
                 SpawnGroup.numToSpawnPerTickMin = SpawnGroupData.SpawnPerTickMin;
                 SpawnGroup.numToSpawnPerTickMax = SpawnGroupData.SpawnPerTickMax;
 
-                var respawnDelayMinChanged = SpawnGroup.respawnDelayMin != SpawnGroupData.RespawnDelayMin;
-                var respawnDelayMaxChanged = SpawnGroup.respawnDelayMax != SpawnGroupData.RespawnDelayMax;
+                var respawnDelayMin = SpawnGroupData.RespawnDelayMin;
+                var respawnDelayMax = Mathf.Max(respawnDelayMin, SpawnGroupData.RespawnDelayMax > 0 ? SpawnGroupData.RespawnDelayMax : float.PositiveInfinity);
 
-                SpawnGroup.respawnDelayMin = SpawnGroupData.RespawnDelayMin;
-                SpawnGroup.respawnDelayMax = SpawnGroupData.RespawnDelayMax;
+                var respawnDelayMinChanged = SpawnGroup.respawnDelayMin != respawnDelayMin;
+                var respawnDelayMaxChanged = SpawnGroup.respawnDelayMax != respawnDelayMax;
+
+                SpawnGroup.respawnDelayMin = respawnDelayMin;
+                SpawnGroup.respawnDelayMax = respawnDelayMax;
 
                 if (SpawnGroup.gameObject.activeSelf && (respawnDelayMinChanged || respawnDelayMaxChanged))
                 {
@@ -8759,23 +8774,23 @@ namespace Oxide.Plugins
                     _sb.AppendLine(_plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelPopulation, spawnGroupAdapter.SpawnGroup.currentPopulation, spawnGroupData.MaxPopulation));
                     _sb.AppendLine(_plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelRespawnPerTick, spawnGroupData.SpawnPerTickMin, spawnGroupData.SpawnPerTickMax));
 
-                    if (!float.IsPositiveInfinity(spawnGroupData.RespawnDelayMin))
-                    {
-                        _sb.AppendLine(_plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelRespawnDelay, FormatTime(spawnGroupData.RespawnDelayMin), FormatTime(spawnGroupData.RespawnDelayMax)));
-                    }
-
                     var spawnGroup = spawnGroupAdapter.SpawnGroup;
 
-                    var nextSpawnTime = GetTimeToNextSpawn(spawnGroup);
-                    if (!float.IsPositiveInfinity(nextSpawnTime))
+                    if (spawnGroup.WantsTimedSpawn())
                     {
-                        var nextSpawnMessage = spawnGroupData.PauseScheduleWhileFull && spawnGroup.currentPopulation >= spawnGroup.maxPopulation
-                            ? _plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelNextSpawnPaused)
-                            : nextSpawnTime <= 0
-                                ? _plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelNextSpawnQueued)
-                                : FormatTime(Mathf.CeilToInt(nextSpawnTime));
+                        _sb.AppendLine(_plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelRespawnDelay, FormatTime(spawnGroup.respawnDelayMin), FormatTime(spawnGroup.respawnDelayMax)));
 
-                        _sb.AppendLine(_plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelNextSpawn, nextSpawnMessage));
+                        var nextSpawnTime = GetTimeToNextSpawn(spawnGroup);
+                        if (!float.IsPositiveInfinity(nextSpawnTime))
+                        {
+                            var nextSpawnMessage = spawnGroupData.PauseScheduleWhileFull && spawnGroup.currentPopulation >= spawnGroup.maxPopulation
+                                ? _plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelNextSpawnPaused)
+                                : nextSpawnTime <= 0
+                                    ? _plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelNextSpawnQueued)
+                                    : FormatTime(Mathf.CeilToInt(nextSpawnTime));
+
+                            _sb.AppendLine(_plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelNextSpawn, nextSpawnMessage));
+                        }
                     }
 
                     if (spawnGroupData.Prefabs.Count > 0)
