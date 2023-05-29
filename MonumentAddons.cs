@@ -422,7 +422,7 @@ namespace Oxide.Plugins
         {
             if (MonumentFinder == null)
             {
-                LogError("MonumentFinder is not loaded, get it at http://umod.org.");
+                LogError("MonumentFinder is not loaded, get it at https://umod.org.");
                 return false;
             }
 
@@ -568,7 +568,8 @@ namespace Oxide.Plugins
             CustomAddonDefinition addonDefinition;
             ulong skinId;
 
-            if (player.IsServer
+            BasePlayer basePlayer;
+            if (!VerifyPlayer(player, out basePlayer)
                 || !VerifyHasPermission(player)
                 || !VerifyMonumentFinderLoaded(player)
                 || !VerifyProfileSelected(player, out profileController)
@@ -576,8 +577,6 @@ namespace Oxide.Plugins
                 || !VerifyHitPosition(player, out position)
                 || !VerifyAtMonument(player, position, out monument))
                 return;
-
-            var basePlayer = player.Object as BasePlayer;
 
             Vector3 localPosition;
             Vector3 localRotationAngles;
@@ -658,7 +657,8 @@ namespace Oxide.Plugins
         [Command("masave")]
         private void CommandSave(IPlayer player, string cmd, string[] args)
         {
-            if (player.IsServer || !VerifyHasPermission(player))
+            BasePlayer basePlayer;
+            if (!VerifyPlayer(player, out basePlayer) || !VerifyHasPermission(player))
                 return;
 
             EntityAdapter adapter;
@@ -673,15 +673,14 @@ namespace Oxide.Plugins
             }
 
             ReplyToPlayer(player, LangEntry.SaveSuccess, controller.Adapters.Count, controller.Profile.Name);
-
-            var basePlayer = player.Object as BasePlayer;
             _adapterDisplayManager.ShowAllRepeatedly(basePlayer);
         }
 
         [Command("makill")]
         private void CommandKill(IPlayer player, string cmd, string[] args)
         {
-            if (player.IsServer || !VerifyHasPermission(player))
+            BasePlayer basePlayer;
+            if (!VerifyPlayer(player, out basePlayer) || !VerifyHasPermission(player))
                 return;
 
             BaseController controller;
@@ -704,7 +703,6 @@ namespace Oxide.Plugins
                 profileController.StartCallbackRoutine(killRoutine, profileController.SetupIO);
             }
 
-            var basePlayer = player.Object as BasePlayer;
             var spawnGroupData = controller.Data as SpawnGroupData;
             var spawnPointData = adapter.Data as SpawnPointData;
             if (spawnGroupData != null && spawnPointData != null)
@@ -723,10 +721,10 @@ namespace Oxide.Plugins
         [Command("maundo")]
         private void CommandUndo(IPlayer player, string cmd, string[] args)
         {
-            if (player.IsServer || !VerifyHasPermission(player))
+            BasePlayer basePlayer;
+            if (!VerifyPlayer(player, out basePlayer) || !VerifyHasPermission(player))
                 return;
 
-            var basePlayer = player.Object as BasePlayer;
             if (!_undoManager.TryUndo(basePlayer))
             {
                 ReplyToPlayer(player, LangEntry.UndoNotFound);
@@ -737,7 +735,8 @@ namespace Oxide.Plugins
         [Command("masetid")]
         private void CommandSetId(IPlayer player, string cmd, string[] args)
         {
-            if (player.IsServer || !VerifyHasPermission(player))
+            BasePlayer basePlayer;
+            if (!VerifyPlayer(player, out basePlayer) || !VerifyHasPermission(player))
                 return;
 
             if (args.Length < 1 || !ComputerStation.IsValidIdentifier(args[0]))
@@ -762,15 +761,14 @@ namespace Oxide.Plugins
             controller.StartHandleChangesRoutine();
 
             ReplyToPlayer(player, LangEntry.CCTVSetIdSuccess, args[0], controller.Adapters.Count, controller.Profile.Name);
-
-            var basePlayer = player.Object as BasePlayer;
             _adapterDisplayManager.ShowAllRepeatedly(basePlayer, immediate: hadIdentifier);
         }
 
         [Command("masetdir")]
         private void CommandSetDirection(IPlayer player, string cmd, string[] args)
         {
-            if (player.IsServer || !VerifyHasPermission(player))
+            BasePlayer basePlayer;
+            if (!VerifyPlayer(player, out basePlayer) || !VerifyHasPermission(player))
                 return;
 
             CCTVEntityAdapter adapter;
@@ -780,7 +778,6 @@ namespace Oxide.Plugins
 
             var cctv = adapter.Entity as CCTV_RC;
 
-            var basePlayer = player.Object as BasePlayer;
             var direction = Vector3Ex.Direction(basePlayer.eyes.position, cctv.transform.position);
             direction = cctv.transform.InverseTransformDirection(direction);
             var lookAngles = BaseMountable.ConvertVector(Quaternion.LookRotation(direction).eulerAngles);
@@ -803,7 +800,8 @@ namespace Oxide.Plugins
         [Command("maskin")]
         private void CommandSkin(IPlayer player, string cmd, string[] args)
         {
-            if (player.IsServer || !VerifyHasPermission(player))
+            BasePlayer basePlayer;
+            if (!VerifyPlayer(player, out basePlayer) || !VerifyHasPermission(player))
                 return;
 
             EntityAdapter adapter;
@@ -838,8 +836,6 @@ namespace Oxide.Plugins
             controller.StartHandleChangesRoutine();
 
             ReplyToPlayer(player, LangEntry.SkinSetSuccess, skinId, controller.Adapters.Count, controller.Profile.Name);
-
-            var basePlayer = player.Object as BasePlayer;
             _adapterDisplayManager.ShowAllRepeatedly(basePlayer, immediate: !updatedExistingSkin);
         }
 
@@ -854,7 +850,8 @@ namespace Oxide.Plugins
         [Command("macardlevel")]
         private void CommandLevel(IPlayer player, string cmd, string[] args)
         {
-            if (player.IsServer || !VerifyHasPermission(player))
+            BasePlayer basePlayer;
+            if (!VerifyPlayer(player, out basePlayer) || !VerifyHasPermission(player))
                 return;
 
             EntityAdapter adapter;
@@ -884,15 +881,14 @@ namespace Oxide.Plugins
             }
 
             ReplyToPlayer(player, LangEntry.CardReaderSetLevelSuccess, adapter.EntityData.CardReaderLevel);
-
-            var basePlayer = player.Object as BasePlayer;
             _adapterDisplayManager.ShowAllRepeatedly(basePlayer);
         }
 
         [Command("mapuzzle")]
         private void CommandPuzzle(IPlayer player, string cmd, string[] args)
         {
-            if (player.IsServer || !VerifyHasPermission(player))
+            BasePlayer basePlayer;
+            if (!VerifyPlayer(player, out basePlayer) || !VerifyHasPermission(player))
                 return;
 
             if (args.Length == 0)
@@ -900,8 +896,6 @@ namespace Oxide.Plugins
                 SubCommandPuzzleHelp(player, cmd);
                 return;
             }
-
-            var basePlayer = player.Object as BasePlayer;
 
             switch (args[0].ToLower())
             {
@@ -1155,7 +1149,6 @@ namespace Oxide.Plugins
                     }
 
                     ProfileController controller;
-                    Profile newProfileData;
                     if (!VerifyProfile(player, args, out controller, LangEntry.ProfileSelectSyntax))
                         return;
 
@@ -1171,6 +1164,7 @@ namespace Oxide.Plugins
                     }
                     else
                     {
+                        Profile newProfileData;
                         if (!VerifyCanLoadProfile(player, profileName, out newProfileData))
                             return;
 
@@ -1574,17 +1568,15 @@ namespace Oxide.Plugins
                         _adapterDisplayManager.ShowAllRepeatedly(basePlayer);
                     }
                 },
-                errorCallback: errorMessage =>
-                {
-                    player.Reply(errorMessage);
-                }
+                errorCallback: player.Reply
             );
         }
 
         [Command("mashow")]
         private void CommandShow(IPlayer player, string cmd, string[] args)
         {
-            if (player.IsServer || !VerifyHasPermission(player))
+            BasePlayer basePlayer;
+            if (!VerifyPlayer(player, out basePlayer) || !VerifyHasPermission(player))
                 return;
 
             int duration = AdapterDisplayManager.DefaultDisplayDuration;
@@ -1616,8 +1608,6 @@ namespace Oxide.Plugins
                 }
             }
 
-            var basePlayer = player.Object as BasePlayer;
-
             _adapterDisplayManager.SetPlayerProfile(basePlayer, profileController);
             _adapterDisplayManager.ShowAllRepeatedly(basePlayer, duration);
 
@@ -1627,7 +1617,8 @@ namespace Oxide.Plugins
         [Command("maspawngroup", "masg")]
         private void CommandSpawnGroup(IPlayer player, string cmd, string[] args)
         {
-            if (player.IsServer || !VerifyHasPermission(player))
+            BasePlayer basePlayer;
+            if (!VerifyPlayer(player, out basePlayer) || !VerifyHasPermission(player))
                 return;
 
             if (args.Length < 1)
@@ -1635,8 +1626,6 @@ namespace Oxide.Plugins
                 SubCommandSpawnGroupHelp(player, cmd);
                 return;
             }
-
-            var basePlayer = player.Object as BasePlayer;
 
             switch (args[0].ToLower())
             {
@@ -1863,7 +1852,7 @@ namespace Oxide.Plugins
                     var updatedExistingEntry = false;
 
                     var spawnGroupData = spawnGroupController.SpawnGroupData;
-                    var prefabData = spawnGroupData.Prefabs.Where(entry => entry.PrefabName == prefabPath).FirstOrDefault();
+                    var prefabData = spawnGroupData.Prefabs.FirstOrDefault(entry => entry.PrefabName == prefabPath);
                     if (prefabData != null)
                     {
                         prefabData.Weight = weight;
@@ -1979,7 +1968,8 @@ namespace Oxide.Plugins
         [Command("maspawnpoint", "masp")]
         private void CommandSpawnPoint(IPlayer player, string cmd, string[] args)
         {
-            if (player.IsServer || !VerifyHasPermission(player))
+            BasePlayer basePlayer;
+            if (!VerifyPlayer(player, out basePlayer) || !VerifyHasPermission(player))
                 return;
 
             if (args.Length < 1)
@@ -1987,8 +1977,6 @@ namespace Oxide.Plugins
                 SubCommandSpawnPointHelp(player, cmd);
                 return;
             }
-
-            var basePlayer = player.Object as BasePlayer;
 
             switch (args[0].ToLower())
             {
@@ -2149,7 +2137,8 @@ namespace Oxide.Plugins
         [Command("mapaste")]
         private void CommandPaste(IPlayer player, string cmd, string[] args)
         {
-            if (player.IsServer || !VerifyHasPermission(player))
+            BasePlayer basePlayer;
+            if (!VerifyPlayer(player, out basePlayer) || !VerifyHasPermission(player))
                 return;
 
             if (args.Length < 1)
@@ -2180,8 +2169,6 @@ namespace Oxide.Plugins
                 ReplyToPlayer(player, LangEntry.PasteNotFound, pasteName);
                 return;
             }
-
-            var basePlayer = player.Object as BasePlayer;
 
             Vector3 localPosition;
             Vector3 localRotationAngles;
@@ -2244,13 +2231,13 @@ namespace Oxide.Plugins
 
             if (!spawnGroup.temporary)
             {
-                if (spawnGroup.respawnDelayMin != float.PositiveInfinity)
+                if (!float.IsPositiveInfinity(spawnGroup.respawnDelayMin))
                 {
                     sb.AppendLine(GetMessage(player.Id, LangEntry.ShowLabelRespawnDelay, FormatTime(spawnGroup.respawnDelayMin), FormatTime(spawnGroup.respawnDelayMax)));
                 }
 
                 var nextSpawnTime = GetTimeToNextSpawn(spawnGroup);
-                if (nextSpawnTime != float.PositiveInfinity && SingletonComponent<SpawnHandler>.Instance.SpawnGroups.Contains(spawnGroup))
+                if (!float.IsPositiveInfinity(nextSpawnTime) && SingletonComponent<SpawnHandler>.Instance.SpawnGroups.Contains(spawnGroup))
                 {
                     sb.AppendLine(GetMessage(
                         player.Id,
@@ -2286,10 +2273,9 @@ namespace Oxide.Plugins
         [Command("mashowvanilla")]
         private void CommandShowVanillaSpawns(IPlayer player, string cmd, string[] args)
         {
-            if (player.IsServer || !VerifyHasPermission(player))
+            BasePlayer basePlayer;
+            if (!VerifyPlayer(player, out basePlayer) || !VerifyHasPermission(player))
                 return;
-
-            var basePlayer = player.Object as BasePlayer;
 
             Transform parentObject = null;
 
@@ -2423,8 +2409,9 @@ namespace Oxide.Plugins
                             AddSpawnGroupInfo(player, sb, spawnGroup, spawnPointList.Length);
                         }
 
-                        var spawnPointPosition = spawnPoint.transform.position;
-                        Ddraw.ArrowThrough(basePlayer, spawnPointPosition + AdapterDisplayManager.ArrowVerticalOffeset, spawnPoint.transform.rotation, 1, 0.15f, color, ShowVanillaDuration);
+                        var spawnPointTransform = spawnPoint.transform;
+                        var spawnPointPosition = spawnPointTransform.position;
+                        Ddraw.ArrowThrough(basePlayer, spawnPointPosition + AdapterDisplayManager.ArrowVerticalOffeset, spawnPointTransform.rotation, 1, 0.15f, color, ShowVanillaDuration);
                         Ddraw.Sphere(basePlayer, spawnPointPosition, 0.5f, color, ShowVanillaDuration);
                         Ddraw.Text(basePlayer, spawnPointPosition + new Vector3(0, tierMask > 0 ? Mathf.Log(tierMask, 2) : 0, 0), sb.ToString(), color, ShowVanillaDuration);
 
@@ -2457,13 +2444,13 @@ namespace Oxide.Plugins
                     }
                     else
                     {
-                        if (individualSpawner.respawnDelayMin != float.PositiveInfinity)
+                        if (!float.IsPositiveInfinity(individualSpawner.respawnDelayMin))
                         {
                             sb.AppendLine(GetMessage(player.Id, LangEntry.ShowLabelRespawnDelay, FormatTime(individualSpawner.respawnDelayMin), FormatTime(individualSpawner.respawnDelayMax)));
                         }
 
                         var nextSpawnTime = GetTimeToNextSpawn(individualSpawner);
-                        if (!individualSpawner.IsSpawned && nextSpawnTime != float.PositiveInfinity)
+                        if (!individualSpawner.IsSpawned && !float.IsPositiveInfinity(nextSpawnTime))
                         {
                             sb.AppendLine(GetMessage(
                                 player.Id,
@@ -2477,8 +2464,9 @@ namespace Oxide.Plugins
 
                     sb.AppendLine(GetMessage(player.Id, LangEntry.ShowHeaderEntity, _uniqueNameRegistry.GetUniqueShortName(individualSpawner.entityPrefab.resourcePath)));
 
-                    var spawnPointPosition = individualSpawner.transform.position;
-                    Ddraw.ArrowThrough(basePlayer, spawnPointPosition + AdapterDisplayManager.ArrowVerticalOffeset, individualSpawner.transform.rotation, 1f, 0.15f, color, ShowVanillaDuration);
+                    var spawnerTransform = individualSpawner.transform;
+                    var spawnPointPosition = spawnerTransform.position;
+                    Ddraw.ArrowThrough(basePlayer, spawnPointPosition + AdapterDisplayManager.ArrowVerticalOffeset, spawnerTransform.rotation, 1f, 0.15f, color, ShowVanillaDuration);
                     Ddraw.Sphere(basePlayer, spawnPointPosition, 0.5f, color, ShowVanillaDuration);
                     Ddraw.Text(basePlayer, spawnPointPosition, sb.ToString(), color, ShowVanillaDuration);
 
@@ -2494,7 +2482,8 @@ namespace Oxide.Plugins
             Vector3 position;
             BaseMonument monument;
 
-            if (player.IsServer
+            BasePlayer basePlayer;
+            if (!VerifyPlayer(player, out basePlayer)
                 || !VerifyHasPermission(player)
                 || !VerifyMonumentFinderLoaded(player)
                 || !VerifyHitPosition(player, out position)
@@ -2604,8 +2593,6 @@ namespace Oxide.Plugins
                 }
             }
 
-            var basePlayer = player.Object as BasePlayer;
-
             var tierSuffix = spawnGroupsSpecifyTier && monumentTierList.Count > 0
                 ? $"_{string.Join("_", monumentTierList)}"
                 : string.Empty;
@@ -2626,10 +2613,10 @@ namespace Oxide.Plugins
         [Command("mawire")]
         private void CommandWire(IPlayer player, string cmd, string[] args)
         {
-            if (player.IsServer || !VerifyHasPermission(player))
+            BasePlayer basePlayer;
+            if (!VerifyPlayer(player, out basePlayer) || !VerifyHasPermission(player))
                 return;
 
-            var basePlayer = player.Object as BasePlayer;
             if (_wireToolManager.HasPlayer(basePlayer) && args.Length == 0)
             {
                 _wireToolManager.StopSession(basePlayer);
@@ -2720,6 +2707,18 @@ namespace Oxide.Plugins
         #region Utilities
 
         #region Helper Methods - Command Checks
+
+        private bool VerifyPlayer(IPlayer player, out BasePlayer basePlayer)
+        {
+            if (player.IsServer)
+            {
+                basePlayer = null;
+                return false;
+            }
+
+            basePlayer = player.Object as BasePlayer;
+            return true;
+        }
 
         private bool VerifyHasPermission(IPlayer player, string perm = PermissionAdmin)
         {
@@ -3290,14 +3289,6 @@ namespace Oxide.Plugins
             return false;
         }
 
-        private static T GetLookEntity<T>(BasePlayer player, float maxDistance = MaxRaycastDistance) where T : BaseEntity
-        {
-            RaycastHit hit;
-            return TryRaycast(player, out hit, maxDistance)
-                ? hit.GetEntity() as T
-                : null;
-        }
-
         public static T GetLookEntitySphereCast<T>(BasePlayer player, int layerMask, float radius, float maxDistance = MaxRaycastDistance) where T : BaseEntity
         {
             RaycastHit hit;
@@ -3317,7 +3308,7 @@ namespace Oxide.Plugins
 
         private static string GetShortName(string prefabName)
         {
-            var slashIndex = prefabName.LastIndexOf("/");
+            var slashIndex = prefabName.LastIndexOf("/", StringComparison.Ordinal);
             var baseName = (slashIndex == -1) ? prefabName : prefabName.Substring(slashIndex + 1);
             return baseName.Replace(".prefab", string.Empty);
         }
@@ -4138,11 +4129,6 @@ namespace Oxide.Plugins
                     return LastDrawTime + DrawIntervalDuration > UnityEngine.Time.time;
                 }
 
-                public Vector3 GetStartPoint()
-                {
-                    return GetSlotPoint(StartSlot);
-                }
-
                 public void RefreshPoints()
                 {
                     var ioEntity = Adapter?.Entity as IOEntity;
@@ -4175,11 +4161,6 @@ namespace Oxide.Plugins
                     }
 
                     ioEntity.SendNetworkUpdate();
-                }
-
-                private Vector3 GetSlotPoint(IOSlot slot)
-                {
-                    return Adapter.Entity.transform.TransformPoint(slot.handlePosition);
                 }
             }
 
@@ -4391,7 +4372,7 @@ namespace Oxide.Plugins
                 return Color.yellow;
             }
 
-            private void ShowSlots(BasePlayer player, IOEntity ioEntity, bool showSourceSlots, bool denyOccupied = false)
+            private void ShowSlots(BasePlayer player, IOEntity ioEntity, bool showSourceSlots)
             {
                 var transform = ioEntity.transform;
                 var slotList = showSourceSlots ? ioEntity.outputs : ioEntity.inputs;
@@ -4440,8 +4421,8 @@ namespace Oxide.Plugins
                 var slot = GetClosestIOSlot(ioEntity, player.eyes.HeadRay(), MinAngleDot, out slotIndex, out isSourceSlot, wantsOccupiedSlots: false);
                 if (slot == null)
                 {
-                    ShowSlots(player, ioEntity, showSourceSlots: true, denyOccupied: true);
-                    ShowSlots(player, ioEntity, showSourceSlots: false, denyOccupied: true);
+                    ShowSlots(player, ioEntity, showSourceSlots: true);
+                    ShowSlots(player, ioEntity, showSourceSlots: false);
                     return;
                 }
 
@@ -4473,7 +4454,7 @@ namespace Oxide.Plugins
                         Ddraw.Sphere(player, adapter.Transform.TransformPoint(slot.handlePosition), DrawSlotRadius, Color.red, DrawDuration);
                     }
 
-                    ShowSlots(player, ioEntity, showSourceSlots: !session.IsSource, denyOccupied: true);
+                    ShowSlots(player, ioEntity, showSourceSlots: !session.IsSource);
                     return;
                 }
 
@@ -4701,6 +4682,8 @@ namespace Oxide.Plugins
             {
                 var obj = serializer.Deserialize(reader) as JObject;
                 var dict = existingValue as Dictionary<TKey, TValue>;
+                if (dict == null)
+                    return null;
 
                 foreach (var entry in obj)
                 {
@@ -5029,7 +5012,7 @@ namespace Oxide.Plugins
             public virtual Quaternion Rotation => Object.transform.rotation;
             public virtual bool IsValid => Object != null;
 
-            public BaseMonument(MonoBehaviour behavior)
+            protected BaseMonument(MonoBehaviour behavior)
             {
                 Object = behavior;
             }
@@ -5375,7 +5358,7 @@ namespace Oxide.Plugins
             // Subclasses can override this to wait more than one frame for spawn/kill operations.
             public IEnumerator WaitInstruction { get; protected set; }
 
-            public BaseAdapter(BaseData data, BaseController controller, BaseMonument monument)
+            protected BaseAdapter(BaseData data, BaseController controller, BaseMonument monument)
             {
                 Data = data;
                 Controller = controller;
@@ -5423,7 +5406,7 @@ namespace Oxide.Plugins
             public virtual bool IsAtIntendedPosition =>
                 Position == IntendedPosition && Rotation == IntendedRotation;
 
-            public TransformAdapter(BaseTransformData transformData, BaseController controller, BaseMonument monument) : base(transformData, controller, monument)
+            protected TransformAdapter(BaseTransformData transformData, BaseController controller, BaseMonument monument) : base(transformData, controller, monument)
             {
                 TransformData = transformData;
             }
@@ -5441,7 +5424,7 @@ namespace Oxide.Plugins
 
             private bool _enabled = true;
 
-            public BaseController(ProfileController profileController, BaseData data)
+            protected BaseController(ProfileController profileController, BaseData data)
             {
                 ProfileController = profileController;
                 Data = data;
@@ -6510,26 +6493,18 @@ namespace Oxide.Plugins
 
             public Dictionary<string, object> GetVendingDataProvider()
             {
-                if (_vendingDataProvider == null)
+                return _vendingDataProvider ?? (_vendingDataProvider = new Dictionary<string, object>
                 {
-                    _vendingDataProvider = new Dictionary<string, object>
+                    ["GetData"] = new Func<JObject>(() => EntityData.VendingProfile as JObject),
+                    ["SaveData"] = new Action<JObject>(vendingProfile =>
                     {
-                        ["GetData"] = new Func<JObject>(() =>
-                        {
-                            return EntityData.VendingProfile as JObject;
-                        }),
-                        ["SaveData"] = new Action<JObject>(vendingProfile =>
-                        {
-                            if (!Plugin._isLoaded)
-                                return;
+                        if (!Plugin._isLoaded)
+                            return;
 
-                            EntityData.VendingProfile = vendingProfile;
-                            Plugin._profileStore.Save(Profile);
-                        }),
-                    };
-                }
-
-                return _vendingDataProvider;
+                        EntityData.VendingProfile = vendingProfile;
+                        Plugin._profileStore.Save(Profile);
+                    }),
+                });
             }
 
             private IEnumerator HandleChangesRoutine()
@@ -6909,7 +6884,7 @@ namespace Oxide.Plugins
 
             private HashSet<BaseAdapter> _adapters = new HashSet<BaseAdapter>();
 
-            public DynamicHookListener(MonumentAddons plugin)
+            protected DynamicHookListener(MonumentAddons plugin)
             {
                 _plugin = plugin;
             }
@@ -8581,16 +8556,10 @@ namespace Oxide.Plugins
             {
                 _sb.AppendLine(_plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelProfile, profileController.Profile.Name));
 
-                var monumentTierMask = GetMonumentTierMask(adapter.Monument.Position);
-                var monumentTierList = GetTierList(monumentTierMask);
-                if (monumentTierList.Count > 0)
-                {
-                    _sb.AppendLine(_plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelMonumentWithTier, adapter.Monument.AliasOrShortName, controller.Adapters.Count, string.Join(", ", monumentTierList)));
-                }
-                else
-                {
-                    _sb.AppendLine(_plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelMonument, adapter.Monument.AliasOrShortName, controller.Adapters.Count));
-                }
+                var monumentTierList = GetTierList(GetMonumentTierMask(adapter.Monument.Position));
+                _sb.AppendLine(monumentTierList.Count > 0
+                    ? _plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelMonumentWithTier, adapter.Monument.AliasOrShortName, controller.Adapters.Count, string.Join(", ", monumentTierList))
+                    : _plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelMonument, adapter.Monument.AliasOrShortName, controller.Adapters.Count));
             }
 
             private void ShowPuzzleInfo(BasePlayer player, EntityAdapter adapter, PuzzleReset puzzleReset, Vector3 playerPosition, PlayerInfo playerInfo)
@@ -8790,7 +8759,7 @@ namespace Oxide.Plugins
                     _sb.AppendLine(_plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelPopulation, spawnGroupAdapter.SpawnGroup.currentPopulation, spawnGroupData.MaxPopulation));
                     _sb.AppendLine(_plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelRespawnPerTick, spawnGroupData.SpawnPerTickMin, spawnGroupData.SpawnPerTickMax));
 
-                    if (spawnGroupData.RespawnDelayMin != float.PositiveInfinity)
+                    if (!float.IsPositiveInfinity(spawnGroupData.RespawnDelayMin))
                     {
                         _sb.AppendLine(_plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelRespawnDelay, FormatTime(spawnGroupData.RespawnDelayMin), FormatTime(spawnGroupData.RespawnDelayMax)));
                     }
@@ -8798,7 +8767,7 @@ namespace Oxide.Plugins
                     var spawnGroup = spawnGroupAdapter.SpawnGroup;
 
                     var nextSpawnTime = GetTimeToNextSpawn(spawnGroup);
-                    if (nextSpawnTime != float.PositiveInfinity)
+                    if (!float.IsPositiveInfinity(nextSpawnTime))
                     {
                         var nextSpawnMessage = spawnGroupData.PauseScheduleWhileFull && spawnGroup.currentPopulation >= spawnGroup.maxPopulation
                             ? _plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelNextSpawnPaused)
@@ -9447,9 +9416,8 @@ namespace Oxide.Plugins
                 var profileNameList = ProfileStore.GetProfileNames();
                 var profileInfoList = new List<ProfileInfo>(profileNameList.Length);
 
-                for (var i = 0; i < profileNameList.Length; i++)
+                foreach (var profileName in profileNameList)
                 {
-                    var profileName = profileNameList[i];
                     if (OriginalProfileStore.IsOriginalProfile(profileName))
                         continue;
 
@@ -9902,17 +9870,12 @@ namespace Oxide.Plugins
 
             public PuzzleData EnsurePuzzleData(PuzzleReset puzzleReset)
             {
-                if (Puzzle == null)
+                return Puzzle ?? (Puzzle = new PuzzleData
                 {
-                    Puzzle = new PuzzleData
-                    {
-                        PlayersBlockReset = puzzleReset.playersBlockReset,
-                        PlayerDetectionRadius = puzzleReset.playerDetectionRadius,
-                        SecondsBetweenResets = puzzleReset.timeBetweenResets,
-                    };
-                }
-
-                return Puzzle;
+                    PlayersBlockReset = puzzleReset.playersBlockReset,
+                    PlayerDetectionRadius = puzzleReset.playerDetectionRadius,
+                    SecondsBetweenResets = puzzleReset.timeBetweenResets,
+                });
             }
         }
 
@@ -10042,13 +10005,7 @@ namespace Oxide.Plugins
 
             public void SetData(object data)
             {
-                var jObject = data as JObject;
-                if (jObject == null)
-                {
-                    jObject = JObject.FromObject(data);
-                }
-
-                PluginData = jObject;
+                PluginData = data as JObject ?? JObject.FromObject(data);
             }
         }
 
@@ -10547,7 +10504,7 @@ namespace Oxide.Plugins
                 {
                     var filename = filenameList[i];
                     var start = filename.LastIndexOf(System.IO.Path.DirectorySeparatorChar) + 1;
-                    var end = filename.LastIndexOf(".");
+                    var end = filename.LastIndexOf(".", StringComparison.Ordinal);
                     filenameList[i] = filename.Substring(start, end - start);
                 }
 
@@ -10568,8 +10525,6 @@ namespace Oxide.Plugins
 
                 var profile = base.Load(profileName);
                 profile.Name = GetCaseSensitiveFileName(profileName);
-
-                var originalSchemaVersion = profile.SchemaVersion;
 
                 var migrated = ProfileDataMigration<Profile>.MigrateToLatest(profile);
                 if (migrated)
@@ -11127,6 +11082,7 @@ namespace Oxide.Plugins
                     }
 
                     ProfileStateMap.Remove(profileName);
+                    cleanedCount++;
                 }
 
                 if (cleanedCount > 0)
@@ -11364,7 +11320,7 @@ namespace Oxide.Plugins
             private bool DeprecatedEnableEntitySaving { set { EnableEntitySaving = value; } }
 
             [JsonProperty("Persist entities while the plugin is unloaded")]
-            public bool EnableEntitySaving = false;
+            public bool EnableEntitySaving;
 
             [JsonProperty("DeployableOverrides")]
             public Dictionary<string, string> DeprecatedDeployableOverrides { set { DeployableOverrides = value; } }
@@ -11428,8 +11384,6 @@ namespace Oxide.Plugins
                 }
             }
         }
-
-        private Configuration GetDefaultConfig() => new Configuration();
 
         #region Configuration Helpers
 
@@ -11504,7 +11458,7 @@ namespace Oxide.Plugins
             return changed;
         }
 
-        protected override void LoadDefaultConfig() => _config = GetDefaultConfig();
+        protected override void LoadDefaultConfig() => _config = new Configuration();
 
         protected override void LoadConfig()
         {
@@ -11895,7 +11849,7 @@ namespace Oxide.Plugins
                 englishLangKeys[langEntry.Name] = langEntry.English;
             }
 
-            lang.RegisterMessages(englishLangKeys, this, "en");
+            lang.RegisterMessages(englishLangKeys, this);
         }
 
         #endregion
