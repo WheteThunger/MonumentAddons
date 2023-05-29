@@ -3212,32 +3212,38 @@ namespace Oxide.Plugins
             }
         }
 
+        private PuzzleReset FindConnectedPuzzleReset(IOSlot[] slotList, HashSet<IOEntity> visited)
+        {
+            foreach (var slot in slotList)
+            {
+                var otherEntity = slot.connectedTo.Get();
+                if (otherEntity == null)
+                    continue;
+
+                var puzzleReset = FindConnectedPuzzleReset(otherEntity, visited);
+                if (puzzleReset != null)
+                    return puzzleReset;
+            }
+
+            return null;
+        }
+
         private PuzzleReset FindConnectedPuzzleReset(IOEntity ioEntity, HashSet<IOEntity> visited = null)
         {
             var puzzleReset = ioEntity.GetComponent<PuzzleReset>();
             if (puzzleReset != null)
                 return puzzleReset;
 
-            foreach (var slot in ioEntity.inputs)
+            if (visited == null)
             {
-                var otherEntity = slot.connectedTo.Get();
-                if (otherEntity == null)
-                    continue;
-
-                if (visited == null)
-                {
-                    visited = new HashSet<IOEntity> { ioEntity };
-                }
-
-                if (!visited.Add(otherEntity))
-                    continue;
-
-                puzzleReset = FindConnectedPuzzleReset(otherEntity, visited);
-                if (puzzleReset != null)
-                    return puzzleReset;
+                visited = new HashSet<IOEntity>();
             }
 
-            return null;
+            if (!visited.Add(ioEntity))
+                return null;
+
+            return FindConnectedPuzzleReset(ioEntity.inputs, visited)
+                ?? FindConnectedPuzzleReset(ioEntity.outputs, visited);
         }
 
         private SpawnPointAdapter GetSpawnPointAdapter(BaseEntity entity)
