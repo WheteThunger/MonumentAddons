@@ -77,6 +77,7 @@ namespace Oxide.Plugins
         private readonly MonumentHelper _monumentHelper;
         private readonly WireToolManager _wireToolManager;
         private readonly IOManager _ioManager = new IOManager();
+        private readonly UndoManager _undoManager = new UndoManager();
 
         private readonly Color[] _distinctColors =
         {
@@ -689,8 +690,8 @@ namespace Oxide.Plugins
                 return;
 
             var numAdapters = controller.Adapters.Count;
-
-            controller.Profile.RemoveData(adapter.Data);
+            string monumentAliasOrShortName;
+            controller.Profile.RemoveData(adapter.Data, out monumentAliasOrShortName);
             _profileStore.Save(controller.Profile);
             var killRoutine = controller.Kill(adapter.Data);
             if (killRoutine != null)
@@ -701,7 +702,23 @@ namespace Oxide.Plugins
             ReplyToPlayer(player, LangEntry.KillSuccess, GetAddonName(player, adapter.Data), numAdapters, controller.Profile.Name);
 
             var basePlayer = player.Object as BasePlayer;
+            _undoManager.AddUndo(basePlayer, new KillUndoAction(this, controller.Data, controller.ProfileController, monumentAliasOrShortName));
+
             _adapterDisplayManager.ShowAllRepeatedly(basePlayer);
+        }
+
+        [Command("maundo")]
+        private void CommandUndo(IPlayer player, string cmd, string[] args)
+        {
+            if (player.IsServer || !VerifyHasPermission(player))
+                return;
+
+            var basePlayer = player.Object as BasePlayer;
+            if (!_undoManager.TryUndo(basePlayer))
+            {
+                ReplyToPlayer(player, LangEntry.UndoNotFound);
+                _adapterDisplayManager.ShowAllRepeatedly(basePlayer);
+            }
         }
 
         [Command("masetid")]
@@ -2635,6 +2652,7 @@ namespace Oxide.Plugins
             sb.AppendLine(GetMessage(player.Id, LangEntry.HelpHeader));
             sb.AppendLine(GetMessage(player.Id, LangEntry.HelpSpawn));
             sb.AppendLine(GetMessage(player.Id, LangEntry.HelpKill));
+            sb.AppendLine(GetMessage(player.Id, LangEntry.HelpUndo));
             sb.AppendLine(GetMessage(player.Id, LangEntry.HelpSave));
             sb.AppendLine(GetMessage(player.Id, LangEntry.HelpSkin));
             sb.AppendLine(GetMessage(player.Id, LangEntry.HelpSetId));
@@ -5070,6 +5088,113 @@ namespace Oxide.Plugins
         }
 
         #endregion
+
+        private abstract class BaseUndoAction
+        {
+            private const float ExpireAfterSeconds = 300;
+
+            public virtual bool IsValid => !IsExpired;
+
+            protected readonly MonumentAddons _plugin;
+            private readonly float _undoTime;
+            private bool IsExpired => _undoTime + ExpireAfterSeconds < UnityEngine.Time.realtimeSinceStartup;
+
+            protected BaseUndoAction(MonumentAddons plugin)
+            {
+                _plugin = plugin;
+                _undoTime = UnityEngine.Time.realtimeSinceStartup;
+            }
+
+            public abstract void Undo(BasePlayer player);
+        }
+
+        private class KillUndoAction : BaseUndoAction
+        {
+            public override bool IsValid => base.IsValid && _plugin._profileStore.Exists(Profile.Name);
+
+            private readonly BaseData _data;
+            private readonly ProfileController _profileController;
+            private readonly string _monumentAliasOrShortName;
+
+            private Profile Profile => _profileController.Profile;
+
+            public KillUndoAction(MonumentAddons plugin, BaseData data, ProfileController profileController, string monumentAliasOrShortName) : base(plugin)
+            {
+                _data = data;
+                _profileController = profileController;
+                _monumentAliasOrShortName = monumentAliasOrShortName;
+            }
+
+            public override void Undo(BasePlayer player)
+            {
+                Profile.AddData(_monumentAliasOrShortName, _data);
+                _plugin._profileStore.Save(Profile);
+
+                var matchingMonuments = _plugin.GetMonumentsByAliasOrShortName(_monumentAliasOrShortName);
+                if (matchingMonuments?.Count > 0)
+                {
+                    _profileController.SpawnNewData(_data, matchingMonuments);
+                }
+
+                var iPlayer = player.IPlayer;
+                _plugin.ReplyToPlayer(iPlayer, LangEntry.UndoKillSuccess, _plugin.GetAddonName(iPlayer, _data), _monumentAliasOrShortName, Profile.Name);
+            }
+        }
+
+        private class UndoManager
+        {
+            private static void CleanStack(Stack<BaseUndoAction> stack)
+            {
+                BaseUndoAction undoAction;
+                while (stack.TryPeek(out undoAction) && !undoAction.IsValid)
+                {
+                    stack.Pop();
+                }
+            }
+
+            private readonly Dictionary<ulong, Stack<BaseUndoAction>> _undoStackByPlayer = new Dictionary<ulong, Stack<BaseUndoAction>>();
+
+            public bool TryUndo(BasePlayer player)
+            {
+                var undoStack = GetUndoStack(player);
+                if (undoStack == null)
+                    return false;
+
+                BaseUndoAction undoAction;
+                if (!undoStack.TryPop(out undoAction))
+                    return false;
+
+                undoAction.Undo(player);
+                return true;
+            }
+
+            public void AddUndo(BasePlayer player, BaseUndoAction undoAction)
+            {
+                EnsureUndoStack(player).Push(undoAction);
+            }
+
+            private Stack<BaseUndoAction> EnsureUndoStack(BasePlayer player)
+            {
+                var undoStack = GetUndoStack(player);
+                if (undoStack == null)
+                {
+                    undoStack = new Stack<BaseUndoAction>();
+                    _undoStackByPlayer[player.userID] = undoStack;
+                }
+
+                return undoStack;
+            }
+
+            private Stack<BaseUndoAction> GetUndoStack(BasePlayer player)
+            {
+                Stack<BaseUndoAction> stack;
+                if (!_undoStackByPlayer.TryGetValue(player.userID, out stack))
+                    return null;
+
+                CleanStack(stack);
+                return stack;
+            }
+        }
 
         #region Adapters/Controllers
 
@@ -10100,13 +10225,19 @@ namespace Oxide.Plugins
                 {
                     foreach (var parentSpawnGroupData in SpawnGroups)
                     {
-                        if (!parentSpawnGroupData.SpawnPoints.Remove(spawnPointData))
+                        var index = parentSpawnGroupData.SpawnPoints.IndexOf(spawnPointData);
+                        if (index == -1)
                             continue;
 
-                        if (parentSpawnGroupData.SpawnPoints.Count == 0)
+                        // If removing the spawn group, don't remove the spawn point, so it's easier to undo.
+                        if (parentSpawnGroupData.SpawnPoints.Count == 1)
                         {
                             SpawnGroups.Remove(parentSpawnGroupData);
                             CleanSpawnGroupReferences(parentSpawnGroupData.Id);
+                        }
+                        else
+                        {
+                            parentSpawnGroupData.SpawnPoints.RemoveAt(index);
                         }
 
                         return true;
@@ -10520,12 +10651,6 @@ namespace Oxide.Plugins
 
                 monumentAliasOrShortName = null;
                 return false;
-            }
-
-            public bool RemoveData(BaseData data)
-            {
-                string monumentAliasOrShortName;
-                return RemoveData(data, out monumentAliasOrShortName);
             }
 
             private MonumentData EnsureMonumentData(string monumentAliasOrShortName)
@@ -11369,9 +11494,12 @@ namespace Oxide.Plugins
             public static readonly LangEntry SpawnErrorMultipleMatches = new LangEntry("Spawn.Error.MultipleMatches", "Multiple matches:\n");
             public static readonly LangEntry ErrorNoSurface = new LangEntry("Error.NoSurface", "Error: No valid surface found.");
             public static readonly LangEntry SpawnSuccess = new LangEntry("Spawn.Success2", "Spawned entity at <color=#fd4>{0}</color> matching monument(s) and saved to <color=#fd4>{1}</color> profile for monument <color=#fd4>{2}</color>.");
-            public static readonly LangEntry KillSuccess = new LangEntry("Kill.Success3", "Killed <color=#fd4>{0}</color> at <color=#fd4>{1}</color> matching monument(s) and removed from profile <color=#fd4>{2}</color>.");
+            public static readonly LangEntry KillSuccess = new LangEntry("Kill.Success4", "Killed <color=#fd4>{0}</color> at <color=#fd4>{1}</color> matching monument(s) and removed from profile <color=#fd4>{2}</color>. Run <color=#fd4>maundo</color> to restore it.");
             public static readonly LangEntry SaveNothingToDo = new LangEntry("Save.NothingToDo", "No changes detected for that entity.");
             public static readonly LangEntry SaveSuccess = new LangEntry("Save.Success", "Updated entity at <color=#fd4>{0}</color> matching monument(s) and saved to profile <color=#fd4>{1}</color>.");
+
+            public static readonly LangEntry UndoNotFound = new LangEntry("Undo.NotFound", "No recent action to undo.");
+            public static readonly LangEntry UndoKillSuccess = new LangEntry("Undo.Kill.Success", "Successfully restored <color=#fd4>{0}</color> at monument <color=#fd4>{1}</color> in profile <color=#fd4>{2}</color>.");
 
             public static readonly LangEntry PasteNotCompatible = new LangEntry("Paste.NotCompatible", "CopyPaste is not loaded or its version is incompatible.");
             public static readonly LangEntry PasteSyntax = new LangEntry("Paste.Syntax", "Syntax: <color=#fd4>mapaste <file></color>");
@@ -11589,6 +11717,7 @@ namespace Oxide.Plugins
             public static readonly LangEntry HelpHeader = new LangEntry("Help.Header", "<size=18>Monument Addons Help</size>");
             public static readonly LangEntry HelpSpawn = new LangEntry("Help.Spawn", "<color=#fd4>maspawn <entity></color> - Spawn an entity");
             public static readonly LangEntry HelpKill = new LangEntry("Help.Kill", "<color=#fd4>makill</color> - Delete an entity or other addon");
+            public static readonly LangEntry HelpUndo = new LangEntry("Help.Undo", "<color=#fd4>maundo</color> - Undo a recent <color=#fd4>makill</color> action");
             public static readonly LangEntry HelpSave = new LangEntry("Help.Save", "<color=#fd4>masave</color> - Save an entity's updated position");
             public static readonly LangEntry HelpSkin = new LangEntry("Help.Skin", "<color=#fd4>maskin <skin id></color> - Change the skin of an entity");
             public static readonly LangEntry HelpSetId = new LangEntry("Help.SetId", "<color=#fd4>masetid <id></color> - Set the id of a CCTV");
@@ -11678,6 +11807,10 @@ namespace Oxide.Plugins
 
             var spawnPointData = data as SpawnPointData;
             if (spawnPointData != null)
+                return GetMessage(player.Id, LangEntry.AddonTypeSpawnPoint);
+
+            var spawnGroupData = data as SpawnGroupData;
+            if (spawnGroupData != null)
                 return GetMessage(player.Id, LangEntry.AddonTypeSpawnPoint);
 
             var pasteData = data as PasteData;

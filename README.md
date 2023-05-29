@@ -123,6 +123,7 @@ Follow these steps to create example spawn points.
     - A monument is considered a match if it has the same short prefab name or the same alias as the monument you are aiming at. The Monument Finder plugin will assign aliases for primarily underground tunnels. For example, `station-sn-0` and `station-we-0` will both use the `TrainStation` alias, allowing all train stations to have the same entities.
   - Saves the entity info to the plugin data file so that reloading the plugin (or restarting the server) will respawn the entity.
 - `mapaste <file>` -- Pastes a building from the CopyPaste plugin, using the specified file name.
+- `maundo` -- Undo a recent `makill` action.
 - `mashow <optional_profile_name> <optional_duration_in_seconds>` -- Shows debug information about nearby entities spawned by this plugin, for the specified duration. Defaults to 60 seconds.
   - Debug information is also automatically displayed for at least 60 seconds when using other commands.
   - When specifying a profile name, entities belonging to other profiles will have gray text.
