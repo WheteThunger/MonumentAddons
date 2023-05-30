@@ -11843,7 +11843,7 @@ namespace Oxide.Plugins
             public static readonly LangEntry HelpSetId = new LangEntry("Help.SetId", "<color=#fd4>masetid <id></color> - Set the id of a CCTV");
             public static readonly LangEntry HelpSetDir = new LangEntry("Help.SetDir", "<color=#fd4>masetdir</color> - Set the direction of a CCTV");
             public static readonly LangEntry HelpSkull = new LangEntry("Help.Skull", "<color=#fd4>maskull <name></color> - Set skull trophy display name");
-            public static readonly LangEntry HelpCardReaderLevel = new LangEntry("Help.CardReaderLevel", "<color=#fd4>macardlevel <1-3></color> - Set a card reader's access level.");
+            public static readonly LangEntry HelpCardReaderLevel = new LangEntry("Help.CardReaderLevel", "<color=#fd4>macardlevel <1-3></color> - Set a card reader's access level");
             public static readonly LangEntry HelpPuzzle = new LangEntry("Help.Puzzle", "<color=#fd4>mapuzzle</color> - Print puzzle help");
             public static readonly LangEntry HelpSpawnGroup = new LangEntry("Help.SpawnGroup", "<color=#fd4>maspawngroup</color> - Print spawn group help");
             public static readonly LangEntry HelpSpawnPoint = new LangEntry("Help.SpawnPoint", "<color=#fd4>maspawnpoint</color> - Print spawn point help");
