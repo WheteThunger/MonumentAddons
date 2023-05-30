@@ -184,6 +184,7 @@ Note: `masg` can be used in place of `maspawngroup`.
   - `CheckSpace`: true/false -- While `true`, entities can only spawn at this spawn point when there is sufficient space. This option is recommended for vehicle spawn points.
   - `RandomRotation` : true/false -- While `true`, entities will spawn with random rotation at this spawn point, instead of following the rotation of the spawn point itself.
   - `RandomRadius`: number -- This number determines how far away entities can spawn from this spawn point. The default is `0.0`.
+  - `PlayerDetectionRadius`: number -- This number determines how far away players must be, in order for this spawn point to spawn an entity. By default, vanilla behavior checks within `2` meters for normal spawn points, or `RandomRadius` + `1` meter for radial spawn points. Setting this value to greater than `0` will override the vanilla behavior, allowing you to enlarge or shrink the detection radius. While a player is detected within the radius, the spawn point is considered unavailable, so another spawn point within the same spawn group may be selected for spawning an entity.
 
 Note: `masp` can be used in place of `maspawnpoint`.
 

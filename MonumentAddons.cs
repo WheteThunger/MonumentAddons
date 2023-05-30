@@ -556,6 +556,7 @@ namespace Oxide.Plugins
             CheckSpace,
             RandomRotation,
             RandomRadius,
+            PlayerDetectionRadius,
         }
 
         [Command("maspawn")]
@@ -2074,6 +2075,7 @@ namespace Oxide.Plugins
                         sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnPointSetHelpCheckSpace));
                         sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnPointSetHelpRandomRotation));
                         sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnPointSetHelpRandomRadius));
+                        sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnPointSetHelpPlayerDetectionRadius));
                         player.Reply(sb.ToString());
                         return;
                     }
@@ -2099,7 +2101,7 @@ namespace Oxide.Plugins
                                 return;
 
                             spawnPointData.Exclusive = exclusive;
-                            setValue = spawnPointData.Exclusive;
+                            setValue = exclusive;
                             break;
                         }
 
@@ -2110,7 +2112,7 @@ namespace Oxide.Plugins
                                 return;
 
                             spawnPointData.SnapToGround = snapToGround;
-                            setValue = spawnPointData.SnapToGround;
+                            setValue = snapToGround;
                             break;
                         }
 
@@ -2121,7 +2123,7 @@ namespace Oxide.Plugins
                                 return;
 
                             spawnPointData.CheckSpace = checkSpace;
-                            setValue = spawnPointData.CheckSpace;
+                            setValue = checkSpace;
                             break;
                         }
 
@@ -2132,7 +2134,7 @@ namespace Oxide.Plugins
                                 return;
 
                             spawnPointData.RandomRotation = randomRotation;
-                            setValue = spawnPointData.RandomRotation;
+                            setValue = randomRotation;
                             break;
                         }
 
@@ -2143,7 +2145,18 @@ namespace Oxide.Plugins
                                 return;
 
                             spawnPointData.RandomRadius = radius;
-                            setValue = spawnPointData.RandomRadius;
+                            setValue = radius;
+                            break;
+                        }
+
+                        case SpawnPointOption.PlayerDetectionRadius:
+                        {
+                            float radius;
+                            if (!VerifyValidFloat(player, args[2], out radius, LangEntry.ErrorSetSyntax, cmd, SpawnPointOption.PlayerDetectionRadius))
+                                return;
+
+                            spawnPointData.PlayerDetectionRadius = radius;
+                            setValue = radius;
                             break;
                         }
                     }
@@ -7317,6 +7330,19 @@ namespace Oxide.Plugins
                 return true;
             }
 
+            public override bool HasPlayersIntersecting()
+            {
+                var detectionRadius = _spawnPointData.PlayerDetectionRadius > 0
+                    ? _spawnPointData.PlayerDetectionRadius
+                    : _spawnPointData.RandomRadius > 0
+                        ? _spawnPointData.RandomRadius + 1
+                        : 0;
+
+                return detectionRadius > 0
+                    ? BaseNetworkable.HasCloseConnections(transform.position, detectionRadius)
+                    : base.HasPlayersIntersecting();
+            }
+
             public void OnDestroy()
             {
                 KillSpawnedInstances();
@@ -8659,8 +8685,11 @@ namespace Oxide.Plugins
 
                 if (puzzleReset.playersBlockReset)
                 {
-                    var playersInRadius = PuzzleReset.AnyPlayersWithinDistance(puzzleReset.playerDetectionOrigin, puzzleReset.playerDetectionRadius);
-                    _sb.AppendLine(_plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelPuzzlePlayerDetectionRadius, puzzleReset.playerDetectionRadius) + (playersInRadius ? " (!)" : ""));
+                    _sb.AppendLine(_plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelPlayerDetectionRadius, puzzleReset.playerDetectionRadius));
+                    if (PuzzleReset.AnyPlayersWithinDistance(puzzleReset.playerDetectionOrigin, puzzleReset.playerDetectionRadius))
+                    {
+                        _sb.AppendLine(_plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelPlayerDetectedInRadius));
+                    }
                 }
 
                 _sb.AppendLine(_plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelPuzzleTimeBetweenResets, FormatTime(puzzleReset.timeBetweenResets)));
@@ -8816,6 +8845,16 @@ namespace Oxide.Plugins
                     _sb.AppendLine(_plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelSpawnPointRandomRadius, spawnPointData.RandomRadius));
                 }
 
+                if (spawnPointData.PlayerDetectionRadius > 0)
+                {
+                    _sb.AppendLine(_plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelPlayerDetectionRadius, spawnPointData.PlayerDetectionRadius));
+                }
+
+                if (adapter.SpawnPoint.HasPlayersIntersecting())
+                {
+                    _sb.AppendLine(_plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelPlayerDetectedInRadius));
+                }
+
                 if (showGroupInfo)
                 {
                     _sb.AppendLine(Divider);
@@ -8849,7 +8888,6 @@ namespace Oxide.Plugins
                     _sb.AppendLine(_plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelRespawnPerTick, spawnGroupData.SpawnPerTickMin, spawnGroupData.SpawnPerTickMax));
 
                     var spawnGroup = spawnGroupAdapter.SpawnGroup;
-
                     if (spawnGroup.WantsTimedSpawn())
                     {
                         _sb.AppendLine(_plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelRespawnDelay, FormatTime(spawnGroup.respawnDelayMin), FormatTime(spawnGroup.respawnDelayMax)));
@@ -9994,6 +10032,9 @@ namespace Oxide.Plugins
 
             [JsonProperty("RandomRadius", DefaultValueHandling = DefaultValueHandling.Ignore)]
             public float RandomRadius;
+
+            [JsonProperty("PlayerDetectionRadius", DefaultValueHandling = DefaultValueHandling.Ignore)]
+            public float PlayerDetectionRadius;
         }
 
         private class WeightedPrefabData
@@ -11673,6 +11714,7 @@ namespace Oxide.Plugins
             public static readonly LangEntry SpawnPointSetHelpCheckSpace = new LangEntry("SpawnPoint.Set.Help.CheckSpace", "<color=#fd4>CheckSpace</color>: true | false");
             public static readonly LangEntry SpawnPointSetHelpRandomRotation = new LangEntry("SpawnPoint.Set.Help.RandomRotation", "<color=#fd4>RandomRotation</color>: true | false");
             public static readonly LangEntry SpawnPointSetHelpRandomRadius = new LangEntry("SpawnPoint.Set.Help.RandomRadius", "<color=#fd4>RandomRadius</color>: number");
+            public static readonly LangEntry SpawnPointSetHelpPlayerDetectionRadius = new LangEntry("SpawnPoint.Set.Help.PlayerDetectionRadius", "<color=#fd4>PlayerDetectionRadius</color>: number");
 
             public static readonly LangEntry PuzzleAddSpawnGroupSyntax = new LangEntry("Puzzle.AddSpawnGroup.Syntax", "Syntax: <color=#fd4>{0} add <group_name></color>");
             public static readonly LangEntry PuzzleAddSpawnGroupSuccess = new LangEntry("Puzzle.AddSpawnGroup.Success", "Successfully added spawn group <color=#fd4>{0}</color> to puzzle.");
@@ -11739,9 +11781,10 @@ namespace Oxide.Plugins
             public static readonly LangEntry ShowLabelEntities = new LangEntry("Show.Label.Entities", "Entities:");
             public static readonly LangEntry ShowLabelEntityDetail = new LangEntry("Show.Label.Entities.Detail2", "{0} | weight: {1} ({2:P1})");
             public static readonly LangEntry ShowLabelNoEntities = new LangEntry("Show.Label.NoEntities", "No entities configured. Run /maspawngroup add <entity> <weight>");
+            public static readonly LangEntry ShowLabelPlayerDetectionRadius = new LangEntry("Show.Label.PlayerDetectionRadius", "Player detection radius: {0:f1}");
+            public static readonly LangEntry ShowLabelPlayerDetectedInRadius = new LangEntry("Show.Label.PlayerDetectedInRadius", "(!) Player detected in radius (!)");
 
             public static readonly LangEntry ShowLabelPuzzlePlayersBlockReset = new LangEntry("Show.Label.Puzzle.PlayersBlockReset", "Players block reset progress: {0}");
-            public static readonly LangEntry ShowLabelPuzzlePlayerDetectionRadius = new LangEntry("Show.Label.Puzzle.PlayerDetectionRadius", "Player detection radius: {0}");
             public static readonly LangEntry ShowLabelPuzzleTimeBetweenResets = new LangEntry("Show.Label.Puzzle.TimeBetweenResets", "Time between resets: {0}");
             public static readonly LangEntry ShowLabelPuzzleNextReset = new LangEntry("Show.Label.Puzzle.NextReset", "Time until next reset: {0}");
             public static readonly LangEntry ShowLabelPuzzleNextResetOverdue = new LangEntry("Show.Label.Puzzle.NextReset.Overdue", "Any moment now");
