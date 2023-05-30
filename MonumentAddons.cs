@@ -547,6 +547,7 @@ namespace Oxide.Plugins
             InitialSpawn,
             PreventDuplicates,
             PauseScheduleWhileFull,
+            RespawnWhenNearestPuzzleResets,
         }
 
         private enum SpawnPointOption
@@ -1737,6 +1738,7 @@ namespace Oxide.Plugins
                         sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnGroupSetHelpInitialSpawn));
                         sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnGroupSetHelpPreventDuplicates));
                         sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnGroupSetHelpPauseScheduleWhileFull));
+                        sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnGroupSetHelpRespawnWhenNearestPuzzleResets));
                         player.Reply(sb.ToString());
                         return;
                     }
@@ -1858,6 +1860,18 @@ namespace Oxide.Plugins
 
                             spawnGroupData.PauseScheduleWhileFull = pauseScheduleWhileFull;
                             setValue = pauseScheduleWhileFull;
+                            showImmediate = false;
+                            break;
+                        }
+
+                        case SpawnGroupOption.RespawnWhenNearestPuzzleResets:
+                        {
+                            bool respawnWhenNearestPuzzleResets;
+                            if (!VerifyValidBool(player, args[2], out respawnWhenNearestPuzzleResets, LangEntry.ErrorSetSyntax, cmd, SpawnGroupOption.RespawnWhenNearestPuzzleResets))
+                                return;
+
+                            spawnGroupData.RespawnWhenNearestPuzzleResets = respawnWhenNearestPuzzleResets;
+                            setValue = respawnWhenNearestPuzzleResets;
                             showImmediate = false;
                             break;
                         }
@@ -3803,29 +3817,36 @@ namespace Oxide.Plugins
                     if (filterShortPrefabName == null || entity.ShortPrefabName == filterShortPrefabName)
                         return entity;
                 }
+
                 return null;
             }
 
-            public static T GetClosestNearbyEntity<T>(Vector3 position, float maxDistance, int layerMask = -1) where T : BaseEntity
+            public static T GetClosestNearbyEntity<T>(Vector3 position, float maxDistance, int layerMask = -1, Func<T, bool> predicate = null) where T : BaseEntity
             {
                 var entityList = Facepunch.Pool.GetList<T>();
                 Vis.Entities(position, maxDistance, entityList, layerMask, QueryTriggerInteraction.Ignore);
-
-                T closestEntity = null;
-                float closestDistanceSquared = float.MaxValue;
-
-                foreach (var entity in entityList)
+                try
                 {
-                    var distance = (entity.transform.position - position).sqrMagnitude;
-                    if (distance < closestDistanceSquared)
-                    {
-                        closestDistanceSquared = distance;
-                        closestEntity = entity;
-                    }
+                    return GetClosestComponent(position, entityList, predicate);
                 }
+                finally
+                {
+                    Facepunch.Pool.FreeList(ref entityList);
+                }
+            }
 
-                Facepunch.Pool.FreeList(ref entityList);
-                return closestEntity;
+            public static T GetClosestNearbyComponent<T>(Vector3 position, float maxDistance, int layerMask = -1, Func<T, bool> predicate = null) where T : UnityEngine.Component
+            {
+                var componentList = Facepunch.Pool.GetList<T>();
+                Vis.Components(position, maxDistance, componentList, layerMask, QueryTriggerInteraction.Ignore);
+                try
+                {
+                    return GetClosestComponent(position, componentList, predicate);
+                }
+                finally
+                {
+                    Facepunch.Pool.FreeList(ref componentList);
+                }
             }
 
             public static void ConnectNearbyVehicleSpawner(VehicleVendor vehicleVendor)
@@ -3868,6 +3889,27 @@ namespace Oxide.Plugins
 
                 doorManipulator.SetTargetDoor(door);
                 door.SetFlag(BaseEntity.Flags.Locked, true);
+            }
+
+            private static T GetClosestComponent<T>(Vector3 position, List<T> componentList, Func<T, bool> predicate = null) where T : UnityEngine.Component
+            {
+                T closestComponent = null;
+                float closestDistanceSquared = float.MaxValue;
+
+                foreach (var component in componentList)
+                {
+                    if (predicate?.Invoke(component) == false)
+                        continue;
+
+                    var distance = (component.transform.position - position).sqrMagnitude;
+                    if (distance < closestDistanceSquared)
+                    {
+                        closestDistanceSquared = distance;
+                        closestComponent = component;
+                    }
+                }
+
+                return closestComponent;
             }
         }
 
@@ -6090,12 +6132,7 @@ namespace Oxide.Plugins
 
                 foreach (var spawnGroupId in spawnGroupIdList)
                 {
-                    var spawnGroupAdapter = ProfileController.FindAdapter(spawnGroupId, Monument) as SpawnGroupAdapter;
-                    if (spawnGroupAdapter == null)
-                        continue;
-
-                    spawnGroupAdapter.SpawnGroup.Clear();
-                    spawnGroupAdapter.SpawnGroup.DelayedSpawn();
+                    (ProfileController.FindAdapter(spawnGroupId, Monument) as SpawnGroupAdapter)?.SpawnGroup.OnPuzzleReset();
                 }
             }
 
@@ -7346,7 +7383,7 @@ namespace Oxide.Plugins
             public void OnDestroy()
             {
                 KillSpawnedInstances();
-                Adapter.OnSpawnPointKilled(this);
+                Adapter.OnSpawnPointKilled();
             }
 
             public void KillSpawnedInstances(string prefabName = null)
@@ -7523,6 +7560,13 @@ namespace Oxide.Plugins
                 }
             }
 
+            // Called by Rust via Unity SendMessage, when associating with a vanilla puzzle reset.
+            public void OnPuzzleReset()
+            {
+                Clear();
+                DelayedSpawn();
+            }
+
             protected override void PostSpawnProcess(BaseEntity entity, BaseSpawnPoint spawnPoint)
             {
                 base.PostSpawnProcess(entity, spawnPoint);
@@ -7637,7 +7681,7 @@ namespace Oxide.Plugins
                 SpawnPoint.PreUnload();
             }
 
-            public void OnSpawnPointKilled(CustomSpawnPoint spawnPoint)
+            public void OnSpawnPointKilled()
             {
                 SpawnGroupAdapter.OnSpawnPointAdapterKilled(this);
             }
@@ -7654,7 +7698,6 @@ namespace Oxide.Plugins
                     _transform.SetPositionAndRotation(IntendedPosition, IntendedRotation);
                     SpawnPoint.MoveSpawnedInstances();
                 }
-
             }
         }
 
@@ -7663,6 +7706,7 @@ namespace Oxide.Plugins
             public SpawnGroupData SpawnGroupData { get; }
             public List<SpawnPointAdapter> SpawnPointAdapters { get; } = new List<SpawnPointAdapter>();
             public CustomSpawnGroup SpawnGroup { get; private set; }
+            public PuzzleReset AssociatedPuzzleReset { get; private set; }
 
             public SpawnGroupAdapter(SpawnGroupData spawnGroupData, BaseController controller, BaseMonument monument) : base(spawnGroupData, controller, monument)
             {
@@ -7697,6 +7741,7 @@ namespace Oxide.Plugins
                 }
 
                 UpdateSpawnPointReferences();
+                UpdatePuzzleResetAssociation();
 
                 if (SpawnGroupData.InitialSpawn)
                 {
@@ -7734,10 +7779,68 @@ namespace Oxide.Plugins
 
             public void OnSpawnGroupKilled()
             {
+                if (AssociatedPuzzleReset != null)
+                {
+                    UnregisterWithPuzzleReset(AssociatedPuzzleReset);
+                }
+
                 foreach (var spawnPointAdapter in SpawnPointAdapters.ToList())
                 {
                     spawnPointAdapter.Kill();
                 }
+            }
+
+            private Vector3 GetMidpoint()
+            {
+                var min = Vector3.positiveInfinity;
+                var max = Vector3.negativeInfinity;
+
+                foreach (var spawnPointAdapter in SpawnPointAdapters)
+                {
+                    var position = spawnPointAdapter.Position;
+                    min = Vector3.Min(min, position);
+                    max = Vector3.Max(max, position);
+                }
+
+                return (min + max) / 2f;
+            }
+
+            private PuzzleReset FindClosestVanillaPuzzleReset(float maxDistance = 60)
+            {
+                return EntityUtils.GetClosestNearbyComponent<PuzzleReset>(GetMidpoint(), maxDistance, Rust.Layers.Mask.World, puzzleReset =>
+                {
+                    var entity = puzzleReset.GetComponent<BaseEntity>();
+                    return entity != null && !Plugin._entityTracker.IsMonumentEntity(entity);
+                });
+            }
+
+            private void RegisterWithPuzzleReset(PuzzleReset puzzleReset)
+            {
+                if (IsRegisteredWithPuzzleReset(puzzleReset))
+                    return;
+
+                if (puzzleReset.resetObjects == null)
+                {
+                    puzzleReset.resetObjects = new[] { SpawnGroup.gameObject };
+                    return;
+                }
+
+                var originalLength = puzzleReset.resetObjects.Length;
+                Array.Resize(ref puzzleReset.resetObjects, originalLength + 1);
+                puzzleReset.resetObjects[originalLength] = SpawnGroup.gameObject;
+            }
+
+            private void UnregisterWithPuzzleReset(PuzzleReset puzzleReset)
+            {
+                if (!IsRegisteredWithPuzzleReset(puzzleReset))
+                    return;
+
+                puzzleReset.resetObjects = puzzleReset.resetObjects.Where(obj => obj != SpawnGroup.gameObject).ToArray();
+            }
+
+            private bool IsRegisteredWithPuzzleReset(PuzzleReset puzzleReset)
+            {
+                return puzzleReset.resetObjects?.Contains(SpawnGroup.gameObject) == true;
             }
 
             private void UpdateProperties()
@@ -7814,12 +7917,40 @@ namespace Oxide.Plugins
                 }
             }
 
+            private void UpdatePuzzleResetAssociation()
+            {
+                if (!SpawnGroup.gameObject.activeSelf)
+                    return;
+
+                if (SpawnGroupData.RespawnWhenNearestPuzzleResets)
+                {
+                    var closestPuzzleReset = FindClosestVanillaPuzzleReset();
+
+                    // Re-evaluate current association since the midpoint and other circumstances can change.
+                    if (AssociatedPuzzleReset != null && AssociatedPuzzleReset != closestPuzzleReset)
+                    {
+                        UnregisterWithPuzzleReset(AssociatedPuzzleReset);
+                    }
+
+                    AssociatedPuzzleReset = closestPuzzleReset;
+                    if (closestPuzzleReset != null)
+                    {
+                        RegisterWithPuzzleReset(closestPuzzleReset);
+                    }
+                }
+                else if (AssociatedPuzzleReset != null)
+                {
+                    UnregisterWithPuzzleReset(AssociatedPuzzleReset);
+                }
+            }
+
             public void UpdateSpawnGroup()
             {
                 UpdateProperties();
                 UpdatePrefabEntries();
                 UpdateSpawnPointReferences();
                 UpdateSpawnPointPositions();
+                UpdatePuzzleResetAssociation();
             }
 
             public void SpawnTick()
@@ -7830,7 +7961,9 @@ namespace Oxide.Plugins
             public void KillSpawnedInstances(string prefabName)
             {
                 foreach (var spawnPointAdapter in SpawnPointAdapters)
+                {
                     spawnPointAdapter.KillSpawnedInstances(prefabName);
+                }
             }
 
             public void CreateSpawnPoint(SpawnPointData spawnPointData)
@@ -8677,9 +8810,8 @@ namespace Oxide.Plugins
                     : _plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelMonument, adapter.Monument.AliasOrShortName, controller.Adapters.Count));
             }
 
-            private void ShowPuzzleInfo(BasePlayer player, EntityAdapter adapter, PuzzleReset puzzleReset, Vector3 playerPosition, PlayerInfo playerInfo)
+            private void ShowPuzzleInfo(BasePlayer player, EntityAdapter entityAdapter, PuzzleReset puzzleReset, Vector3 playerPosition, PlayerInfo playerInfo)
             {
-                _sb.AppendLine(Divider);
                 _sb.AppendLine($"<size=25>{_plugin.GetMessage(player.UserIDString, LangEntry.ShowHeaderPuzzle)}</size>");
                 _sb.AppendLine(_plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelPuzzlePlayersBlockReset, puzzleReset.playersBlockReset));
 
@@ -8706,38 +8838,41 @@ namespace Oxide.Plugins
                     _sb.AppendLine(_plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelPuzzleNextReset, nextResetMessage));
                 }
 
-                var profileController = adapter.ProfileController;
-
-                var spawnGroupIdList = adapter.EntityData.Puzzle?.SpawnGroupIds;
-                if (spawnGroupIdList != null)
+                if (entityAdapter != null)
                 {
-                    List<string> spawnGroupNameList = null;
+                    var profileController = entityAdapter.ProfileController;
 
-                    foreach (var spawnGroupId in spawnGroupIdList)
+                    var spawnGroupIdList = entityAdapter.EntityData.Puzzle?.SpawnGroupIds;
+                    if (spawnGroupIdList != null)
                     {
-                        var spawnGroupAdapter = profileController.FindAdapter(spawnGroupId, adapter.Monument) as SpawnGroupAdapter;
-                        if (spawnGroupAdapter == null)
-                            continue;
+                        List<string> spawnGroupNameList = null;
 
-                        if (spawnGroupNameList == null)
+                        foreach (var spawnGroupId in spawnGroupIdList)
                         {
-                            spawnGroupNameList = Facepunch.Pool.GetList<string>();
+                            var spawnGroupAdapter = profileController.FindAdapter(spawnGroupId, entityAdapter.Monument) as SpawnGroupAdapter;
+                            if (spawnGroupAdapter == null)
+                                continue;
+
+                            if (spawnGroupNameList == null)
+                            {
+                                spawnGroupNameList = Facepunch.Pool.GetList<string>();
+                            }
+
+                            spawnGroupNameList.Add(spawnGroupAdapter.SpawnGroupData.Name);
+
+                            float closestDistanceSquared;
+                            var spawnPointAdapter = FindClosestSpawnPointAdapter(spawnGroupAdapter, playerPosition, out closestDistanceSquared);
+                            if (spawnPointAdapter != null)
+                            {
+                                Ddraw.Arrow(player, entityAdapter.Position + ArrowVerticalOffeset, spawnPointAdapter.Position + ArrowVerticalOffeset, 0.25f, DetermineColor(spawnPointAdapter, playerInfo, profileController), DisplayIntervalDuration);
+                            }
                         }
 
-                        spawnGroupNameList.Add(spawnGroupAdapter.SpawnGroupData.Name);
-
-                        float closestDistanceSquared;
-                        var spawnPointAdapter = FindClosestSpawnPointAdapter(spawnGroupAdapter, playerPosition, out closestDistanceSquared);
-                        if (spawnPointAdapter != null)
+                        if (spawnGroupNameList != null)
                         {
-                            Ddraw.Arrow(player, adapter.Position + ArrowVerticalOffeset, spawnPointAdapter.Position + ArrowVerticalOffeset, 0.25f, DetermineColor(spawnPointAdapter, playerInfo, profileController), DisplayIntervalDuration);
+                            _sb.AppendLine(_plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelPuzzleSpawnGroups, string.Join(", ", spawnGroupNameList)));
+                            Facepunch.Pool.FreeList(ref spawnGroupNameList);
                         }
-                    }
-
-                    if (spawnGroupNameList != null)
-                    {
-                        _sb.AppendLine(_plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelPuzzleSpawnGroups, string.Join(", ", spawnGroupNameList)));
-                        Facepunch.Pool.FreeList(ref spawnGroupNameList);
                     }
                 }
             }
@@ -8794,6 +8929,7 @@ namespace Oxide.Plugins
                 var puzzleReset = (adapter.Entity as IOEntity)?.GetComponent<PuzzleReset>();
                 if (puzzleReset != null)
                 {
+                    _sb.AppendLine(Divider);
                     ShowPuzzleInfo(player, adapter, puzzleReset, playerPosition, playerInfo);
                 }
 
@@ -8879,6 +9015,11 @@ namespace Oxide.Plugins
                         groupBooleanProperties.Add(_plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelPauseScheduleWhileFull));
                     }
 
+                    if (spawnGroupData.RespawnWhenNearestPuzzleResets)
+                    {
+                        groupBooleanProperties.Add(_plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelRespawnWhenNearestPuzzleResets) + (spawnGroupAdapter.AssociatedPuzzleReset == null ? " (!)" : ""));
+                    }
+
                     if (groupBooleanProperties.Count > 0)
                     {
                         _sb.AppendLine(_plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelFlags, string.Join(" | ", groupBooleanProperties)));
@@ -8930,6 +9071,20 @@ namespace Oxide.Plugins
                 Ddraw.ArrowThrough(player, adapter.Position + ArrowVerticalOffeset, adapter.Rotation, 1f, 0.15f, color, DisplayIntervalDuration);
                 Ddraw.Sphere(player, adapter.Position, 0.5f, color, DisplayIntervalDuration);
                 Ddraw.Text(player, adapter.Position, _sb.ToString(), color, DisplayIntervalDuration);
+
+                if (spawnGroupData.RespawnWhenNearestPuzzleResets)
+                {
+                    _sb.Clear();
+
+                    var puzzleReset = spawnGroupAdapter.AssociatedPuzzleReset;
+                    if (puzzleReset != null)
+                    {
+                        ShowPuzzleInfo(player, null, spawnGroupAdapter.AssociatedPuzzleReset, player.transform.position, playerInfo);
+                        var position = puzzleReset.transform.position;
+                        Ddraw.Arrow(player, position + ArrowVerticalOffeset, adapter.Position + ArrowVerticalOffeset, 0.25f, DetermineColor(adapter, playerInfo, profileController), DisplayIntervalDuration);
+                        Ddraw.Text(player, position, _sb.ToString(), color, DisplayIntervalDuration);
+                    }
+                }
             }
 
             private void ShowPasteInfo(BasePlayer player, PasteAdapter adapter, PlayerInfo playerInfo)
@@ -10066,15 +10221,18 @@ namespace Oxide.Plugins
             [JsonProperty("RespawnDelayMax")]
             public float RespawnDelayMax = 2100;
 
-            [JsonProperty("PauseScheduleWhileFull")]
-            public bool PauseScheduleWhileFull;
-
             // Default to true for backwards compatibility.
             [JsonProperty("InitialSpawn")]
             public bool InitialSpawn = true;
 
             [JsonProperty("PreventDuplicates", DefaultValueHandling = DefaultValueHandling.Ignore)]
             public bool PreventDuplicates;
+
+            [JsonProperty("PauseScheduleWhileFull", DefaultValueHandling = DefaultValueHandling.Ignore)]
+            public bool PauseScheduleWhileFull;
+
+            [JsonProperty("RespawnWhenNearestPuzzleResets", DefaultValueHandling = DefaultValueHandling.Ignore)]
+            public bool RespawnWhenNearestPuzzleResets;
 
             [JsonProperty("Prefabs")]
             public List<WeightedPrefabData> Prefabs = new List<WeightedPrefabData>();
@@ -11708,6 +11866,7 @@ namespace Oxide.Plugins
             public static readonly LangEntry SpawnGroupSetHelpInitialSpawn = new LangEntry("SpawnGroup.Set.Help.InitialSpawn", "<color=#fd4>InitialSpawn</color>: true | false");
             public static readonly LangEntry SpawnGroupSetHelpPreventDuplicates = new LangEntry("SpawnGroup.Set.Help.PreventDuplicates", "<color=#fd4>PreventDuplicates</color>: true | false");
             public static readonly LangEntry SpawnGroupSetHelpPauseScheduleWhileFull = new LangEntry("SpawnGroup.Set.Help.PauseScheduleWhileFull","<color=#fd4>PauseScheduleWhileFull</color>: true | false");
+            public static readonly LangEntry SpawnGroupSetHelpRespawnWhenNearestPuzzleResets = new LangEntry("SpawnGroup.Set.Help.RespawnWhenNearestPuzzleResets","<color=#fd4>RespawnWhenNearestPuzzleResets</color>: true | false");
 
             public static readonly LangEntry SpawnPointSetHelpExclusive = new LangEntry("SpawnPoint.Set.Help.Exclusive", "<color=#fd4>Exclusive</color>: true | false");
             public static readonly LangEntry SpawnPointSetHelpSnapToGround = new LangEntry("SpawnPoint.Set.Help.SnapToGround", "<color=#fd4>SnapToGround</color>: true | false");
@@ -11772,6 +11931,7 @@ namespace Oxide.Plugins
             public static readonly LangEntry ShowLabelInitialSpawn = new LangEntry("Show.Label.InitialSpawn", "InitialSpawn");
             public static readonly LangEntry ShowLabelPreventDuplicates = new LangEntry("Show.Label.PreventDuplicates2", "PreventDuplicates");
             public static readonly LangEntry ShowLabelPauseScheduleWhileFull = new LangEntry("Show.Label.PauseScheduleWhileFull", "PauseScheduleWhileFull");
+            public static readonly LangEntry ShowLabelRespawnWhenNearestPuzzleResets = new LangEntry("Show.Label.RespawnWhenNearestPuzzleResets", "RespawnWhenNearestPuzzleResets");
             public static readonly LangEntry ShowLabelPopulation = new LangEntry("Show.Label.Population", "Population: {0} / {1}");
             public static readonly LangEntry ShowLabelRespawnPerTick = new LangEntry("Show.Label.RespawnPerTick", "Spawn per tick: {0} - {1}");
             public static readonly LangEntry ShowLabelRespawnDelay = new LangEntry("Show.Label.RespawnDelay", "Respawn delay: {0} - {1}");
