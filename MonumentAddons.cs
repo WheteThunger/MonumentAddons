@@ -5186,6 +5186,8 @@ namespace Oxide.Plugins
 
         #endregion
 
+        #region Undo Manager
+
         private abstract class BaseUndo
         {
             private const float ExpireAfterSeconds = 300;
@@ -5328,6 +5330,8 @@ namespace Oxide.Plugins
                 return stack;
             }
         }
+
+        #endregion
 
         #region Adapters/Controllers
 
