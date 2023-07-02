@@ -29,7 +29,7 @@ using System.Text.RegularExpressions;
 
 namespace Oxide.Plugins
 {
-    [Info("Monument Addons", "WhiteThunder", "0.14.0")]
+    [Info("Monument Addons", "WhiteThunder", "0.14.1")]
     [Description("Allows adding entities, spawn points and more to monuments.")]
     internal class MonumentAddons : CovalencePlugin
     {
@@ -1508,6 +1508,12 @@ namespace Oxide.Plugins
         [Command("mainstall")]
         private void CommandInstallProfile(IPlayer player, string cmd, string[] args)
         {
+            if (!_serverInitialized)
+                return;
+
+            if (!player.IsServer && !VerifyHasPermission(player))
+                return;
+
             if (args.Length < 1)
             {
                 ReplyToPlayer(player, LangEntry.ProfileInstallShorthandSyntax);
