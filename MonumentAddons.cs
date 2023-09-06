@@ -29,7 +29,7 @@ using System.Text.RegularExpressions;
 
 namespace Oxide.Plugins
 {
-    [Info("Monument Addons", "WhiteThunder", "0.14.1")]
+    [Info("Monument Addons", "WhiteThunder", "0.14.2")]
     [Description("Allows adding entities, spawn points and more to monuments.")]
     internal class MonumentAddons : CovalencePlugin
     {
@@ -7450,7 +7450,7 @@ namespace Oxide.Plugins
                     return;
                 }
 
-                var heli = vehicle as MiniCopter;
+                var heli = vehicle as PlayerHelicopter;
                 if (heli != null)
                 {
                     heli.lastEngineOnTime = float.MaxValue;
