@@ -575,7 +575,7 @@ namespace Oxide.Plugins
                 || !VerifyHasPermission(player)
                 || !VerifyMonumentFinderLoaded(player)
                 || !VerifyProfileSelected(player, out profileController)
-                || !VerifyValidPrefabOrDeployable(player, args, out prefabName, out addonDefinition, out skinId)
+                || !VerifyValidEntityPrefabOrDeployable(player, args, out prefabName, out addonDefinition, out skinId)
                 || !VerifyHitPosition(player, out position)
                 || !VerifyAtMonument(player, position, out monument))
                 return;
@@ -651,6 +651,54 @@ namespace Oxide.Plugins
             profileController.Profile.AddData(monument.AliasOrShortName, addonData);
             _profileStore.Save(profileController.Profile);
             profileController.SpawnNewData(addonData, matchingMonuments);
+
+            ReplyToPlayer(player, LangEntry.PrefabSuccess, matchingMonuments.Count, profileController.Profile.Name, monument.AliasOrShortName);
+            _adapterDisplayManager.ShowAllRepeatedly(basePlayer);
+        }
+
+        [Command("maprefab")]
+        private void CommandPrefab(IPlayer player, string cmd, string[] args)
+        {
+            ProfileController profileController;
+            string prefabName;
+            Vector3 position;
+            BaseMonument monument;
+
+            BasePlayer basePlayer;
+            if (!VerifyPlayer(player, out basePlayer)
+                || !VerifyHasPermission(player)
+                || !VerifyMonumentFinderLoaded(player)
+                || !VerifyProfileSelected(player, out profileController)
+                || !VerifyValidModderPrefab(player, args, out prefabName)
+                || !VerifyHitPosition(player, out position)
+                || !VerifyAtMonument(player, position, out monument))
+                return;
+
+            if (FindBaseEntityForPrefab(prefabName) != null)
+            {
+                ReplyToPlayer(player, LangEntry.PrefabErrorIsEntity, prefabName);
+                return;
+            }
+
+            Vector3 localPosition;
+            Vector3 localRotationAngles;
+            bool isOnTerrain;
+            DetermineLocalTransformData(position, basePlayer, monument, out localPosition, out localRotationAngles, out isOnTerrain);
+
+            var prefabData = new PrefabData
+            {
+                Id = Guid.NewGuid(),
+                PrefabName = prefabName,
+                Position = localPosition,
+                RotationAngles = localRotationAngles,
+                SnapToTerrain = isOnTerrain,
+            };
+
+            var matchingMonuments = GetMonumentsByAliasOrShortName(monument.AliasOrShortName);
+
+            profileController.Profile.AddData(monument.AliasOrShortName, prefabData);
+            _profileStore.Save(profileController.Profile);
+            profileController.SpawnNewData(prefabData, matchingMonuments);
 
             ReplyToPlayer(player, LangEntry.SpawnSuccess, matchingMonuments.Count, profileController.Profile.Name, monument.AliasOrShortName);
             _adapterDisplayManager.ShowAllRepeatedly(basePlayer);
@@ -1902,7 +1950,7 @@ namespace Oxide.Plugins
                     }
 
                     string prefabPath;
-                    if (!VerifyValidPrefab(player, args[1], out prefabPath))
+                    if (!VerifyValidEntityPrefab(player, args[1], out prefabPath))
                         return;
 
                     SpawnGroupController spawnGroupController;
@@ -2723,6 +2771,7 @@ namespace Oxide.Plugins
             var sb = new StringBuilder();
             sb.AppendLine(GetMessage(player.Id, LangEntry.HelpHeader));
             sb.AppendLine(GetMessage(player.Id, LangEntry.HelpSpawn));
+            sb.AppendLine(GetMessage(player.Id, LangEntry.HelpPrefab));
             sb.AppendLine(GetMessage(player.Id, LangEntry.HelpKill));
             sb.AppendLine(GetMessage(player.Id, LangEntry.HelpUndo));
             sb.AppendLine(GetMessage(player.Id, LangEntry.HelpSave));
@@ -2886,11 +2935,46 @@ namespace Oxide.Plugins
             return true;
         }
 
-        private bool VerifyValidPrefab(IPlayer player, string prefabArg, out string prefabPath)
+        private bool VerifyValidModderPrefab(IPlayer player, string[] args, out string prefabPath)
         {
             prefabPath = null;
 
-            var prefabMatches = SearchUtils.FindPrefabMatches(prefabArg, _uniqueNameRegistry);
+            var prefabArg = args.FirstOrDefault();
+            if (string.IsNullOrWhiteSpace(prefabArg) || IsKeyBindArg(prefabArg))
+            {
+                ReplyToPlayer(player, LangEntry.PrefabErrorSyntax, prefabArg);
+                return false;
+            }
+
+            var prefabMatches = SearchUtils.FindModderPrefabMatches(prefabArg);
+            if (prefabMatches.Count == 1)
+            {
+                prefabPath = prefabMatches.First().ToLower();
+                return true;
+            }
+
+            if (prefabMatches.Count == 0)
+            {
+                ReplyToPlayer(player, LangEntry.PrefabErrorNotFound, prefabArg);
+                return false;
+            }
+
+            // Multiple matches were found, so print them all to the player.
+            var replyMessage = GetMessage(player.Id, LangEntry.SpawnErrorMultipleMatches);
+            foreach (var matchingPrefabPath in prefabMatches)
+            {
+                replyMessage += $"\n{matchingPrefabPath}";
+            }
+
+            player.Reply(replyMessage);
+            return false;
+        }
+
+        private bool VerifyValidEntityPrefab(IPlayer player, string prefabArg, out string prefabPath)
+        {
+            prefabPath = null;
+
+            var prefabMatches = SearchUtils.FindEntityPrefabMatches(prefabArg, _uniqueNameRegistry);
             if (prefabMatches.Count == 1)
             {
                 prefabPath = prefabMatches.First().ToLower();
@@ -2914,12 +2998,12 @@ namespace Oxide.Plugins
             return false;
         }
 
-        private bool VerifyValidPrefabOrCustomAddon(IPlayer player, string prefabArg, out string prefabPath, out CustomAddonDefinition addonDefinition)
+        private bool VerifyValidEntityPrefabOrCustomAddon(IPlayer player, string prefabArg, out string prefabPath, out CustomAddonDefinition addonDefinition)
         {
             prefabPath = null;
             addonDefinition = null;
 
-            var prefabMatches = SearchUtils.FindPrefabMatches(prefabArg, _uniqueNameRegistry);
+            var prefabMatches = SearchUtils.FindEntityPrefabMatches(prefabArg, _uniqueNameRegistry);
             var customAddonMatches = SearchUtils.FindCustomAddonMatches(prefabArg, _customAddonManager.GetAllAddons());
 
             var matchCount = prefabMatches.Count + customAddonMatches.Count;
@@ -2958,14 +3042,13 @@ namespace Oxide.Plugins
             return false;
         }
 
-        private bool VerifyValidPrefabOrDeployable(IPlayer player, string[] args, out string prefabPath, out CustomAddonDefinition addonDefinition, out ulong skinId)
+        private bool VerifyValidEntityPrefabOrDeployable(IPlayer player, string[] args, out string prefabPath, out CustomAddonDefinition addonDefinition, out ulong skinId)
         {
             var prefabArg = args.FirstOrDefault();
             skinId = 0;
 
-            // Ignore "True" argument because that simply means the player used a key bind.
-            if (!string.IsNullOrWhiteSpace(prefabArg) && prefabArg != "True")
-                return VerifyValidPrefabOrCustomAddon(player, prefabArg, out prefabPath, out addonDefinition);
+            if (!string.IsNullOrWhiteSpace(prefabArg) && !IsKeyBindArg(prefabArg))
+                return VerifyValidEntityPrefabOrCustomAddon(player, prefabArg, out prefabPath, out addonDefinition);
 
             addonDefinition = null;
 
@@ -3338,6 +3421,11 @@ namespace Oxide.Plugins
         public static void LogInfo(string message) => Interface.Oxide.LogInfo($"[Monument Addons] {message}");
         public static void LogError(string message) => Interface.Oxide.LogError($"[Monument Addons] {message}");
         public static void LogWarning(string message) => Interface.Oxide.LogWarning($"[Monument Addons] {message}");
+
+        private static bool IsKeyBindArg(string arg)
+        {
+            return arg == "True";
+        }
 
         private static bool TryRaycast(BasePlayer player, out RaycastHit hit, float maxDistance = MaxRaycastDistance)
         {
@@ -3737,7 +3825,17 @@ namespace Oxide.Plugins
 
         private static class SearchUtils
         {
-            public static List<string> FindPrefabMatches(string partialName, UniqueNameRegistry uniqueNameRegistry)
+            public static List<string> FindModderPrefabMatches(string partialName)
+            {
+                return FindMatches(
+                    GameManifest.Current.pooledStrings.Select(pooledString => pooledString.str)
+                        .Where(str => str.StartsWith("assets/bundled/prefabs/modding", StringComparison.OrdinalIgnoreCase)),
+                    prefabPath => StringUtils.Contains(prefabPath, partialName),
+                    prefabPath => StringUtils.EqualsCaseInsensitive(prefabPath, partialName)
+                );
+            }
+
+            public static List<string> FindEntityPrefabMatches(string partialName, UniqueNameRegistry uniqueNameRegistry)
             {
                 return FindMatches(
                     GameManifest.Current.entities,
@@ -5636,6 +5734,50 @@ namespace Oxide.Plugins
 
                 return null;
             }
+        }
+
+        #endregion
+
+        #region Adapter/Controller - Prefab
+
+        private class PrefabAdapter : TransformAdapter
+        {
+            public GameObject GameObject { get; private set; }
+            public PrefabData PrefabData { get; }
+            public Transform Transform { get; private set; }
+            public override Vector3 Position => Transform.position;
+            public override Quaternion Rotation => Transform.rotation;
+
+            public PrefabAdapter(BaseController controller, PrefabData prefabData, BaseMonument monument)
+                : base(prefabData, controller, monument)
+            {
+                PrefabData = prefabData;
+            }
+
+            public override void Spawn()
+            {
+                GameObject = GameManager.server.CreatePrefab(PrefabData.PrefabName, IntendedPosition, IntendedRotation);
+                Transform = GameObject.transform;
+            }
+
+            public override void Kill()
+            {
+                UnityEngine.Object.Destroy(GameObject);
+            }
+        }
+
+        private class PrefabController : BaseController
+        {
+            public PrefabData PrefabData { get; }
+
+            public PrefabController(ProfileController profileController, PrefabData prefabData)
+                : base(profileController, prefabData)
+            {
+                PrefabData = prefabData;
+            }
+
+            public override BaseAdapter CreateAdapter(BaseMonument monument) =>
+                new PrefabAdapter(this, PrefabData, monument);
         }
 
         #endregion
@@ -8563,6 +8705,10 @@ namespace Oxide.Plugins
                 if (entityData != null)
                     return ResolveEntityFactory(entityData)?.CreateController(profileController, entityData);
 
+                var prefabData = data as PrefabData;
+                if (prefabData != null)
+                    return new PrefabController(profileController, prefabData);
+
                 return null;
             }
 
@@ -8946,6 +9092,21 @@ namespace Oxide.Plugins
                 Ddraw.Text(player, adapter.Position, _sb.ToString(), color, DisplayIntervalDuration);
             }
 
+            private void ShowPrefabInfo(BasePlayer player, PrefabAdapter adapter, Vector3 playerPosition, PlayerInfo playerInfo)
+            {
+                var prefabData = adapter.PrefabData;
+                var controller = adapter.Controller;
+                var profileController = controller.ProfileController;
+                var color = DetermineColor(adapter, playerInfo, profileController);
+
+                var uniqueEntityName = _uniqueNameRegistry.GetUniqueShortName(prefabData.PrefabName);
+
+                _sb.Clear();
+                _sb.AppendLine($"<size={HeaderSize}>{_plugin.GetMessage(player.UserIDString, LangEntry.ShowHeaderPrefab, uniqueEntityName)}</size>");
+                AddCommonInfo(player, profileController, controller, adapter);
+
+                Ddraw.Text(player, adapter.Position, _sb.ToString(), color, DisplayIntervalDuration);
+            }
             private void ShowSpawnPointInfo(BasePlayer player, SpawnPointAdapter adapter, SpawnGroupAdapter spawnGroupAdapter, PlayerInfo playerInfo, bool showGroupInfo)
             {
                 var spawnPointData = adapter.SpawnPointData;
@@ -9165,6 +9326,17 @@ namespace Oxide.Plugins
                         if ((playerPosition - entityAdapter.Position).sqrMagnitude <= DisplayDistanceSquared)
                         {
                             ShowEntityInfo(player, entityAdapter, playerPosition, playerInfo);
+                        }
+
+                        continue;
+                    }
+
+                    var prefabAdapter = adapter as PrefabAdapter;
+                    if (prefabAdapter != null)
+                    {
+                        if ((playerPosition - prefabAdapter.Position).sqrMagnitude <= DisplayDistanceSquared)
+                        {
+                            ShowPrefabInfo(player, prefabAdapter, playerPosition, playerInfo);
                         }
 
                         continue;
@@ -9570,6 +9742,7 @@ namespace Oxide.Plugins
                         profileCounts.EntityCount += matchingMonuments.Count * monumentData.Entities.Count;
                         profileCounts.SpawnPointCount += matchingMonuments.Count * monumentData.NumSpawnPoints;
                         profileCounts.PasteCount += matchingMonuments.Count * monumentData.Pastes.Count;
+                        profileCounts.PrefabCount = matchingMonuments.Count * monumentData.Prefabs.Count;
                     }
 
                     foreach (var data in monumentData.GetSpawnablesLazy())
@@ -9697,6 +9870,7 @@ namespace Oxide.Plugins
         private class ProfileCounts
         {
             public int EntityCount;
+            public int PrefabCount;
             public int SpawnPointCount;
             public int PasteCount;
         }
@@ -9993,6 +10167,16 @@ namespace Oxide.Plugins
 
             [JsonProperty("OnTerrain")]
             public bool DepredcatedOnTerrain { set { SnapToTerrain = value; } }
+        }
+
+        #endregion
+
+        #region Prefab Data
+
+        private class PrefabData : BaseTransformData
+        {
+            [JsonProperty("PrefabName", Order = -5)]
+            public string PrefabName;
         }
 
         #endregion
@@ -10327,6 +10511,7 @@ namespace Oxide.Plugins
             var summary = new List<ProfileSummaryEntry>();
 
             var addonTypeEntity = GetMessage(player.Id, LangEntry.AddonTypeEntity);
+            var addonTypePrefab = GetMessage(player.Id, LangEntry.AddonTypePrefab);
             var addonTypePaste = GetMessage(player.Id, LangEntry.AddonTypePaste);
             var addonTypeSpawnPoint = GetMessage(player.Id, LangEntry.AddonTypeSpawnPoint);
             var addonTypeCustom = GetMessage(player.Id, LangEntry.AddonTypeCustom);
@@ -10352,6 +10537,25 @@ namespace Oxide.Plugins
                             AddonName = entityUniqueName,
                         };
                         entryMap[entityUniqueName] = summaryEntry;
+                    }
+
+                    summaryEntry.Count++;
+                }
+
+                foreach (var prefabData in monumentData.Prefabs)
+                {
+                    var uniqueName = _uniqueNameRegistry.GetUniqueShortName(prefabData.PrefabName);
+
+                    ProfileSummaryEntry summaryEntry;
+                    if (!entryMap.TryGetValue(uniqueName, out summaryEntry))
+                    {
+                        summaryEntry = new ProfileSummaryEntry
+                        {
+                            MonumentName = monumentName,
+                            AddonType = addonTypePrefab,
+                            AddonName = uniqueName,
+                        };
+                        entryMap[uniqueName] = summaryEntry;
                     }
 
                     summaryEntry.Count++;
@@ -10419,6 +10623,11 @@ namespace Oxide.Plugins
 
             public bool ShouldSerializeEntities() => Entities.Count > 0;
 
+            [JsonProperty("Prefabs")]
+            public List<PrefabData> Prefabs = new List<PrefabData>();
+
+            public bool ShouldSerializePrefabs() => Prefabs.Count > 0;
+
             [JsonProperty("SpawnGroups")]
             public List<SpawnGroupData> SpawnGroups = new List<SpawnGroupData>();
 
@@ -10436,6 +10645,7 @@ namespace Oxide.Plugins
 
             [JsonIgnore]
             public int NumSpawnables => Entities.Count
+                + Prefabs.Count
                 + SpawnGroups.Count
                 + Pastes.Count
                 + CustomAddons.Count;
@@ -10458,6 +10668,9 @@ namespace Oxide.Plugins
             {
                 foreach (var entityData in Entities)
                     yield return entityData;
+
+                foreach (var prefabData in Prefabs)
+                    yield return prefabData;
 
                 foreach (var spawnGroupData in SpawnGroups)
                     yield return spawnGroupData;
@@ -10510,6 +10723,13 @@ namespace Oxide.Plugins
                     return;
                 }
 
+                var prefabData = data as PrefabData;
+                if (prefabData != null)
+                {
+                    Prefabs.Add(prefabData);
+                    return;
+                }
+
                 var spawnGroupData = data as SpawnGroupData;
                 if (spawnGroupData != null)
                 {
@@ -10539,6 +10759,10 @@ namespace Oxide.Plugins
                 var entityData = data as EntityData;
                 if (entityData != null)
                     return Entities.Remove(entityData);
+
+                var prefabData = data as PrefabData;
+                if (prefabData != null)
+                    return Prefabs.Remove(prefabData);
 
                 var spawnGroupData = data as SpawnGroupData;
                 if (spawnGroupData != null)
@@ -11824,6 +12048,11 @@ namespace Oxide.Plugins
             public static readonly LangEntry SaveNothingToDo = new LangEntry("Save.NothingToDo", "No changes detected for that entity.");
             public static readonly LangEntry SaveSuccess = new LangEntry("Save.Success", "Updated entity at <color=#fd4>{0}</color> matching monument(s) and saved to profile <color=#fd4>{1}</color>.");
 
+            public static readonly LangEntry PrefabErrorSyntax = new LangEntry("Prefab.Error.Syntax", "Syntax: <color=#fd4>maprefab <prefab></color>");
+            public static readonly LangEntry PrefabErrorIsEntity = new LangEntry("Prefab.Error.IsEntity", "Error: <color=#fd4>{0}</color> is an entity prefab. Use <color=#fd4>maspawn</color> instead of <color=#fd4>maprefab</color>.");
+            public static readonly LangEntry PrefabErrorNotFound = new LangEntry("Prefab.Error.NotFound", "Error: No allowed prefab found matching name <color=#fd4>{0}</color>.");
+            public static readonly LangEntry PrefabSuccess = new LangEntry("Prefab.Success", "Created prefab instance at <color=#fd4>{0}</color> matching monument(s) and saved to <color=#fd4>{1}</color> profile for monument <color=#fd4>{2}</color>.");
+
             public static readonly LangEntry UndoNotFound = new LangEntry("Undo.NotFound", "No recent action to undo.");
             public static readonly LangEntry UndoKillSuccess = new LangEntry("Undo.Kill.Success", "Successfully restored <color=#fd4>{0}</color> at monument <color=#fd4>{1}</color> in profile <color=#fd4>{2}</color>.");
 
@@ -11834,6 +12063,7 @@ namespace Oxide.Plugins
 
             public static readonly LangEntry AddonTypeUnknown = new LangEntry("AddonType.Unknown", "Addon");
             public static readonly LangEntry AddonTypeEntity = new LangEntry("AddonType.Entity", "Entity");
+            public static readonly LangEntry AddonTypePrefab = new LangEntry("AddonType.Prefab", "Prefab");
             public static readonly LangEntry AddonTypeSpawnPoint = new LangEntry("AddonType.SpawnPoint", "Spawn point");
             public static readonly LangEntry AddonTypePaste = new LangEntry("AddonType.Paste", "Paste");
             public static readonly LangEntry AddonTypeCustom = new LangEntry("AddonType.Custom", "Custom");
@@ -11917,6 +12147,7 @@ namespace Oxide.Plugins
             public static readonly LangEntry ShowLabelRCIdentifier = new LangEntry("Show.Label.RCIdentifier", "RC Identifier: {0}");
 
             public static readonly LangEntry ShowHeaderEntity = new LangEntry("Show.Header.Entity", "Entity: {0}");
+            public static readonly LangEntry ShowHeaderPrefab = new LangEntry("Show.Header.Prefab", "Prefab: {0}");
             public static readonly LangEntry ShowHeaderPuzzle = new LangEntry("Show.Header.Puzzle", "Puzzle");
             public static readonly LangEntry ShowHeaderSpawnGroup = new LangEntry("Show.Header.SpawnGroup", "Spawn Group: {0}");
             public static readonly LangEntry ShowHeaderVanillaSpawnGroup = new LangEntry("Show.Header.Vanilla.SpawnGroup", "Vanilla Spawn Group: {0}");
@@ -12049,6 +12280,7 @@ namespace Oxide.Plugins
 
             public static readonly LangEntry HelpHeader = new LangEntry("Help.Header", "<size=18>Monument Addons Help</size>");
             public static readonly LangEntry HelpSpawn = new LangEntry("Help.Spawn", "<color=#fd4>maspawn <entity></color> - Spawn an entity");
+            public static readonly LangEntry HelpPrefab = new LangEntry("Help.Prefab", "<color=#fd4>maprefab <prefab></color> - Create a non-entity prefab instance");
             public static readonly LangEntry HelpKill = new LangEntry("Help.Kill", "<color=#fd4>makill</color> - Delete an entity or other addon");
             public static readonly LangEntry HelpUndo = new LangEntry("Help.Undo", "<color=#fd4>maundo</color> - Undo a recent <color=#fd4>makill</color> action");
             public static readonly LangEntry HelpSave = new LangEntry("Help.Save", "<color=#fd4>masave</color> - Save an entity's updated position");
@@ -12138,6 +12370,10 @@ namespace Oxide.Plugins
             var entityData = data as EntityData;
             if (entityData != null)
                 return _uniqueNameRegistry.GetUniqueShortName(entityData.PrefabName);
+
+            var prefabData = data as PrefabData;
+            if (prefabData != null)
+                return _uniqueNameRegistry.GetUniqueShortName(prefabData.PrefabName);
 
             if (data is SpawnPointData || data is SpawnGroupData)
                 return GetMessage(player.Id, LangEntry.AddonTypeSpawnPoint);

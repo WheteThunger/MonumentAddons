@@ -37,6 +37,8 @@ Easily spawn permanent entities at monuments, which auto respawn after restarts 
 - Add CCTVs and computer stations
 - Add instruments, swimming pools, arcade machines
 - Add gambling wheel, slot machines, poker tables
+- Add drone marketplaces
+- Add CH47 drop zones
 - Add barricades and walls to block off sections of monuments
 - Periodically spawn loot containers, key cards, vehicles, and more
 - Dynamically change monuments throughout a wipe by enabling/disabling profiles via other plugins
@@ -122,6 +124,7 @@ Follow these steps to create example spawn points.
   - Also spawns the entity at other matching monuments (e.g., if at a gas station, will spawn at all gas stations).
     - A monument is considered a match if it has the same short prefab name or the same alias as the monument you are aiming at. The Monument Finder plugin will assign aliases for primarily underground tunnels. For example, `station-sn-0` and `station-we-0` will both use the `TrainStation` alias, allowing all train stations to have the same entities.
   - Saves the entity info to the plugin data file so that reloading the plugin (or restarting the server) will respawn the entity.
+- `maprefab <prefab>` -- Creates an instance of a non-entity prefab. Note: This is **very** limited. Only prefabs with the `assets/bundled/prefabs/modding` path are supported, and the prefab instances are not networked to clients (because the game does not offer that capability) so they will be invisible, despite having real effects on the server side. This command is intended primarily for placing CH47 drop zones (`maprefab dropzone`), but it can also be used to place loot and NPC spawners that custom maps tend to use, although you will have much greater control of spawners when using the spawn point capabilities of the plugin instead.
 - `mapaste <file>` -- Pastes a building from the CopyPaste plugin, using the specified file name.
 - `maundo` -- Undo a recent `makill` action.
 - `mashow <optional_profile_name> <optional_duration_in_seconds>` -- Shows debug information about nearby entities spawned by this plugin, for the specified duration. Defaults to 60 seconds.
@@ -311,7 +314,7 @@ Use the following steps to resize entities. Requires the [Entity Scale Manager](
 
 That's all you need to do. This plugin detects when an entity is resized and automatically applies that scale to copies of the entity as matching monuments, and saves the scale in the profile's data file. When the plugin reloads, Entity Scale manager is called to reapply that scale.
 
-## Instructions for specific entities
+## Instructions for specific addons
 
 ### Heli & boat vendors
 
@@ -357,6 +360,12 @@ Use the following steps to set up a custom bandit wheel to allow players to gamb
 
 Notes:
 - If a betting terminal spawns more than 3 seconds after the wheel, the wheel won't know about it. This means that if you add more betting terminals after spawning the wheel, you will likely have to reload the profile to respawn the wheel so that it can find all the betting terminals.
+
+### CH47 drop zones
+
+To place a CH47 drop zone, run the command `maprefab dropzone`. It can be removed using the `makill` command.
+
+Note: In order for a CH47 to drop a crate at this location, it must be within a monument that the chinook will visit. You can use the [Better Chinook Patrol](https://umod.org/plugins/better-chinook-patrol) plugin to customize which monuments can be visited.
 
 ### Common puzzle entities
 
