@@ -145,7 +145,7 @@ The following commands only work on objects managed by this plugin. The effect o
 
 ### Puzzles
 
-- `mawire <optional color>` -- Temporarily enhances your currently held wire tool, allowing you to connect electrical entities spawned via `maspawn`. Allowed colors: `Default`, `Red`, `Green`, `Blue`, `Yellow`, `Pink`, `Purple`, `Orange`, `White`, `LightBlue`.
+- `mawire <optional color>` -- Temporarily enhances your currently held wire tool, allowing you to connect electrical entities spawned via `maspawn`. Allowed colors: `Default`, `Red`, `Green`, `Blue`, `Yellow`, `Pink`, `Purple`, `Orange`, `White`, `LightBlue`, `Invisible`. Note: When using the `Invisible` color, you can only directly connect entity inputs and outputs, not place intermediate wire points.
 - `macardlevel <1-3>` (1 = green, 2 = blue, 3 = red) -- Sets the access level of the card reader you are aiming at. For example, `macardlevel 2` will make the card reader visually blue and require a blue key card.
 - `mapuzzle reset` -- Resets the puzzle connected to the entity you are looking at. For example, when looking at a static generator (i.e., `generator.static`) or an entity connected directly or indirectly to a static generator.
 - `mapuzzle set <option> <value>` -- Sets a property of the puzzle root entity you are looking at. This applies only to static generators (i.e., `generator.static`).

@@ -2743,11 +2743,27 @@ namespace Oxide.Plugins
                 return;
             }
 
-            var wireColor = WireColour.Default;
-            if (args.Length > 0 && !Enum.TryParse(args[0], ignoreCase: true, result: out wireColor))
+            WireColour? wireColor;
+            if (args.Length > 0)
             {
-                ReplyToPlayer(player, LangEntry.WireToolInvalidColor, args[0]);
-                return;
+                WireColour parsedWireColor;
+                if (StringUtils.EqualsCaseInsensitive(args[0], "invisible"))
+                {
+                    wireColor = null;
+                }
+                else if (Enum.TryParse(args[0], ignoreCase: true, result: out parsedWireColor))
+                {
+                    wireColor = parsedWireColor;
+                }
+                else
+                {
+                    ReplyToPlayer(player, LangEntry.WireToolInvalidColor, args[0]);
+                    return;
+                }
+            }
+            else
+            {
+                wireColor = WireColour.Default;
             }
 
             var activeItemShortName = basePlayer.GetActiveItem()?.info.shortname;
@@ -2759,7 +2775,7 @@ namespace Oxide.Plugins
 
             _wireToolManager.StartOrUpdateSession(basePlayer, wireColor);
 
-            ChatMessage(basePlayer, LangEntry.WireToolActivated, wireColor);
+            ChatMessage(basePlayer, LangEntry.WireToolActivated, wireColor?.ToString() ?? GetMessage(player.Id, LangEntry.WireToolInvisible));
         }
 
         [Command("mahelp")]
@@ -4260,7 +4276,7 @@ namespace Oxide.Plugins
             private class WireSession
             {
                 public BasePlayer Player { get; }
-                public WireColour WireColor;
+                public WireColour? WireColor;
                 public IOType WireType;
                 public EntityAdapter Adapter;
                 public IOSlot StartSlot;
@@ -4296,7 +4312,7 @@ namespace Oxide.Plugins
                     StartSlot = startSlot;
                     StartSlotIndex = slotIndex;
                     IsSource = isSource;
-                    startSlot.wireColour = WireColor;
+                    startSlot.wireColour = WireColor ?? WireColour.Default;
                 }
 
                 public void AddPoint(Vector3 position)
@@ -4381,7 +4397,7 @@ namespace Oxide.Plugins
                 return GetPlayerSession(player) != null;
             }
 
-            public void StartOrUpdateSession(BasePlayer player, WireColour wireColor)
+            public void StartOrUpdateSession(BasePlayer player, WireColour? wireColor)
             {
                 int sessionIndex;
                 var session = GetPlayerSession(player, out sessionIndex);
@@ -4701,7 +4717,8 @@ namespace Oxide.Plugins
                     Slot = session.IsSource ? session.StartSlotIndex : slotIndex,
                     ConnectedToSlot = session.IsSource ? slotIndex : session.StartSlotIndex,
                     Points = points.ToArray(),
-                    Color = session.WireColor,
+                    ShowWire = session.WireColor.HasValue,
+                    Color = session.WireColor ?? WireColour.Default,
                 };
 
                 sourceAdapter.EntityData.AddIOConnection(connectionData);
@@ -4833,7 +4850,7 @@ namespace Oxide.Plugins
                             }
 
                             Vector3 position;
-                            if (TryGetHitPosition(player, out position))
+                            if (session.WireColor.HasValue && TryGetHitPosition(player, out position))
                             {
                                 session.AddPoint(position);
                                 SendEffect(player, WireToolPlugEffect);
@@ -6215,18 +6232,25 @@ namespace Oxide.Plugins
 
                         SetupIOSlot(sourceSlot, destinationEntity, connectionData.ConnectedToSlot, connectionData.Color);
 
-                        if (sourceSlot.type != IOType.Kinetic && destinationSlot.type != IOType.Kinetic)
+                        if (connectionData.ShowWire)
                         {
-                            var numPoints = connectionData.Points?.Length ?? 0;
-
-                            sourceSlot.linePoints = new Vector3[numPoints + 2];
-                            sourceSlot.linePoints[0] = sourceSlot.handlePosition;
-                            sourceSlot.linePoints[numPoints + 1] = Transform.InverseTransformPoint(destinationEntity.transform.TransformPoint(destinationSlot.handlePosition));
-
-                            for (var pointIndex = 0; pointIndex < numPoints; pointIndex++)
+                            if (sourceSlot.type != IOType.Kinetic && destinationSlot.type != IOType.Kinetic)
                             {
-                                sourceSlot.linePoints[pointIndex + 1] = Transform.InverseTransformPoint(Monument.TransformPoint(connectionData.Points[pointIndex]));
+                                var numPoints = connectionData.Points?.Length ?? 0;
+
+                                sourceSlot.linePoints = new Vector3[numPoints + 2];
+                                sourceSlot.linePoints[0] = sourceSlot.handlePosition;
+                                sourceSlot.linePoints[numPoints + 1] = Transform.InverseTransformPoint(destinationEntity.transform.TransformPoint(destinationSlot.handlePosition));
+
+                                for (var pointIndex = 0; pointIndex < numPoints; pointIndex++)
+                                {
+                                    sourceSlot.linePoints[pointIndex + 1] = Transform.InverseTransformPoint(Monument.TransformPoint(connectionData.Points[pointIndex]));
+                                }
                             }
+                        }
+                        else
+                        {
+                            sourceSlot.linePoints = Array.Empty<Vector3>();
                         }
 
                         SetupIOSlot(destinationSlot, ioEntity, connectionData.Slot, connectionData.Color);
@@ -10223,12 +10247,15 @@ namespace Oxide.Plugins
             [JsonProperty("ConnectedToSlot")]
             public int ConnectedToSlot;
 
-            [JsonProperty("Points")]
-            public Vector3[] Points;
+            [JsonProperty("ShowWire")]
+            public bool ShowWire = true;
 
             [JsonProperty("Color", DefaultValueHandling = DefaultValueHandling.Ignore)]
             [JsonConverter(typeof(StringEnumConverter))]
             public WireColour Color;
+
+            [JsonProperty("Points")]
+            public Vector3[] Points;
         }
 
         private class IOEntityData
@@ -12270,6 +12297,7 @@ namespace Oxide.Plugins
             public static readonly LangEntry ProfileHelpMoveTo = new LangEntry("Profile.Help.MoveTo2", "<color=#fd4>maprofile moveto <name></color> - Move an entity to a profile");
             public static readonly LangEntry ProfileHelpInstall = new LangEntry("Profile.Help.Install", "<color=#fd4>maprofile install <url></color> - Install a profile from a URL");
 
+            public static readonly LangEntry WireToolInvisible = new LangEntry("WireTool.Invisible", "Invisible");
             public static readonly LangEntry WireToolInvalidColor = new LangEntry("WireTool.Error.InvalidColor", "Invalid wire color: <color=#fd4>{0}</color>.");
             public static readonly LangEntry WireToolNotEquipped = new LangEntry("WireTool.Error.NotEquipped", "Error: No Wire Tool or Hose Tool equipped.");
             public static readonly LangEntry WireToolActivated = new LangEntry("WireTool.Activated", "Monument Addons Wire Tool activated with color <color=#fd4>{0}</color>.");
