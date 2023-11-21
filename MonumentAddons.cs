@@ -5861,6 +5861,25 @@ namespace Oxide.Plugins
                         [7] = new Vector3(-0.035f, 1.3f, -0.15f),
                     },
                 },
+                ["assets/prefabs/io/electric/switches/andswitch.prefab"] = new IOEntityOverrideInfo
+                {
+                    Inputs = new Dictionary<int, Vector3>
+                    {
+                        [0] = new Vector3(-0.035f, 0.82f, -0.125f),
+                        [1] = new Vector3(-0.035f, 0.82f, -0.175f),
+                    },
+                    Outputs = new Dictionary<int, Vector3>
+                    {
+                        [0] = new Vector3(-0.035f, 1.3f, -0.15f),
+                        [1] = new Vector3(-0.035f, 1.3f, -0.15f),
+                        [2] = new Vector3(-0.035f, 1.3f, -0.15f),
+                        [3] = new Vector3(-0.035f, 1.3f, -0.15f),
+                        [4] = new Vector3(-0.035f, 1.3f, -0.15f),
+                        [5] = new Vector3(-0.035f, 1.3f, -0.15f),
+                        [6] = new Vector3(-0.035f, 1.3f, -0.15f),
+                        [7] = new Vector3(-0.035f, 1.3f, -0.15f),
+                    },
+                },
                 ["assets/prefabs/io/electric/switches/cardreader.prefab"] = new IOEntityOverrideInfo
                 {
                     Inputs = new Dictionary<int, Vector3>
