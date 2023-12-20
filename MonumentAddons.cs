@@ -1148,10 +1148,9 @@ namespace Oxide.Plugins
         [Command("maprofile")]
         private void CommandProfile(IPlayer player, string cmd, string[] args)
         {
-            if (!_serverInitialized)
-                return;
-
-            if (!player.IsServer && !VerifyHasPermission(player))
+            if (!_serverInitialized
+                || !VerifyHasPermission(player)
+                || !VerifyMonumentFinderLoaded(player))
                 return;
 
             if (args.Length == 0)
@@ -1556,10 +1555,9 @@ namespace Oxide.Plugins
         [Command("mainstall")]
         private void CommandInstallProfile(IPlayer player, string cmd, string[] args)
         {
-            if (!_serverInitialized)
-                return;
-
-            if (!player.IsServer && !VerifyHasPermission(player))
+            if (!_serverInitialized
+                || !VerifyHasPermission(player)
+                || !VerifyMonumentFinderLoaded(player))
                 return;
 
             if (args.Length < 1)
