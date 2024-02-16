@@ -527,6 +527,29 @@ namespace Oxide.Plugins
 
         #endregion
 
+        #region API
+
+        [HookMethod(nameof(API_IsMonumentEntity))]
+        public object API_IsMonumentEntity(BaseEntity entity)
+        {
+            return ObjectCache.Get(_entityTracker.IsMonumentEntity(entity));
+        }
+
+        [HookMethod(nameof(API_GetMonumentEntityGuid))]
+        public object API_GetMonumentEntityGuid(BaseEntity entity)
+        {
+            if (!_entityTracker.IsMonumentEntity(entity))
+                return null;
+
+            var adapter = MonumentEntityComponent.GetForEntity(entity).Adapter as BaseAdapter;
+            if (adapter == null)
+                return null;
+
+            return ObjectCache.Get(adapter.Data.Id);
+        }
+
+        #endregion
+
         #region Commands
 
         private enum PuzzleOption
@@ -2841,6 +2864,37 @@ namespace Oxide.Plugins
         #endregion
 
         #region Utilities
+
+        private static class ObjectCache
+        {
+            private static readonly object True = true;
+            private static readonly object False = false;
+
+            private static class StaticObjectCache<T>
+            {
+                private static readonly Dictionary<T, object> _cacheByValue = new();
+
+                public static object Get(T value)
+                {
+                    if (!_cacheByValue.TryGetValue(value, out var cachedObject))
+                    {
+                        cachedObject = value;
+                        _cacheByValue[value] = cachedObject;
+                    }
+                    return cachedObject;
+                }
+            }
+
+            public static object Get<T>(T value)
+            {
+                return StaticObjectCache<T>.Get(value);
+            }
+
+            public static object Get(bool value)
+            {
+                return value ? True : False;
+            }
+        }
 
         #region Helper Methods - Command Checks
 
