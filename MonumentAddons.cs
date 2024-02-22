@@ -558,6 +558,11 @@ namespace Oxide.Plugins
             {
                 Interface.CallHook("OnMonumentAddonsInitialized");
             }
+
+            public static void OnMonumentEntitySpawned(BaseEntity entity, MonoBehaviour monument, Guid guid)
+            {
+                Interface.CallHook("OnMonumentEntitySpawned", entity, monument, ObjectCache.Get(guid));
+            }
         }
 
         #endregion
@@ -6121,6 +6126,7 @@ namespace Oxide.Plugins
                 PreEntitySpawn();
                 Entity.Spawn();
                 PostEntitySpawn();
+                ExposedHooks.OnMonumentEntitySpawned(Entity, Monument.Object, Data.Id);
 
                 if (_config.EnableEntitySaving && Entity != existingEntity)
                 {
