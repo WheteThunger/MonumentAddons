@@ -550,6 +550,18 @@ namespace Oxide.Plugins
 
         #endregion
 
+        #region Exposed Hooks
+
+        private static class ExposedHooks
+        {
+            public static void OnMonumentAddonsInitialized()
+            {
+                Interface.CallHook("OnMonumentAddonsInitialized");
+            }
+        }
+
+        #endregion
+
         #region Commands
 
         private enum PuzzleOption
@@ -3797,6 +3809,8 @@ namespace Oxide.Plugins
             // Delay slightly to allow Monument Finder to finish loading.
             yield return null;
             yield return _profileManager.LoadAllProfilesRoutine();
+
+            ExposedHooks.OnMonumentAddonsInitialized();
 
             if (_config.EnableDynamicMonuments)
             {
