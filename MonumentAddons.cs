@@ -6108,6 +6108,8 @@ namespace Oxide.Plugins
                             }
                         }
 
+                        ExposedHooks.OnMonumentEntitySpawned(Entity, Monument.Object, Data.Id);
+
                         if (!_config.EnableEntitySaving)
                         {
                             // If saving is no longer enabled, remove the entity from the data file.
