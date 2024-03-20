@@ -961,6 +961,12 @@ namespace Oxide.Plugins
                 return;
             }
 
+            if (!huntingTrophy.CanSubmitHead(headEntity))
+            {
+                ReplyToPlayer(player, LangEntry.SetHeadMismatch);
+                return;
+            }
+
             controller.EntityData.HeadData = HeadData.FromHeadEntity(headEntity);
             _profileStore.Save(controller.Profile);
             controller.StartHandleChangesRoutine();
@@ -12480,7 +12486,8 @@ namespace Oxide.Plugins
             public static readonly LangEntry SkullNameSyntax = new LangEntry("SkullName.Syntax", "Syntax: <color=#fd4>{0} <name></color>");
             public static readonly LangEntry SkullNameSetSuccess = new LangEntry("SkullName.Set.Success", "Updated skull name to <color=#fd4>{0}</color> at <color=#fd4>{1}</color> matching monument(s) and saved to profile <color=#fd4>{2}</color>.");
 
-            public static readonly LangEntry SetHeadNoHeadItem = new LangEntry("Head.Set.NoHeadItem", "You must be holding a head bag item to do that.");
+            public static readonly LangEntry SetHeadNoHeadItem = new LangEntry("Head.Set.NoHeadItem", "Error: You must be holding a head bag item to do that.");
+            public static readonly LangEntry SetHeadMismatch = new LangEntry("Head.Set.Mismatch", "Error: That is the wrong type of head for that trophy.");
             public static readonly LangEntry SetHeadSuccess = new LangEntry("Head.Set.Success", "Updated head trophy according to your equipped item at <color=#fd4>{0}</color> matching monument(s) and saved to profile <color=#fd4>{1}</color>.");
 
             public static readonly LangEntry CardReaderSetLevelSyntax = new LangEntry("CardReader.SetLevel.Error.Syntax", "Syntax: <color=#fd4>{0} <1-3></color>");
