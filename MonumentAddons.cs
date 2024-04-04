@@ -7949,7 +7949,7 @@ namespace Oxide.Plugins
 
                             navigator.DefaultArea = "Walkable";
                             navigator.Init(humanNpc, agent);
-                            navigator.PlaceOnNavMesh();
+                            navigator.PlaceOnNavMesh(0);
                         }, 0);
                     }
                 }
