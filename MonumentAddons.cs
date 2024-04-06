@@ -693,7 +693,7 @@ namespace Oxide.Plugins
             _profileStore.Save(profileController.Profile);
             profileController.SpawnNewData(addonData, matchingMonuments);
 
-            ReplyToPlayer(player, LangEntry.PrefabSuccess, matchingMonuments.Count, profileController.Profile.Name, monument.AliasOrShortName);
+            ReplyToPlayer(player, LangEntry.SpawnSuccess, matchingMonuments.Count, profileController.Profile.Name, monument.AliasOrShortName);
             _adapterDisplayManager.ShowAllRepeatedly(basePlayer);
         }
 
@@ -741,7 +741,7 @@ namespace Oxide.Plugins
             _profileStore.Save(profileController.Profile);
             profileController.SpawnNewData(prefabData, matchingMonuments);
 
-            ReplyToPlayer(player, LangEntry.SpawnSuccess, matchingMonuments.Count, profileController.Profile.Name, monument.AliasOrShortName);
+            ReplyToPlayer(player, LangEntry.PrefabSuccess, matchingMonuments.Count, profileController.Profile.Name, monument.AliasOrShortName);
             _adapterDisplayManager.ShowAllRepeatedly(basePlayer);
         }
 
