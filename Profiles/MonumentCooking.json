@@ -76,9 +76,9 @@
           "Id": "ad0117b5-71c5-4f2f-bd5e-e3a1bcc72006",
           "PrefabName": "assets/bundled/prefabs/static/hobobarrel_static.prefab",
           "Position": {
-            "x": 94.0,
-            "y": 2.25,
-            "z": -7.0
+            "x": 55.2,
+            "y": 4.06,
+            "z": -60.9
           }
         }
       ]
@@ -89,9 +89,9 @@
           "Id": "fd1baad0-1bc5-4c3a-a015-56fb8700a7eb",
           "PrefabName": "assets/bundled/prefabs/static/hobobarrel_static.prefab",
           "Position": {
-            "x": 35.0,
-            "y": 2.1,
-            "z": -70.0
+            "x": 44.4,
+            "y": 3.99,
+            "z": -29.4
           }
         }
       ]
