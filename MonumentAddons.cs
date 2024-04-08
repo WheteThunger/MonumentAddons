@@ -9937,7 +9937,7 @@ namespace Oxide.Plugins
                         profileCounts.EntityCount += matchingMonuments.Count * monumentData.Entities.Count;
                         profileCounts.SpawnPointCount += matchingMonuments.Count * monumentData.NumSpawnPoints;
                         profileCounts.PasteCount += matchingMonuments.Count * monumentData.Pastes.Count;
-                        profileCounts.PrefabCount = matchingMonuments.Count * monumentData.Prefabs.Count;
+                        profileCounts.PrefabCount += matchingMonuments.Count * monumentData.Prefabs.Count;
                     }
 
                     foreach (var data in monumentData.GetSpawnablesLazy())
@@ -10150,6 +10150,11 @@ namespace Oxide.Plugins
                     if (profileCounts.EntityCount > 0)
                     {
                         spawnablesSummaryList.Add($"{profileCounts.EntityCount} entities");
+                    }
+
+                    if (profileCounts.PrefabCount > 0)
+                    {
+                        spawnablesSummaryList.Add($"{profileCounts.PrefabCount} prefabs");
                     }
 
                     if (profileCounts.SpawnPointCount > 0)
