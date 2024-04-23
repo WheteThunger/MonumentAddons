@@ -31,7 +31,7 @@ using Facepunch;
 
 namespace Oxide.Plugins
 {
-    [Info("Monument Addons", "WhiteThunder", "0.16.0")]
+    [Info("Monument Addons", "WhiteThunder", "0.16.1")]
     [Description("Allows adding entities, spawn points and more to monuments.")]
     internal class MonumentAddons : CovalencePlugin
     {
