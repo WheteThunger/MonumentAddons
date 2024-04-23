@@ -6833,6 +6833,8 @@ namespace Oxide.Plugins
                         EntityData.VendingProfile = vendingProfile;
                         Plugin._profileStore.Save(Profile);
                     }),
+                    ["GetSkin"] = new Func<ulong>(() => EntityData.Skin),
+                    ["SetSkin"] = new Action<ulong>(skinId => EntityData.Skin = skinId),
                 };
             }
 
