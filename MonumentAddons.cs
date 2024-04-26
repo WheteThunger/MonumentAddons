@@ -19,7 +19,8 @@ using UnityEngine;
 using VLB;
 using static IOEntity;
 using static WireTool;
-using HumanNpc = global::HumanNPC;
+using HumanNPCGlobal = global::HumanNPC;
+using SkullTrophyGlobal = global::SkullTrophy;
 
 using CustomSpawnCallback = System.Func<UnityEngine.Vector3, UnityEngine.Quaternion, Newtonsoft.Json.Linq.JObject, UnityEngine.Component>;
 using CustomKillCallback = System.Action<UnityEngine.Component>;
@@ -839,7 +840,7 @@ namespace Oxide.Plugins
                 || !VerifyLookingAtAdapter(player, out EntityAdapter adapter, out EntityController controller, LangEntry.ErrorNoSuitableAddonFound))
                 return;
 
-            var skullTrophy = adapter.Entity as SkullTrophy;
+            var skullTrophy = adapter.Entity as SkullTrophyGlobal;
             if (skullTrophy == null)
             {
                 ReplyToPlayer(player, LangEntry.ErrorNoSuitableAddonFound);
@@ -6161,7 +6162,7 @@ namespace Oxide.Plugins
                 if (skullName == null)
                     return;
 
-                var skullTrophy = Entity as SkullTrophy;
+                var skullTrophy = Entity as SkullTrophyGlobal;
                 if (skullTrophy == null)
                     return;
 
@@ -6556,7 +6557,7 @@ namespace Oxide.Plugins
                     UpdateScale();
                 }
 
-                var skullTrophy = Entity as SkullTrophy;
+                var skullTrophy = Entity as SkullTrophyGlobal;
                 if (skullTrophy != null)
                 {
                     UpdateSkullName();
@@ -7800,7 +7801,7 @@ namespace Oxide.Plugins
                         npcPlayer.VirtualInfoZone = virtualInfoZone;
                     }
 
-                    var humanNpc = npcPlayer as HumanNpc;
+                    var humanNpc = npcPlayer as HumanNPCGlobal;
                     if (humanNpc != null)
                     {
                         virtualInfoZone?.RegisterSleepableEntity(humanNpc.Brain);
