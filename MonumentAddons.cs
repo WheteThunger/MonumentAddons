@@ -6825,6 +6825,7 @@ namespace Oxide.Plugins
             {
                 return _vendingDataProvider ??= new Dictionary<string, object>
                 {
+                    ["Plugin"] = Plugin,
                     ["GetData"] = new Func<JObject>(() => EntityData.VendingProfile as JObject),
                     ["SaveData"] = new Action<JObject>(vendingProfile =>
                     {
