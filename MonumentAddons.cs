@@ -32,7 +32,7 @@ using Facepunch;
 
 namespace Oxide.Plugins
 {
-    [Info("Monument Addons", "WhiteThunder", "0.16.1")]
+    [Info("Monument Addons", "WhiteThunder", "0.16.2")]
     [Description("Allows adding entities, spawn points and more to monuments.")]
     internal class MonumentAddons : CovalencePlugin
     {
@@ -4019,6 +4019,7 @@ namespace Oxide.Plugins
                 if (stabilityEntity != null)
                 {
                     stabilityEntity.grounded = true;
+                    stabilityEntity.canBeDemolished = false;
                 }
 
                 DestroyProblemComponents(entity);
@@ -4059,10 +4060,10 @@ namespace Oxide.Plugins
                     {
                         // Must be done after spawn for some reason.
                         if (buildingBlock.HasFlag(BuildingBlock.BlockFlags.CanRotate)
-                            || buildingBlock.HasFlag(BuildingBlock.BlockFlags.CanDemolish))
+                            || buildingBlock.HasFlag(StabilityEntity.DemolishFlag))
                         {
                             buildingBlock.SetFlag(BuildingBlock.BlockFlags.CanRotate, false, recursive: false, networkupdate: false);
-                            buildingBlock.SetFlag(BuildingBlock.BlockFlags.CanDemolish, false, recursive: false, networkupdate: false);
+                            buildingBlock.SetFlag(StabilityEntity.DemolishFlag, false, recursive: false, networkupdate: false);
                             buildingBlock.CancelInvoke(buildingBlock.StopBeingRotatable);
                             buildingBlock.CancelInvoke(buildingBlock.StopBeingDemolishable);
                             buildingBlock.SendNetworkUpdate_Flags();
