@@ -14,6 +14,7 @@ using System.ComponentModel;
 using System.Globalization;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.Serialization;
 using System.Text;
 using UnityEngine;
 using VLB;
@@ -55,6 +56,7 @@ namespace Oxide.Plugins
 
         private const string WireToolPlugEffect = "assets/prefabs/tools/wire/effects/plugeffect.prefab";
 
+        private const string CargoShipPrefab = "assets/content/vehicles/boats/cargoship/cargoshiptest.prefab";
         private const string CargoShipShortName = "cargoshiptest";
         private const string DefaultProfileName = "Default";
         private const string DefaultUrlPattern = "https://github.com/WheteThunger/MonumentAddons/blob/master/Profiles/{0}.json?raw=true";
@@ -67,6 +69,7 @@ namespace Oxide.Plugins
             { "Content-Type", "application/json" }
         };
 
+        private readonly HookCollection _dynamicMonumentHooks;
         private readonly ProfileStore _profileStore = new ProfileStore();
         private readonly OriginalProfileStore _originalProfileStore = new OriginalProfileStore();
         private readonly ProfileManager _profileManager;
@@ -82,16 +85,15 @@ namespace Oxide.Plugins
         private readonly IOManager _ioManager = new IOManager();
         private readonly UndoManager _undoManager = new UndoManager();
 
-        private readonly Color[] _distinctColors =
-        {
+        private readonly ValueRotator<Color> _colorRotator = new(
             Color.HSVToRGB(0, 1, 1),
             Color.HSVToRGB(0.1f, 1, 1),
             Color.HSVToRGB(0.2f, 1, 1),
             Color.HSVToRGB(0.35f, 1, 1),
             Color.HSVToRGB(0.55f, 1, 1),
             Color.HSVToRGB(0.8f, 1, 1),
-            new Color(1, 1, 1),
-        };
+            new Color(1, 1, 1)
+        );
 
         private readonly object False = false;
 
@@ -120,6 +122,12 @@ namespace Oxide.Plugins
 
                 _profileStateData.Save();
             });
+
+            _dynamicMonumentHooks = new HookCollection(
+                this,
+                new[] { nameof(OnEntitySpawned) },
+                () => _profileManager.HasAnyEnabledDynamicMonuments
+            );
         }
 
         #endregion
@@ -139,8 +147,7 @@ namespace Oxide.Plugins
 
             permission.RegisterPermission(PermissionAdmin, this);
 
-            Unsubscribe(nameof(OnEntitySpawned));
-
+            _dynamicMonumentHooks.Unsubscribe();
             _adapterListenerManager.Init();
         }
 
@@ -168,6 +175,7 @@ namespace Oxide.Plugins
                 StartupRoutine();
             }
 
+            _profileManager.ProfileStatusChanged += (_, _, _) => _dynamicMonumentHooks.Refresh();
             _serverInitialized = true;
         }
 
@@ -206,10 +214,20 @@ namespace Oxide.Plugins
             _customAddonManager.UnregisterAllForPlugin(plugin);
         }
 
-        private void OnEntitySpawned(CargoShip cargoShip)
+        private void OnEntitySpawned(BaseEntity entity)
         {
-            var cargoShipMonument = new DynamicMonument(cargoShip, isMobile: true);
-            _coroutineManager.StartCoroutine(_profileManager.PartialLoadForLateMonumentRoutine(cargoShipMonument));
+            if (!IsDynamicMonument(entity))
+                return;
+
+            var entityForClosure = entity;
+            NextTick(() =>
+            {
+                if (ExposedHooks.OnDynamicMonument(entityForClosure) is false)
+                    return;
+
+                var dynamicMonument = DynamicMonument.FromEntity(entityForClosure);
+                _coroutineManager.StartCoroutine(_profileManager.PartialLoadForLateMonumentRoutine(dynamicMonument));
+            });
         }
 
         // This hook is exposed by plugin: Remover Tool (RemoverTool).
@@ -430,8 +448,7 @@ namespace Oxide.Plugins
 
         private bool TryScaleEntity(BaseEntity entity, float scale)
         {
-            var result = EntityScaleManager?.Call("API_ScaleEntity", entity, scale);
-            return result is bool && (bool)result;
+            return EntityScaleManager?.Call("API_ScaleEntity", entity, scale) is true;
         }
 
         private void SkinSign(ISignage signage, SignArtistImage[] signArtistImages)
@@ -553,6 +570,11 @@ namespace Oxide.Plugins
             {
                 Interface.CallHook("OnMonumentEntitySpawned", entity, monument, ObjectCache.Get(guid));
             }
+
+            public static object OnDynamicMonument(BaseEntity entity)
+            {
+                return Interface.CallHook("OnDynamicMonument", entity);
+            }
         }
 
         #endregion
@@ -598,8 +620,7 @@ namespace Oxide.Plugins
                 || !VerifyMonumentFinderLoaded(player)
                 || !VerifyProfileSelected(player, out var profileController)
                 || !VerifyValidEntityPrefabOrDeployable(player, args, out var prefabName, out var addonDefinition, out var skinId)
-                || !VerifyHitPosition(player, out var position)
-                || !VerifyAtMonument(player, position, out var monument))
+                || !VerifyLookingAtMonumentPosition(player, out var position, out var monument))
                 return;
 
             DetermineLocalTransformData(position, basePlayer, monument, out var localPosition, out var localRotationAngles, out var isOnTerrain);
@@ -665,13 +686,13 @@ namespace Oxide.Plugins
                 };
             }
 
-            var matchingMonuments = GetMonumentsByAliasOrShortName(monument.AliasOrShortName);
+            var matchingMonuments = GetMonumentsByIdentifier(monument.UniqueName);
 
-            profileController.Profile.AddData(monument.AliasOrShortName, addonData);
+            profileController.Profile.AddData(monument.UniqueName, addonData);
             _profileStore.Save(profileController.Profile);
             profileController.SpawnNewData(addonData, matchingMonuments);
 
-            ReplyToPlayer(player, LangEntry.SpawnSuccess, matchingMonuments.Count, profileController.Profile.Name, monument.AliasOrShortName);
+            ReplyToPlayer(player, LangEntry.SpawnSuccess, matchingMonuments.Count, profileController.Profile.Name, monument.UniqueDisplayName);
             _adapterDisplayManager.ShowAllRepeatedly(basePlayer);
         }
 
@@ -683,8 +704,7 @@ namespace Oxide.Plugins
                 || !VerifyMonumentFinderLoaded(player)
                 || !VerifyProfileSelected(player, out var profileController)
                 || !VerifyValidModderPrefab(player, args, out var prefabName)
-                || !VerifyHitPosition(player, out var position)
-                || !VerifyAtMonument(player, position, out var monument))
+                || !VerifyLookingAtMonumentPosition(player, out var position, out var monument))
                 return;
 
             if (FindBaseEntityForPrefab(prefabName) != null)
@@ -704,13 +724,13 @@ namespace Oxide.Plugins
                 SnapToTerrain = isOnTerrain,
             };
 
-            var matchingMonuments = GetMonumentsByAliasOrShortName(monument.AliasOrShortName);
+            var matchingMonuments = GetMonumentsByIdentifier(monument.UniqueName);
 
-            profileController.Profile.AddData(monument.AliasOrShortName, prefabData);
+            profileController.Profile.AddData(monument.UniqueName, prefabData);
             _profileStore.Save(profileController.Profile);
             profileController.SpawnNewData(prefabData, matchingMonuments);
 
-            ReplyToPlayer(player, LangEntry.PrefabSuccess, matchingMonuments.Count, profileController.Profile.Name, monument.AliasOrShortName);
+            ReplyToPlayer(player, LangEntry.PrefabSuccess, matchingMonuments.Count, profileController.Profile.Name, monument.UniqueDisplayName);
             _adapterDisplayManager.ShowAllRepeatedly(basePlayer);
         }
 
@@ -743,7 +763,8 @@ namespace Oxide.Plugins
             // Capture adapter count before killing the controller.
             var numAdapters = controller.Adapters.Count;
 
-            controller.Profile.RemoveData(adapter.Data, out var monumentAliasOrShortName);
+            controller.Profile.RemoveData(adapter.Data, out var monumentIdentifier);
+            _dynamicMonumentHooks.Refresh();
             var profile = controller.Profile;
             _profileStore.Save(profile);
 
@@ -756,11 +777,11 @@ namespace Oxide.Plugins
 
             if (controller.Data is SpawnGroupData spawnGroupData && adapter.Data is SpawnPointData spawnPointData)
             {
-                _undoManager.AddUndo(basePlayer, new UndoKillSpawnPoint(this, profileController, monumentAliasOrShortName, spawnGroupData, spawnPointData));
+                _undoManager.AddUndo(basePlayer, new UndoKillSpawnPoint(this, profileController, monumentIdentifier, spawnGroupData, spawnPointData));
             }
             else
             {
-                _undoManager.AddUndo(basePlayer, new UndoKill(this, profileController, monumentAliasOrShortName, controller.Data));
+                _undoManager.AddUndo(basePlayer, new UndoKill(this, profileController, monumentIdentifier, controller.Data));
             }
 
             ReplyToPlayer(player, LangEntry.KillSuccess, GetAddonName(player, adapter.Data), numAdapters, profile.Name);
@@ -1475,7 +1496,7 @@ namespace Oxide.Plugins
                         return;
                     }
 
-                    if (!oldProfile.RemoveData(data, out var monumentAliasOrShortName))
+                    if (!oldProfile.RemoveData(data, out var monumentIdentifier))
                     {
                         LogError($"Unexpected error: {data.GetType()} {data.Id} was not found in profile {oldProfile.Name}");
                         return;
@@ -1488,9 +1509,9 @@ namespace Oxide.Plugins
                         oldProfileController.StartCallbackRoutine(killRoutine, oldProfileController.SetupIO);
                     }
 
-                    newProfile.AddData(monumentAliasOrShortName, data);
+                    newProfile.AddData(monumentIdentifier, data);
                     _profileStore.Save(newProfile);
-                    newProfileController.SpawnNewData(data, GetMonumentsByAliasOrShortName(monumentAliasOrShortName));
+                    newProfileController.SpawnNewData(data, GetMonumentsByIdentifier(monumentIdentifier));
 
                     ReplyToPlayer(player, LangEntry.ProfileMoveToSuccess, addonName, oldProfile.Name, newProfile.Name);
                     if (!player.IsServer)
@@ -1711,8 +1732,7 @@ namespace Oxide.Plugins
 
                     if (!VerifyMonumentFinderLoaded(player)
                         || !VerifyProfileSelected(player, out var profileController)
-                        || !VerifyHitPosition(player, out var position)
-                        || !VerifyAtMonument(player, position, out var monument)
+                        || !VerifyLookingAtMonumentPosition(player, out var position, out var monument)
                         || !VerifySpawnGroupNameAvailable(player, profileController.Profile, monument, spawnGroupName))
                         return;
 
@@ -1736,9 +1756,9 @@ namespace Oxide.Plugins
                         },
                     };
 
-                    var matchingMonuments = GetMonumentsByAliasOrShortName(monument.AliasOrShortName);
+                    var matchingMonuments = GetMonumentsByIdentifier(monument.UniqueName);
 
-                    profileController.Profile.AddData(monument.AliasOrShortName, spawnGroupData);
+                    profileController.Profile.AddData(monument.UniqueName, spawnGroupData);
                     _profileStore.Save(profileController.Profile);
                     profileController.SpawnNewData(spawnGroupData, matchingMonuments);
 
@@ -2050,8 +2070,7 @@ namespace Oxide.Plugins
                     }
 
                     if (!VerifyMonumentFinderLoaded(player)
-                        || !VerifyHitPosition(player, out var position)
-                        || !VerifyAtMonument(player, position, out var monument))
+                        || !VerifyLookingAtMonumentPosition(player, out var position, out var monument))
                         return;
 
                     if (!VerifySpawnGroupFound(player, args[1], monument, out var spawnGroupController))
@@ -2212,8 +2231,7 @@ namespace Oxide.Plugins
 
             if (!VerifyMonumentFinderLoaded(player)
                 || !VerifyProfileSelected(player, out var profileController)
-                || !VerifyHitPosition(player, out var position)
-                || !VerifyAtMonument(player, position, out var monument))
+                || !VerifyLookingAtMonumentPosition(player, out var position, out var monument))
                 return;
 
             var pasteName = args[0];
@@ -2235,13 +2253,13 @@ namespace Oxide.Plugins
                 Filename = pasteName,
             };
 
-            var matchingMonuments = GetMonumentsByAliasOrShortName(monument.AliasOrShortName);
+            var matchingMonuments = GetMonumentsByIdentifier(monument.UniqueName);
 
-            profileController.Profile.AddData(monument.AliasOrShortName, pasteData);
+            profileController.Profile.AddData(monument.UniqueName, pasteData);
             _profileStore.Save(profileController.Profile);
             profileController.SpawnNewData(pasteData, matchingMonuments);
 
-            ReplyToPlayer(player, LangEntry.PasteSuccess, pasteName, monument.AliasOrShortName, matchingMonuments.Count, profileController.Profile.Name);
+            ReplyToPlayer(player, LangEntry.PasteSuccess, pasteName, monument.UniqueDisplayName, matchingMonuments.Count, profileController.Profile.Name);
 
             _adapterDisplayManager.ShowAllRepeatedly(basePlayer);
         }
@@ -2361,6 +2379,8 @@ namespace Oxide.Plugins
                 return;
             }
 
+            _colorRotator.Reset();
+
             var _selectedColorIndex = 0;
             var sb = new StringBuilder();
 
@@ -2377,12 +2397,7 @@ namespace Oxide.Plugins
                         spawnPointList = spawnGroup.GetComponentsInChildren<BaseSpawnPoint>();
                     }
 
-                    var color = _distinctColors[_selectedColorIndex++];
-                    if (_selectedColorIndex >= _distinctColors.Length)
-                    {
-                        _selectedColorIndex = 0;
-                    }
-
+                    var color = _colorRotator.GetNext();
                     var tierMask = (int)spawnGroup.Tier;
 
                     if (spawnPointList.Length == 0)
@@ -2476,11 +2491,7 @@ namespace Oxide.Plugins
                 var individualSpawner = spawner as IndividualSpawner;
                 if (individualSpawner != null)
                 {
-                    var color = _distinctColors[_selectedColorIndex++];
-                    if (_selectedColorIndex >= _distinctColors.Length)
-                    {
-                        _selectedColorIndex = 0;
-                    }
+                    var color = _colorRotator.GetNext();
 
                     sb.AppendLine($"<size={AdapterDisplayManager.HeaderSize}>{GetMessage(player.Id, LangEntry.ShowHeaderVanillaIndividualSpawnPoint, individualSpawner.name)}</size>");
                     sb.AppendLine(GetMessage(player.Id, LangEntry.ShowLabelFlags, $"{GetMessage(player.Id, LangEntry.ShowLabelSpawnPointExclusive)} | {GetMessage(player.Id, LangEntry.ShowLabelSpawnPointCheckSpace)}"));
@@ -2640,12 +2651,12 @@ namespace Oxide.Plugins
                 ? $"_{string.Join("_", monumentTierList)}"
                 : string.Empty;
 
-            var profileName = $"{monument.AliasOrShortName}{tierSuffix}_vanilla_generated";
+            var profileName = $"{monument.UniqueDisplayName}{tierSuffix}_vanilla_generated";
             var profile = _profileStore.Create(profileName, basePlayer.displayName);
 
             foreach (var data in spawnGroupDataList)
             {
-                profile.AddData(monument.AliasOrShortName, data);
+                profile.AddData(monument.UniqueName, data);
             }
 
             _profileStore.Save(profile);
@@ -2896,11 +2907,33 @@ namespace Oxide.Plugins
             {
                 var closestPoint = closestMonument.ClosestPointOnBounds(position);
                 var distance = (position - closestPoint).magnitude;
-                ReplyToPlayer(player, LangEntry.ErrorNotAtMonument, closestMonument.AliasOrShortName, distance.ToString("f1"));
+                ReplyToPlayer(player, LangEntry.ErrorNotAtMonument, closestMonument.UniqueDisplayName, distance.ToString("f1"));
                 return false;
             }
 
             return true;
+        }
+
+        private bool VerifyLookingAtMonumentPosition(IPlayer player, out Vector3 position, out BaseMonument closestMonument)
+        {
+            if (!TryRaycast(player.Object as BasePlayer, out var hit))
+            {
+                ReplyToPlayer(player, LangEntry.ErrorNoSurface);
+                position = Vector3.zero;
+                closestMonument = null;
+                return false;
+            }
+
+            position = hit.point;
+
+            var entity = hit.GetEntity();
+            if (entity != null && IsDynamicMonument(entity))
+            {
+                closestMonument = DynamicMonument.FromEntity(entity);
+                return true;
+            }
+
+            return VerifyAtMonument(player, position, out closestMonument);
         }
 
         private bool VerifyValidModderPrefab(IPlayer player, string[] args, out string prefabPath)
@@ -3091,7 +3124,7 @@ namespace Oxide.Plugins
 
         private bool VerifySpawnGroupFound(IPlayer player, string partialGroupName, BaseMonument monument, out SpawnGroupController spawnGroupController)
         {
-            var matches = FindSpawnGroups(partialGroupName, monument.AliasOrShortName, partialMatch: true).ToList();
+            var matches = FindSpawnGroups(partialGroupName, monument.UniqueName, partialMatch: true).ToList();
 
             spawnGroupController = matches.FirstOrDefault();
 
@@ -3172,7 +3205,7 @@ namespace Oxide.Plugins
 
         private bool VerifySpawnGroupNameAvailable(IPlayer player, Profile profile, BaseMonument monument, string spawnGroupName, SpawnGroupController spawnGroupController = null)
         {
-            var matches = FindSpawnGroups(spawnGroupName, monument.AliasOrShortName, profile).ToList();
+            var matches = FindSpawnGroups(spawnGroupName, monument.UniqueName, profile).ToList();
             if (matches.Count == 0)
                 return true;
 
@@ -3180,7 +3213,7 @@ namespace Oxide.Plugins
             if (spawnGroupController != null && matches.Count == 1 && matches[0] == spawnGroupController)
                 return true;
 
-            ReplyToPlayer(player, LangEntry.SpawnGroupCreateNameInUse, spawnGroupName, monument.AliasOrShortName, profile.Name);
+            ReplyToPlayer(player, LangEntry.SpawnGroupCreateNameInUse, spawnGroupName, monument.UniqueName, profile.Name);
             return false;
         }
 
@@ -3303,7 +3336,7 @@ namespace Oxide.Plugins
             return FindAdapter<TAdapter, BaseController>(basePlayer);
         }
 
-        private IEnumerable<SpawnGroupController> FindSpawnGroups(string partialGroupName, string monumentAliasOrShortName, Profile profile = null, bool partialMatch = false)
+        private IEnumerable<SpawnGroupController> FindSpawnGroups(string partialGroupName, string monumentIdentifier, Profile profile = null, bool partialMatch = false)
         {
             foreach (var spawnGroupController in _profileManager.GetEnabledControllers<SpawnGroupController>())
             {
@@ -3322,7 +3355,7 @@ namespace Oxide.Plugins
 
                 // Can only select a spawn group for the same monument.
                 // This a slightly hacky way to check this, since data and controllers aren't directly aware of monuments.
-                if (spawnGroupController.Adapters.FirstOrDefault()?.Monument.AliasOrShortName != monumentAliasOrShortName)
+                if (spawnGroupController.Adapters.FirstOrDefault()?.Monument.UniqueName != monumentIdentifier)
                     continue;
 
                 yield return spawnGroupController;
@@ -3380,6 +3413,18 @@ namespace Oxide.Plugins
         public static void LogInfo(string message) => Interface.Oxide.LogInfo($"[Monument Addons] {message}");
         public static void LogError(string message) => Interface.Oxide.LogError($"[Monument Addons] {message}");
         public static void LogWarning(string message) => Interface.Oxide.LogWarning($"[Monument Addons] {message}");
+
+        private static bool RenameDictKey<TValue>(Dictionary<string, TValue> dict, string oldName, string newName)
+        {
+            if (dict.TryGetValue(oldName, out var monumentState))
+            {
+                dict[newName] = monumentState;
+                dict.Remove(oldName);
+                return true;
+            }
+
+            return false;
+        }
 
         private static bool IsKeyBindArg(string arg)
         {
@@ -3456,20 +3501,9 @@ namespace Oxide.Plugins
             UnityEngine.Object.DestroyImmediate(entity.GetComponent<GroundWatch>());
         }
 
-        private static bool OnCargoShip(BasePlayer player, Vector3 position, out BaseMonument cargoShipMonument)
+        private static bool HasRigidBody(BaseEntity entity)
         {
-            cargoShipMonument = null;
-
-            var cargoShip = player.GetParentEntity() as CargoShip;
-            if (cargoShip == null)
-                return false;
-
-            cargoShipMonument = new DynamicMonument(cargoShip, isMobile: true);
-
-            if (!cargoShipMonument.IsInBounds(position))
-                return false;
-
-            return true;
+            return entity.GetComponentInParent<Rigidbody>() != null;
         }
 
         private static bool IsRedirectSkin(ulong skinId, out string alternativeShortName)
@@ -3660,50 +3694,73 @@ namespace Oxide.Plugins
             return HasAdminPermission(player.UserIDString);
         }
 
+        private bool IsDynamicMonument(BaseEntity entity)
+        {
+            return _config.DynamicMonuments.IsConfiguredAsDynamicMonument(entity)
+                || _profileManager.HasDynamicMonument(entity);
+        }
+
+        private bool IsPlayerParentedToDynamicMonument(BasePlayer player, Vector3 position, out BaseMonument monument)
+        {
+            monument = null;
+
+            var parentEntity = player.GetParentEntity();
+            if (parentEntity == null || !IsDynamicMonument(parentEntity))
+                return false;
+
+            monument = new DynamicMonument(parentEntity, isMobile: true);
+            return monument.IsInBounds(position);
+        }
+
         private BaseMonument GetClosestMonument(BasePlayer player, Vector3 position)
         {
-            if (OnCargoShip(player, position, out var cargoShipMonument))
-                return cargoShipMonument;
+            if (IsPlayerParentedToDynamicMonument(player, position, out var dynamicMonument))
+                return dynamicMonument;
 
             return _monumentHelper.GetClosestMonumentAdapter(position);
         }
 
-        private List<BaseMonument> GetMonumentsByAliasOrShortName(string aliasOrShortName)
+        private List<BaseMonument> GetDynamicMonumentInstances(uint prefabId)
         {
-            if (aliasOrShortName == CargoShipShortName)
-            {
-                var cargoShipList = new List<BaseMonument>();
-                foreach (var entity in BaseNetworkable.serverEntities)
-                {
-                    var cargoShip = entity as CargoShip;
-                    if (cargoShip != null)
-                        cargoShipList.Add(new DynamicMonument(cargoShip, isMobile: true));
-                }
+            var entityList = (List<BaseMonument>)null;
 
-                return cargoShipList.Count > 0 ? cargoShipList : null;
+            foreach (var networkable in BaseNetworkable.serverEntities)
+            {
+                if (networkable is BaseEntity entity
+                    && entity.prefabID == prefabId
+                    && ExposedHooks.OnDynamicMonument(entity) is not false)
+                {
+                    entityList ??= new List<BaseMonument>();
+                    entityList.Add(DynamicMonument.FromEntity(entity));
+                }
             }
 
-            var monuments = _monumentHelper.FindMonumentsByAlias(aliasOrShortName);
+            return entityList;
+        }
+
+        private List<BaseMonument> GetMonumentsByIdentifier(string monumentIdentifier)
+        {
+            if (monumentIdentifier.StartsWith("assets/"))
+            {
+                var baseEntity = FindBaseEntityForPrefab(monumentIdentifier);
+                if (baseEntity != null && IsDynamicMonument(baseEntity))
+                    return GetDynamicMonumentInstances(baseEntity.prefabID);
+            }
+
+            var monuments = _monumentHelper.FindMonumentsByAlias(monumentIdentifier);
             if (monuments.Count > 0)
                 return monuments;
 
-            return _monumentHelper.FindMonumentsByShortName(aliasOrShortName);
+            return _monumentHelper.FindMonumentsByShortName(monumentIdentifier);
         }
 
         private IEnumerator SpawnAllProfilesRoutine()
         {
-            // Delay slightly to allow Monument Finder to finish loading.
+            // Delay one frame to allow Monument Finder to finish loading.
             yield return null;
             yield return _profileManager.LoadAllProfilesRoutine();
 
             ExposedHooks.OnMonumentAddonsInitialized();
-
-            if (_config.EnableDynamicMonuments)
-            {
-                // We don't want to be subscribed to OnEntitySpawned(CargoShip) until the coroutine is done.
-                // Otherwise, a cargo ship could spawn while the coroutine is running and could get double entities.
-                Subscribe(nameof(OnEntitySpawned));
-            }
         }
 
         private void StartupRoutine()
@@ -4094,6 +4151,83 @@ namespace Oxide.Plugins
 
                 value = false;
                 return false;
+            }
+        }
+
+        private class ValueRotator<T>
+        {
+            private T[] _values;
+            private int _index;
+
+            public ValueRotator(params T[] values)
+            {
+                _values = values;
+            }
+
+            public T GetNext()
+            {
+                var color = _values[_index++];
+                if (_index >= _values.Length)
+                {
+                    _index = 0;
+                }
+
+                return color;
+            }
+
+            public void Reset()
+            {
+                _index = 0;
+            }
+        }
+
+        private class HookCollection
+        {
+            private MonumentAddons _plugin;
+            private string[] _hookNames;
+            private Func<bool> _shouldSubscribe;
+            private bool _isSubscribed;
+
+            public HookCollection(MonumentAddons plugin, string[] hookNames, Func<bool> shouldSubscribe = null)
+            {
+                _plugin = plugin;
+                _hookNames = hookNames;
+                _shouldSubscribe = shouldSubscribe ?? (() => true);
+            }
+
+            public void Refresh()
+            {
+                if (_shouldSubscribe())
+                {
+                    if (!_isSubscribed)
+                    {
+                        Subscribe();
+                    }
+                }
+                else if (_isSubscribed)
+                {
+                    Unsubscribe();
+                }
+            }
+
+            public void Subscribe()
+            {
+                foreach (var hookName in _hookNames)
+                {
+                    _plugin.Subscribe(hookName);
+                }
+
+                _isSubscribed = true;
+            }
+
+            public void Unsubscribe()
+            {
+                foreach (var hookName in _hookNames)
+                {
+                    _plugin.Unsubscribe(hookName);
+                }
+
+                _isSubscribed = false;
             }
         }
 
@@ -4658,7 +4792,7 @@ namespace Oxide.Plugins
                     return;
                 }
 
-                if (!adapter.Monument.IsSameAs(session.Adapter.Monument))
+                if (!adapter.Monument.IsEquivalentTo(session.Adapter.Monument))
                 {
                     Ddraw.Sphere(player, adapter.Transform.TransformPoint(slot.handlePosition), DrawSlotRadius, Color.red, DrawDuration);
                     _plugin.ChatMessage(player, LangEntry.WireToolMonumentMismatch);
@@ -5105,7 +5239,7 @@ namespace Oxide.Plugins
                 var tunnelName = SplitCamelCase(tunnelAlias);
                 var phoneName = GetFTLCorridorPhoneName(tunnelName, position);
 
-                if (monument.AliasOrShortName == "TrainStation")
+                if (monument.UniqueName == "TrainStation")
                 {
                     var attachedMonument = monumentHelper.GetMonumentFromTunnel(dungeonGridCell);
                     if (attachedMonument != null && !attachedMonument.name.Contains("tunnel-entrance/entrance_bunker"))
@@ -5188,7 +5322,8 @@ namespace Oxide.Plugins
             public virtual string PrefabName => Object.name;
             public virtual string ShortName => GetShortName(PrefabName);
             public virtual string Alias => null;
-            public virtual string AliasOrShortName => Alias ?? ShortName;
+            public virtual string UniqueDisplayName => Alias ?? ShortName;
+            public virtual string UniqueName => UniqueDisplayName;
             public virtual Vector3 Position => Object.transform.position;
             public virtual Quaternion Rotation => Object.transform.rotation;
             public virtual bool IsValid => Object != null;
@@ -5211,7 +5346,7 @@ namespace Oxide.Plugins
             public abstract Vector3 ClosestPointOnBounds(Vector3 position);
             public abstract bool IsInBounds(Vector3 position);
 
-            public virtual bool IsSameAs(BaseMonument other)
+            public virtual bool IsEquivalentTo(BaseMonument other)
             {
                 return PrefabName == other.PrefabName
                     && Position == other.Position;
@@ -5223,6 +5358,7 @@ namespace Oxide.Plugins
             public override string PrefabName => (string)_monumentInfo["PrefabName"];
             public override string ShortName => (string)_monumentInfo["ShortName"];
             public override string Alias => (string)_monumentInfo["Alias"];
+            public override string UniqueDisplayName => Alias ?? ShortName;
             public override Vector3 Position => (Vector3)_monumentInfo["Position"];
             public override Quaternion Rotation => (Quaternion)_monumentInfo["Rotation"];
 
@@ -5256,8 +5392,17 @@ namespace Oxide.Plugins
 
         private class DynamicMonument : BaseMonument
         {
+            public static DynamicMonument FromEntity(BaseEntity entity)
+            {
+                return new DynamicMonument(entity, HasRigidBody(entity));
+            }
+
             public BaseEntity RootEntity { get; }
             public bool IsMobile { get; }
+            public override string PrefabName => RootEntity.PrefabName;
+            public override string ShortName => RootEntity.ShortPrefabName;
+            public override string UniqueName => PrefabName;
+            public override string UniqueDisplayName => ShortName;
             public override bool IsValid => base.IsValid && !RootEntity.IsDestroyed;
             public NetworkableId EntityId { get; }
 
@@ -5280,9 +5425,10 @@ namespace Oxide.Plugins
                 return BoundingBox.Contains(position);
             }
 
-            public override bool IsSameAs(BaseMonument other)
+            public override bool IsEquivalentTo(BaseMonument other)
             {
-                return RootEntity == (other as DynamicMonument)?.RootEntity;
+                return other is DynamicMonument otherDynamocMonument
+                    && otherDynamocMonument.RootEntity == RootEntity;
             }
         }
 
@@ -5298,19 +5444,19 @@ namespace Oxide.Plugins
 
             protected readonly MonumentAddons _plugin;
             protected readonly ProfileController _profileController;
-            protected readonly string _monumentAliasOrShortName;
+            protected readonly string _monumentIdentifier;
             private readonly float _undoTime;
 
             protected Profile Profile => _profileController.Profile;
             private bool IsExpired => _undoTime + ExpireAfterSeconds < UnityEngine.Time.realtimeSinceStartup;
             private bool ProfileExists => _plugin._profileStore.Exists(Profile.Name);
 
-            protected BaseUndo(MonumentAddons plugin, ProfileController profileController, string monumentAliasOrShortName)
+            protected BaseUndo(MonumentAddons plugin, ProfileController profileController, string monumentIdentifier)
             {
                 _plugin = plugin;
                 _undoTime = UnityEngine.Time.realtimeSinceStartup;
                 _profileController = profileController;
-                _monumentAliasOrShortName = monumentAliasOrShortName;
+                _monumentIdentifier = monumentIdentifier;
             }
 
             public abstract void Undo(BasePlayer player);
@@ -5320,20 +5466,20 @@ namespace Oxide.Plugins
         {
             protected readonly BaseData _data;
 
-            public UndoKill(MonumentAddons plugin, ProfileController profileController, string monumentAliasOrShortName, BaseData data)
-                : base(plugin, profileController, monumentAliasOrShortName)
+            public UndoKill(MonumentAddons plugin, ProfileController profileController, string monumentIdentifier, BaseData data)
+                : base(plugin, profileController, monumentIdentifier)
             {
                 _data = data;
             }
 
             public override void Undo(BasePlayer player)
             {
-                Profile.AddData(_monumentAliasOrShortName, _data);
+                Profile.AddData(_monumentIdentifier, _data);
                 _plugin._profileStore.Save(Profile);
 
                 if (_profileController.IsEnabled)
                 {
-                    var matchingMonuments = _plugin.GetMonumentsByAliasOrShortName(_monumentAliasOrShortName);
+                    var matchingMonuments = _plugin.GetMonumentsByIdentifier(_monumentIdentifier);
                     if (matchingMonuments?.Count > 0)
                     {
                         _profileController.SpawnNewData(_data, matchingMonuments);
@@ -5341,7 +5487,7 @@ namespace Oxide.Plugins
                 }
 
                 var iPlayer = player.IPlayer;
-                _plugin.ReplyToPlayer(iPlayer, LangEntry.UndoKillSuccess, _plugin.GetAddonName(iPlayer, _data), _monumentAliasOrShortName, Profile.Name);
+                _plugin.ReplyToPlayer(iPlayer, LangEntry.UndoKillSuccess, _plugin.GetAddonName(iPlayer, _data), _monumentIdentifier, Profile.Name);
             }
         }
 
@@ -5350,8 +5496,8 @@ namespace Oxide.Plugins
             private readonly SpawnGroupData _spawnGroupData;
             private readonly SpawnPointData _spawnPointData;
 
-            public UndoKillSpawnPoint(MonumentAddons plugin, ProfileController profileController, string monumentAliasOrShortName, SpawnGroupData spawnGroupData, SpawnPointData spawnPointData)
-                : base(plugin, profileController, monumentAliasOrShortName, spawnGroupData)
+            public UndoKillSpawnPoint(MonumentAddons plugin, ProfileController profileController, string monumentIdentifier, SpawnGroupData spawnGroupData, SpawnPointData spawnPointData)
+                : base(plugin, profileController, monumentIdentifier, spawnGroupData)
             {
                 _spawnGroupData = spawnGroupData;
                 _spawnPointData = spawnPointData;
@@ -5359,7 +5505,7 @@ namespace Oxide.Plugins
 
             public override void Undo(BasePlayer player)
             {
-                if (!Profile.HasSpawnGroup(_monumentAliasOrShortName, _spawnGroupData.Id))
+                if (!Profile.HasSpawnGroup(_monumentIdentifier, _spawnGroupData.Id))
                 {
                     base.Undo(player);
                     return;
@@ -5374,7 +5520,7 @@ namespace Oxide.Plugins
                 }
 
                 var iPlayer = player.IPlayer;
-                _plugin.ReplyToPlayer(iPlayer, LangEntry.UndoKillSuccess, _plugin.GetAddonName(iPlayer, _spawnPointData), _monumentAliasOrShortName, Profile.Name);
+                _plugin.ReplyToPlayer(iPlayer, LangEntry.UndoKillSuccess, _plugin.GetAddonName(iPlayer, _spawnPointData), _monumentIdentifier, Profile.Name);
             }
         }
 
@@ -5667,6 +5813,9 @@ namespace Oxide.Plugins
                     if (!_enabled)
                         yield break;
 
+                    if (!monument.IsValid)
+                        continue;
+
                     Plugin.TrackStart();
                     var adapter = SpawnAtMonument(monument);
                     Plugin.TrackEnd();
@@ -5688,6 +5837,17 @@ namespace Oxide.Plugins
 
                 ProfileController.OnControllerKilled(this);
                 return coroutine;
+            }
+
+            public bool HasAdapterForMonument(BaseMonument monument)
+            {
+                foreach (var adapter in Adapters)
+                {
+                    if (adapter.Monument.IsEquivalentTo(monument))
+                        return true;
+                }
+
+                return false;
             }
 
             public Coroutine Kill()
@@ -5732,7 +5892,7 @@ namespace Oxide.Plugins
             {
                 foreach (var adapter in Adapters)
                 {
-                    if (adapter.Monument.IsSameAs(monument))
+                    if (adapter.Monument.IsEquivalentTo(monument))
                         return adapter;
                 }
 
@@ -6579,7 +6739,7 @@ namespace Oxide.Plugins
                     return;
 
                 // Not safe to unregister the entity if the profile no longer declares it.
-                if (!Profile.HasEntity(Monument.AliasOrShortName, EntityData))
+                if (!Profile.HasEntity(Monument.UniqueName, EntityData))
                     return;
 
                 // Not safe to unregister the entity if it's not tracked in the profile state.
@@ -6638,7 +6798,8 @@ namespace Oxide.Plugins
 
             private List<CCTV_RC> GetNearbyStaticCameras()
             {
-                if (Monument is DynamicMonument dynamicMonument && dynamicMonument.RootEntity == Entity.GetParentEntity())
+                if (Monument is DynamicMonument { IsMobile: true } dynamicMonument
+                    && dynamicMonument.RootEntity == Entity.GetParentEntity())
                 {
                     var cargoCameraList = new List<CCTV_RC>();
                     foreach (var child in dynamicMonument.RootEntity.children)
@@ -7166,7 +7327,9 @@ namespace Oxide.Plugins
                     {
                         var computerStation = child as ComputerStation;
                         if (computerStation != null && computerStation.isStatic)
+                        {
                             cargoComputerStationList.Add(computerStation);
+                        }
                     }
 
                     return cargoComputerStationList;
@@ -7546,7 +7709,13 @@ namespace Oxide.Plugins
 
                 var entity = instance.GetComponent<BaseEntity>();
 
-                if (!entity.HasParent() && _parentEntity != null && !_parentEntity.IsDestroyed)
+                // Parent the entity to the monument only if the monument is mobile.
+                // This might not be the best behavior for all situations, may need to be revisited.
+                // In particular, vehicles should not be parented to entities that don't have a parent trigger,
+                // since that would cause the vehicle to be destroyed when the parent is, even if the vehicle has left.
+                if (Adapter.Monument is DynamicMonument { IsValid: true, IsMobile: true } dynamicMonument
+                    && _parentEntity == dynamicMonument.RootEntity
+                    && !entity.HasParent())
                 {
                     entity.SetParent(_parentEntity, worldPositionStays: true);
                 }
@@ -8568,7 +8737,7 @@ namespace Oxide.Plugins
                             {
                                 if (customAddonData.AddonName == addonDefinition.AddonName)
                                 {
-                                    profileController.SpawnNewData(customAddonData, _plugin.GetMonumentsByAliasOrShortName(monumentName));
+                                    profileController.SpawnNewData(customAddonData, _plugin.GetMonumentsByIdentifier(monumentName));
                                 }
                             }
                         }
@@ -9052,9 +9221,9 @@ namespace Oxide.Plugins
                 _sb.AppendLine(_plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelProfile, profileController.Profile.Name));
 
                 var monumentTierList = GetTierList(GetMonumentTierMask(adapter.Monument.Position));
-                _sb.AppendLine(monumentTierList.Count > 0
-                    ? _plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelMonumentWithTier, adapter.Monument.AliasOrShortName, controller.Adapters.Count, string.Join(", ", monumentTierList))
-                    : _plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelMonument, adapter.Monument.AliasOrShortName, controller.Adapters.Count));
+                _sb.AppendLine(adapter.Monument is not DynamicMonument && monumentTierList.Count > 0
+                    ? _plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelMonumentWithTier, adapter.Monument.UniqueDisplayName, controller.Adapters.Count, string.Join(", ", monumentTierList))
+                    : _plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelMonument, adapter.Monument.UniqueDisplayName, controller.Adapters.Count));
             }
 
             private void ShowPuzzleInfo(BasePlayer player, EntityAdapter entityAdapter, PuzzleReset puzzleReset, Vector3 playerPosition, PlayerInfo playerInfo)
@@ -9517,6 +9686,7 @@ namespace Oxide.Plugins
 
             private Configuration _config => Plugin._config;
             private StoredData _pluginData => Plugin._data;
+            private ProfileManager _profileManager => Plugin._profileManager;
             private ProfileStateData _profileStateData => Plugin._profileStateData;
 
             private CoroutineManager _coroutineManager = new CoroutineManager();
@@ -9534,7 +9704,7 @@ namespace Oxide.Plugins
 
                 if (startLoaded)
                 {
-                    ProfileStatus = ProfileStatus.Loaded;
+                    SetProfileStatus(ProfileStatus.Loaded);
                 }
             }
 
@@ -9591,7 +9761,7 @@ namespace Oxide.Plugins
 
                 if (_spawnQueue.Count == 0)
                 {
-                    ProfileStatus = ProfileStatus.Loaded;
+                    SetProfileStatus(ProfileStatus.Loaded);
                 }
             }
 
@@ -9618,7 +9788,7 @@ namespace Oxide.Plugins
                 if (ProfileStatus == ProfileStatus.Unloading || ProfileStatus == ProfileStatus.Unloaded)
                     return;
 
-                ProfileStatus = ProfileStatus.Unloading;
+                SetProfileStatus(ProfileStatus.Unloading);
                 CoroutineManager.StartGlobalCoroutine(UnloadRoutine(cleanupRoutine));
             }
 
@@ -9797,7 +9967,7 @@ namespace Oxide.Plugins
                 // If there are more items in the queue, we can assume there's already a coroutine processing them.
                 if (_spawnQueue.Count == 1)
                 {
-                    ProfileStatus = ProfileStatus.Loading;
+                    SetProfileStatus(ProfileStatus.Loading);
                     StartCoroutine(ProcessSpawnQueue());
                 }
             }
@@ -9810,8 +9980,8 @@ namespace Oxide.Plugins
                     if (monumentData.NumSpawnables == 0)
                         continue;
 
-                    var monumentAliasOrShortName = entry.Key;
-                    var matchingMonuments = Plugin.GetMonumentsByAliasOrShortName(monumentAliasOrShortName);
+                    var monumentIdentifier = entry.Key;
+                    var matchingMonuments = Plugin.GetMonumentsByIdentifier(monumentIdentifier);
                     if (matchingMonuments == null)
                         continue;
 
@@ -9827,6 +9997,16 @@ namespace Oxide.Plugins
                     {
                         Enqueue(new SpawnQueueItem(data, matchingMonuments));
                     }
+                }
+            }
+
+            private void SetProfileStatus(ProfileStatus newStatus, bool broadcast = true)
+            {
+                var previousStatus = ProfileStatus;
+                ProfileStatus = newStatus;
+                if (broadcast)
+                {
+                    _profileManager.BroadcastProfileStateChanged(this, ProfileStatus, previousStatus);
                 }
             }
 
@@ -9853,6 +10033,13 @@ namespace Oxide.Plugins
                         // Check for null in case the monument is dynamic and was destroyed (e.g., cargo ship).
                         if (queueItem.Monument.IsValid)
                         {
+                            // Prevent double spawning addons (e.g., if a dynamic monument spawns while a profile is loading).
+                            if (controller.HasAdapterForMonument(queueItem.Monument))
+                            {
+                                LogWarning("Prevented double spawn");
+                                continue;
+                            }
+
                             controller.SpawnAtMonument(queueItem.Monument);
                             yield return null;
                         }
@@ -9863,8 +10050,7 @@ namespace Oxide.Plugins
                     }
                 }
 
-                ProfileStatus = ProfileStatus.Loaded;
-
+                SetProfileStatus(ProfileStatus.Loaded);
                 SetupIO();
             }
 
@@ -9878,7 +10064,7 @@ namespace Oxide.Plugins
                 if (cleanupRoutine != null)
                     yield return cleanupRoutine;
 
-                ProfileStatus = ProfileStatus.Unloaded;
+                SetProfileStatus(ProfileStatus.Unloaded);
             }
 
             private IEnumerator ReloadRoutine(Profile newProfileData)
@@ -9899,7 +10085,7 @@ namespace Oxide.Plugins
 
                 Profile.MonumentDataMap.Clear();
                 Plugin._profileStore.Save(Profile);
-                ProfileStatus = ProfileStatus.Loaded;
+                SetProfileStatus(ProfileStatus.Loaded);
             }
 
             private IEnumerator CleanEntitiesRoutine(ProfileState profileState, List<BaseEntity> entitiesToKill)
@@ -9922,13 +10108,9 @@ namespace Oxide.Plugins
 
                 foreach (var entityEntry in profileState.FindValidEntities())
                 {
-                    if (!Profile.HasEntity(entityEntry.MonumentAliasOrShortName, entityEntry.Guid))
+                    if (!Profile.HasEntity(entityEntry.MonumentUniqueName, entityEntry.Guid))
                     {
-                        if (entitiesToKill == null)
-                        {
-                            entitiesToKill = new List<BaseEntity>();
-                        }
-
+                        entitiesToKill ??= new List<BaseEntity>();
                         entitiesToKill.Add(entityEntry.Entity);
                     }
                 }
@@ -9990,11 +10172,43 @@ namespace Oxide.Plugins
             private Configuration _config => _plugin._config;
             private StoredData _pluginData => _plugin._data;
 
+            public event Action<ProfileController, ProfileStatus, ProfileStatus> ProfileStatusChanged;
+
+            public bool HasAnyEnabledDynamicMonuments
+            {
+                get
+                {
+                    foreach (var profileController in _profileControllers)
+                    {
+                        if (profileController is { IsEnabled: true, Profile.HasAnyDynamicMonuments: true })
+                            return true;
+                    }
+
+                    return false;
+                }
+            }
+
             public ProfileManager(MonumentAddons plugin, OriginalProfileStore originalProfileStore, ProfileStore profileStore)
             {
                 _plugin = plugin;
                 _originalProfileStore = originalProfileStore;
                 _profileStore = profileStore;
+            }
+
+            public void BroadcastProfileStateChanged(ProfileController profileController, ProfileStatus status, ProfileStatus previousStatus)
+            {
+                ProfileStatusChanged?.Invoke(profileController, status, previousStatus);
+            }
+
+            public bool HasDynamicMonument(BaseEntity entity)
+            {
+                foreach (var profileController in _profileControllers)
+                {
+                    if (profileController.Profile.HasDynamicMonument(entity))
+                        return true;
+                }
+
+                return false;
             }
 
             public IEnumerator LoadAllProfilesRoutine()
@@ -10074,12 +10288,12 @@ namespace Oxide.Plugins
 
             public IEnumerator PartialLoadForLateMonumentRoutine(BaseMonument monument)
             {
-                foreach (var controller in _profileControllers)
+                foreach (var controller in _profileControllers.ToArray())
                 {
                     if (!controller.IsEnabled)
                         continue;
 
-                    if (!controller.Profile.MonumentDataMap.TryGetValue(monument.AliasOrShortName, out var monumentData))
+                    if (!controller.Profile.MonumentDataMap.TryGetValue(monument.UniqueName, out var monumentData))
                         continue;
 
                     if (monumentData.NumSpawnables == 0)
@@ -11304,6 +11518,29 @@ namespace Oxide.Plugins
             [JsonProperty("MonumentData")]
             public Dictionary<string, MonumentData> MonumentDataMap = new Dictionary<string, MonumentData>();
 
+            private HashSet<uint> _dynamicMonumentPrefabIds = new();
+            private bool _hasDeterminedDynamicMonuments;
+
+            [JsonIgnore]
+            public bool HasAnyDynamicMonuments
+            {
+                get
+                {
+                    if (!_hasDeterminedDynamicMonuments)
+                    {
+                        DetermineDynamicMonuments();
+                    }
+
+                    return _dynamicMonumentPrefabIds.Count > 0;
+                }
+            }
+
+            [OnDeserialized]
+            private void OnDeserialized(StreamingContext context)
+            {
+                RenameDictKey(MonumentDataMap, CargoShipShortName, CargoShipPrefab);
+            }
+
             public bool IsEmpty()
             {
                 if (MonumentDataMap == null || MonumentDataMap.IsEmpty())
@@ -11318,50 +11555,84 @@ namespace Oxide.Plugins
                 return true;
             }
 
-            public bool HasEntity(string monumentAliasOrShortName, Guid guid)
+            public bool HasEntity(string monumentUniqueName, Guid guid)
             {
-                return MonumentDataMap.GetOrDefault(monumentAliasOrShortName)?.HasEntity(guid) ?? false;
+                return MonumentDataMap.GetOrDefault(monumentUniqueName)?.HasEntity(guid) ?? false;
             }
 
-            public bool HasEntity(string monumentAliasOrShortName, EntityData entityData)
+            public bool HasEntity(string monumentUniqueName, EntityData entityData)
             {
-                return MonumentDataMap.GetOrDefault(monumentAliasOrShortName)?.Entities.Contains(entityData) ?? false;
+                return MonumentDataMap.GetOrDefault(monumentUniqueName)?.Entities.Contains(entityData) ?? false;
             }
 
-            public bool HasSpawnGroup(string monumentAliasOrShortName, Guid guid)
+            public bool HasSpawnGroup(string monumentUniqueName, Guid guid)
             {
-                return MonumentDataMap.GetOrDefault(monumentAliasOrShortName)?.HasSpawnGroup(guid) ?? false;
+                return MonumentDataMap.GetOrDefault(monumentUniqueName)?.HasSpawnGroup(guid) ?? false;
             }
 
-            public void AddData(string monumentAliasOrShortName, BaseData data)
+            public void AddData(string monumentUniqueName, BaseData data)
             {
-                EnsureMonumentData(monumentAliasOrShortName).AddData(data);
+                EnsureMonumentData(monumentUniqueName).AddData(data);
+                DetermineDynamicMonuments();
             }
 
-            public bool RemoveData(BaseData data, out string monumentAliasOrShortName)
+            public bool RemoveData(BaseData data, out string monumentUniqueName)
             {
                 foreach (var entry in MonumentDataMap)
                 {
                     if (entry.Value.RemoveData(data))
                     {
-                        monumentAliasOrShortName = entry.Key;
+                        monumentUniqueName = entry.Key;
+                        DetermineDynamicMonuments();
                         return true;
                     }
                 }
 
-                monumentAliasOrShortName = null;
+                monumentUniqueName = null;
                 return false;
             }
 
-            private MonumentData EnsureMonumentData(string monumentAliasOrShortName)
+            public bool HasDynamicMonument(BaseEntity entity)
             {
-                if (!MonumentDataMap.TryGetValue(monumentAliasOrShortName, out var monumentData))
+                if (!_hasDeterminedDynamicMonuments)
+                {
+                    DetermineDynamicMonuments();
+                }
+
+                return _dynamicMonumentPrefabIds.Contains(entity.prefabID);
+            }
+
+            private MonumentData EnsureMonumentData(string monumentUniqueName)
+            {
+                if (!MonumentDataMap.TryGetValue(monumentUniqueName, out var monumentData))
                 {
                     monumentData = new MonumentData();
-                    MonumentDataMap[monumentAliasOrShortName] = monumentData;
+                    MonumentDataMap[monumentUniqueName] = monumentData;
                 }
 
                 return monumentData;
+            }
+
+            private void DetermineDynamicMonuments()
+            {
+                _dynamicMonumentPrefabIds.Clear();
+
+                foreach (var (monumentUniqueName, monumentData) in MonumentDataMap)
+                {
+                    if (monumentData.NumSpawnables == 0)
+                        continue;
+
+                    if (!monumentUniqueName.StartsWith("assets/"))
+                        continue;
+
+                    var baseEntity = FindBaseEntityForPrefab(monumentUniqueName);
+                    if (baseEntity != null)
+                    {
+                        _dynamicMonumentPrefabIds.Add(baseEntity.prefabID);
+                    }
+                }
+
+                _hasDeterminedDynamicMonuments = true;
             }
         }
 
@@ -11418,13 +11689,13 @@ namespace Oxide.Plugins
 
         private struct MonumentEntityEntry
         {
-            public string MonumentAliasOrShortName;
+            public string MonumentUniqueName;
             public Guid Guid;
             public BaseEntity Entity;
 
-            public MonumentEntityEntry(string monumentAliasOrShortName, Guid guid, BaseEntity entity)
+            public MonumentEntityEntry(string monumentUniqueName, Guid guid, BaseEntity entity)
             {
-                MonumentAliasOrShortName = monumentAliasOrShortName;
+                MonumentUniqueName = monumentUniqueName;
                 Guid = guid;
                 Entity = entity;
             }
@@ -11624,6 +11895,12 @@ namespace Oxide.Plugins
 
         private class ProfileState : Dictionary<string, MonumentStateMap>, IDeepCollection
         {
+            [OnDeserialized]
+            private void OnDeserialized(StreamingContext context)
+            {
+                RenameDictKey(this, CargoShipShortName, CargoShipPrefab);
+            }
+
             public bool HasItems()
             {
                 return HasDeepItems(this);
@@ -11646,17 +11923,14 @@ namespace Oxide.Plugins
                 if (Count == 0)
                     yield break;
 
-                foreach (var entry in this)
+                foreach (var (monumentIdentifier, monumentStateMap) in this)
                 {
-                    var monumentAliasOrShortName = entry.Key;
-                    var monumentStateMap = entry.Value;
-
                     if (!monumentStateMap.HasItems())
                         continue;
 
                     foreach (var entityEntry in monumentStateMap.FindValidEntities())
                     {
-                        yield return new MonumentEntityEntry(monumentAliasOrShortName, entityEntry.Item1, entityEntry.Item2);
+                        yield return new MonumentEntityEntry(monumentIdentifier, entityEntry.Item1, entityEntry.Item2);
                     }
                 }
             }
@@ -11703,7 +11977,7 @@ namespace Oxide.Plugins
             public bool HasEntity(string profileName, BaseMonument monument, Guid guid, NetworkableId entityId)
             {
                 return GetProfileState(profileName)
-                    ?.GetOrDefault(monument.AliasOrShortName)
+                    ?.GetOrDefault(monument.UniqueName)
                     ?.GetMonumentState(monument)
                     ?.HasEntity(guid, entityId) ?? false;
             }
@@ -11711,7 +11985,7 @@ namespace Oxide.Plugins
             public BaseEntity FindEntity(string profileName, BaseMonument monument, Guid guid)
             {
                 return GetProfileState(profileName)
-                    ?.GetOrDefault(monument.AliasOrShortName)
+                    ?.GetOrDefault(monument.UniqueName)
                     ?.GetMonumentState(monument)
                     ?.FindEntity(guid);
             }
@@ -11719,7 +11993,7 @@ namespace Oxide.Plugins
             public void AddEntity(string profileName, BaseMonument monument, Guid guid, NetworkableId entityId)
             {
                 ProfileStateMap.GetOrCreate(profileName)
-                    .GetOrCreate(monument.AliasOrShortName)
+                    .GetOrCreate(monument.UniqueName)
                     .GetOrCreateMonumentState(monument)
                     .AddEntity(guid, entityId);
             }
@@ -11727,7 +12001,7 @@ namespace Oxide.Plugins
             public bool RemoveEntity(string profileName, BaseMonument monument, Guid guid)
             {
                 return GetProfileState(profileName)
-                    ?.GetOrDefault(monument.AliasOrShortName)
+                    ?.GetOrDefault(monument.UniqueName)
                     ?.GetMonumentState(monument)
                     ?.RemoveEntity(guid) ?? false;
             }
@@ -11994,18 +12268,45 @@ namespace Oxide.Plugins
 
         #region Configuration
 
+        [JsonObject(MemberSerialization.OptIn)]
+        private class DynamicMonumentSettings
+        {
+            [JsonProperty("Entity prefabs to consider as monuments")]
+            public string[] DynamicMonumentPrefabs = { CargoShipPrefab };
+
+            [JsonIgnore]
+            private uint[] _dynamicMonumentPrefabIds;
+
+            public void Init()
+            {
+                var prefabIds = new List<uint>();
+
+                foreach (var prefabPath in DynamicMonumentPrefabs)
+                {
+                    var baseEntity = FindBaseEntityForPrefab(prefabPath);
+                    if (baseEntity == null)
+                    {
+                        LogError($"Invalid prefab path in configuration: {prefabPath}");
+                        continue;
+                    }
+
+                    prefabIds.Add(baseEntity.prefabID);
+                }
+
+                _dynamicMonumentPrefabIds = prefabIds.ToArray();
+            }
+
+            public bool IsConfiguredAsDynamicMonument(BaseEntity entity)
+            {
+                return _dynamicMonumentPrefabIds.Contains(entity.prefabID);
+            }
+        }
+
+        [JsonObject(MemberSerialization.OptIn)]
         private class Configuration : BaseConfiguration
         {
             [JsonProperty("Debug", DefaultValueHandling = DefaultValueHandling.Ignore)]
             public bool Debug = false;
-
-            [JsonProperty("EnableDynamicMonuments")]
-            [DefaultValue(true)]
-            private bool DeprecatedEnableDynamicMonuments { set => EnableDynamicMonuments = value; }
-
-            [JsonProperty("Enable dynamic monuments", DefaultValueHandling = DefaultValueHandling.Ignore)]
-            [DefaultValue(true)]
-            public bool EnableDynamicMonuments = true;
 
             [JsonProperty("DebugDisplayDistance")]
             private float DeprecatedDebugDisplayDistance { set => DebugDisplayDistance = value; }
@@ -12021,6 +12322,9 @@ namespace Oxide.Plugins
 
             [JsonProperty("DeployableOverrides")]
             public Dictionary<string, string> DeprecatedDeployableOverrides { set => DeployableOverrides = value; }
+
+            [JsonProperty("Dynamic monuments")]
+            public DynamicMonumentSettings DynamicMonuments = new();
 
             [JsonProperty("Deployable overrides")]
             public Dictionary<string, string> DeployableOverrides = new Dictionary<string, string>
@@ -12061,6 +12365,8 @@ namespace Oxide.Plugins
 
             public void Init()
             {
+                DynamicMonuments.Init();
+
                 if (XmasTreeDecorations != null)
                 {
                     foreach (var itemShortName in XmasTreeDecorations)
