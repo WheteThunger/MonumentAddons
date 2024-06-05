@@ -2695,7 +2695,7 @@ namespace Oxide.Plugins
             }
             else
             {
-                wireColor = WireColour.Default;
+                wireColor = WireColour.Gray;
             }
 
             var activeItemShortName = basePlayer.GetActiveItem()?.info.shortname;
@@ -4416,7 +4416,7 @@ namespace Oxide.Plugins
                     StartSlot = startSlot;
                     StartSlotIndex = slotIndex;
                     IsSource = isSource;
-                    startSlot.wireColour = WireColor ?? WireColour.Default;
+                    startSlot.wireColour = WireColor ?? WireColour.Gray;
                 }
 
                 public void AddPoint(Vector3 position)
@@ -4822,7 +4822,7 @@ namespace Oxide.Plugins
                     ConnectedToSlot = session.IsSource ? slotIndex : session.StartSlotIndex,
                     Points = points.ToArray(),
                     ShowWire = session.WireColor.HasValue,
-                    Color = session.WireColor ?? WireColour.Default,
+                    Color = session.WireColor ?? WireColour.Gray,
                 };
 
                 sourceAdapter.EntityData.AddIOConnection(connectionData);
