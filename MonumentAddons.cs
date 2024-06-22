@@ -100,6 +100,7 @@ namespace Oxide.Plugins
         private ItemDefinition _waterDefinition;
         private ProtectionProperties _immortalProtection;
         private ActionDebounced _saveProfileStateDebounced;
+        private StringBuilder _sb = new StringBuilder();
 
         private Coroutine _startupCoroutine;
         private bool _serverInitialized;
@@ -968,6 +969,51 @@ namespace Oxide.Plugins
             _adapterDisplayManager.ShowAllRepeatedly(basePlayer, immediate: !updatedExistingSkin);
         }
 
+        [Command("maflag")]
+        private void CommandFlag(IPlayer player, string cmd, string[] args)
+        {
+            if (!VerifyPlayer(player, out _)
+                || !VerifyHasPermission(player)
+                || !VerifyLookingAtAdapter(player, out EntityAdapter adapter, out EntityController controller, LangEntry.ErrorNoSuitableAddonFound))
+                return;
+
+            if (args.Length == 0)
+            {
+                var notAplicableMessage = GetMessage(player.Id, LangEntry.NotApplicable);
+                var currentFlags = adapter.Entity.flags == 0 ? notAplicableMessage : adapter.Entity.flags.ToString();
+                var enabledFlags = adapter.EntityData.EnabledFlags == 0 ? notAplicableMessage : adapter.EntityData.EnabledFlags.ToString();
+                var disabledFlags = adapter.EntityData.DisabledFlags == 0 ? notAplicableMessage : adapter.EntityData.DisabledFlags.ToString();
+
+                ReplyToPlayer(player, LangEntry.FlagsGet, currentFlags, enabledFlags, disabledFlags);
+                return;
+            }
+
+            if (!Enum.TryParse<BaseEntity.Flags>(args[0], ignoreCase: true, result: out var flag))
+            {
+                ReplyToPlayer(player, LangEntry.FlagsSetSyntax, cmd);
+                return;
+            }
+
+            var hasFlag = adapter.Entity.HasFlag(flag) ? true : adapter.EntityData.HasFlag(flag);
+            hasFlag = hasFlag switch
+            {
+                true => false,
+                false => null,
+                null => true
+            };
+
+            adapter.EntityData.SetFlag(flag, hasFlag);
+            _profileStore.Save(controller.Profile);
+            controller.StartHandleChangesRoutine();
+
+            ReplyToPlayer(player, hasFlag switch
+            {
+                true => LangEntry.FlagsEnableSuccess,
+                false => LangEntry.FlagsDisableSuccess,
+                null => LangEntry.FlagsUnsetSuccess
+            }, flag);
+        }
+
         private void AddProfileDescription(StringBuilder sb, IPlayer player, ProfileController profileController)
         {
             foreach (var summaryEntry in GetProfileSummary(player, profileController.Profile))
@@ -1084,12 +1130,12 @@ namespace Oxide.Plugins
                 {
                     if (args.Length < 3)
                     {
-                        var sb = new StringBuilder();
-                        sb.AppendLine(GetMessage(player.Id, LangEntry.ErrorSetSyntaxGeneric, cmd));
-                        sb.AppendLine(GetMessage(player.Id, LangEntry.PuzzleSetHelpMaxPlayersBlockReset));
-                        sb.AppendLine(GetMessage(player.Id, LangEntry.PuzzleSetHelpPlayerDetectionRadius));
-                        sb.AppendLine(GetMessage(player.Id, LangEntry.PuzzleSetHelpSecondsBetweenResets));
-                        player.Reply(sb.ToString());
+                        _sb.Clear();
+                        _sb.AppendLine(GetMessage(player.Id, LangEntry.ErrorSetSyntaxGeneric, cmd));
+                        _sb.AppendLine(GetMessage(player.Id, LangEntry.PuzzleSetHelpMaxPlayersBlockReset));
+                        _sb.AppendLine(GetMessage(player.Id, LangEntry.PuzzleSetHelpPlayerDetectionRadius));
+                        _sb.AppendLine(GetMessage(player.Id, LangEntry.PuzzleSetHelpSecondsBetweenResets));
+                        player.Reply(_sb.ToString());
                         return;
                     }
 
@@ -1159,13 +1205,13 @@ namespace Oxide.Plugins
 
         private void SubCommandPuzzleHelp(IPlayer player, string cmd)
         {
-            var sb = new StringBuilder();
-            sb.AppendLine(GetMessage(player.Id, LangEntry.PuzzleHelpHeader, cmd));
-            sb.AppendLine(GetMessage(player.Id, LangEntry.PuzzleHelpReset, cmd));
-            sb.AppendLine(GetMessage(player.Id, LangEntry.PuzzleHelpSet, cmd));
-            sb.AppendLine(GetMessage(player.Id, LangEntry.PuzzleHelpAdd, cmd));
-            sb.AppendLine(GetMessage(player.Id, LangEntry.PuzzleHelpRemove, cmd));
-            player.Reply(sb.ToString());
+            _sb.Clear();
+            _sb.AppendLine(GetMessage(player.Id, LangEntry.PuzzleHelpHeader, cmd));
+            _sb.AppendLine(GetMessage(player.Id, LangEntry.PuzzleHelpReset, cmd));
+            _sb.AppendLine(GetMessage(player.Id, LangEntry.PuzzleHelpSet, cmd));
+            _sb.AppendLine(GetMessage(player.Id, LangEntry.PuzzleHelpAdd, cmd));
+            _sb.AppendLine(GetMessage(player.Id, LangEntry.PuzzleHelpRemove, cmd));
+            player.Reply(_sb.ToString());
         }
 
         [Command("maprofile")]
@@ -1203,8 +1249,8 @@ namespace Oxide.Plugins
                         .ThenBy(profile => profile.Name)
                         .ToList();
 
-                    var sb = new StringBuilder();
-                    sb.AppendLine(GetMessage(player.Id, LangEntry.ProfileListHeader));
+                    _sb.Clear();
+                    _sb.AppendLine(GetMessage(player.Id, LangEntry.ProfileListHeader));
                     foreach (var profile in profileList)
                     {
                         var messageName = profile.Enabled && profile.Name == playerProfileName
@@ -1213,9 +1259,9 @@ namespace Oxide.Plugins
                             ? LangEntry.ProfileListItemEnabled
                             : LangEntry.ProfileListItemDisabled;
 
-                        sb.AppendLine(GetMessage(player.Id, messageName, profile.Name, GetAuthorSuffix(player, profile.Profile?.Author)));
+                        _sb.AppendLine(GetMessage(player.Id, messageName, profile.Name, GetAuthorSuffix(player, profile.Profile?.Author)));
                     }
-                    player.Reply(sb.ToString());
+                    player.Reply(_sb.ToString());
                     break;
                 }
 
@@ -1230,11 +1276,11 @@ namespace Oxide.Plugins
                         return;
                     }
 
-                    var sb = new StringBuilder();
-                    sb.AppendLine(GetMessage(player.Id, LangEntry.ProfileDescribeHeader, controller.Profile.Name));
-                    AddProfileDescription(sb, player, controller);
+                    _sb.Clear();
+                    _sb.AppendLine(GetMessage(player.Id, LangEntry.ProfileDescribeHeader, controller.Profile.Name));
+                    AddProfileDescription(_sb, player, controller);
 
-                    player.Reply(sb.ToString());
+                    player.Reply(_sb.ToString());
 
                     if (!player.IsServer)
                     {
@@ -1545,21 +1591,21 @@ namespace Oxide.Plugins
 
         private void SubCommandProfileHelp(IPlayer player)
         {
-            var sb = new StringBuilder();
-            sb.AppendLine(GetMessage(player.Id, LangEntry.ProfileHelpHeader));
-            sb.AppendLine(GetMessage(player.Id, LangEntry.ProfileHelpList));
-            sb.AppendLine(GetMessage(player.Id, LangEntry.ProfileHelpDescribe));
-            sb.AppendLine(GetMessage(player.Id, LangEntry.ProfileHelpEnable));
-            sb.AppendLine(GetMessage(player.Id, LangEntry.ProfileHelpDisable));
-            sb.AppendLine(GetMessage(player.Id, LangEntry.ProfileHelpReload));
-            sb.AppendLine(GetMessage(player.Id, LangEntry.ProfileHelpSelect));
-            sb.AppendLine(GetMessage(player.Id, LangEntry.ProfileHelpCreate));
-            sb.AppendLine(GetMessage(player.Id, LangEntry.ProfileHelpRename));
-            sb.AppendLine(GetMessage(player.Id, LangEntry.ProfileHelpClear));
-            sb.AppendLine(GetMessage(player.Id, LangEntry.ProfileHelpDelete));
-            sb.AppendLine(GetMessage(player.Id, LangEntry.ProfileHelpMoveTo));
-            sb.AppendLine(GetMessage(player.Id, LangEntry.ProfileHelpInstall));
-            player.Reply(sb.ToString());
+            _sb.Clear();
+            _sb.AppendLine(GetMessage(player.Id, LangEntry.ProfileHelpHeader));
+            _sb.AppendLine(GetMessage(player.Id, LangEntry.ProfileHelpList));
+            _sb.AppendLine(GetMessage(player.Id, LangEntry.ProfileHelpDescribe));
+            _sb.AppendLine(GetMessage(player.Id, LangEntry.ProfileHelpEnable));
+            _sb.AppendLine(GetMessage(player.Id, LangEntry.ProfileHelpDisable));
+            _sb.AppendLine(GetMessage(player.Id, LangEntry.ProfileHelpReload));
+            _sb.AppendLine(GetMessage(player.Id, LangEntry.ProfileHelpSelect));
+            _sb.AppendLine(GetMessage(player.Id, LangEntry.ProfileHelpCreate));
+            _sb.AppendLine(GetMessage(player.Id, LangEntry.ProfileHelpRename));
+            _sb.AppendLine(GetMessage(player.Id, LangEntry.ProfileHelpClear));
+            _sb.AppendLine(GetMessage(player.Id, LangEntry.ProfileHelpDelete));
+            _sb.AppendLine(GetMessage(player.Id, LangEntry.ProfileHelpMoveTo));
+            _sb.AppendLine(GetMessage(player.Id, LangEntry.ProfileHelpInstall));
+            player.Reply(_sb.ToString());
         }
 
         [Command("mainstall")]
@@ -1653,10 +1699,10 @@ namespace Oxide.Plugins
                         profileController.Enable(profile);
                     }
 
-                    var sb = new StringBuilder();
-                    sb.AppendLine(GetMessage(player.Id, LangEntry.ProfileInstallSuccess, profile.Name, GetAuthorSuffix(player, profile.Author)));
-                    AddProfileDescription(sb, player, profileController);
-                    player.Reply(sb.ToString());
+                    _sb.Clear();
+                    _sb.AppendLine(GetMessage(player.Id, LangEntry.ProfileInstallSuccess, profile.Name, GetAuthorSuffix(player, profile.Author)));
+                    AddProfileDescription(_sb, player, profileController);
+                    player.Reply(_sb.ToString());
 
                     if (!player.IsServer)
                     {
@@ -1772,19 +1818,19 @@ namespace Oxide.Plugins
                 {
                     if (args.Length < 3)
                     {
-                        var sb = new StringBuilder();
-                        sb.AppendLine(GetMessage(player.Id, LangEntry.ErrorSetSyntaxGeneric, cmd));
-                        sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnGroupSetHelpName));
-                        sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnGroupSetHelpMaxPopulation));
-                        sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnGroupSetHelpRespawnDelayMin));
-                        sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnGroupSetHelpRespawnDelayMax));
-                        sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnGroupSetHelpSpawnPerTickMin));
-                        sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnGroupSetHelpSpawnPerTickMax));
-                        sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnGroupSetHelpInitialSpawn));
-                        sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnGroupSetHelpPreventDuplicates));
-                        sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnGroupSetHelpPauseScheduleWhileFull));
-                        sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnGroupSetHelpRespawnWhenNearestPuzzleResets));
-                        player.Reply(sb.ToString());
+                        _sb.Clear();
+                        _sb.AppendLine(GetMessage(player.Id, LangEntry.ErrorSetSyntaxGeneric, cmd));
+                        _sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnGroupSetHelpName));
+                        _sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnGroupSetHelpMaxPopulation));
+                        _sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnGroupSetHelpRespawnDelayMin));
+                        _sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnGroupSetHelpRespawnDelayMax));
+                        _sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnGroupSetHelpSpawnPerTickMin));
+                        _sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnGroupSetHelpSpawnPerTickMax));
+                        _sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnGroupSetHelpInitialSpawn));
+                        _sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnGroupSetHelpPreventDuplicates));
+                        _sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnGroupSetHelpPauseScheduleWhileFull));
+                        _sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnGroupSetHelpRespawnWhenNearestPuzzleResets));
+                        player.Reply(_sb.ToString());
                         return;
                     }
 
@@ -2036,15 +2082,15 @@ namespace Oxide.Plugins
 
         private void SubCommandSpawnGroupHelp(IPlayer player, string cmd)
         {
-            var sb = new StringBuilder();
-            sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnGroupHelpHeader, cmd));
-            sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnGroupHelpCreate, cmd));
-            sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnGroupHelpSet, cmd));
-            sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnGroupHelpAdd, cmd));
-            sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnGroupHelpRemove, cmd));
-            sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnGroupHelpSpawn, cmd));
-            sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnGroupHelpRespawn, cmd));
-            player.Reply(sb.ToString());
+            _sb.Clear();
+            _sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnGroupHelpHeader, cmd));
+            _sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnGroupHelpCreate, cmd));
+            _sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnGroupHelpSet, cmd));
+            _sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnGroupHelpAdd, cmd));
+            _sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnGroupHelpRemove, cmd));
+            _sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnGroupHelpSpawn, cmd));
+            _sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnGroupHelpRespawn, cmd));
+            player.Reply(_sb.ToString());
         }
 
         [Command("maspawnpoint", "masp")]
@@ -2102,15 +2148,15 @@ namespace Oxide.Plugins
                 {
                     if (args.Length < 3)
                     {
-                        var sb = new StringBuilder();
-                        sb.AppendLine(GetMessage(player.Id, LangEntry.ErrorSetSyntaxGeneric, cmd));
-                        sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnPointSetHelpExclusive));
-                        sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnPointSetHelpSnapToGround));
-                        sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnPointSetHelpCheckSpace));
-                        sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnPointSetHelpRandomRotation));
-                        sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnPointSetHelpRandomRadius));
-                        sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnPointSetHelpPlayerDetectionRadius));
-                        player.Reply(sb.ToString());
+                        _sb.Clear();
+                        _sb.AppendLine(GetMessage(player.Id, LangEntry.ErrorSetSyntaxGeneric, cmd));
+                        _sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnPointSetHelpExclusive));
+                        _sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnPointSetHelpSnapToGround));
+                        _sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnPointSetHelpCheckSpace));
+                        _sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnPointSetHelpRandomRotation));
+                        _sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnPointSetHelpRandomRadius));
+                        _sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnPointSetHelpPlayerDetectionRadius));
+                        player.Reply(_sb.ToString());
                         return;
                     }
 
@@ -2204,11 +2250,11 @@ namespace Oxide.Plugins
 
         private void SubCommandSpawnPointHelp(IPlayer player, string cmd)
         {
-            var sb = new StringBuilder();
-            sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnPointHelpHeader, cmd));
-            sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnPointHelpCreate, cmd));
-            sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnPointHelpSet, cmd));
-            player.Reply(sb.ToString());
+            _sb.Clear();
+            _sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnPointHelpHeader, cmd));
+            _sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnPointHelpCreate, cmd));
+            _sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnPointHelpSet, cmd));
+            player.Reply(_sb.ToString());
         }
 
         [Command("mapaste")]
@@ -2381,9 +2427,6 @@ namespace Oxide.Plugins
 
             _colorRotator.Reset();
 
-            var _selectedColorIndex = 0;
-            var sb = new StringBuilder();
-
             var playerPosition = basePlayer.transform.position;
 
             foreach (var spawner in spawnerList)
@@ -2402,12 +2445,12 @@ namespace Oxide.Plugins
 
                     if (spawnPointList.Length == 0)
                     {
-                        AddSpawnGroupInfo(player, sb, spawnGroup, spawnPointList.Length);
+                        _sb.Clear();
+                        AddSpawnGroupInfo(player, _sb, spawnGroup, spawnPointList.Length);
                         var spawnGroupPosition = spawnGroup.transform.position;
 
                         Ddraw.Sphere(basePlayer, spawnGroupPosition, 0.5f, color, ShowVanillaDuration);
-                        Ddraw.Text(basePlayer, spawnGroupPosition + new Vector3(0, tierMask > 0 ? Mathf.Log(tierMask, 2) : 0, 0), sb.ToString(), color, ShowVanillaDuration);
-                        sb.Clear();
+                        Ddraw.Text(basePlayer, spawnGroupPosition + new Vector3(0, tierMask > 0 ? Mathf.Log(tierMask, 2) : 0, 0), _sb.ToString(), color, ShowVanillaDuration);
                         continue;
                     }
 
@@ -2428,7 +2471,8 @@ namespace Oxide.Plugins
 
                     foreach (var spawnPoint in spawnPointList)
                     {
-                        sb.AppendLine($"<size={AdapterDisplayManager.HeaderSize}>{GetMessage(player.Id, LangEntry.ShowHeaderVanillaSpawnPoint, spawnGroup.name)}</size>");
+                        _sb.Clear();
+                        _sb.AppendLine($"<size={AdapterDisplayManager.HeaderSize}>{GetMessage(player.Id, LangEntry.ShowHeaderVanillaSpawnPoint, spawnGroup.name)}</size>");
 
                         var booleanProperties = new List<string>();
 
@@ -2456,33 +2500,31 @@ namespace Oxide.Plugins
 
                         if (booleanProperties.Count > 0)
                         {
-                            sb.AppendLine(_plugin.GetMessage(player.Id, LangEntry.ShowLabelFlags, string.Join(" | ", booleanProperties)));
+                            _sb.AppendLine(_plugin.GetMessage(player.Id, LangEntry.ShowLabelFlags, string.Join(" | ", booleanProperties)));
                         }
 
                         var radialSpawnPoint = spawnPoint as RadialSpawnPoint;
                         if (radialSpawnPoint != null)
                         {
-                            sb.AppendLine(GetMessage(player.Id, LangEntry.ShowLabelSpawnPointRandomRadius, radialSpawnPoint.radius));
+                            _sb.AppendLine(GetMessage(player.Id, LangEntry.ShowLabelSpawnPointRandomRadius, radialSpawnPoint.radius));
                         }
 
                         if (spawnPoint == closestSpawnPoint)
                         {
-                            sb.AppendLine(AdapterDisplayManager.Divider);
-                            AddSpawnGroupInfo(player, sb, spawnGroup, spawnPointList.Length);
+                            _sb.AppendLine(AdapterDisplayManager.Divider);
+                            AddSpawnGroupInfo(player, _sb, spawnGroup, spawnPointList.Length);
                         }
 
                         var spawnPointTransform = spawnPoint.transform;
                         var spawnPointPosition = spawnPointTransform.position;
                         Ddraw.ArrowThrough(basePlayer, spawnPointPosition + AdapterDisplayManager.ArrowVerticalOffeset, spawnPointTransform.rotation, 1, 0.15f, color, ShowVanillaDuration);
                         Ddraw.Sphere(basePlayer, spawnPointPosition, 0.5f, color, ShowVanillaDuration);
-                        Ddraw.Text(basePlayer, spawnPointPosition + new Vector3(0, tierMask > 0 ? Mathf.Log(tierMask, 2) : 0, 0), sb.ToString(), color, ShowVanillaDuration);
+                        Ddraw.Text(basePlayer, spawnPointPosition + new Vector3(0, tierMask > 0 ? Mathf.Log(tierMask, 2) : 0, 0), _sb.ToString(), color, ShowVanillaDuration);
 
                         if (spawnPoint != closestSpawnPoint)
                         {
                             Ddraw.Arrow(basePlayer, closestSpawnPointPosition + AdapterDisplayManager.ArrowVerticalOffeset, spawnPointPosition + AdapterDisplayManager.ArrowVerticalOffeset, 0.25f, color, ShowVanillaDuration);
                         }
-
-                        sb.Clear();
                     }
 
                     continue;
@@ -2493,24 +2535,25 @@ namespace Oxide.Plugins
                 {
                     var color = _colorRotator.GetNext();
 
-                    sb.AppendLine($"<size={AdapterDisplayManager.HeaderSize}>{GetMessage(player.Id, LangEntry.ShowHeaderVanillaIndividualSpawnPoint, individualSpawner.name)}</size>");
-                    sb.AppendLine(GetMessage(player.Id, LangEntry.ShowLabelFlags, $"{GetMessage(player.Id, LangEntry.ShowLabelSpawnPointExclusive)} | {GetMessage(player.Id, LangEntry.ShowLabelSpawnPointCheckSpace)}"));
+                    _sb.Clear();
+                    _sb.AppendLine($"<size={AdapterDisplayManager.HeaderSize}>{GetMessage(player.Id, LangEntry.ShowHeaderVanillaIndividualSpawnPoint, individualSpawner.name)}</size>");
+                    _sb.AppendLine(GetMessage(player.Id, LangEntry.ShowLabelFlags, $"{GetMessage(player.Id, LangEntry.ShowLabelSpawnPointExclusive)} | {GetMessage(player.Id, LangEntry.ShowLabelSpawnPointCheckSpace)}"));
 
                     if (individualSpawner.oneTimeSpawner)
                     {
-                        sb.AppendLine(GetMessage(player.Id, LangEntry.ShowLabelSpawnOnMapWipe));
+                        _sb.AppendLine(GetMessage(player.Id, LangEntry.ShowLabelSpawnOnMapWipe));
                     }
                     else
                     {
                         if (!float.IsPositiveInfinity(individualSpawner.respawnDelayMin))
                         {
-                            sb.AppendLine(GetMessage(player.Id, LangEntry.ShowLabelRespawnDelay, FormatTime(individualSpawner.respawnDelayMin), FormatTime(individualSpawner.respawnDelayMax)));
+                            _sb.AppendLine(GetMessage(player.Id, LangEntry.ShowLabelRespawnDelay, FormatTime(individualSpawner.respawnDelayMin), FormatTime(individualSpawner.respawnDelayMax)));
                         }
 
                         var nextSpawnTime = GetTimeToNextSpawn(individualSpawner);
                         if (!individualSpawner.IsSpawned && !float.IsPositiveInfinity(nextSpawnTime))
                         {
-                            sb.AppendLine(GetMessage(
+                            _sb.AppendLine(GetMessage(
                                 player.Id,
                                 LangEntry.ShowLabelNextSpawn,
                                 nextSpawnTime <= 0
@@ -2520,15 +2563,13 @@ namespace Oxide.Plugins
                         }
                     }
 
-                    sb.AppendLine(GetMessage(player.Id, LangEntry.ShowHeaderEntity, _uniqueNameRegistry.GetUniqueShortName(individualSpawner.entityPrefab.resourcePath)));
+                    _sb.AppendLine(GetMessage(player.Id, LangEntry.ShowHeaderEntity, _uniqueNameRegistry.GetUniqueShortName(individualSpawner.entityPrefab.resourcePath)));
 
                     var spawnerTransform = individualSpawner.transform;
                     var spawnPointPosition = spawnerTransform.position;
                     Ddraw.ArrowThrough(basePlayer, spawnPointPosition + AdapterDisplayManager.ArrowVerticalOffeset, spawnerTransform.rotation, 1f, 0.15f, color, ShowVanillaDuration);
                     Ddraw.Sphere(basePlayer, spawnPointPosition, 0.5f, color, ShowVanillaDuration);
-                    Ddraw.Text(basePlayer, spawnPointPosition, sb.ToString(), color, ShowVanillaDuration);
-
-                    sb.Clear();
+                    Ddraw.Text(basePlayer, spawnPointPosition, _sb.ToString(), color, ShowVanillaDuration);
                     continue;
                 }
             }
@@ -2716,27 +2757,28 @@ namespace Oxide.Plugins
             if (!VerifyHasPermission(player))
                 return;
 
-            var sb = new StringBuilder();
-            sb.AppendLine(GetMessage(player.Id, LangEntry.HelpHeader));
-            sb.AppendLine(GetMessage(player.Id, LangEntry.HelpSpawn));
-            sb.AppendLine(GetMessage(player.Id, LangEntry.HelpPrefab));
-            sb.AppendLine(GetMessage(player.Id, LangEntry.HelpKill));
-            sb.AppendLine(GetMessage(player.Id, LangEntry.HelpUndo));
-            sb.AppendLine(GetMessage(player.Id, LangEntry.HelpSave));
-            sb.AppendLine(GetMessage(player.Id, LangEntry.HelpSkin));
-            sb.AppendLine(GetMessage(player.Id, LangEntry.HelpSetId));
-            sb.AppendLine(GetMessage(player.Id, LangEntry.HelpSetDir));
-            sb.AppendLine(GetMessage(player.Id, LangEntry.HelpSkull));
-            sb.AppendLine(GetMessage(player.Id, LangEntry.HelpTrophy));
-            sb.AppendLine(GetMessage(player.Id, LangEntry.HelpCardReaderLevel));
-            sb.AppendLine(GetMessage(player.Id, LangEntry.HelpPuzzle));
-            sb.AppendLine(GetMessage(player.Id, LangEntry.HelpSpawnGroup));
-            sb.AppendLine(GetMessage(player.Id, LangEntry.HelpSpawnPoint));
-            sb.AppendLine(GetMessage(player.Id, LangEntry.HelpPaste));
-            sb.AppendLine(GetMessage(player.Id, LangEntry.HelpShow));
-            sb.AppendLine(GetMessage(player.Id, LangEntry.HelpShowVanilla));
-            sb.AppendLine(GetMessage(player.Id, LangEntry.HelpProfile));
-            player.Reply(sb.ToString());
+            _sb.Clear();
+            _sb.AppendLine(GetMessage(player.Id, LangEntry.HelpHeader));
+            _sb.AppendLine(GetMessage(player.Id, LangEntry.HelpSpawn));
+            _sb.AppendLine(GetMessage(player.Id, LangEntry.HelpPrefab));
+            _sb.AppendLine(GetMessage(player.Id, LangEntry.HelpKill));
+            _sb.AppendLine(GetMessage(player.Id, LangEntry.HelpUndo));
+            _sb.AppendLine(GetMessage(player.Id, LangEntry.HelpSave));
+            _sb.AppendLine(GetMessage(player.Id, LangEntry.HelpFlag));
+            _sb.AppendLine(GetMessage(player.Id, LangEntry.HelpSkin));
+            _sb.AppendLine(GetMessage(player.Id, LangEntry.HelpSetId));
+            _sb.AppendLine(GetMessage(player.Id, LangEntry.HelpSetDir));
+            _sb.AppendLine(GetMessage(player.Id, LangEntry.HelpSkull));
+            _sb.AppendLine(GetMessage(player.Id, LangEntry.HelpTrophy));
+            _sb.AppendLine(GetMessage(player.Id, LangEntry.HelpCardReaderLevel));
+            _sb.AppendLine(GetMessage(player.Id, LangEntry.HelpPuzzle));
+            _sb.AppendLine(GetMessage(player.Id, LangEntry.HelpSpawnGroup));
+            _sb.AppendLine(GetMessage(player.Id, LangEntry.HelpSpawnPoint));
+            _sb.AppendLine(GetMessage(player.Id, LangEntry.HelpPaste));
+            _sb.AppendLine(GetMessage(player.Id, LangEntry.HelpShow));
+            _sb.AppendLine(GetMessage(player.Id, LangEntry.HelpShowVanilla));
+            _sb.AppendLine(GetMessage(player.Id, LangEntry.HelpProfile));
+            player.Reply(_sb.ToString());
         }
 
         #endregion
@@ -6305,6 +6347,7 @@ namespace Oxide.Plugins
 
             public virtual void HandleChanges()
             {
+                DisableFlags();
                 UpdatePosition();
                 UpdateSkin();
                 UpdateScale();
@@ -6315,6 +6358,7 @@ namespace Oxide.Plugins
                 UpdateCardReaderLevel();
                 UpdateIOConnections();
                 MaybeProvidePower();
+                EnableFlags();
             }
 
             public void UpdateSkullName()
@@ -6531,6 +6575,7 @@ namespace Oxide.Plugins
                 EntitySetupUtils.PostSpawnShared(Plugin, Entity, _config.EnableEntitySaving);
 
                 UpdatePuzzle();
+                DisableFlags();
 
                 // NPCVendingMachine needs its skin updated after spawn because vanilla sets it to 861142659.
                 UpdateSkin();
@@ -6729,6 +6774,8 @@ namespace Oxide.Plugins
                 {
                     UpdateHuntingTrophy();
                 }
+
+                EnableFlags();
             }
 
             protected virtual void PreEntityKill() {}
@@ -6908,6 +6955,16 @@ namespace Oxide.Plugins
                 cardReader.SetFlag(cardReader.AccessLevel1, accessLevel == 1);
                 cardReader.SetFlag(cardReader.AccessLevel2, accessLevel == 2);
                 cardReader.SetFlag(cardReader.AccessLevel3, accessLevel == 3);
+            }
+
+            private void DisableFlags()
+            {
+                Entity.SetFlag(EntityData.DisabledFlags, false);
+            }
+
+            private void EnableFlags()
+            {
+                Entity.SetFlag(EntityData.EnabledFlags, true);
             }
 
             private void UpdateIOEntitySlotPositions(IOEntity ioEntity)
@@ -9361,6 +9418,7 @@ namespace Oxide.Plugins
 
                 Ddraw.Text(player, adapter.Position, _sb.ToString(), color, DisplayIntervalDuration);
             }
+
             private void ShowSpawnPointInfo(BasePlayer player, SpawnPointAdapter adapter, SpawnGroupAdapter spawnGroupAdapter, PlayerInfo playerInfo, bool showGroupInfo)
             {
                 var spawnPointData = adapter.SpawnPointData;
@@ -10667,6 +10725,12 @@ namespace Oxide.Plugins
             [JsonProperty("Skin", DefaultValueHandling = DefaultValueHandling.Ignore)]
             public ulong Skin;
 
+            [JsonProperty("EnabledFlags", DefaultValueHandling = DefaultValueHandling.Ignore)]
+            public BaseEntity.Flags EnabledFlags;
+
+            [JsonProperty("DisabledFlags", DefaultValueHandling = DefaultValueHandling.Ignore)]
+            public BaseEntity.Flags DisabledFlags;
+
             [JsonProperty("Puzzle", DefaultValueHandling = DefaultValueHandling.Ignore)]
             public PuzzleData Puzzle;
 
@@ -10697,6 +10761,38 @@ namespace Oxide.Plugins
 
             [JsonProperty("HeadData", DefaultValueHandling = DefaultValueHandling.Ignore)]
             public HeadData HeadData;
+
+            public void SetFlag(BaseEntity.Flags flag, bool? value)
+            {
+                switch (value)
+                {
+                    case true:
+                        EnabledFlags |= flag;
+                        DisabledFlags &= ~flag;
+                        break;
+
+                    case false:
+                        EnabledFlags &= ~flag;
+                        DisabledFlags |= flag;
+                        break;
+
+                    case null:
+                        EnabledFlags &= ~flag;
+                        DisabledFlags &= ~flag;
+                        break;
+                }
+            }
+
+            public bool? HasFlag(BaseEntity.Flags flag)
+            {
+                if (EnabledFlags.HasFlag(flag))
+                    return true;
+
+                if (DisabledFlags.HasFlag(flag))
+                    return false;
+
+                return null;
+            }
 
             public void RemoveIOConnection(int slot)
             {
@@ -12514,6 +12610,7 @@ namespace Oxide.Plugins
         {
             public static List<LangEntry> AllLangEntries = new List<LangEntry>();
 
+            public static readonly LangEntry NotApplicable = new LangEntry("NotApplicable", "N/A");
             public static readonly LangEntry ErrorNoPermission = new LangEntry("Error.NoPermission", "You don't have permission to do that.");
             public static readonly LangEntry ErrorMonumentFinderNotLoaded = new LangEntry("Error.MonumentFinderNotLoaded", "Error: Monument Finder is not loaded.");
             public static readonly LangEntry ErrorNoMonuments = new LangEntry("Error.NoMonuments", "Error: No monuments found.");
@@ -12684,6 +12781,12 @@ namespace Oxide.Plugins
             public static readonly LangEntry SkinSetSuccess = new LangEntry("Skin.Set.Success2", "Updated skin ID to <color=#fd4>{0}</color> at <color=#fd4>{1}</color> matching monument(s) and saved to profile <color=#fd4>{2}</color>.");
             public static readonly LangEntry SkinErrorRedirect = new LangEntry("Skin.Error.Redirect", "Error: Skin <color=#fd4>{0}</color> is a redirect skin and cannot be set directly. Instead, spawn the entity as <color=#fd4>{1}</color>.");
 
+            public static readonly LangEntry FlagsGet = new LangEntry("Flags.Get", "Current flags: <color=#fd4>{0}</color>\nEnabled flags: <color=#fd4>{1}</color>\nDisabled flags: <color=#fd4>{2}</color>");
+            public static readonly LangEntry FlagsSetSyntax = new LangEntry("Flags.Syntax", "Syntax: <color=#fd4>{0} <flag></color>");
+            public static readonly LangEntry FlagsEnableSuccess = new LangEntry("Flags.Enable.Success", "Overrode flag <color=#fd4>{0}</color> to enabled");
+            public static readonly LangEntry FlagsDisableSuccess = new LangEntry("Flags.Disable.Success", "Overrode flag <color=#fd4>{0}</color> to disabled");
+            public static readonly LangEntry FlagsUnsetSuccess = new LangEntry("Flags.Unset.Success", "Removed override for flag <color=#fd4>{0}</color>");
+
             public static readonly LangEntry CCTVSetIdSyntax = new LangEntry("CCTV.SetId.Error.Syntax", "Syntax: <color=#fd4>{0} <id></color>");
             public static readonly LangEntry CCTVSetIdSuccess = new LangEntry("CCTV.SetId.Success2", "Updated CCTV id to <color=#fd4>{0}</color> at <color=#fd4>{1}</color> matching monument(s) and saved to profile <color=#fd4>{2}</color>.");
             public static readonly LangEntry CCTVSetDirectionSuccess = new LangEntry("CCTV.SetDirection.Success2", "Updated CCTV direction at <color=#fd4>{0}</color> matching monument(s) and saved to profile <color=#fd4>{1}</color>.");
@@ -12777,6 +12880,7 @@ namespace Oxide.Plugins
             public static readonly LangEntry HelpKill = new LangEntry("Help.Kill", "<color=#fd4>makill</color> - Delete an entity or other addon");
             public static readonly LangEntry HelpUndo = new LangEntry("Help.Undo", "<color=#fd4>maundo</color> - Undo a recent <color=#fd4>makill</color> action");
             public static readonly LangEntry HelpSave = new LangEntry("Help.Save", "<color=#fd4>masave</color> - Save an entity's updated position");
+            public static readonly LangEntry HelpFlag = new LangEntry("Help.Flag", "<color=#fd4>maflag <flag></color> - Toggle a flag of an entity");
             public static readonly LangEntry HelpSkin = new LangEntry("Help.Skin", "<color=#fd4>maskin <skin id></color> - Change the skin of an entity");
             public static readonly LangEntry HelpSetId = new LangEntry("Help.SetId", "<color=#fd4>masetid <id></color> - Set the id of a CCTV");
             public static readonly LangEntry HelpSetDir = new LangEntry("Help.SetDir", "<color=#fd4>masetdir</color> - Set the direction of a CCTV");
