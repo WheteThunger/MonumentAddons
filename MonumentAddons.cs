@@ -33,7 +33,7 @@ using Facepunch;
 
 namespace Oxide.Plugins
 {
-    [Info("Monument Addons", "WhiteThunder", "0.17.0")]
+    [Info("Monument Addons", "WhiteThunder", "0.17.1")]
     [Description("Allows adding entities, spawn points and more to monuments.")]
     internal class MonumentAddons : CovalencePlugin
     {
@@ -7798,9 +7798,9 @@ namespace Oxide.Plugins
                 Adapter.SpawnGroupAdapter.SpawnGroup.HandleObjectRetired();
             }
 
-            public override bool IsAvailableTo(GameObjectRef prefabRef)
+            public override bool IsAvailableTo(GameObject prefab)
             {
-                if (!base.IsAvailableTo(prefabRef))
+                if (!base.IsAvailableTo(prefab))
                     return false;
 
                 if (_spawnPointData.Exclusive && _instances.Count > 0)
@@ -7808,10 +7808,10 @@ namespace Oxide.Plugins
 
                 if (_spawnPointData.CheckSpace)
                 {
-                    if (CustomBoundsCheckMask.TryGetValue(prefabRef.resourcePath, out var customBoundsCheckMask))
-                        return SpawnHandler.CheckBounds(prefabRef.Get(), _transform.position, _transform.rotation, Vector3.one, customBoundsCheckMask);
+                    if (CustomBoundsCheckMask.TryGetValue(prefab.name, out var customBoundsCheckMask))
+                        return SpawnHandler.CheckBounds(prefab, _transform.position, _transform.rotation, Vector3.one, customBoundsCheckMask);
 
-                    return SingletonComponent<SpawnHandler>.Instance.CheckBounds(prefabRef.Get(), _transform.position, _transform.rotation, Vector3.one);
+                    return SingletonComponent<SpawnHandler>.Instance.CheckBounds(prefab, _transform.position, _transform.rotation, Vector3.one);
                 }
 
                 return true;
