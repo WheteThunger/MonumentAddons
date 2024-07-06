@@ -23,6 +23,7 @@ using static WireTool;
 using HumanNPCGlobal = global::HumanNPC;
 using SkullTrophyGlobal = global::SkullTrophy;
 
+using CustomInitializeCallback = System.Func<BasePlayer, UnityEngine.Vector3, object>;
 using CustomSpawnCallback = System.Func<UnityEngine.Vector3, UnityEngine.Quaternion, Newtonsoft.Json.Linq.JObject, UnityEngine.Component>;
 using CustomKillCallback = System.Action<UnityEngine.Component>;
 using CustomUpdateCallback = System.Action<UnityEngine.Component, Newtonsoft.Json.Linq.JObject>;
@@ -684,7 +685,9 @@ namespace Oxide.Plugins
                     Position = localPosition,
                     RotationAngles = localRotationAngles,
                     SnapToTerrain = isOnTerrain,
-                };
+                }.SetData(_customAddonManager
+                    .GetAddon(addonDefinition.AddonName)
+                    .Initialize?.Invoke(basePlayer, position));
             }
 
             var matchingMonuments = GetMonumentsByIdentifier(monument.UniqueName);
@@ -8674,6 +8677,11 @@ namespace Oxide.Plugins
                     OwnerPlugin = plugin,
                 };
 
+                if (addonSpec.TryGetValue("Initialize", out var initializeCallback))
+                {
+                    addonDefinition.Initialize = initializeCallback as CustomInitializeCallback;
+                }
+
                 if (addonSpec.TryGetValue("Spawn", out var spawnCallback))
                 {
                     addonDefinition.Spawn = spawnCallback as CustomSpawnCallback;
@@ -8699,6 +8707,7 @@ namespace Oxide.Plugins
 
             public string AddonName;
             public Plugin OwnerPlugin;
+            public CustomInitializeCallback Initialize;
             public CustomSpawnCallback Spawn;
             public CustomKillCallback Kill;
             public CustomUpdateCallback Update;
@@ -8812,12 +8821,17 @@ namespace Oxide.Plugins
                     return;
 
                 var controllerList = new HashSet<CustomAddonController>();
+                var profileControllerList = new HashSet<ProfileController>();
 
                 foreach (var addonDefinition in addonsForPlugin)
                 {
                     foreach (var adapter in addonDefinition.AdapterUsers)
                     {
                         controllerList.Add(adapter.Controller as CustomAddonController);
+
+                        // Remove the controller from the profile,
+                        // since we may need to respawn it immediately after as part of the other plugin reloading.
+                        adapter.Controller.ProfileController.OnControllerKilled(adapter.Controller);
                     }
 
                     _customAddonsByName.Remove(addonDefinition.AddonName);
@@ -9679,6 +9693,9 @@ namespace Oxide.Plugins
 
                     if (adapter is CustomAddonAdapter customAddonAdapter)
                     {
+                        if (customAddonAdapter.Component == null)
+                            continue;
+
                         if ((playerPosition - customAddonAdapter.Position).sqrMagnitude <= DisplayDistanceSquared)
                         {
                             ShowCustomAddonInfo(player, customAddonAdapter, playerInfo);
@@ -10961,9 +10978,10 @@ namespace Oxide.Plugins
                 return PluginData as JObject;
             }
 
-            public void SetData(object data)
+            public CustomAddonData SetData(object data)
             {
-                PluginData = data as JObject ?? JObject.FromObject(data);
+                PluginData = data as JObject ?? (data != null ? JObject.FromObject(data) : null);
+                return this;
             }
         }
 
