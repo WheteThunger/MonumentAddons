@@ -517,7 +517,13 @@ namespace Oxide.Plugins
                 if (copyPaste == null)
                     return null;
 
-                var result = copyPaste.Call("TryPasteFromVector3Cancellable", position, yRotation, pasteData.Filename, CopyPasteArgs, onPasteCompleted, onEntityPasted);
+                var args = CopyPasteArgs;
+                if (pasteData.Args is { Length: > 0 })
+                {
+                    args = args.Concat(pasteData.Args).ToArray();
+                }
+
+                var result = copyPaste.Call("TryPasteFromVector3Cancellable", position, yRotation, pasteData.Filename, args, onPasteCompleted, onEntityPasted);
                 if (!(result is ValueTuple<object, Action>))
                 {
                     LogError($"CopyPaste returned an unexpected response for paste \"{pasteData.Filename}\": {result}. Is CopyPaste up-to-date?");
@@ -2300,6 +2306,7 @@ namespace Oxide.Plugins
                 RotationAngles = localRotationAngles,
                 SnapToTerrain = isOnTerrain,
                 Filename = pasteName,
+                Args = args.Skip(1).ToArray(),
             };
 
             var matchingMonuments = GetMonumentsByIdentifier(monument.UniqueName);
@@ -9594,6 +9601,10 @@ namespace Oxide.Plugins
                 _sb.Clear();
                 _sb.AppendLine($"<size={HeaderSize}>{_plugin.GetMessage(player.UserIDString, LangEntry.ShowHeaderPaste, pasteData.Filename)}</size>");
                 AddCommonInfo(player, profileController, controller, adapter);
+                if (pasteData.Args is { Length: > 0 })
+                {
+                    _sb.AppendLine(string.Join(" ", pasteData.Args));
+                }
 
                 Ddraw.Text(player, adapter.Position, _sb.ToString(), color, DisplayIntervalDuration);
             }
@@ -10959,6 +10970,9 @@ namespace Oxide.Plugins
         {
             [JsonProperty("Filename")]
             public string Filename;
+
+            [JsonProperty("Args")]
+            public string[] Args;
         }
 
         #endregion
