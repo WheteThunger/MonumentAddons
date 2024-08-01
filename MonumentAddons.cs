@@ -34,7 +34,7 @@ using Facepunch;
 
 namespace Oxide.Plugins
 {
-    [Info("Monument Addons", "WhiteThunder", "0.17.1")]
+    [Info("Monument Addons", "WhiteThunder", "0.17.2")]
     [Description("Allows adding entities, spawn points and more to monuments.")]
     internal class MonumentAddons : CovalencePlugin
     {
@@ -7896,7 +7896,7 @@ namespace Oxide.Plugins
                 var hab = vehicle as HotAirBalloon;
                 if (hab != null)
                 {
-                    hab.lastBlastTime = float.MaxValue;
+                    hab.sinceLastBlast = float.MaxValue;
                     return;
                 }
 
