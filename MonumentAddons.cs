@@ -34,7 +34,7 @@ using Facepunch;
 
 namespace Oxide.Plugins
 {
-    [Info("Monument Addons", "WhiteThunder", "0.17.2")]
+    [Info("Monument Addons", "WhiteThunder", "0.17.3")]
     [Description("Allows adding entities, spawn points and more to monuments.")]
     internal class MonumentAddons : CovalencePlugin
     {
@@ -11309,6 +11309,12 @@ namespace Oxide.Plugins
 
         private static class ProfileDataMigration<T> where T : Profile
         {
+            private static readonly Dictionary<string, string> _monumentNameCorrections = new Dictionary<string, string>
+            {
+                ["OilrigAI"] = "oilrig_2",
+                ["OilrigAI2"] = "oilrig_1",
+            };
+
             private static readonly Dictionary<string, string> _prefabCorrections = new Dictionary<string, string>
             {
                 ["assets/content/vehicles/locomotive/locomotive.entity.prefab"] = "assets/content/vehicles/trains/locomotive/locomotive.entity.prefab",
@@ -11335,7 +11341,8 @@ namespace Oxide.Plugins
                 // Using single | to avoid short-circuiting.
                 return MigrateV0ToV1(data)
                     | MigrateV1ToV2(data)
-                    | MigrateIncorrectPrefabs(data);
+                    | MigrateIncorrectPrefabs(data)
+                    | MigrateIncorrectMonuments(data);
             }
 
             public static bool MigrateV0ToV1(T data)
@@ -11428,6 +11435,23 @@ namespace Oxide.Plugins
                             }
                         }
                     }
+                }
+
+                return contentChanged;
+            }
+
+            public static bool MigrateIncorrectMonuments(T data)
+            {
+                var contentChanged = false;
+
+                foreach (var entry in _monumentNameCorrections)
+                {
+                    if (!data.MonumentDataMap.TryGetValue(entry.Key, out var monumentData))
+                        continue;
+
+                    data.MonumentDataMap[entry.Value] = monumentData;
+                    data.MonumentDataMap.Remove(entry.Key);
+                    contentChanged = true;
                 }
 
                 return contentChanged;
