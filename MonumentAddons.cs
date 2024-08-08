@@ -26,6 +26,7 @@ using SkullTrophyGlobal = global::SkullTrophy;
 using CustomInitializeCallback = System.Func<BasePlayer, string[], object>;
 using CustomSpawnCallback = System.Func<UnityEngine.Vector3, UnityEngine.Quaternion, Newtonsoft.Json.Linq.JObject, UnityEngine.Component>;
 using CustomKillCallback = System.Action<UnityEngine.Component>;
+using CustomUnloadCallback = System.Action<UnityEngine.Component>;
 using CustomUpdateCallback = System.Action<UnityEngine.Component, Newtonsoft.Json.Linq.JObject>;
 using CustomAddDisplayInfoCallback = System.Action<UnityEngine.Component, Newtonsoft.Json.Linq.JObject, System.Text.StringBuilder>;
 using CustomSetDataCallback = System.Action<UnityEngine.Component, object>;
@@ -8731,6 +8732,11 @@ namespace Oxide.Plugins
                     addonDefinition.Kill = killCallback as CustomKillCallback;
                 }
 
+                if (addonSpec.TryGetValue("Unload", out var unloadCallback))
+                {
+                    addonDefinition.Unload = unloadCallback as CustomUnloadCallback;
+                }
+
                 if (addonSpec.TryGetValue("Update", out var updateCallback))
                 {
                     addonDefinition.Update = updateCallback as CustomUpdateCallback;
@@ -8749,6 +8755,7 @@ namespace Oxide.Plugins
             public CustomInitializeCallback Initialize;
             public CustomSpawnCallback Spawn;
             public CustomKillCallback Kill;
+            public CustomUnloadCallback Unload;
             public CustomUpdateCallback Update;
             public CustomAddDisplayInfoCallback AddDisplayInfo;
 
@@ -8950,6 +8957,11 @@ namespace Oxide.Plugins
                 {
                     Component.gameObject.AddComponent<CustomAddonComponent>().Adapter = this;
                 }
+            }
+
+            public override void PreUnload()
+            {
+                AddonDefinition.Unload?.Invoke(Component);
             }
 
             public override void Kill()
