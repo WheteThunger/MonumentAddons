@@ -23,7 +23,7 @@ using static WireTool;
 using HumanNPCGlobal = global::HumanNPC;
 using SkullTrophyGlobal = global::SkullTrophy;
 
-using CustomInitializeCallback = System.Func<BasePlayer, UnityEngine.Vector3, object>;
+using CustomInitializeCallback = System.Func<BasePlayer, string[], object>;
 using CustomSpawnCallback = System.Func<UnityEngine.Vector3, UnityEngine.Quaternion, Newtonsoft.Json.Linq.JObject, UnityEngine.Component>;
 using CustomKillCallback = System.Action<UnityEngine.Component>;
 using CustomUpdateCallback = System.Action<UnityEngine.Component, Newtonsoft.Json.Linq.JObject>;
@@ -684,6 +684,9 @@ namespace Oxide.Plugins
             else
             {
                 // Found a custom addon definition.
+                if (!TryInitializeCustomAddonData(addonDefinition, basePlayer, args, out var pluginData))
+                    return;
+
                 addonData = new CustomAddonData
                 {
                     Id = Guid.NewGuid(),
@@ -691,9 +694,7 @@ namespace Oxide.Plugins
                     Position = localPosition,
                     RotationAngles = localRotationAngles,
                     SnapToTerrain = isOnTerrain,
-                }.SetData(_customAddonManager
-                    .GetAddon(addonDefinition.AddonName)
-                    .Initialize?.Invoke(basePlayer, position));
+                }.SetData(pluginData);
             }
 
             var matchingMonuments = GetMonumentsByIdentifier(monument.UniqueName);
@@ -3884,6 +3885,37 @@ namespace Oxide.Plugins
                 return null;
 
             return itemModDeployable.entityPrefab.resourcePath;
+        }
+
+        private bool TryInitializeCustomAddonData(CustomAddonDefinition addonDefinition, BasePlayer player, string[] args, out object data)
+        {
+            var initializer = _customAddonManager
+                .GetAddon(addonDefinition.AddonName)
+                .Initialize;
+
+            if (initializer == null)
+            {
+                data = null;
+                return true;
+            }
+
+            try
+            {
+                data = initializer.Invoke(player, args);
+                return true;
+            }
+            catch (ArgumentException)
+            {
+                // Don't log argument exception, assume that the addon plugin through this intentionally.
+                data = null;
+                return false;
+            }
+            catch (Exception ex)
+            {
+                data = null;
+                LogError($"Caught exception when calling plugin '{addonDefinition.OwnerPlugin}' to initialize custom addon '{addonDefinition.AddonName}': {ex}");
+                return false;
+            }
         }
 
         #endregion
