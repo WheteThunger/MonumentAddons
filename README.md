@@ -229,7 +229,16 @@ Profiles allow you to organize entities into groups. Each profile can be indepen
 
 ```json
 {
-  "Debug display distance": 150.0,
+  "Debug display settings": {
+    "Display distance": 50.0,
+    "Display distance abbreviated": 200.0,
+    "Entity color": "#FF00FF",
+    "Spawn point color": "#FF8000",
+    "Paste color": "#00FFFF",
+    "Custom addon color": "#00FF00",
+    "Custom monument color": "#00FF00",
+    "Inactive profile color": "#808080"
+  },
   "Persist entities while the plugin is unloaded": false,
   "Dynamic monuments": {
     "Entity prefabs to consider as monuments": [
@@ -269,7 +278,15 @@ Profiles allow you to organize entities into groups. Each profile can be indepen
 }
 ```
 
-- `Debug display distance` -- Determines how far away you can see debug information about entities (i.e., when using `mashow`).
+- `Debug display settings` -- Determines the appearance of addon debug information (i.e., when using `mashow`).
+  - `Display distance` -- Determines how far away you can see full debug information about addons.
+  - `Display distance abbreviated` -- Determines how far away you can see an abbreviated symbol for addons, to reduce screen clutter. This number should be set higher than `Display distance`.
+  - `Entity color` -- Determines the debug text color for entity addons (the most common type of addon).
+  - `Spawn point color` -- Determines the debug text color for spawn point addons.
+  - `Paste color` -- Determines the debug text color for paste addons.
+  - `Custom addon color` -- Determines the debug text color for custom addons registered by other plugins.
+  - `Custom monument color` -- Determines the debug text color for custom monuments registered by other plugins.
+  - `Inactive profile color` -- Determines the debug text color for addons that are not part of the specified profile (i.e., when using `mashow <profile_name>`).
 - `Persist entities while the plugin is unloaded` (`true` or `false`) -- Determines whether entities spawned by `maspawn` will remain while the plugin is unloaded. Please carefully read and understand the documentation about this option before enabling it. Note: This option currently has no effect on Pastes, Spawn Groups or Custom Addons, meaning that those will always be despawned/respawned when the plugin reloads.
   - While `false` (default), when the plugin unloads, it will despawn all entities spawned via `maspawn`. When the plugin subsequently reloads, those entities will be respawned from scratch. This means, for entities that maintain state (such as player items temporarily residing in recyclers), that state will be lost whenever the plugin unloads. The most practical consequence of using this mode is that player items inside containers will be lost when a profile is reloaded, when the plugin is reloaded, or when the server reboots. Despite that limitation, `false` is the most simple and stable value for this option because it ensures consistent reproducibility across plugin reloads.
   - While `true`, when the plugin unloads, all entities spawned by via `maspawn` will remain, in order to preserve their state (e.g., items inside a recycler). When the plugin subsequently reloads, it will find the existing entities, reconcile how they differ from the enabled profiles, and despawn/respawn/reposition/modify them as needed. The plugin will try to avoid despawning/respawning an entity that is already present, in order to preserve the entity's state. Despite this sounding like the more obvious mode of the plugin, it is more complex and less stable than the default mode, and should therefore be enabled with caution.

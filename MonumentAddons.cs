@@ -2456,7 +2456,7 @@ namespace Oxide.Plugins
                         spawnPointList = spawnGroup.GetComponentsInChildren<BaseSpawnPoint>();
                     }
 
-                    var color = _colorRotator.GetNext();
+                    var drawer = new Ddraw(basePlayer, ShowVanillaDuration, _colorRotator.GetNext());
                     var tierMask = (int)spawnGroup.Tier;
 
                     if (spawnPointList.Length == 0)
@@ -2465,8 +2465,8 @@ namespace Oxide.Plugins
                         AddSpawnGroupInfo(player, _sb, spawnGroup, spawnPointList.Length);
                         var spawnGroupPosition = spawnGroup.transform.position;
 
-                        Ddraw.Sphere(basePlayer, spawnGroupPosition, 0.5f, color, ShowVanillaDuration);
-                        Ddraw.Text(basePlayer, spawnGroupPosition + new Vector3(0, tierMask > 0 ? Mathf.Log(tierMask, 2) : 0, 0), _sb.ToString(), color, ShowVanillaDuration);
+                        drawer.Sphere(spawnGroupPosition, 0.5f);
+                        drawer.Text(spawnGroupPosition + new Vector3(0, tierMask > 0 ? Mathf.Log(tierMask, 2) : 0, 0), _sb.ToString());
                         continue;
                     }
 
@@ -2533,13 +2533,13 @@ namespace Oxide.Plugins
 
                         var spawnPointTransform = spawnPoint.transform;
                         var spawnPointPosition = spawnPointTransform.position;
-                        Ddraw.ArrowThrough(basePlayer, spawnPointPosition + AdapterDisplayManager.ArrowVerticalOffeset, spawnPointTransform.rotation, 1, 0.15f, color, ShowVanillaDuration);
-                        Ddraw.Sphere(basePlayer, spawnPointPosition, 0.5f, color, ShowVanillaDuration);
-                        Ddraw.Text(basePlayer, spawnPointPosition + new Vector3(0, tierMask > 0 ? Mathf.Log(tierMask, 2) : 0, 0), _sb.ToString(), color, ShowVanillaDuration);
+                        drawer.Arrow(spawnPointPosition + AdapterDisplayManager.ArrowVerticalOffeset, spawnPointTransform.rotation, 1, 0.15f);
+                        drawer.Sphere(spawnPointPosition, 0.5f);
+                        drawer.Text(spawnPointPosition + new Vector3(0, tierMask > 0 ? Mathf.Log(tierMask, 2) : 0, 0), _sb.ToString());
 
                         if (spawnPoint != closestSpawnPoint)
                         {
-                            Ddraw.Arrow(basePlayer, closestSpawnPointPosition + AdapterDisplayManager.ArrowVerticalOffeset, spawnPointPosition + AdapterDisplayManager.ArrowVerticalOffeset, 0.25f, color, ShowVanillaDuration);
+                            drawer.Arrow(closestSpawnPointPosition + AdapterDisplayManager.ArrowVerticalOffeset, spawnPointPosition + AdapterDisplayManager.ArrowVerticalOffeset, 0.25f);
                         }
                     }
 
@@ -2549,7 +2549,7 @@ namespace Oxide.Plugins
                 var individualSpawner = spawner as IndividualSpawner;
                 if (individualSpawner != null)
                 {
-                    var color = _colorRotator.GetNext();
+                    var drawer = new Ddraw(basePlayer, ShowVanillaDuration, _colorRotator.GetNext());
 
                     _sb.Clear();
                     _sb.AppendLine($"<size={AdapterDisplayManager.HeaderSize}>{GetMessage(player.Id, LangEntry.ShowHeaderVanillaIndividualSpawnPoint, individualSpawner.name)}</size>");
@@ -2583,9 +2583,9 @@ namespace Oxide.Plugins
 
                     var spawnerTransform = individualSpawner.transform;
                     var spawnPointPosition = spawnerTransform.position;
-                    Ddraw.ArrowThrough(basePlayer, spawnPointPosition + AdapterDisplayManager.ArrowVerticalOffeset, spawnerTransform.rotation, 1f, 0.15f, color, ShowVanillaDuration);
-                    Ddraw.Sphere(basePlayer, spawnPointPosition, 0.5f, color, ShowVanillaDuration);
-                    Ddraw.Text(basePlayer, spawnPointPosition, _sb.ToString(), color, ShowVanillaDuration);
+                    drawer.Arrow(spawnPointPosition + AdapterDisplayManager.ArrowVerticalOffeset, spawnerTransform.rotation, 1f, 0.15f);
+                    drawer.Sphere(spawnPointPosition, 0.5f);
+                    drawer.Text(spawnPointPosition, _sb.ToString());
                     continue;
                 }
             }
@@ -4109,36 +4109,36 @@ namespace Oxide.Plugins
             }
         }
 
-        private static class Ddraw
+        private struct Ddraw
         {
-            public static void Sphere(BasePlayer player, Vector3 origin, float radius, Color color, float duration)
+            public static void Sphere(BasePlayer player, float duration, Color color, Vector3 origin, float radius)
             {
                 player.SendConsoleCommand("ddraw.sphere", duration, color, origin, radius);
             }
 
-            public static void Line(BasePlayer player, Vector3 origin, Vector3 target, Color color, float duration)
+            public static void Line(BasePlayer player, float duration, Color color, Vector3 origin, Vector3 target)
             {
                 player.SendConsoleCommand("ddraw.line", duration, color, origin, target);
             }
 
-            public static void Arrow(BasePlayer player, Vector3 origin, Vector3 target, float headSize, Color color, float duration)
+            public static void Arrow(BasePlayer player, float duration, Color color, Vector3 origin, Vector3 target, float headSize)
             {
                 player.SendConsoleCommand("ddraw.arrow", duration, color, origin, target, headSize);
             }
 
-            public static void ArrowThrough(BasePlayer player, Vector3 center, Quaternion rotation, float length, float headSize, Color color, float duration)
+            public static void Arrow(BasePlayer player, float duration, Color color, Vector3 center, Quaternion rotation, float length, float headSize)
             {
-                var start = center - rotation * new Vector3(0, 0, length / 2);
-                var end = center + rotation * new Vector3(0, 0, length / 2);
-                Arrow(player, start, end, headSize, color, duration);
+                var origin = center - rotation * Vector3.forward * length;
+                var target = center + rotation * Vector3.forward * length;
+                Arrow(player, duration, color, origin, target, headSize);
             }
 
-            public static void Text(BasePlayer player, Vector3 origin, string text, Color color, float duration)
+            public static void Text(BasePlayer player, float duration, Color color, Vector3 origin, string text)
             {
                 player.SendConsoleCommand("ddraw.text", duration, color, origin, text);
             }
 
-            public static void Box(BasePlayer player, Vector3 center, Quaternion rotation, Vector3 extents, Color color, float duration)
+            public static void Box(BasePlayer player, float duration, Color color, Vector3 center, Quaternion rotation, Vector3 extents)
             {
                 var sphereRadius = 0.5f;
 
@@ -4152,30 +4152,81 @@ namespace Oxide.Plugins
                 var backUpperRight = center + rotation * -extents.WithX(-extents.x).WithY(-extents.y);
                 var backUpperLeft = center + rotation * -extents.WithY(-extents.y);
 
-                Sphere(player, forwardUpperLeft, sphereRadius, color, duration);
-                Sphere(player, forwardUpperRight, sphereRadius, color, duration);
-                Sphere(player, forwardLowerLeft, sphereRadius, color, duration);
-                Sphere(player, forwardLowerRight, sphereRadius, color, duration);
+                Sphere(player, duration, color, forwardUpperLeft, sphereRadius);
+                Sphere(player, duration, color, forwardUpperRight, sphereRadius);
+                Sphere(player, duration, color, forwardLowerLeft, sphereRadius);
+                Sphere(player, duration, color, forwardLowerRight, sphereRadius);
 
-                Sphere(player, backLowerRight, sphereRadius, color, duration);
-                Sphere(player, backLowerLeft, sphereRadius, color, duration);
-                Sphere(player, backUpperRight, sphereRadius, color, duration);
-                Sphere(player, backUpperLeft, sphereRadius, color, duration);
+                Sphere(player, duration, color, backLowerRight, sphereRadius);
+                Sphere(player, duration, color, backLowerLeft, sphereRadius);
+                Sphere(player, duration, color, backUpperRight, sphereRadius);
+                Sphere(player, duration, color, backUpperLeft, sphereRadius);
 
-                Line(player, forwardUpperLeft, forwardUpperRight, color, duration);
-                Line(player, forwardLowerLeft, forwardLowerRight, color, duration);
-                Line(player, forwardUpperLeft, forwardLowerLeft, color, duration);
-                Line(player, forwardUpperRight, forwardLowerRight, color, duration);
+                Line(player, duration, color, forwardUpperLeft, forwardUpperRight);
+                Line(player, duration, color, forwardLowerLeft, forwardLowerRight);
+                Line(player, duration, color, forwardUpperLeft, forwardLowerLeft);
+                Line(player, duration, color, forwardUpperRight, forwardLowerRight);
 
-                Line(player, backUpperLeft, backUpperRight, color, duration);
-                Line(player, backLowerLeft, backLowerRight, color, duration);
-                Line(player, backUpperLeft, backLowerLeft, color, duration);
-                Line(player, backUpperRight, backLowerRight, color, duration);
+                Line(player, duration, color, backUpperLeft, backUpperRight);
+                Line(player, duration, color, backLowerLeft, backLowerRight);
+                Line(player, duration, color, backUpperLeft, backLowerLeft);
+                Line(player, duration, color, backUpperRight, backLowerRight);
 
-                Line(player, forwardUpperLeft, backUpperLeft, color, duration);
-                Line(player, forwardLowerLeft, backLowerLeft, color, duration);
-                Line(player, forwardUpperRight, backUpperRight, color, duration);
-                Line(player, forwardLowerRight, backLowerRight, color, duration);
+                Line(player, duration, color, forwardUpperLeft, backUpperLeft);
+                Line(player, duration, color, forwardLowerLeft, backLowerLeft);
+                Line(player, duration, color, forwardUpperRight, backUpperRight);
+                Line(player, duration, color, forwardLowerRight, backLowerRight);
+            }
+
+            public static void Box(BasePlayer player, float duration, Color color, OBB obb)
+            {
+                Box(player, duration, color, obb.position, obb.rotation, obb.extents);
+            }
+
+            private BasePlayer _player;
+            private Color _color;
+            private float _duration;
+
+            public Ddraw(BasePlayer player, float duration, Color? color = null)
+            {
+                _player = player;
+                _color = color ?? Color.white;
+                _duration = duration;
+            }
+
+            public void Sphere(Vector3 position, float radius, float? duration = null, Color? color = null)
+            {
+                Sphere(_player, duration ?? _duration, color ?? _color, position, radius);
+            }
+
+            public void Line(Vector3 origin, Vector3 target, float? duration = null, Color? color = null)
+            {
+                Line(_player, duration ?? _duration, color ?? _color, origin, target);
+            }
+
+            public void Arrow(Vector3 origin, Vector3 target, float headSize, float? duration = null, Color? color = null)
+            {
+                Arrow(_player, duration ?? _duration, color ?? _color, origin, target, headSize);
+            }
+
+            public void Arrow(Vector3 center, Quaternion rotation, float length, float headSize, float? duration = null, Color? color = null)
+            {
+                Arrow(_player, duration ?? _duration, color ?? _color, center, rotation, length, headSize);
+            }
+
+            public void Text(Vector3 position, string text, float? duration = null, Color? color = null)
+            {
+                Text(_player, duration ?? _duration, color ?? _color, position, text);
+            }
+
+            public void Box(Vector3 center, Quaternion rotation, Vector3 extents, float? duration = null, Color? color = null)
+            {
+                Box(_player, duration ?? _duration, color ?? _color, center, rotation, extents);
+            }
+
+            public void Box(OBB obb, float? duration = null, Color? color = null)
+            {
+                Box(_player, duration ?? _duration, color ?? _color, obb);
             }
         }
 
@@ -4937,10 +4988,11 @@ namespace Oxide.Plugins
                 foreach (var slot in slotList)
                 {
                     var color = DetermineSlotColor(slot);
+                    var drawer = new Ddraw(player, DrawDuration, color);
                     var position = transform.TransformPoint(slot.handlePosition);
 
-                    Ddraw.Sphere(player, position, DrawSlotRadius, color, DrawDuration);
-                    Ddraw.Text(player, position, showSourceSlots ? "OUT" : "IN", color, DrawDuration);
+                    drawer.Sphere(position, DrawSlotRadius);
+                    drawer.Text(position, showSourceSlots ? "OUT" : "IN");
                 }
             }
 
@@ -4954,7 +5006,8 @@ namespace Oxide.Plugins
 
                 var ioEntity = session.Adapter.Entity as IOEntity;
                 var startPosition = ioEntity.transform.TransformPoint(session.StartSlot.handlePosition);
-                Ddraw.Sphere(player, startPosition, DrawSlotRadius, Color.green, DrawIntervalWithBuffer);
+                var drawer = new Ddraw(player, DrawDuration, Color.green);
+                drawer.Sphere(startPosition, DrawSlotRadius);
 
                 if (TryGetHitPosition(player, out var hitPosition))
                 {
@@ -4962,8 +5015,8 @@ namespace Oxide.Plugins
                         ? session.StartSlot.handlePosition
                         : session.StartSlot.linePoints.LastOrDefault();
 
-                    Ddraw.Sphere(player, hitPosition, PreviewDotRadius, Color.green, DrawIntervalWithBuffer);
-                    Ddraw.Line(player, ioEntity.transform.TransformPoint(lastPoint), hitPosition, Color.green, DrawIntervalWithBuffer);
+                    drawer.Sphere(hitPosition, PreviewDotRadius);
+                    drawer.Line(ioEntity.transform.TransformPoint(lastPoint), hitPosition);
                 }
             }
 
@@ -4971,6 +5024,7 @@ namespace Oxide.Plugins
             {
                 var player = session.Player;
                 var ioEntity = adapter.Entity as IOEntity;
+                var drawer = new Ddraw(player, DrawDuration);
 
                 var slot = GetClosestIOSlot(ioEntity, player.eyes.HeadRay(), MinAngleDot, out var slotIndex, out var isSourceSlot, wantsOccupiedSlots: false);
                 if (slot == null)
@@ -4982,12 +5036,12 @@ namespace Oxide.Plugins
 
                 if (slot.connectedTo.Get() != null)
                 {
-                    Ddraw.Sphere(player, adapter.Transform.TransformPoint(slot.handlePosition), DrawSlotRadius, Color.red, DrawDuration);
+                    drawer.Sphere(adapter.Transform.TransformPoint(slot.handlePosition), DrawSlotRadius, color: Color.red);
                     return;
                 }
 
                 session.StartConnection(adapter, slot, slotIndex, isSource: isSourceSlot);
-                Ddraw.Sphere(player, adapter.Transform.TransformPoint(slot.handlePosition), DrawSlotRadius, Color.green, DrawDuration);
+                drawer.Sphere(adapter.Transform.TransformPoint(slot.handlePosition), DrawSlotRadius, color: Color.green);
                 SendEffect(player, WireToolPlugEffect);
             }
 
@@ -4995,6 +5049,7 @@ namespace Oxide.Plugins
             {
                 var player = session.Player;
                 var ioEntity = adapter.Entity as IOEntity;
+                var drawer = new Ddraw(player, DrawDuration, Color.red);
 
                 var headRay = player.eyes.HeadRay();
                 var slot = GetClosestIOSlot(ioEntity, headRay, MinAngleDot, out var slotIndex, out var distanceSquared, wantsSourceSlot: !session.IsSource);
@@ -5003,7 +5058,7 @@ namespace Oxide.Plugins
                     slot = GetClosestIOSlot(ioEntity, headRay, MinAngleDot, out slotIndex, out distanceSquared, wantsSourceSlot: session.IsSource);
                     if (slot != null)
                     {
-                        Ddraw.Sphere(player, adapter.Transform.TransformPoint(slot.handlePosition), DrawSlotRadius, Color.red, DrawDuration);
+                        drawer.Sphere(adapter.Transform.TransformPoint(slot.handlePosition), DrawSlotRadius);
                     }
 
                     ShowSlots(player, ioEntity, showSourceSlots: !session.IsSource);
@@ -5012,7 +5067,7 @@ namespace Oxide.Plugins
 
                 if (slot.connectedTo.Get() != null)
                 {
-                    Ddraw.Sphere(player, adapter.Transform.TransformPoint(slot.handlePosition), DrawSlotRadius, Color.red, DrawDuration);
+                    drawer.Sphere(adapter.Transform.TransformPoint(slot.handlePosition), DrawSlotRadius);
                     return;
                 }
 
@@ -5020,21 +5075,21 @@ namespace Oxide.Plugins
                 var sessionProfile = session.Adapter.Controller.Profile;
                 if (adapterProfile != sessionProfile)
                 {
-                    Ddraw.Sphere(player, adapter.Transform.TransformPoint(slot.handlePosition), DrawSlotRadius, Color.red, DrawDuration);
+                    drawer.Sphere(adapter.Transform.TransformPoint(slot.handlePosition), DrawSlotRadius);
                     _plugin.ChatMessage(player, LangEntry.WireToolProfileMismatch, sessionProfile, adapterProfile.Name);
                     return;
                 }
 
                 if (!adapter.Monument.IsEquivalentTo(session.Adapter.Monument))
                 {
-                    Ddraw.Sphere(player, adapter.Transform.TransformPoint(slot.handlePosition), DrawSlotRadius, Color.red, DrawDuration);
+                    drawer.Sphere(adapter.Transform.TransformPoint(slot.handlePosition), DrawSlotRadius);
                     _plugin.ChatMessage(player, LangEntry.WireToolMonumentMismatch);
                     return;
                 }
 
                 if (slot.type != session.WireType)
                 {
-                    Ddraw.Sphere(player, adapter.Transform.TransformPoint(slot.handlePosition), DrawSlotRadius, Color.red, DrawDuration);
+                    drawer.Sphere(adapter.Transform.TransformPoint(slot.handlePosition), DrawSlotRadius);
                     _plugin.ChatMessage(player, LangEntry.WireToolTypeMismatch, session.WireType, slot.type);
                     return;
                 }
@@ -5064,7 +5119,7 @@ namespace Oxide.Plugins
                 (sourceAdapter.Controller as EntityController).StartHandleChangesRoutine();
                 session.Reset();
 
-                Ddraw.Sphere(player, adapter.Transform.TransformPoint(slot.handlePosition), DrawSlotRadius, Color.green, DrawDuration);
+                drawer.Sphere(adapter.Transform.TransformPoint(slot.handlePosition), DrawSlotRadius, color: Color.green);
                 SendEffect(player, WireToolPlugEffect);
             }
 
@@ -5259,6 +5314,39 @@ namespace Oxide.Plugins
                 }
 
                 writer.WriteEndObject();
+            }
+        }
+
+        private class HtmlColorConverter : JsonConverter
+        {
+            public override void WriteJson(JsonWriter writer, object value, JsonSerializer serializer)
+            {
+                if (value == null)
+                {
+                    writer.WriteNull();
+                    return;
+                }
+
+                Color color = (Color)value;
+                writer.WriteValue(Mathf.Approximately(color.a, 1f)
+                    ? $"#{ColorUtility.ToHtmlStringRGB(color)}"
+                    : $"#{ColorUtility.ToHtmlStringRGBA(color)}");
+            }
+
+            public override bool CanConvert(Type objectType)
+            {
+                return objectType == typeof(Color);
+            }
+
+            public override object ReadJson(JsonReader reader, Type objectType, object existingValue, JsonSerializer serializer)
+            {
+                if (reader.TokenType == JsonToken.Null)
+                    return default(Color);
+
+                if (reader.Value is not string colorString || !ColorUtility.TryParseHtmlString(colorString, out var color))
+                    throw new JsonException($"Invalid RGB color string: {reader.Value}");
+
+                return color;
             }
         }
 
@@ -9596,7 +9684,8 @@ namespace Oxide.Plugins
                 public ProfileController ProfileController;
             }
 
-            private float DisplayDistanceSquared => Mathf.Pow(_config.DebugDisplayDistance, 2);
+            private float DisplayDistanceSquared => Mathf.Pow(_config.DebugDisplaySettings.DisplayDistance, 2);
+            private float DisplayDistanceAbbreviatedSquared => Mathf.Pow(_config.DebugDisplaySettings.DisplayDistanceAbbreviated, 2);
 
             private StringBuilder _sb = new StringBuilder(200);
             private Dictionary<ulong, PlayerInfo> _playerInfo = new Dictionary<ulong, PlayerInfo>();
@@ -9661,18 +9750,18 @@ namespace Oxide.Plugins
             private Color DetermineColor(BaseAdapter adapter, PlayerInfo playerInfo, ProfileController profileController)
             {
                 if (playerInfo.ProfileController != null && playerInfo.ProfileController != profileController)
-                    return Color.grey;
+                    return _config.DebugDisplaySettings.InactiveProfileColor;
 
-                if (adapter is SpawnPointAdapter)
-                    return new Color(1, 0.5f, 0);
+                if (adapter is SpawnPointAdapter or SpawnGroupAdapter)
+                    return _config.DebugDisplaySettings.SpawnPointColor;
 
                 if (adapter is PasteAdapter)
-                    return Color.cyan;
+                    return _config.DebugDisplaySettings.PasteColor;
 
                 if (adapter is CustomAddonAdapter)
-                    return Color.green;
+                    return _config.DebugDisplaySettings.CustomAddonColor;
 
-                return Color.magenta;
+                return _config.DebugDisplaySettings.EntityColor;
             }
 
             private void AddCommonInfo(BasePlayer player, ProfileController profileController, BaseController controller, BaseAdapter adapter)
@@ -9733,7 +9822,8 @@ namespace Oxide.Plugins
                             var spawnPointAdapter = FindClosestSpawnPointAdapter(spawnGroupAdapter, playerPosition, out _);
                             if (spawnPointAdapter != null)
                             {
-                                Ddraw.Arrow(player, entityAdapter.Position + ArrowVerticalOffeset, spawnPointAdapter.Position + ArrowVerticalOffeset, 0.25f, DetermineColor(spawnPointAdapter, playerInfo, profileController), DisplayIntervalDuration);
+                                new Ddraw(player, DisplayIntervalDuration, DetermineColor(spawnPointAdapter, playerInfo, profileController))
+                                    .Arrow(entityAdapter.Position + ArrowVerticalOffeset, spawnPointAdapter.Position + ArrowVerticalOffeset, 0.25f);
                             }
                         }
 
@@ -9746,12 +9836,16 @@ namespace Oxide.Plugins
                 }
             }
 
-            private void ShowEntityInfo(BasePlayer player, EntityAdapter adapter, Vector3 playerPosition, PlayerInfo playerInfo)
+            private Ddraw CreateDrawer(BasePlayer player, BaseAdapter adapter, PlayerInfo playerInfo)
+            {
+                return new Ddraw(player, DisplayIntervalDuration, DetermineColor(adapter, playerInfo, adapter.ProfileController));
+            }
+
+            private void ShowEntityInfo(ref Ddraw drawer, BasePlayer player, EntityAdapter adapter, Vector3 playerPosition, PlayerInfo playerInfo)
             {
                 var entityData = adapter.EntityData;
                 var controller = adapter.Controller;
                 var profileController = controller.ProfileController;
-                var color = DetermineColor(adapter, playerInfo, profileController);
 
                 var uniqueEntityName = _uniqueNameRegistry.GetUniqueShortName(entityData.PrefabName);
 
@@ -9775,14 +9869,14 @@ namespace Oxide.Plugins
                     var vehicleSpawner = vehicleVendor.GetVehicleSpawner();
                     if (vehicleSpawner != null)
                     {
-                        Ddraw.Arrow(player, adapter.Position + new Vector3(0, 1.5f, 0), vehicleSpawner.transform.position, 0.25f, color, DisplayIntervalDuration);
+                        drawer.Arrow(adapter.Position + new Vector3(0, 1.5f, 0), vehicleSpawner.transform.position, 0.25f);
                     }
                 }
 
                 var doorManipulator = adapter.Entity as DoorManipulator;
                 if (doorManipulator != null && doorManipulator.targetDoor != null)
                 {
-                    Ddraw.Arrow(player, adapter.Position, doorManipulator.targetDoor.transform.position, 0.2f, color, DisplayIntervalDuration);
+                    drawer.Arrow(adapter.Position, doorManipulator.targetDoor.transform.position, 0.2f);
                 }
 
                 var cctvIdentifier = entityData.CCTV?.RCIdentifier;
@@ -9802,15 +9896,14 @@ namespace Oxide.Plugins
                     ShowPuzzleInfo(player, adapter, puzzleReset, playerPosition, playerInfo);
                 }
 
-                Ddraw.Text(player, adapter.Position, _sb.ToString(), color, DisplayIntervalDuration);
+                drawer.Text(adapter.Position, _sb.ToString());
             }
 
-            private void ShowPrefabInfo(BasePlayer player, PrefabAdapter adapter, Vector3 playerPosition, PlayerInfo playerInfo)
+            private void ShowPrefabInfo(ref Ddraw drawer, BasePlayer player, PrefabAdapter adapter)
             {
                 var prefabData = adapter.PrefabData;
                 var controller = adapter.Controller;
                 var profileController = controller.ProfileController;
-                var color = DetermineColor(adapter, playerInfo, profileController);
 
                 var uniqueEntityName = _uniqueNameRegistry.GetUniqueShortName(prefabData.PrefabName);
 
@@ -9818,7 +9911,7 @@ namespace Oxide.Plugins
                 _sb.AppendLine($"<size={HeaderSize}>{_plugin.GetMessage(player.UserIDString, LangEntry.ShowHeaderPrefab, uniqueEntityName)}</size>");
                 AddCommonInfo(player, profileController, controller, adapter);
 
-                Ddraw.Text(player, adapter.Position, _sb.ToString(), color, DisplayIntervalDuration);
+                drawer.Text(adapter.Position, _sb.ToString());
             }
 
             private void ShowSpawnPointInfo(BasePlayer player, SpawnPointAdapter adapter, SpawnGroupAdapter spawnGroupAdapter, PlayerInfo playerInfo, bool showGroupInfo)
@@ -9827,6 +9920,7 @@ namespace Oxide.Plugins
                 var controller = adapter.Controller;
                 var profileController = controller.ProfileController;
                 var color = DetermineColor(adapter, playerInfo, profileController);
+                var drawer = new Ddraw(player, DisplayIntervalDuration, color);
 
                 var spawnGroupData = spawnGroupAdapter.SpawnGroupData;
 
@@ -9949,13 +10043,13 @@ namespace Oxide.Plugins
 
                     foreach (var otherAdapter in spawnGroupAdapter.SpawnPointAdapters)
                     {
-                        Ddraw.Arrow(player, otherAdapter.Position + ArrowVerticalOffeset, adapter.Position + ArrowVerticalOffeset, 0.25f, color, DisplayIntervalDuration);
+                        drawer.Arrow(otherAdapter.Position + ArrowVerticalOffeset, adapter.Position + ArrowVerticalOffeset, 0.25f);
                     }
                 }
 
-                Ddraw.ArrowThrough(player, adapter.Position + ArrowVerticalOffeset, adapter.Rotation, 1f, 0.15f, color, DisplayIntervalDuration);
-                Ddraw.Sphere(player, adapter.Position, 0.5f, color, DisplayIntervalDuration);
-                Ddraw.Text(player, adapter.Position, _sb.ToString(), color, DisplayIntervalDuration);
+                drawer.Arrow(adapter.Position + ArrowVerticalOffeset, adapter.Rotation, 1f, 0.15f);
+                drawer.Sphere(adapter.Position, 0.5f);
+                drawer.Text(adapter.Position, _sb.ToString());
 
                 if (spawnGroupData.RespawnWhenNearestPuzzleResets)
                 {
@@ -9966,18 +10060,17 @@ namespace Oxide.Plugins
                     {
                         ShowPuzzleInfo(player, null, spawnGroupAdapter.AssociatedPuzzleReset, player.transform.position, playerInfo);
                         var position = puzzleReset.transform.position;
-                        Ddraw.Arrow(player, position + ArrowVerticalOffeset, adapter.Position + ArrowVerticalOffeset, 0.25f, DetermineColor(adapter, playerInfo, profileController), DisplayIntervalDuration);
-                        Ddraw.Text(player, position, _sb.ToString(), color, DisplayIntervalDuration);
+                        drawer.Arrow(position + ArrowVerticalOffeset, adapter.Position + ArrowVerticalOffeset, 0.25f, color: DetermineColor(adapter, playerInfo, profileController));
+                        drawer.Text(position, _sb.ToString());
                     }
                 }
             }
 
-            private void ShowPasteInfo(BasePlayer player, PasteAdapter adapter, PlayerInfo playerInfo)
+            private void ShowPasteInfo(ref Ddraw drawer, BasePlayer player, PasteAdapter adapter)
             {
                 var pasteData = adapter.PasteData;
                 var controller = adapter.Controller;
                 var profileController = controller.ProfileController;
-                var color = DetermineColor(adapter, playerInfo, profileController);
 
                 _sb.Clear();
                 _sb.AppendLine($"<size={HeaderSize}>{_plugin.GetMessage(player.UserIDString, LangEntry.ShowHeaderPaste, pasteData.Filename)}</size>");
@@ -9987,15 +10080,14 @@ namespace Oxide.Plugins
                     _sb.AppendLine(string.Join(" ", pasteData.Args));
                 }
 
-                Ddraw.Text(player, adapter.Position, _sb.ToString(), color, DisplayIntervalDuration);
+                drawer.Text(adapter.Position, _sb.ToString());
             }
 
-            private void ShowCustomAddonInfo(BasePlayer player, CustomAddonAdapter adapter, PlayerInfo playerInfo)
+            private void ShowCustomAddonInfo(ref Ddraw drawer, BasePlayer player, CustomAddonAdapter adapter)
             {
                 var customAddonData = adapter.CustomAddonData;
                 var controller = adapter.Controller;
                 var profileController = controller.ProfileController;
-                var color = DetermineColor(adapter, playerInfo, profileController);
 
                 var addonDefinition = adapter.AddonDefinition;
 
@@ -10006,7 +10098,7 @@ namespace Oxide.Plugins
 
                 addonDefinition.AddDisplayInfo?.Invoke(adapter.Component, customAddonData.GetSerializedData(), _sb);
 
-                Ddraw.Text(player, adapter.Position, _sb.ToString(), color, DisplayIntervalDuration);
+                drawer.Text(adapter.Position, _sb.ToString());
             }
 
             private SpawnPointAdapter FindClosestSpawnPointAdapter(SpawnGroupAdapter spawnGroupAdapter, Vector3 origin, out float closestDistanceSquared)
@@ -10027,14 +10119,24 @@ namespace Oxide.Plugins
                 return closestSpawnPointAdapter;
             }
 
-            private void ShowNearbyAdapters(BasePlayer player, Vector3 playerPosition, PlayerInfo playerInfo)
+            private static bool IsWithinDistanceSquared(Vector3 position1, Vector3 position2, float distanceSquared)
             {
-                var isAdmin = player.IsAdmin;
-                if (!isAdmin)
-                {
-                    player.SetPlayerFlag(BasePlayer.PlayerFlags.IsAdmin, true);
-                    player.SendNetworkUpdateImmediate();
-                }
+                return (position1 - position2).sqrMagnitude <= distanceSquared;
+            }
+
+            private static bool IsWithinDistanceSquared(TransformAdapter adapter, Vector3 position, float distanceSquared)
+            {
+                return IsWithinDistanceSquared(position, adapter.Position, distanceSquared);
+            }
+
+            private static void DrawAbbreviation(ref Ddraw drawer, TransformAdapter adapter)
+            {
+                drawer.Text(adapter.Position, "<size=25>*</size>");
+            }
+
+            private void ShowNearbyCustomMonuments(BasePlayer player, Vector3 playerPosition)
+            {
+                var drawer = new Ddraw(player, DisplayIntervalDuration, _config.DebugDisplaySettings.CustomMonumentColor);
 
                 foreach (var monument in _plugin._customMonumentManager.MonumentList)
                 {
@@ -10046,18 +10148,35 @@ namespace Oxide.Plugins
                     var monumentCount = _plugin._customMonumentManager.CountMonumentByName(monument.UniqueName);
                     _sb.AppendLine($"<size={HeaderSize}>{_plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelCustomMonument, monument.UniqueDisplayName, monumentCount)}</size>");
                     _sb.AppendLine(_plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelPlugin, monument.OwnerPlugin.Name));
-                    Ddraw.Text(player, monument.Position, _sb.ToString(), Color.green, DisplayIntervalDuration);
-                    var boundingBox = monument.BoundingBox;
-                    Ddraw.Box(player, boundingBox.position, boundingBox.rotation, boundingBox.extents, Color.green, DisplayIntervalDuration);
+                    drawer.Text(monument.Position, _sb.ToString());
+                    drawer.Box(monument.BoundingBox);
                 }
+            }
+
+            private void ShowNearbyAdapters(BasePlayer player, Vector3 playerPosition, PlayerInfo playerInfo)
+            {
+                var isAdmin = player.IsAdmin;
+                if (!isAdmin)
+                {
+                    player.SetPlayerFlag(BasePlayer.PlayerFlags.IsAdmin, true);
+                    player.SendNetworkUpdateImmediate();
+                }
+
+                ShowNearbyCustomMonuments(player, playerPosition);
 
                 foreach (var adapter in _plugin._profileManager.GetEnabledAdapters<BaseAdapter>())
                 {
+                    var drawer = CreateDrawer(player, adapter, playerInfo);
+
                     if (adapter is EntityAdapter entityAdapter)
                     {
-                        if ((playerPosition - entityAdapter.Position).sqrMagnitude <= DisplayDistanceSquared)
+                        if (IsWithinDistanceSquared(entityAdapter, playerPosition, DisplayDistanceSquared))
                         {
-                            ShowEntityInfo(player, entityAdapter, playerPosition, playerInfo);
+                            ShowEntityInfo(ref drawer, player, entityAdapter, playerPosition, playerInfo);
+                        }
+                        else if (IsWithinDistanceSquared(entityAdapter, playerPosition, DisplayDistanceAbbreviatedSquared))
+                        {
+                            DrawAbbreviation(ref drawer, entityAdapter);
                         }
 
                         continue;
@@ -10065,9 +10184,13 @@ namespace Oxide.Plugins
 
                     if (adapter is PrefabAdapter prefabAdapter)
                     {
-                        if ((playerPosition - prefabAdapter.Position).sqrMagnitude <= DisplayDistanceSquared)
+                        if (IsWithinDistanceSquared(prefabAdapter, playerPosition, DisplayDistanceSquared))
                         {
-                            ShowPrefabInfo(player, prefabAdapter, playerPosition, playerInfo);
+                            ShowPrefabInfo(ref drawer, player, prefabAdapter);
+                        }
+                        else if (IsWithinDistanceSquared(prefabAdapter, playerPosition, DisplayDistanceAbbreviatedSquared))
+                        {
+                            DrawAbbreviation(ref drawer, prefabAdapter);
                         }
 
                         continue;
@@ -10084,15 +10207,26 @@ namespace Oxide.Plugins
                                 ShowSpawnPointInfo(player, spawnPointAdapter, spawnGroupAdapter, playerInfo, showGroupInfo: spawnPointAdapter == closestSpawnPointAdapter);
                             }
                         }
+                        else if (closestDistanceSquared <= DisplayDistanceAbbreviatedSquared)
+                        {
+                            foreach (var spawnPointAdapter in spawnGroupAdapter.SpawnPointAdapters)
+                            {
+                                DrawAbbreviation(ref drawer, spawnPointAdapter);
+                            }
+                        }
 
                         continue;
                     }
 
                     if (adapter is PasteAdapter pasteAdapter)
                     {
-                        if ((playerPosition - pasteAdapter.Position).sqrMagnitude <= DisplayDistanceSquared)
+                        if (IsWithinDistanceSquared(pasteAdapter, playerPosition, DisplayDistanceSquared))
                         {
-                            ShowPasteInfo(player, pasteAdapter, playerInfo);
+                            ShowPasteInfo(ref drawer, player, pasteAdapter);
+                        }
+                        else if (IsWithinDistanceSquared(pasteAdapter, playerPosition, DisplayDistanceAbbreviatedSquared))
+                        {
+                            DrawAbbreviation(ref drawer, pasteAdapter);
                         }
 
                         continue;
@@ -10103,9 +10237,13 @@ namespace Oxide.Plugins
                         if (customAddonAdapter.Component == null)
                             continue;
 
-                        if ((playerPosition - customAddonAdapter.Position).sqrMagnitude <= DisplayDistanceSquared)
+                        if (IsWithinDistanceSquared(customAddonAdapter, playerPosition, DisplayDistanceSquared))
                         {
-                            ShowCustomAddonInfo(player, customAddonAdapter, playerInfo);
+                            ShowCustomAddonInfo(ref drawer, player, customAddonAdapter);
+                        }
+                        else if (IsWithinDistanceSquared(customAddonAdapter, playerPosition, DisplayDistanceAbbreviatedSquared))
+                        {
+                            DrawAbbreviation(ref drawer, customAddonAdapter);
                         }
 
                         continue;
@@ -12856,6 +12994,40 @@ namespace Oxide.Plugins
         }
 
         [JsonObject(MemberSerialization.OptIn)]
+        private class DebugDisplaySettings
+        {
+            [JsonProperty("Display distance")]
+            public float DisplayDistance = 50;
+
+            [JsonProperty("Display distance abbreviated")]
+            public float DisplayDistanceAbbreviated = 200;
+
+            [JsonProperty("Entity color")]
+            [JsonConverter(typeof(HtmlColorConverter))]
+            public Color EntityColor = Color.magenta;
+
+            [JsonProperty("Spawn point color")]
+            [JsonConverter(typeof(HtmlColorConverter))]
+            public Color SpawnPointColor = new Color(1, 0.5f, 0);
+
+            [JsonProperty("Paste color")]
+            [JsonConverter(typeof(HtmlColorConverter))]
+            public Color PasteColor = Color.cyan;
+
+            [JsonProperty("Custom addon color")]
+            [JsonConverter(typeof(HtmlColorConverter))]
+            public Color CustomAddonColor = Color.green;
+
+            [JsonProperty("Custom monument color")]
+            [JsonConverter(typeof(HtmlColorConverter))]
+            public Color CustomMonumentColor = Color.green;
+
+            [JsonProperty("Inactive profile color")]
+            [JsonConverter(typeof(HtmlColorConverter))]
+            public Color InactiveProfileColor = Color.grey;
+        }
+
+        [JsonObject(MemberSerialization.OptIn)]
         private class Configuration : BaseConfiguration
         {
             [JsonProperty("Debug", DefaultValueHandling = DefaultValueHandling.Ignore)]
@@ -12864,8 +13036,18 @@ namespace Oxide.Plugins
             [JsonProperty("DebugDisplayDistance")]
             private float DeprecatedDebugDisplayDistance { set => DebugDisplayDistance = value; }
 
+            [JsonProperty("Debug display settings")]
+            public DebugDisplaySettings DebugDisplaySettings = new();
+
             [JsonProperty("Debug display distance")]
-            public float DebugDisplayDistance = 150;
+            private float DebugDisplayDistance
+            {
+                set
+                {
+                    DebugDisplaySettings.DisplayDistance = value;
+                    DebugDisplaySettings.DisplayDistanceAbbreviated = value * 2;
+                }
+            }
 
             [JsonProperty("PersistEntitiesAfterUnload")]
             private bool DeprecatedEnableEntitySaving { set => EnableEntitySaving = value; }
