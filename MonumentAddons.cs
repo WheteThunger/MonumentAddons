@@ -80,6 +80,7 @@ namespace Oxide.Plugins
         private readonly AdapterListenerManager _adapterListenerManager;
         private readonly ControllerFactory _controllerFactory;
         private readonly CustomAddonManager _customAddonManager;
+        private readonly CustomMonumentManager _customMonumentManager;
         private readonly UniqueNameRegistry _uniqueNameRegistry = new UniqueNameRegistry();
         private readonly AdapterDisplayManager _adapterDisplayManager;
         private readonly MonumentHelper _monumentHelper;
@@ -97,6 +98,7 @@ namespace Oxide.Plugins
             new Color(1, 1, 1)
         );
 
+        private readonly object True = true;
         private readonly object False = false;
 
         private ItemDefinition _waterDefinition;
@@ -114,6 +116,7 @@ namespace Oxide.Plugins
             _adapterDisplayManager = new AdapterDisplayManager(this, _uniqueNameRegistry);
             _adapterListenerManager = new AdapterListenerManager(this);
             _customAddonManager = new CustomAddonManager(this);
+            _customMonumentManager = new CustomMonumentManager(this);
             _controllerFactory = new ControllerFactory(this);
             _monumentHelper = new MonumentHelper(this);
             _wireToolManager = new WireToolManager(this, _profileStore, _entityTracker);
@@ -215,6 +218,7 @@ namespace Oxide.Plugins
                 return;
 
             _customAddonManager.UnregisterAllForPlugin(plugin);
+            _customMonumentManager.UnregisterAllForPlugin(plugin);
         }
 
         private void OnEntitySpawned(BaseEntity entity)
@@ -228,7 +232,7 @@ namespace Oxide.Plugins
                 if (ExposedHooks.OnDynamicMonument(entityForClosure) is false)
                     return;
 
-                var dynamicMonument = DynamicMonument.FromEntity(entityForClosure);
+                var dynamicMonument = new DynamicMonument(entityForClosure);
                 _coroutineManager.StartCoroutine(_profileManager.PartialLoadForLateMonumentRoutine(dynamicMonument));
             });
         }
@@ -575,7 +579,7 @@ namespace Oxide.Plugins
                 Interface.CallHook("OnMonumentAddonsInitialized");
             }
 
-            public static void OnMonumentEntitySpawned(BaseEntity entity, MonoBehaviour monument, Guid guid)
+            public static void OnMonumentEntitySpawned(BaseEntity entity, UnityEngine.Component monument, Guid guid)
             {
                 Interface.CallHook("OnMonumentEntitySpawned", entity, monument, ObjectCache.Get(guid));
             }
@@ -2797,7 +2801,8 @@ namespace Oxide.Plugins
 
         #region API
 
-        private Dictionary<string, object> API_RegisterCustomAddon(Plugin plugin, string addonName, Dictionary<string, object> addonSpec)
+        [HookMethod(nameof(API_RegisterCustomAddon))]
+        public Dictionary<string, object> API_RegisterCustomAddon(Plugin plugin, string addonName, Dictionary<string, object> addonSpec)
         {
             LogWarning($"API_RegisterCustomAddon is experimental and may be changed or removed in future updates.");
 
@@ -2824,6 +2829,101 @@ namespace Oxide.Plugins
             _customAddonManager.RegisterAddon(addonDefinition);
 
             return addonDefinition.ToApiResult(_profileStore);
+        }
+
+        [HookMethod(nameof(API_RegisterCustomMonument))]
+        public object API_RegisterCustomMonument(Plugin plugin, string monumentName, UnityEngine.Component component, Bounds bounds)
+        {
+            var objectType = component is BaseEntity ? "entity" : "object";
+
+            if (plugin == null)
+            {
+                LogError($"A plugin has attempted to register an {objectType} as a custom monument, but the plugin did not identify itself.");
+                return False;
+            }
+
+            if (String.IsNullOrWhiteSpace(monumentName))
+            {
+                LogError($"Plugin {plugin.Name} tried to register an {objectType} as a custom monument, but did not provide a valid monument name.");
+                return False;
+            }
+
+            if (component == null || (component is BaseEntity { IsDestroyed: true }))
+            {
+                LogError($"Plugin {plugin.Name} tried to register a null or destroyed {objectType} as a custom monument.");
+                return False;
+            }
+
+            if (bounds == default)
+            {
+                LogWarning($"Plugin {plugin.Name} tried to register an {objectType} as a custom monument, but did not provide bounds. This was most likely a mistake by the developer of {plugin.Name} ({plugin.Author}).");
+            }
+
+            var existingMonument = _customMonumentManager.FindByComponent(component);
+            if (existingMonument != null)
+            {
+                if (existingMonument.OwnerPlugin.Name != plugin.Name)
+                {
+                    LogError($"Plugin {plugin.Name} tried to register an {objectType} at {component.transform.position} as a custom monument with name '{monumentName}', but that {objectType} was already registered by plugin {existingMonument.OwnerPlugin.Name} with name '{existingMonument.UniqueName}'.");
+                    return False;
+                }
+                else if (existingMonument.UniqueName != monumentName)
+                {
+                    LogError($"Plugin {plugin.Name} tried to register an {objectType} at {component.transform.position} as a custom monument with name '{monumentName}', but that {objectType} was already registered with name '{existingMonument.UniqueName}'.");
+                    return False;
+                }
+                else if (existingMonument.Bounds != bounds)
+                {
+                    // Changing the bounds is permitted.
+                    existingMonument.Bounds = bounds;
+                    return True;
+                }
+                else
+                {
+                    LogWarning($"Plugin {plugin.Name} tried to double register a monument '{monumentName}'. This is OK but may be a mistake by the developer of {plugin.Name} ({plugin.Author}).");
+                    return True;
+                }
+            }
+
+            var monument = component is BaseEntity entity
+                ? new CustomEntityMonument(plugin, entity, monumentName, bounds)
+                : new CustomMonument(plugin, component, monumentName, bounds);
+
+            _customMonumentManager.Register(monument);
+            CustomMonumentComponent.AddToMonument(_customMonumentManager, monument);
+            _coroutineManager.StartCoroutine(_profileManager.PartialLoadForLateMonumentRoutine(monument));
+
+            LogInfo($"Plugin {plugin.Name} successfully registered an {objectType} at {component.transform.position} as a custom monument with name '{monumentName}'.");
+            return True;
+        }
+
+        [HookMethod(nameof(API_UnregisterCustomMonument))]
+        public object API_UnregisterCustomMonument(Plugin plugin, UnityEngine.Component component)
+        {
+            var objectType = component is BaseEntity ? "entity" : "object";
+
+            if (component == null || (component is BaseEntity { IsDestroyed: true }))
+            {
+                LogWarning($"Plugin {plugin.Name} tried to unregister a null or destroyed {objectType} as a custom monument. This is not necessary because {Name} automatically detects when custom monuments are destroyed and despawns associated addons. This is OK but may be a mistake by the developer of {plugin.Name} ({plugin.Author}).");
+                return True;
+            }
+
+            var existingMonument = _customMonumentManager.FindByComponent(component);
+            if (existingMonument == null)
+            {
+                LogError($"Plugin {plugin.Name} tried to unregister an {objectType} at {component.transform.position} as a custom monument, but that {objectType} was not currently registered as a custom monument. Either the {objectType} was unregistered earlier, or the wrong {objectType} was provided. This was most likely a mistake by the developer of {plugin.Name} ({plugin.Author}).");
+                return True;
+            }
+
+            if (existingMonument.OwnerPlugin.Name != plugin.Name)
+            {
+                LogError($"Plugin {plugin.Name} tried to unregister an {objectType} at {component.transform.position} as a custom monument, but that {objectType} was registered as a custom monument by plugin {existingMonument.OwnerPlugin.Name}, so this was not allowed.");
+                return False;
+            }
+
+            _customMonumentManager.Unregister(existingMonument);
+            LogInfo($"Plugin {plugin.Name} successfully unregistered an {objectType} at {component.transform.position} as a custom monument with name '{existingMonument.UniqueName}'.");
+            return True;
         }
 
         #endregion
@@ -2983,7 +3083,7 @@ namespace Oxide.Plugins
             var entity = hit.GetEntity();
             if (entity != null && IsDynamicMonument(entity))
             {
-                closestMonument = DynamicMonument.FromEntity(entity);
+                closestMonument = new DynamicMonument(entity);
                 return true;
             }
 
@@ -3771,6 +3871,10 @@ namespace Oxide.Plugins
             if (IsPlayerParentedToDynamicMonument(player, position, out var dynamicMonument))
                 return dynamicMonument;
 
+            var monument = _customMonumentManager.FindByPosition(position);
+            if (monument != null)
+                return monument;
+
             return _monumentHelper.GetClosestMonumentAdapter(position);
         }
 
@@ -3785,7 +3889,7 @@ namespace Oxide.Plugins
                     && ExposedHooks.OnDynamicMonument(entity) is not false)
                 {
                     entityList ??= new List<BaseMonument>();
-                    entityList.Add(DynamicMonument.FromEntity(entity));
+                    entityList.Add(new DynamicMonument(entity));
                 }
             }
 
@@ -3800,6 +3904,10 @@ namespace Oxide.Plugins
                 if (baseEntity != null && IsDynamicMonument(baseEntity))
                     return GetDynamicMonumentInstances(baseEntity.prefabID);
             }
+
+            var customMonuments = _customMonumentManager.FindMonumentsByName(monumentIdentifier);
+            if (customMonuments?.Count > 0)
+                return customMonuments;
 
             var monuments = _monumentHelper.FindMonumentsByAlias(monumentIdentifier);
             if (monuments.Count > 0)
@@ -4028,6 +4136,46 @@ namespace Oxide.Plugins
             public static void Text(BasePlayer player, Vector3 origin, string text, Color color, float duration)
             {
                 player.SendConsoleCommand("ddraw.text", duration, color, origin, text);
+            }
+
+            public static void Box(BasePlayer player, Vector3 center, Quaternion rotation, Vector3 extents, Color color, float duration)
+            {
+                var sphereRadius = 0.5f;
+
+                var forwardUpperLeft = center + rotation * extents.WithX(-extents.x);
+                var forwardUpperRight = center + rotation * extents;
+                var forwardLowerLeft = center + rotation * extents.WithX(-extents.x).WithY(-extents.y);
+                var forwardLowerRight = center + rotation * extents.WithY(-extents.y);
+
+                var backLowerRight = center + rotation * -extents.WithX(-extents.x);
+                var backLowerLeft = center + rotation * -extents;
+                var backUpperRight = center + rotation * -extents.WithX(-extents.x).WithY(-extents.y);
+                var backUpperLeft = center + rotation * -extents.WithY(-extents.y);
+
+                Sphere(player, forwardUpperLeft, sphereRadius, color, duration);
+                Sphere(player, forwardUpperRight, sphereRadius, color, duration);
+                Sphere(player, forwardLowerLeft, sphereRadius, color, duration);
+                Sphere(player, forwardLowerRight, sphereRadius, color, duration);
+
+                Sphere(player, backLowerRight, sphereRadius, color, duration);
+                Sphere(player, backLowerLeft, sphereRadius, color, duration);
+                Sphere(player, backUpperRight, sphereRadius, color, duration);
+                Sphere(player, backUpperLeft, sphereRadius, color, duration);
+
+                Line(player, forwardUpperLeft, forwardUpperRight, color, duration);
+                Line(player, forwardLowerLeft, forwardLowerRight, color, duration);
+                Line(player, forwardUpperLeft, forwardLowerLeft, color, duration);
+                Line(player, forwardUpperRight, forwardLowerRight, color, duration);
+
+                Line(player, backUpperLeft, backUpperRight, color, duration);
+                Line(player, backLowerLeft, backLowerRight, color, duration);
+                Line(player, backUpperLeft, backLowerLeft, color, duration);
+                Line(player, backUpperRight, backLowerRight, color, duration);
+
+                Line(player, forwardUpperLeft, backUpperLeft, color, duration);
+                Line(player, forwardLowerLeft, backLowerLeft, color, duration);
+                Line(player, forwardUpperRight, backUpperRight, color, duration);
+                Line(player, forwardLowerRight, backLowerRight, color, duration);
             }
         }
 
@@ -5403,7 +5551,7 @@ namespace Oxide.Plugins
 
         private abstract class BaseMonument
         {
-            public MonoBehaviour Object { get; }
+            public UnityEngine.Component Object { get; }
             public virtual string PrefabName => Object.name;
             public virtual string ShortName => GetShortName(PrefabName);
             public virtual string Alias => null;
@@ -5413,9 +5561,9 @@ namespace Oxide.Plugins
             public virtual Quaternion Rotation => Object.transform.rotation;
             public virtual bool IsValid => Object != null;
 
-            protected BaseMonument(MonoBehaviour behavior)
+            protected BaseMonument(UnityEngine.Component component)
             {
-                Object = behavior;
+                Object = component;
             }
 
             public virtual Vector3 TransformPoint(Vector3 localPosition)
@@ -5475,11 +5623,20 @@ namespace Oxide.Plugins
             }
         }
 
-        private class DynamicMonument : BaseMonument
+        private interface IDynamicMonument {}
+
+        private interface IEntityMonument
+        {
+            BaseEntity RootEntity { get; }
+            bool IsMobile { get; }
+            bool IsValid { get; }
+        }
+
+        private class DynamicMonument : BaseMonument, IDynamicMonument, IEntityMonument
         {
             public static DynamicMonument FromEntity(BaseEntity entity)
             {
-                return new DynamicMonument(entity, HasRigidBody(entity));
+                return new DynamicMonument(entity);
             }
 
             public BaseEntity RootEntity { get; }
@@ -5500,6 +5657,8 @@ namespace Oxide.Plugins
                 IsMobile = isMobile;
             }
 
+            public DynamicMonument(BaseEntity entity) : this(entity, HasRigidBody(entity)) { }
+
             public override Vector3 ClosestPointOnBounds(Vector3 position)
             {
                 return BoundingBox.ClosestPoint(position);
@@ -5514,6 +5673,183 @@ namespace Oxide.Plugins
             {
                 return other is DynamicMonument otherDynamocMonument
                     && otherDynamocMonument.RootEntity == RootEntity;
+            }
+        }
+
+        private class CustomMonument : BaseMonument
+        {
+            public readonly Plugin OwnerPlugin;
+            public readonly UnityEngine.Component Component;
+            public Bounds Bounds;
+
+            private readonly string _monumentName;
+
+            public override string PrefabName => _monumentName;
+            public override string ShortName => _monumentName;
+            public override string UniqueName => _monumentName;
+            public override string UniqueDisplayName => _monumentName;
+
+            public OBB BoundingBox => new OBB(Component.transform, Bounds);
+
+            public CustomMonument(Plugin ownerPlugin, UnityEngine.Component component, string monumentName, Bounds bounds) : base(component)
+            {
+                OwnerPlugin = ownerPlugin;
+                Component = component;
+                _monumentName = monumentName;
+                Bounds = bounds;
+            }
+
+            public override Vector3 ClosestPointOnBounds(Vector3 position)
+            {
+                return BoundingBox.ClosestPoint(position);
+            }
+
+            public override bool IsInBounds(Vector3 position)
+            {
+                return BoundingBox.Contains(position);
+            }
+
+            public override bool IsEquivalentTo(BaseMonument other)
+            {
+                return other is CustomMonument otherCustomMonument
+                    && otherCustomMonument.Component == Component;
+            }
+        }
+
+        private class CustomEntityMonument : CustomMonument, IEntityMonument
+        {
+            public BaseEntity RootEntity { get; }
+            public bool IsMobile { get; }
+
+            public CustomEntityMonument(Plugin ownerPlugin, BaseEntity entity, string monumentName, Bounds bounds)
+                : base(ownerPlugin, entity, monumentName, bounds)
+            {
+                RootEntity = entity;
+                IsMobile = HasRigidBody(entity);
+            }
+        }
+
+        private class CustomMonumentComponent : FacepunchBehaviour
+        {
+            public static CustomMonumentComponent AddToMonument(CustomMonumentManager manager, CustomMonument monument)
+            {
+                var component = monument.Component.gameObject.AddComponent<CustomMonumentComponent>();
+                component._manager = manager;
+                component._monument = monument;
+                return component;
+            }
+
+            private CustomMonumentManager _manager;
+            private CustomMonument _monument;
+
+            private void OnDestroy()
+            {
+                _manager.Unregister(_monument);
+            }
+        }
+
+        private class CustomMonumentManager
+        {
+            private readonly MonumentAddons _plugin;
+            public readonly List<CustomMonument> MonumentList = new();
+
+            public CustomMonumentManager(MonumentAddons plugin)
+            {
+                _plugin = plugin;
+            }
+
+            public void Register(CustomMonument monument)
+            {
+                if (FindByComponent(monument.Component) != null)
+                    return;
+
+                MonumentList.Add(monument);
+            }
+
+            public void Unregister(CustomMonument monument)
+            {
+                MonumentList.Remove(monument);
+
+                _plugin._coroutineManager.StartCoroutine(KillRoutine(
+                    _plugin._profileManager.GetEnabledAdaptersForMonument<BaseAdapter>(monument).ToList()));
+            }
+
+            public void UnregisterAllForPlugin(Plugin plugin)
+            {
+                if (MonumentList.Count == 0)
+                    return;
+
+                foreach (var monument in MonumentList.ToArray())
+                {
+                    if (monument.OwnerPlugin.Name != plugin.Name)
+                        continue;
+
+                    Unregister(monument);
+                }
+            }
+
+            public CustomMonument FindByComponent(UnityEngine.Component component)
+            {
+                foreach (var monument in MonumentList)
+                {
+                    if (monument.Component == component)
+                        return monument;
+                }
+
+                return null;
+            }
+
+            public CustomMonument FindByPosition(Vector3 position)
+            {
+                foreach (var monument in MonumentList)
+                {
+                    if (monument.IsInBounds(position))
+                        return monument;
+                }
+
+                return null;
+            }
+
+            public int CountMonumentByName(string name)
+            {
+                var count = 0;
+
+                foreach (var monument in MonumentList)
+                {
+                    if (monument.UniqueName != name)
+                        continue;
+
+                    count++;
+                }
+
+                return count;
+            }
+
+            public List<BaseMonument> FindMonumentsByName(string name)
+            {
+                List<BaseMonument> matchingMonuments = null;
+
+                foreach (var monument in MonumentList)
+                {
+                    if (monument.UniqueName != name)
+                        continue;
+
+                    matchingMonuments ??= new List<BaseMonument>();
+                    matchingMonuments.Add(monument);
+                }
+
+                return matchingMonuments;
+            }
+
+            private IEnumerator KillRoutine(List<BaseAdapter> adapterList)
+            {
+                foreach (var adapter in adapterList)
+                {
+                    _plugin.TrackStart();
+                    adapter.Kill();
+                    _plugin.TrackEnd();
+                    yield return adapter.WaitInstruction;
+                }
             }
         }
 
@@ -6260,7 +6596,7 @@ namespace Oxide.Plugins
                         var mountable = Entity as BaseMountable;
                         if (mountable != null)
                         {
-                            if (Monument is DynamicMonument { IsMobile: true })
+                            if (Monument is IEntityMonument { IsMobile: true })
                             {
                                 mountable.isMobile = true;
                                 if (!BaseMountable.FixedUpdateMountables.Contains(mountable))
@@ -6847,11 +7183,11 @@ namespace Oxide.Plugins
 
                 EnableSavingRecursive(entity, enableSaving: _config.EnableEntitySaving);
 
-                if (Monument is DynamicMonument dynamicMonument)
+                if (Monument is IEntityMonument entityMonument)
                 {
-                    entity.SetParent(dynamicMonument.RootEntity, worldPositionStays: true);
+                    entity.SetParent(entityMonument.RootEntity, worldPositionStays: true);
 
-                    if (dynamicMonument.IsMobile)
+                    if (entityMonument.IsMobile)
                     {
                         var mountable = entity as BaseMountable;
                         if (mountable != null)
@@ -6888,11 +7224,11 @@ namespace Oxide.Plugins
 
             private List<CCTV_RC> GetNearbyStaticCameras()
             {
-                if (Monument is DynamicMonument { IsMobile: true } dynamicMonument
-                    && dynamicMonument.RootEntity == Entity.GetParentEntity())
+                if (Monument is IEntityMonument { IsMobile: true } entityMonument
+                    && entityMonument.RootEntity == Entity.GetParentEntity())
                 {
                     var cargoCameraList = new List<CCTV_RC>();
-                    foreach (var child in dynamicMonument.RootEntity.children)
+                    foreach (var child in entityMonument.RootEntity.children)
                     {
                         var cctv = child as CCTV_RC;
                         if (cctv != null && cctv.isStatic)
@@ -7420,10 +7756,11 @@ namespace Oxide.Plugins
 
             private List<ComputerStation> GetNearbyStaticComputerStations()
             {
-                if (Monument is DynamicMonument dynamicMonument && dynamicMonument.RootEntity == Entity.GetParentEntity())
+                if (Monument is IEntityMonument { IsMobile: true } entityMonument
+                    && entityMonument.RootEntity == Entity.GetParentEntity())
                 {
                     var cargoComputerStationList = new List<ComputerStation>();
-                    foreach (var child in dynamicMonument.RootEntity.children)
+                    foreach (var child in entityMonument.RootEntity.children)
                     {
                         var computerStation = child as ComputerStation;
                         if (computerStation != null && computerStation.isStatic)
@@ -7813,8 +8150,8 @@ namespace Oxide.Plugins
                 // This might not be the best behavior for all situations, may need to be revisited.
                 // In particular, vehicles should not be parented to entities that don't have a parent trigger,
                 // since that would cause the vehicle to be destroyed when the parent is, even if the vehicle has left.
-                if (Adapter.Monument is DynamicMonument { IsValid: true, IsMobile: true } dynamicMonument
-                    && _parentEntity == dynamicMonument.RootEntity
+                if (Adapter.Monument is IEntityMonument { IsValid: true, IsMobile: true } entityMonument
+                    && _parentEntity == entityMonument.RootEntity
                     && !entity.HasParent())
                 {
                     entity.SetParent(_parentEntity, worldPositionStays: true);
@@ -8151,9 +8488,9 @@ namespace Oxide.Plugins
                 _transform = gameObject.transform;
                 _transform.SetPositionAndRotation(IntendedPosition, IntendedRotation);
 
-                if (Monument is DynamicMonument dynamicMonument)
+                if (Monument is IEntityMonument entityMonument)
                 {
-                    _transform.SetParent(dynamicMonument.RootEntity.transform, worldPositionStays: true);
+                    _transform.SetParent(entityMonument.RootEntity.transform, worldPositionStays: true);
                 }
 
                 SpawnPoint = gameObject.AddComponent<CustomSpawnPoint>();
@@ -9342,8 +9679,8 @@ namespace Oxide.Plugins
             {
                 _sb.AppendLine(_plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelProfile, profileController.Profile.Name));
 
-                var monumentTierList = GetTierList(GetMonumentTierMask(adapter.Monument.Position));
-                _sb.AppendLine(adapter.Monument is not DynamicMonument && monumentTierList.Count > 0
+                var monumentTierList = adapter.Monument.IsValid ? GetTierList(GetMonumentTierMask(adapter.Monument.Position)) : null;
+                _sb.AppendLine(adapter.Monument is not IDynamicMonument && monumentTierList?.Count > 0
                     ? _plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelMonumentWithTier, adapter.Monument.UniqueDisplayName, controller.Adapters.Count, string.Join(", ", monumentTierList))
                     : _plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelMonument, adapter.Monument.UniqueDisplayName, controller.Adapters.Count));
             }
@@ -9697,6 +10034,21 @@ namespace Oxide.Plugins
                 {
                     player.SetPlayerFlag(BasePlayer.PlayerFlags.IsAdmin, true);
                     player.SendNetworkUpdateImmediate();
+                }
+
+                foreach (var monument in _plugin._customMonumentManager.MonumentList)
+                {
+                    if (!monument.IsInBounds(playerPosition)
+                        && (playerPosition - monument.ClosestPointOnBounds(playerPosition)).sqrMagnitude > DisplayDistanceSquared)
+                        continue;
+
+                    _sb.Clear();
+                    var monumentCount = _plugin._customMonumentManager.CountMonumentByName(monument.UniqueName);
+                    _sb.AppendLine($"<size={HeaderSize}>{_plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelCustomMonument, monument.UniqueDisplayName, monumentCount)}</size>");
+                    _sb.AppendLine(_plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelPlugin, monument.OwnerPlugin.Name));
+                    Ddraw.Text(player, monument.Position, _sb.ToString(), Color.green, DisplayIntervalDuration);
+                    var boundingBox = monument.BoundingBox;
+                    Ddraw.Box(player, boundingBox.position, boundingBox.rotation, boundingBox.extents, Color.green, DisplayIntervalDuration);
                 }
 
                 foreach (var adapter in _plugin._profileManager.GetEnabledAdapters<BaseAdapter>())
@@ -10550,6 +10902,11 @@ namespace Oxide.Plugins
                         yield return adapter;
                     }
                 }
+            }
+
+            public IEnumerable<T> GetEnabledAdaptersForMonument<T>(BaseMonument monument) where T : BaseAdapter
+            {
+                return GetEnabledAdapters<T>().Where(adapter => adapter.Monument.IsEquivalentTo(monument));
             }
 
             private IEnumerator UnloadAllProfilesRoutine()
@@ -12825,6 +13182,7 @@ namespace Oxide.Plugins
             public static readonly LangEntry ShowSuccess = new LangEntry("Show.Success", "Showing nearby Monument Addons for <color=#fd4>{0}</color>.");
             public static readonly LangEntry ShowLabelPlugin = new LangEntry("Show.Label.Plugin", "Plugin: {0}");
             public static readonly LangEntry ShowLabelProfile = new LangEntry("Show.Label.Profile", "Profile: {0}");
+            public static readonly LangEntry ShowLabelCustomMonument = new LangEntry("Show.Label.CustomMonument", "Custom Monument: {0} (x{1})");
             public static readonly LangEntry ShowLabelMonument = new LangEntry("Show.Label.Monument", "Monument: {0} (x{1})");
             public static readonly LangEntry ShowLabelMonumentWithTier = new LangEntry("Show.Label.MonumentWithTier", "Monument: {0} (x{1} | {2})");
             public static readonly LangEntry ShowLabelSkin = new LangEntry("Show.Label.Skin", "Skin: {0}");
