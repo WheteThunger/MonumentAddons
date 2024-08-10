@@ -12110,17 +12110,17 @@ namespace Oxide.Plugins
 
             public bool HasEntity(string monumentUniqueName, Guid guid)
             {
-                return MonumentDataMap.GetOrDefault(monumentUniqueName)?.HasEntity(guid) ?? false;
+                return MonumentDataMap.GetValueOrDefault(monumentUniqueName)?.HasEntity(guid) ?? false;
             }
 
             public bool HasEntity(string monumentUniqueName, EntityData entityData)
             {
-                return MonumentDataMap.GetOrDefault(monumentUniqueName)?.Entities.Contains(entityData) ?? false;
+                return MonumentDataMap.GetValueOrDefault(monumentUniqueName)?.Entities.Contains(entityData) ?? false;
             }
 
             public bool HasSpawnGroup(string monumentUniqueName, Guid guid)
             {
-                return MonumentDataMap.GetOrDefault(monumentUniqueName)?.HasSpawnGroup(guid) ?? false;
+                return MonumentDataMap.GetValueOrDefault(monumentUniqueName)?.HasSpawnGroup(guid) ?? false;
             }
 
             public void AddData(string monumentUniqueName, BaseData data)
@@ -12266,7 +12266,7 @@ namespace Oxide.Plugins
 
             public bool HasEntity(Guid guid, NetworkableId entityId)
             {
-                return Entities.GetOrDefault(guid) == entityId.Value;
+                return Entities.GetValueOrDefault(guid) == entityId.Value;
             }
 
             public BaseEntity FindEntity(Guid guid)
@@ -12432,9 +12432,9 @@ namespace Oxide.Plugins
             public MonumentState GetMonumentState(BaseMonument monument)
             {
                 if (monument is DynamicMonument dynamicMonument)
-                    return ByEntity.GetOrDefault(dynamicMonument.EntityId.Value);
+                    return ByEntity.GetValueOrDefault(dynamicMonument.EntityId.Value);
 
-                return ByLocation.GetOrDefault(monument.Position);
+                return ByLocation.GetValueOrDefault(monument.Position);
             }
 
             public MonumentState GetOrCreateMonumentState(BaseMonument monument)
@@ -12524,13 +12524,13 @@ namespace Oxide.Plugins
 
             public ProfileState GetProfileState(string profileName)
             {
-                return ProfileStateMap.GetOrDefault(profileName);
+                return ProfileStateMap.GetValueOrDefault(profileName);
             }
 
             public bool HasEntity(string profileName, BaseMonument monument, Guid guid, NetworkableId entityId)
             {
                 return GetProfileState(profileName)
-                    ?.GetOrDefault(monument.UniqueName)
+                    ?.GetValueOrDefault(monument.UniqueName)
                     ?.GetMonumentState(monument)
                     ?.HasEntity(guid, entityId) ?? false;
             }
@@ -12538,7 +12538,7 @@ namespace Oxide.Plugins
             public BaseEntity FindEntity(string profileName, BaseMonument monument, Guid guid)
             {
                 return GetProfileState(profileName)
-                    ?.GetOrDefault(monument.UniqueName)
+                    ?.GetValueOrDefault(monument.UniqueName)
                     ?.GetMonumentState(monument)
                     ?.FindEntity(guid);
             }
@@ -12554,14 +12554,14 @@ namespace Oxide.Plugins
             public bool RemoveEntity(string profileName, BaseMonument monument, Guid guid)
             {
                 return GetProfileState(profileName)
-                    ?.GetOrDefault(monument.UniqueName)
+                    ?.GetValueOrDefault(monument.UniqueName)
                     ?.GetMonumentState(monument)
                     ?.RemoveEntity(guid) ?? false;
             }
 
             public List<BaseEntity> FindAndRemoveValidEntities(string profileName)
             {
-                var profileState = ProfileStateMap.GetOrDefault(profileName);
+                var profileState = ProfileStateMap.GetValueOrDefault(profileName);
                 if (profileState == null)
                     return null;
 
@@ -13490,16 +13490,9 @@ namespace Oxide.Plugins.MonumentAddonsExtensions
 {
     public static class DictionaryExtensions
     {
-        public static TValue GetOrDefault<TKey, TValue>(this Dictionary<TKey, TValue> dict, TKey key)
-        {
-            return dict.TryGetValue(key, out var value)
-                ? value
-                : default(TValue);
-        }
-
         public static TValue GetOrCreate<TKey, TValue>(this Dictionary<TKey, TValue> dict, TKey key) where TValue : new()
         {
-            var value = dict.GetOrDefault(key);
+            var value = dict.GetValueOrDefault(key);
             if (value == null)
             {
                 value = new TValue();
