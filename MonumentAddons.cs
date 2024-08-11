@@ -8392,67 +8392,38 @@ namespace Oxide.Plugins
 
             private void DisableVehicleDecay(BaseEntity vehicle)
             {
-                var kayak = vehicle as Kayak;
-                if (kayak != null)
+                switch (vehicle)
                 {
-                    kayak.timeSinceLastUsed = float.MinValue;
-                    return;
-                }
-
-                var boat = vehicle as MotorRowboat;
-                if (boat != null)
-                {
-                    boat.timeSinceLastUsedFuel = float.MinValue;
-                    return;
-                }
-
-                var snowmobile = vehicle as Snowmobile;
-                if (snowmobile != null)
-                {
-                    snowmobile.timeSinceLastUsed = float.MinValue;
-                    return;
-                }
-
-                var sub = vehicle as BaseSubmarine;
-                if (sub != null)
-                {
-                    sub.timeSinceLastUsed = float.MinValue;
-                    return;
-                }
-
-                var hab = vehicle as HotAirBalloon;
-                if (hab != null)
-                {
-                    hab.sinceLastBlast = float.MaxValue;
-                    return;
-                }
-
-                var heli = vehicle as PlayerHelicopter;
-                if (heli != null)
-                {
-                    heli.lastEngineOnTime = float.MaxValue;
-                    return;
-                }
-
-                var car = vehicle as ModularCar;
-                if (car != null)
-                {
-                    car.lastEngineOnTime = float.MaxValue;
-                    return;
-                }
-
-                var horse = vehicle as RidableHorse;
-                if (horse != null)
-                {
-                    horse.lastInputTime = float.MaxValue;
-                    return;
-                }
-
-                var workcart = vehicle as TrainEngine;
-                if (workcart != null)
-                {
-                    workcart.CancelInvoke(workcart.DecayTick);
-                    return;
+                    case BaseSubmarine sub:
+                        sub.timeSinceLastUsed = float.MinValue;
+                        break;
+                    case Bike bike:
+                        bike.timeSinceLastUsed = float.MinValue;
+                        break;
+                    case HotAirBalloon hab:
+                        hab.sinceLastBlast = float.MaxValue;
+                        break;
+                    case Kayak kayak:
+                        kayak.timeSinceLastUsed = float.MinValue;
+                        break;
+                    case ModularCar car:
+                        car.lastEngineOnTime = float.MaxValue;
+                        break;
+                    case MotorRowboat boat:
+                        boat.timeSinceLastUsedFuel = float.MinValue;
+                        break;
+                    case PlayerHelicopter heli:
+                        heli.lastEngineOnTime = float.MaxValue;
+                        break;
+                    case RidableHorse horse:
+                        horse.lastInputTime = float.MaxValue;
+                        break;
+                    case Snowmobile snowmobile:
+                        snowmobile.timeSinceLastUsed = float.MinValue;
+                        break;
+                    case TrainCar trainCar:
+                        trainCar.CancelInvoke(trainCar.DecayTick);
+                        break;
                 }
             }
 
