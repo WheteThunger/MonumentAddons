@@ -33,6 +33,11 @@ using CustomSetDataCallback = System.Action<UnityEngine.Component, object>;
 using System.Text.RegularExpressions;
 using Facepunch;
 
+using Tuple1 = System.ValueTuple<object>;
+using Tuple2 = System.ValueTuple<object, object>;
+using Tuple3 = System.ValueTuple<object, object, object>;
+using Tuple4 = System.ValueTuple<object, object, object, object>;
+
 namespace Oxide.Plugins
 {
     [Info("Monument Addons", "WhiteThunder", "0.17.3")]
@@ -1165,7 +1170,7 @@ namespace Oxide.Plugins
                     {
                         case PuzzleOption.PlayersBlockReset:
                         {
-                            if (!VerifyValidBool(player, args[2], out var playerBlockReset, LangEntry.ErrorSetSyntax, cmd, PuzzleOption.PlayersBlockReset))
+                            if (!VerifyValidBool(player, args[2], out var playerBlockReset, LangEntry.ErrorSetSyntax.Bind(cmd, PuzzleOption.PlayersBlockReset)))
                                 return;
 
                             puzzleData.PlayersBlockReset = playerBlockReset;
@@ -1176,7 +1181,7 @@ namespace Oxide.Plugins
 
                         case PuzzleOption.PlayerDetectionRadius:
                         {
-                            if (!VerifyValidFloat(player, args[2], out var playerDetectionRadius, LangEntry.ErrorSetSyntax, cmd, PuzzleOption.PlayerDetectionRadius))
+                            if (!VerifyValidFloat(player, args[2], out var playerDetectionRadius, LangEntry.ErrorSetSyntax.Bind(cmd, PuzzleOption.PlayerDetectionRadius)))
                                 return;
 
                             puzzleData.PlayersBlockReset = true;
@@ -1187,7 +1192,7 @@ namespace Oxide.Plugins
 
                         case PuzzleOption.SecondsBetweenResets:
                         {
-                            if (!VerifyValidFloat(player, args[2], out var secondsBetweenResets, LangEntry.ErrorSetSyntax, cmd, PuzzleOption.SecondsBetweenResets))
+                            if (!VerifyValidFloat(player, args[2], out var secondsBetweenResets, LangEntry.ErrorSetSyntax.Bind(cmd, PuzzleOption.SecondsBetweenResets)))
                                 return;
 
                             puzzleData.SecondsBetweenResets = secondsBetweenResets;
@@ -1216,7 +1221,7 @@ namespace Oxide.Plugins
         private void SubCommandPuzzleHelp(IPlayer player, string cmd)
         {
             _sb.Clear();
-            _sb.AppendLine(GetMessage(player.Id, LangEntry.PuzzleHelpHeader, cmd));
+            _sb.AppendLine(GetMessage(player.Id, LangEntry.PuzzleHelpHeader));
             _sb.AppendLine(GetMessage(player.Id, LangEntry.PuzzleHelpReset, cmd));
             _sb.AppendLine(GetMessage(player.Id, LangEntry.PuzzleHelpSet, cmd));
             _sb.AppendLine(GetMessage(player.Id, LangEntry.PuzzleHelpAdd, cmd));
@@ -1866,7 +1871,7 @@ namespace Oxide.Plugins
 
                         case SpawnGroupOption.MaxPopulation:
                         {
-                            if (!VerifyValidInt(player, args[2], out var maxPopulation, LangEntry.ErrorSetSyntax, cmd, SpawnGroupOption.MaxPopulation))
+                            if (!VerifyValidInt(player, args[2], out var maxPopulation, LangEntry.ErrorSetSyntax.Bind(cmd, SpawnGroupOption.MaxPopulation)))
                                 return;
 
                             spawnGroupData.MaxPopulation = maxPopulation;
@@ -1875,7 +1880,7 @@ namespace Oxide.Plugins
 
                         case SpawnGroupOption.RespawnDelayMin:
                         {
-                            if (!VerifyValidFloat(player, args[2], out var respawnDelayMin, LangEntry.ErrorSetSyntax, cmd, SpawnGroupOption.RespawnDelayMin))
+                            if (!VerifyValidFloat(player, args[2], out var respawnDelayMin, LangEntry.ErrorSetSyntax.Bind(cmd, SpawnGroupOption.RespawnDelayMin)))
                                 return;
 
                             showImmediate = respawnDelayMin == 0 || spawnGroupData.RespawnDelayMax != 0;
@@ -1887,7 +1892,7 @@ namespace Oxide.Plugins
 
                         case SpawnGroupOption.RespawnDelayMax:
                         {
-                            if (!VerifyValidFloat(player, args[2], out var respawnDelayMax, LangEntry.ErrorSetSyntax, cmd, SpawnGroupOption.RespawnDelayMax))
+                            if (!VerifyValidFloat(player, args[2], out var respawnDelayMax, LangEntry.ErrorSetSyntax.Bind(cmd, SpawnGroupOption.RespawnDelayMax)))
                                 return;
 
                             showImmediate = (respawnDelayMax == 0) == (spawnGroupData.RespawnDelayMax == 0);
@@ -1899,7 +1904,7 @@ namespace Oxide.Plugins
 
                         case SpawnGroupOption.SpawnPerTickMin:
                         {
-                            if (!VerifyValidInt(player, args[2], out var spawnPerTickMin, LangEntry.ErrorSetSyntax, cmd, SpawnGroupOption.SpawnPerTickMin))
+                            if (!VerifyValidInt(player, args[2], out var spawnPerTickMin, LangEntry.ErrorSetSyntax.Bind(cmd, SpawnGroupOption.SpawnPerTickMin)))
                                 return;
 
                             spawnGroupData.SpawnPerTickMin = spawnPerTickMin;
@@ -1910,7 +1915,7 @@ namespace Oxide.Plugins
 
                         case SpawnGroupOption.SpawnPerTickMax:
                         {
-                            if (!VerifyValidInt(player, args[2], out var spawnPerTickMax, LangEntry.ErrorSetSyntax, cmd, SpawnGroupOption.SpawnPerTickMax))
+                            if (!VerifyValidInt(player, args[2], out var spawnPerTickMax, LangEntry.ErrorSetSyntax.Bind(cmd, SpawnGroupOption.SpawnPerTickMax)))
                                 return;
 
                             spawnGroupData.SpawnPerTickMax = spawnPerTickMax;
@@ -1921,7 +1926,7 @@ namespace Oxide.Plugins
 
                         case SpawnGroupOption.InitialSpawn:
                         {
-                            if (!VerifyValidBool(player, args[2], out var initialSpawn, LangEntry.ErrorSetSyntax, cmd, SpawnGroupOption.PreventDuplicates))
+                            if (!VerifyValidBool(player, args[2], out var initialSpawn, LangEntry.ErrorSetSyntax.Bind(cmd, SpawnGroupOption.PreventDuplicates)))
                                 return;
 
                             spawnGroupData.InitialSpawn = initialSpawn;
@@ -1932,7 +1937,7 @@ namespace Oxide.Plugins
 
                         case SpawnGroupOption.PreventDuplicates:
                         {
-                            if (!VerifyValidBool(player, args[2], out var preventDuplicates, LangEntry.ErrorSetSyntax, cmd, SpawnGroupOption.PreventDuplicates))
+                            if (!VerifyValidBool(player, args[2], out var preventDuplicates, LangEntry.ErrorSetSyntax.Bind(cmd, SpawnGroupOption.PreventDuplicates)))
                                 return;
 
                             spawnGroupData.PreventDuplicates = preventDuplicates;
@@ -1943,7 +1948,7 @@ namespace Oxide.Plugins
 
                         case SpawnGroupOption.PauseScheduleWhileFull:
                         {
-                            if (!VerifyValidBool(player, args[2], out var pauseScheduleWhileFull, LangEntry.ErrorSetSyntax, cmd, SpawnGroupOption.PauseScheduleWhileFull))
+                            if (!VerifyValidBool(player, args[2], out var pauseScheduleWhileFull, LangEntry.ErrorSetSyntax.Bind(cmd, SpawnGroupOption.PauseScheduleWhileFull)))
                                 return;
 
                             spawnGroupData.PauseScheduleWhileFull = pauseScheduleWhileFull;
@@ -1954,7 +1959,7 @@ namespace Oxide.Plugins
 
                         case SpawnGroupOption.RespawnWhenNearestPuzzleResets:
                         {
-                            if (!VerifyValidBool(player, args[2], out var respawnWhenNearestPuzzleResets, LangEntry.ErrorSetSyntax, cmd, SpawnGroupOption.RespawnWhenNearestPuzzleResets))
+                            if (!VerifyValidBool(player, args[2], out var respawnWhenNearestPuzzleResets, LangEntry.ErrorSetSyntax.Bind(cmd, SpawnGroupOption.RespawnWhenNearestPuzzleResets)))
                                 return;
 
                             spawnGroupData.RespawnWhenNearestPuzzleResets = respawnWhenNearestPuzzleResets;
@@ -2091,7 +2096,7 @@ namespace Oxide.Plugins
         private void SubCommandSpawnGroupHelp(IPlayer player, string cmd)
         {
             _sb.Clear();
-            _sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnGroupHelpHeader, cmd));
+            _sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnGroupHelpHeader));
             _sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnGroupHelpCreate, cmd));
             _sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnGroupHelpSet, cmd));
             _sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnGroupHelpAdd, cmd));
@@ -2179,7 +2184,7 @@ namespace Oxide.Plugins
                     {
                         case SpawnPointOption.Exclusive:
                         {
-                            if (!VerifyValidBool(player, args[2], out var exclusive, LangEntry.SpawnGroupSetSuccess, LangEntry.ErrorSetSyntax, cmd, SpawnPointOption.Exclusive))
+                            if (!VerifyValidBool(player, args[2], out var exclusive, LangEntry.SpawnGroupSetSuccess.Bind(LangEntry.ErrorSetSyntax, cmd, SpawnPointOption.Exclusive)))
                                 return;
 
                             spawnPointData.Exclusive = exclusive;
@@ -2189,7 +2194,7 @@ namespace Oxide.Plugins
 
                         case SpawnPointOption.SnapToGround:
                         {
-                            if (!VerifyValidBool(player, args[2], out var snapToGround, LangEntry.ErrorSetSyntax, cmd, SpawnPointOption.SnapToGround))
+                            if (!VerifyValidBool(player, args[2], out var snapToGround, LangEntry.ErrorSetSyntax.Bind(cmd, SpawnPointOption.SnapToGround)))
                                 return;
 
                             spawnPointData.SnapToGround = snapToGround;
@@ -2199,7 +2204,7 @@ namespace Oxide.Plugins
 
                         case SpawnPointOption.CheckSpace:
                         {
-                            if (!VerifyValidBool(player, args[2], out var checkSpace, LangEntry.ErrorSetSyntax, cmd, SpawnPointOption.CheckSpace))
+                            if (!VerifyValidBool(player, args[2], out var checkSpace, LangEntry.ErrorSetSyntax.Bind(cmd, SpawnPointOption.CheckSpace)))
                                 return;
 
                             spawnPointData.CheckSpace = checkSpace;
@@ -2209,7 +2214,7 @@ namespace Oxide.Plugins
 
                         case SpawnPointOption.RandomRotation:
                         {
-                            if (!VerifyValidBool(player, args[2], out var randomRotation, LangEntry.ErrorSetSyntax, cmd, SpawnPointOption.RandomRotation))
+                            if (!VerifyValidBool(player, args[2], out var randomRotation, LangEntry.ErrorSetSyntax.Bind(cmd, SpawnPointOption.RandomRotation)))
                                 return;
 
                             spawnPointData.RandomRotation = randomRotation;
@@ -2219,7 +2224,7 @@ namespace Oxide.Plugins
 
                         case SpawnPointOption.RandomRadius:
                         {
-                            if (!VerifyValidFloat(player, args[2], out var radius, LangEntry.ErrorSetSyntax, cmd, SpawnPointOption.RandomRadius))
+                            if (!VerifyValidFloat(player, args[2], out var radius, LangEntry.ErrorSetSyntax.Bind(cmd, SpawnPointOption.RandomRadius)))
                                 return;
 
                             spawnPointData.RandomRadius = radius;
@@ -2229,7 +2234,7 @@ namespace Oxide.Plugins
 
                         case SpawnPointOption.PlayerDetectionRadius:
                         {
-                            if (!VerifyValidFloat(player, args[2], out var radius, LangEntry.ErrorSetSyntax, cmd, SpawnPointOption.PlayerDetectionRadius))
+                            if (!VerifyValidFloat(player, args[2], out var radius, LangEntry.ErrorSetSyntax.Bind(cmd, SpawnPointOption.PlayerDetectionRadius)))
                                 return;
 
                             spawnPointData.PlayerDetectionRadius = radius;
@@ -2257,7 +2262,7 @@ namespace Oxide.Plugins
         private void SubCommandSpawnPointHelp(IPlayer player, string cmd)
         {
             _sb.Clear();
-            _sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnPointHelpHeader, cmd));
+            _sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnPointHelpHeader));
             _sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnPointHelpCreate, cmd));
             _sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnPointHelpSet, cmd));
             player.Reply(_sb.ToString());
@@ -2975,30 +2980,30 @@ namespace Oxide.Plugins
             return false;
         }
 
-        private bool VerifyValidInt(IPlayer player, string arg, out int value, LangEntry errorLangEntry, params object[] args)
+        private bool VerifyValidInt<T>(IPlayer player, string arg, out int value, T errorFormatter) where T : IMessageFormatter
         {
             if (int.TryParse(arg, out value))
                 return true;
 
-            ReplyToPlayer(player, errorLangEntry, args);
+            ReplyToPlayer(player, errorFormatter);
             return false;
         }
 
-        private bool VerifyValidFloat(IPlayer player, string arg, out float value, LangEntry errorLangEntry, params object[] args)
+        private bool VerifyValidFloat<T>(IPlayer player, string arg, out float value, T errorFormatter) where T : IMessageFormatter
         {
             if (float.TryParse(arg, out value))
                 return true;
 
-            ReplyToPlayer(player, errorLangEntry, args);
+            ReplyToPlayer(player, errorFormatter);
             return false;
         }
 
-        private bool VerifyValidBool(IPlayer player, string arg, out bool value, LangEntry errorLangEntry, params object[] args)
+        private bool VerifyValidBool<T>(IPlayer player, string arg, out bool value, T errorFormatter) where T : IMessageFormatter
         {
             if (BooleanParser.TryParse(arg, out value))
                 return true;
 
-            ReplyToPlayer(player, errorLangEntry, args);
+            ReplyToPlayer(player, errorFormatter);
             return false;
         }
 
@@ -3088,7 +3093,7 @@ namespace Oxide.Plugins
             var prefabArg = args.FirstOrDefault();
             if (string.IsNullOrWhiteSpace(prefabArg) || IsKeyBindArg(prefabArg))
             {
-                ReplyToPlayer(player, LangEntry.PrefabErrorSyntax, prefabArg);
+                ReplyToPlayer(player, LangEntry.PrefabErrorSyntax);
                 return false;
             }
 
@@ -3211,9 +3216,10 @@ namespace Oxide.Plugins
             return false;
         }
 
-        private bool VerifyLookingAtAdapter<TAdapter, TController>(IPlayer player, out AdapterFindResult<TAdapter, TController> findResult, LangEntry errorLangEntry)
+        private bool VerifyLookingAtAdapter<TAdapter, TController, TFormatter>(IPlayer player, out AdapterFindResult<TAdapter, TController> findResult, TFormatter errorFormatter)
             where TAdapter : TransformAdapter
             where TController : BaseController
+            where TFormatter : IMessageFormatter
         {
             var basePlayer = player.Object as BasePlayer;
 
@@ -3241,28 +3247,30 @@ namespace Oxide.Plugins
             else
             {
                 // Maybe found an entity, but it did not match the adapter/controller type.
-                ReplyToPlayer(player, errorLangEntry);
+                ReplyToPlayer(player, errorFormatter);
             }
 
             findResult = default(AdapterFindResult<TAdapter, TController>);
             return false;
         }
 
-        private bool VerifyLookingAtAdapter<TAdapter, TController>(IPlayer player, out TAdapter adapter, out TController controller, LangEntry errorLangEntry)
+        private bool VerifyLookingAtAdapter<TAdapter, TController, TFormatter>(IPlayer player, out TAdapter adapter, out TController controller, TFormatter errorFormatter)
             where TAdapter : TransformAdapter
             where TController : BaseController
+            where TFormatter : IMessageFormatter
         {
-            var result = VerifyLookingAtAdapter(player, out AdapterFindResult<TAdapter, TController> findResult, errorLangEntry);
+            var result = VerifyLookingAtAdapter(player, out AdapterFindResult<TAdapter, TController> findResult, errorFormatter);
             adapter = findResult.Adapter;
             controller = findResult.Controller;
             return result;
         }
 
         // Convenient method that does not require an adapter type.
-        private bool VerifyLookingAtAdapter<TController>(IPlayer player, out TController controller, LangEntry errorLangEntry)
+        private bool VerifyLookingAtAdapter<TController, TFormatter>(IPlayer player, out TController controller, TFormatter errorFormatter)
             where TController : BaseController
+            where TFormatter : IMessageFormatter
         {
-            var result = VerifyLookingAtAdapter(player, out AdapterFindResult<TransformAdapter, TController> findResult, errorLangEntry);
+            var result = VerifyLookingAtAdapter(player, out AdapterFindResult<TransformAdapter, TController> findResult, errorFormatter);
             controller = findResult.Controller;
             return result;
         }
@@ -3333,7 +3341,7 @@ namespace Oxide.Plugins
             return false;
         }
 
-        private bool VerifyProfile(IPlayer player, string[] args, out ProfileController controller, LangEntry syntaxLangEntry)
+        private bool VerifyProfile(IPlayer player, string[] args, out ProfileController controller, LangEntry0 syntaxLangEntry)
         {
             if (args.Length <= 1)
             {
@@ -3362,7 +3370,7 @@ namespace Oxide.Plugins
             return false;
         }
 
-        private bool VerifyEntityComponent<T>(IPlayer player, BaseEntity entity, out T component, LangEntry errorLangEntry) where T : UnityEngine.Component
+        private bool VerifyEntityComponent<T>(IPlayer player, BaseEntity entity, out T component, LangEntry0 errorLangEntry) where T : UnityEngine.Component
         {
             if (entity.gameObject.TryGetComponent(out component))
                 return true;
@@ -13355,296 +13363,296 @@ namespace Oxide.Plugins
         {
             public static List<LangEntry> AllLangEntries = new List<LangEntry>();
 
-            public static readonly LangEntry NotApplicable = new LangEntry("NotApplicable", "N/A");
-            public static readonly LangEntry ErrorNoPermission = new LangEntry("Error.NoPermission", "You don't have permission to do that.");
-            public static readonly LangEntry ErrorMonumentFinderNotLoaded = new LangEntry("Error.MonumentFinderNotLoaded", "Error: Monument Finder is not loaded.");
-            public static readonly LangEntry ErrorNoMonuments = new LangEntry("Error.NoMonuments", "Error: No monuments found.");
-            public static readonly LangEntry ErrorNotAtMonument = new LangEntry("Error.NotAtMonument", "Error: Not at a monument. Nearest is <color=#fd4>{0}</color> with distance <color=#fd4>{1}</color>");
-            public static readonly LangEntry ErrorNoSuitableAddonFound = new LangEntry("Error.NoSuitableAddonFound", "Error: No suitable addon found.");
-            public static readonly LangEntry ErrorEntityNotEligible = new LangEntry("Error.EntityNotEligible", "Error: That entity is not managed by Monument Addons.");
-            public static readonly LangEntry ErrorNoSpawnPointFound = new LangEntry("Error.NoSpawnPointFound", "Error: No spawn point found.");
-            public static readonly LangEntry ErrorSetSyntaxGeneric = new LangEntry("Error.Set.Syntax.Generic", "Syntax: <color=#fd4>{0} set <option> <value></color>");
-            public static readonly LangEntry ErrorSetSyntax = new LangEntry("Error.Set.Syntax", "Syntax: <color=#fd4>{0} set {1} <value></color>");
-            public static readonly LangEntry ErrorSetUnknownOption = new LangEntry("Error.Set.UnknownOption", "Unrecognized option: <color=#fd4>{0}</color>");
+            public static readonly LangEntry0 NotApplicable = new("NotApplicable", "N/A");
+            public static readonly LangEntry0 ErrorNoPermission = new("Error.NoPermission", "You don't have permission to do that.");
+            public static readonly LangEntry0 ErrorMonumentFinderNotLoaded = new("Error.MonumentFinderNotLoaded", "Error: Monument Finder is not loaded.");
+            public static readonly LangEntry0 ErrorNoMonuments = new("Error.NoMonuments", "Error: No monuments found.");
+            public static readonly LangEntry2 ErrorNotAtMonument = new("Error.NotAtMonument", "Error: Not at a monument. Nearest is <color=#fd4>{0}</color> with distance <color=#fd4>{1}</color>");
+            public static readonly LangEntry0 ErrorNoSuitableAddonFound = new("Error.NoSuitableAddonFound", "Error: No suitable addon found.");
+            public static readonly LangEntry0 ErrorEntityNotEligible = new("Error.EntityNotEligible", "Error: That entity is not managed by Monument Addons.");
+            public static readonly LangEntry0 ErrorNoSpawnPointFound = new("Error.NoSpawnPointFound", "Error: No spawn point found.");
+            public static readonly LangEntry1 ErrorSetSyntaxGeneric = new("Error.Set.Syntax.Generic", "Syntax: <color=#fd4>{0} set <option> <value></color>");
+            public static readonly LangEntry2 ErrorSetSyntax = new("Error.Set.Syntax", "Syntax: <color=#fd4>{0} set {1} <value></color>");
+            public static readonly LangEntry1 ErrorSetUnknownOption = new("Error.Set.UnknownOption", "Unrecognized option: <color=#fd4>{0}</color>");
 
-            public static readonly LangEntry SpawnErrorSyntax = new LangEntry("Spawn.Error.Syntax", "Syntax: <color=#fd4>maspawn <entity></color>");
-            public static readonly LangEntry SpawnErrorNoProfileSelected = new LangEntry("Spawn.Error.NoProfileSelected", "Error: No profile selected. Run <color=#fd4>maprofile help</color> for help.");
-            public static readonly LangEntry SpawnErrorEntityNotFound = new LangEntry("Spawn.Error.EntityNotFound2", "Error: No entity found matching name <color=#fd4>{0}</color>.");
-            public static readonly LangEntry SpawnErrorEntityOrAddonNotFound = new LangEntry("Spawn.Error.EntityOrCustomNotFound", "Error: No entity or custom addon found matching name <color=#fd4>{0}</color>.");
-            public static readonly LangEntry SpawnErrorMultipleMatches = new LangEntry("Spawn.Error.MultipleMatches", "Multiple matches:\n");
-            public static readonly LangEntry ErrorNoSurface = new LangEntry("Error.NoSurface", "Error: No valid surface found.");
-            public static readonly LangEntry SpawnSuccess = new LangEntry("Spawn.Success2", "Spawned entity at <color=#fd4>{0}</color> matching monument(s) and saved to <color=#fd4>{1}</color> profile for monument <color=#fd4>{2}</color>.");
-            public static readonly LangEntry KillSuccess = new LangEntry("Kill.Success4", "Killed <color=#fd4>{0}</color> at <color=#fd4>{1}</color> matching monument(s) and removed from profile <color=#fd4>{2}</color>. Run <color=#fd4>maundo</color> to restore it.");
-            public static readonly LangEntry SaveNothingToDo = new LangEntry("Save.NothingToDo", "No changes detected for that entity.");
-            public static readonly LangEntry SaveSuccess = new LangEntry("Save.Success", "Updated entity at <color=#fd4>{0}</color> matching monument(s) and saved to profile <color=#fd4>{1}</color>.");
+            public static readonly LangEntry0 SpawnErrorSyntax = new("Spawn.Error.Syntax", "Syntax: <color=#fd4>maspawn <entity></color>");
+            public static readonly LangEntry0 SpawnErrorNoProfileSelected = new("Spawn.Error.NoProfileSelected", "Error: No profile selected. Run <color=#fd4>maprofile help</color> for help.");
+            public static readonly LangEntry1 SpawnErrorEntityNotFound = new("Spawn.Error.EntityNotFound2", "Error: No entity found matching name <color=#fd4>{0}</color>.");
+            public static readonly LangEntry1 SpawnErrorEntityOrAddonNotFound = new("Spawn.Error.EntityOrCustomNotFound", "Error: No entity or custom addon found matching name <color=#fd4>{0}</color>.");
+            public static readonly LangEntry0 SpawnErrorMultipleMatches = new("Spawn.Error.MultipleMatches", "Multiple matches:\n");
+            public static readonly LangEntry0 ErrorNoSurface = new("Error.NoSurface", "Error: No valid surface found.");
+            public static readonly LangEntry3 SpawnSuccess = new("Spawn.Success2", "Spawned entity at <color=#fd4>{0}</color> matching monument(s) and saved to <color=#fd4>{1}</color> profile for monument <color=#fd4>{2}</color>.");
+            public static readonly LangEntry3 KillSuccess = new("Kill.Success4", "Killed <color=#fd4>{0}</color> at <color=#fd4>{1}</color> matching monument(s) and removed from profile <color=#fd4>{2}</color>. Run <color=#fd4>maundo</color> to restore it.");
+            public static readonly LangEntry0 SaveNothingToDo = new("Save.NothingToDo", "No changes detected for that entity.");
+            public static readonly LangEntry2 SaveSuccess = new("Save.Success", "Updated entity at <color=#fd4>{0}</color> matching monument(s) and saved to profile <color=#fd4>{1}</color>.");
 
-            public static readonly LangEntry PrefabErrorSyntax = new LangEntry("Prefab.Error.Syntax", "Syntax: <color=#fd4>maprefab <prefab></color>");
-            public static readonly LangEntry PrefabErrorIsEntity = new LangEntry("Prefab.Error.IsEntity", "Error: <color=#fd4>{0}</color> is an entity prefab. Use <color=#fd4>maspawn</color> instead of <color=#fd4>maprefab</color>.");
-            public static readonly LangEntry PrefabErrorNotFound = new LangEntry("Prefab.Error.NotFound", "Error: No allowed prefab found matching name <color=#fd4>{0}</color>.");
-            public static readonly LangEntry PrefabSuccess = new LangEntry("Prefab.Success", "Created prefab instance at <color=#fd4>{0}</color> matching monument(s) and saved to <color=#fd4>{1}</color> profile for monument <color=#fd4>{2}</color>.");
+            public static readonly LangEntry0 PrefabErrorSyntax = new("Prefab.Error.Syntax", "Syntax: <color=#fd4>maprefab <prefab></color>");
+            public static readonly LangEntry1 PrefabErrorIsEntity = new("Prefab.Error.IsEntity", "Error: <color=#fd4>{0}</color> is an entity prefab. Use <color=#fd4>maspawn</color> instead of <color=#fd4>maprefab</color>.");
+            public static readonly LangEntry1 PrefabErrorNotFound = new("Prefab.Error.NotFound", "Error: No allowed prefab found matching name <color=#fd4>{0}</color>.");
+            public static readonly LangEntry3 PrefabSuccess = new("Prefab.Success", "Created prefab instance at <color=#fd4>{0}</color> matching monument(s) and saved to <color=#fd4>{1}</color> profile for monument <color=#fd4>{2}</color>.");
 
-            public static readonly LangEntry UndoNotFound = new LangEntry("Undo.NotFound", "No recent action to undo.");
-            public static readonly LangEntry UndoKillSuccess = new LangEntry("Undo.Kill.Success", "Successfully restored <color=#fd4>{0}</color> at monument <color=#fd4>{1}</color> in profile <color=#fd4>{2}</color>.");
+            public static readonly LangEntry0 UndoNotFound = new("Undo.NotFound", "No recent action to undo.");
+            public static readonly LangEntry3 UndoKillSuccess = new("Undo.Kill.Success", "Successfully restored <color=#fd4>{0}</color> at monument <color=#fd4>{1}</color> in profile <color=#fd4>{2}</color>.");
 
-            public static readonly LangEntry PasteNotCompatible = new LangEntry("Paste.NotCompatible", "CopyPaste is not loaded or its version is incompatible.");
-            public static readonly LangEntry PasteSyntax = new LangEntry("Paste.Syntax", "Syntax: <color=#fd4>mapaste <file></color>");
-            public static readonly LangEntry PasteNotFound = new LangEntry("Paste.NotFound", "File <color=#fd4>{0}</color> does not exist.");
-            public static readonly LangEntry PasteSuccess = new LangEntry("Paste.Success", "Pasted <color=#fd4>{0}</color> at <color=#fd4>{1}</color> (x<color=#fd4>{2}</color>) and saved to profile <color=#fd4>{3}</color>.");
+            public static readonly LangEntry0 PasteNotCompatible = new("Paste.NotCompatible", "CopyPaste is not loaded or its version is incompatible.");
+            public static readonly LangEntry0 PasteSyntax = new("Paste.Syntax", "Syntax: <color=#fd4>mapaste <file></color>");
+            public static readonly LangEntry1 PasteNotFound = new("Paste.NotFound", "File <color=#fd4>{0}</color> does not exist.");
+            public static readonly LangEntry4 PasteSuccess = new("Paste.Success", "Pasted <color=#fd4>{0}</color> at <color=#fd4>{1}</color> (x<color=#fd4>{2}</color>) and saved to profile <color=#fd4>{3}</color>.");
 
-            public static readonly LangEntry AddonTypeUnknown = new LangEntry("AddonType.Unknown", "Addon");
-            public static readonly LangEntry AddonTypeEntity = new LangEntry("AddonType.Entity", "Entity");
-            public static readonly LangEntry AddonTypePrefab = new LangEntry("AddonType.Prefab", "Prefab");
-            public static readonly LangEntry AddonTypeSpawnPoint = new LangEntry("AddonType.SpawnPoint", "Spawn point");
-            public static readonly LangEntry AddonTypePaste = new LangEntry("AddonType.Paste", "Paste");
-            public static readonly LangEntry AddonTypeCustom = new LangEntry("AddonType.Custom", "Custom");
+            public static readonly LangEntry0 AddonTypeUnknown = new("AddonType.Unknown", "Addon");
+            public static readonly LangEntry0 AddonTypeEntity = new("AddonType.Entity", "Entity");
+            public static readonly LangEntry0 AddonTypePrefab = new("AddonType.Prefab", "Prefab");
+            public static readonly LangEntry0 AddonTypeSpawnPoint = new("AddonType.SpawnPoint", "Spawn point");
+            public static readonly LangEntry0 AddonTypePaste = new("AddonType.Paste", "Paste");
+            public static readonly LangEntry0 AddonTypeCustom = new("AddonType.Custom", "Custom");
 
-            public static readonly LangEntry SpawnGroupCreateSyntax = new LangEntry("SpawnGroup.Create.Syntax", "Syntax: <color=#fd4>{0} create <name></color>");
-            public static readonly LangEntry SpawnGroupCreateNameInUse = new LangEntry("SpawnGroup.Create.NameInUse", "There is already a spawn group named <color=#fd4>{0}</color> at monument <color=#fd4>{1}</color> in profile <color=#fd4>{2}</color>. Please use a different name.");
-            public static readonly LangEntry SpawnGroupCreateSucces = new LangEntry("SpawnGroup.Create.Success", "Successfully created spawn group <color=#fd4>{0}</color>.");
-            public static readonly LangEntry SpawnGroupSetSuccess = new LangEntry("SpawnGroup.Set.Success", "Successfully updated spawn group <color=#fd4>{0}</color> with option <color=#fd4>{1}</color>: <color=#fd4>{2}</color>.");
-            public static readonly LangEntry SpawnGroupAddSyntax = new LangEntry("SpawnGroup.Add.Syntax", "Syntax: <color=#fd4>{0} add <entity> <weight></color>");
-            public static readonly LangEntry SpawnGroupAddSuccess = new LangEntry("SpawnGroup.Add.Success", "Successfully added entity <color=#fd4>{0}</color> with weight <color=#fd4>{1}</color> to spawn group <color=#fd4>{2}</color>.");
-            public static readonly LangEntry SpawnGroupRemoveSyntax = new LangEntry("SpawnGroup.Remove.Syntax2", "Syntax: <color=#fd4>{0} remove <entity></color>");
-            public static readonly LangEntry SpawnGroupRemoveMultipleMatches = new LangEntry("SpawnGroup.Remove.MultipleMatches", "Multiple entities in spawn group <color=#fd4>{0}</color> found matching: <color=#fd4>{1}</color>. Please be more specific.");
-            public static readonly LangEntry SpawnGroupRemoveNoMatch = new LangEntry("SpawnGroup.Remove.NoMatch", "No entity found in spawn group <color=#fd4>{0}</color> matching <color=#fd4>{1}</color>");
-            public static readonly LangEntry SpawnGroupRemoveSuccess = new LangEntry("SpawnGroup.Remove.Success", "Successfully removed entity <color=#fd4>{0}</color> from spawn group <color=#fd4>{1}</color>.");
+            public static readonly LangEntry1 SpawnGroupCreateSyntax = new("SpawnGroup.Create.Syntax", "Syntax: <color=#fd4>{0} create <name></color>");
+            public static readonly LangEntry3 SpawnGroupCreateNameInUse = new("SpawnGroup.Create.NameInUse", "There is already a spawn group named <color=#fd4>{0}</color> at monument <color=#fd4>{1}</color> in profile <color=#fd4>{2}</color>. Please use a different name.");
+            public static readonly LangEntry1 SpawnGroupCreateSucces = new("SpawnGroup.Create.Success", "Successfully created spawn group <color=#fd4>{0}</color>.");
+            public static readonly LangEntry3 SpawnGroupSetSuccess = new("SpawnGroup.Set.Success", "Successfully updated spawn group <color=#fd4>{0}</color> with option <color=#fd4>{1}</color>: <color=#fd4>{2}</color>.");
+            public static readonly LangEntry1 SpawnGroupAddSyntax = new("SpawnGroup.Add.Syntax", "Syntax: <color=#fd4>{0} add <entity> <weight></color>");
+            public static readonly LangEntry3 SpawnGroupAddSuccess = new("SpawnGroup.Add.Success", "Successfully added entity <color=#fd4>{0}</color> with weight <color=#fd4>{1}</color> to spawn group <color=#fd4>{2}</color>.");
+            public static readonly LangEntry1 SpawnGroupRemoveSyntax = new("SpawnGroup.Remove.Syntax2", "Syntax: <color=#fd4>{0} remove <entity></color>");
+            public static readonly LangEntry2 SpawnGroupRemoveMultipleMatches = new("SpawnGroup.Remove.MultipleMatches", "Multiple entities in spawn group <color=#fd4>{0}</color> found matching: <color=#fd4>{1}</color>. Please be more specific.");
+            public static readonly LangEntry2 SpawnGroupRemoveNoMatch = new("SpawnGroup.Remove.NoMatch", "No entity found in spawn group <color=#fd4>{0}</color> matching <color=#fd4>{1}</color>");
+            public static readonly LangEntry2 SpawnGroupRemoveSuccess = new("SpawnGroup.Remove.Success", "Successfully removed entity <color=#fd4>{0}</color> from spawn group <color=#fd4>{1}</color>.");
 
-            public static readonly LangEntry SpawnGroupNotFound = new LangEntry("SpawnGroup.NotFound", "No spawn group found with name: <color=#fd4>{0}</color>");
-            public static readonly LangEntry SpawnGroupMultipeMatches = new LangEntry("SpawnGroup.MultipeMatches2", "Multiple spawn groups found matching name: <color=#fd4>{0}</color>");
-            public static readonly LangEntry SpawnPointCreateSyntax = new LangEntry("SpawnPoint.Create.Syntax", "Syntax: <color=#fd4>{0} create <group_name></color>");
-            public static readonly LangEntry SpawnPointCreateSuccess = new LangEntry("SpawnPoint.Create.Success", "Successfully added spawn point to spawn group <color=#fd4>{0}</color>.");
-            public static readonly LangEntry SpawnPointSetSuccess = new LangEntry("SpawnPoint.Set.Success", "Successfully updated spawn point with option <color=#fd4>{0}</color>: <color=#fd4>{1}</color>.");
+            public static readonly LangEntry1 SpawnGroupNotFound = new("SpawnGroup.NotFound", "No spawn group found with name: <color=#fd4>{0}</color>");
+            public static readonly LangEntry1 SpawnGroupMultipeMatches = new("SpawnGroup.MultipeMatches2", "Multiple spawn groups found matching name: <color=#fd4>{0}</color>");
+            public static readonly LangEntry1 SpawnPointCreateSyntax = new("SpawnPoint.Create.Syntax", "Syntax: <color=#fd4>{0} create <group_name></color>");
+            public static readonly LangEntry1 SpawnPointCreateSuccess = new("SpawnPoint.Create.Success", "Successfully added spawn point to spawn group <color=#fd4>{0}</color>.");
+            public static readonly LangEntry2 SpawnPointSetSuccess = new("SpawnPoint.Set.Success", "Successfully updated spawn point with option <color=#fd4>{0}</color>: <color=#fd4>{1}</color>.");
 
-            public static readonly LangEntry SpawnGroupHelpHeader = new LangEntry("SpawnGroup.Help.Header", "<size=18>Monument Addons Spawn Group Commands</size>");
-            public static readonly LangEntry SpawnGroupHelpCreate = new LangEntry("SpawnGroup.Help.Create", "<color=#fd4>{0} create <name></color> - Create a spawn group with a spawn point");
-            public static readonly LangEntry SpawnGroupHelpSet = new LangEntry("SpawnGroup.Help.Set", "<color=#fd4>{0} set <option> <value></color> - Set a property of a spawn group");
-            public static readonly LangEntry SpawnGroupHelpAdd = new LangEntry("SpawnGroup.Help.Add", "<color=#fd4>{0} add <entity> <weight></color> - Add an entity prefab to a spawn group");
-            public static readonly LangEntry SpawnGroupHelpRemove = new LangEntry("SpawnGroup.Help.Remove", "<color=#fd4>{0} remove <entity> <weight></color> - Remove an entity prefab from a spawn group");
-            public static readonly LangEntry SpawnGroupHelpSpawn = new LangEntry("SpawnGroup.Help.Spawn", "<color=#fd4>{0} spawn</color> - Run one spawn tick for a spawn group");
-            public static readonly LangEntry SpawnGroupHelpRespawn = new LangEntry("SpawnGroup.Help.Respawn", "<color=#fd4>{0} respawn</color> - Despawn entities for a spawn group and run one spawn tick");
+            public static readonly LangEntry0 SpawnGroupHelpHeader = new("SpawnGroup.Help.Header", "<size=18>Monument Addons Spawn Group Commands</size>");
+            public static readonly LangEntry1 SpawnGroupHelpCreate = new("SpawnGroup.Help.Create", "<color=#fd4>{0} create <name></color> - Create a spawn group with a spawn point");
+            public static readonly LangEntry1 SpawnGroupHelpSet = new("SpawnGroup.Help.Set", "<color=#fd4>{0} set <option> <value></color> - Set a property of a spawn group");
+            public static readonly LangEntry1 SpawnGroupHelpAdd = new("SpawnGroup.Help.Add", "<color=#fd4>{0} add <entity> <weight></color> - Add an entity prefab to a spawn group");
+            public static readonly LangEntry1 SpawnGroupHelpRemove = new("SpawnGroup.Help.Remove", "<color=#fd4>{0} remove <entity> <weight></color> - Remove an entity prefab from a spawn group");
+            public static readonly LangEntry1 SpawnGroupHelpSpawn = new("SpawnGroup.Help.Spawn", "<color=#fd4>{0} spawn</color> - Run one spawn tick for a spawn group");
+            public static readonly LangEntry1 SpawnGroupHelpRespawn = new("SpawnGroup.Help.Respawn", "<color=#fd4>{0} respawn</color> - Despawn entities for a spawn group and run one spawn tick");
 
-            public static readonly LangEntry SpawnPointHelpHeader = new LangEntry("SpawnPoint.Help.Header", "<size=18>Monument Addons Spawn Point Commands</size>");
-            public static readonly LangEntry SpawnPointHelpCreate = new LangEntry("SpawnPoint.Help.Create", "<color=#fd4>{0} create <group_name></color> - Create a spawn point");
-            public static readonly LangEntry SpawnPointHelpSet = new LangEntry("SpawnPoint.Help.Set", "<color=#fd4>{0} set <option> <value></color> - Set a property of a spawn point");
+            public static readonly LangEntry0 SpawnPointHelpHeader = new("SpawnPoint.Help.Header", "<size=18>Monument Addons Spawn Point Commands</size>");
+            public static readonly LangEntry1 SpawnPointHelpCreate = new("SpawnPoint.Help.Create", "<color=#fd4>{0} create <group_name></color> - Create a spawn point");
+            public static readonly LangEntry1 SpawnPointHelpSet = new("SpawnPoint.Help.Set", "<color=#fd4>{0} set <option> <value></color> - Set a property of a spawn point");
 
-            public static readonly LangEntry SpawnGroupSetHelpName = new LangEntry("SpawnGroup.Set.Help.Name", "<color=#fd4>Name</color>: string");
-            public static readonly LangEntry SpawnGroupSetHelpMaxPopulation = new LangEntry("SpawnGroup.Set.Help.MaxPopulation", "<color=#fd4>MaxPopulation</color>: number");
-            public static readonly LangEntry SpawnGroupSetHelpRespawnDelayMin = new LangEntry("SpawnGroup.Set.Help.RespawnDelayMin", "<color=#fd4>RespawnDelayMin</color>: number");
-            public static readonly LangEntry SpawnGroupSetHelpRespawnDelayMax = new LangEntry("SpawnGroup.Set.Help.RespawnDelayMax", "<color=#fd4>RespawnDelayMax</color>: number");
-            public static readonly LangEntry SpawnGroupSetHelpSpawnPerTickMin = new LangEntry("SpawnGroup.Set.Help.SpawnPerTickMin", "<color=#fd4>SpawnPerTickMin</color>: number");
-            public static readonly LangEntry SpawnGroupSetHelpSpawnPerTickMax = new LangEntry("SpawnGroup.Set.Help.SpawnPerTickMax", "<color=#fd4>SpawnPerTickMax</color>: number");
-            public static readonly LangEntry SpawnGroupSetHelpInitialSpawn = new LangEntry("SpawnGroup.Set.Help.InitialSpawn", "<color=#fd4>InitialSpawn</color>: true | false");
-            public static readonly LangEntry SpawnGroupSetHelpPreventDuplicates = new LangEntry("SpawnGroup.Set.Help.PreventDuplicates", "<color=#fd4>PreventDuplicates</color>: true | false");
-            public static readonly LangEntry SpawnGroupSetHelpPauseScheduleWhileFull = new LangEntry("SpawnGroup.Set.Help.PauseScheduleWhileFull","<color=#fd4>PauseScheduleWhileFull</color>: true | false");
-            public static readonly LangEntry SpawnGroupSetHelpRespawnWhenNearestPuzzleResets = new LangEntry("SpawnGroup.Set.Help.RespawnWhenNearestPuzzleResets","<color=#fd4>RespawnWhenNearestPuzzleResets</color>: true | false");
+            public static readonly LangEntry0 SpawnGroupSetHelpName = new("SpawnGroup.Set.Help.Name", "<color=#fd4>Name</color>: string");
+            public static readonly LangEntry0 SpawnGroupSetHelpMaxPopulation = new("SpawnGroup.Set.Help.MaxPopulation", "<color=#fd4>MaxPopulation</color>: number");
+            public static readonly LangEntry0 SpawnGroupSetHelpRespawnDelayMin = new("SpawnGroup.Set.Help.RespawnDelayMin", "<color=#fd4>RespawnDelayMin</color>: number");
+            public static readonly LangEntry0 SpawnGroupSetHelpRespawnDelayMax = new("SpawnGroup.Set.Help.RespawnDelayMax", "<color=#fd4>RespawnDelayMax</color>: number");
+            public static readonly LangEntry0 SpawnGroupSetHelpSpawnPerTickMin = new("SpawnGroup.Set.Help.SpawnPerTickMin", "<color=#fd4>SpawnPerTickMin</color>: number");
+            public static readonly LangEntry0 SpawnGroupSetHelpSpawnPerTickMax = new("SpawnGroup.Set.Help.SpawnPerTickMax", "<color=#fd4>SpawnPerTickMax</color>: number");
+            public static readonly LangEntry0 SpawnGroupSetHelpInitialSpawn = new("SpawnGroup.Set.Help.InitialSpawn", "<color=#fd4>InitialSpawn</color>: true | false");
+            public static readonly LangEntry0 SpawnGroupSetHelpPreventDuplicates = new("SpawnGroup.Set.Help.PreventDuplicates", "<color=#fd4>PreventDuplicates</color>: true | false");
+            public static readonly LangEntry0 SpawnGroupSetHelpPauseScheduleWhileFull = new("SpawnGroup.Set.Help.PauseScheduleWhileFull","<color=#fd4>PauseScheduleWhileFull</color>: true | false");
+            public static readonly LangEntry0 SpawnGroupSetHelpRespawnWhenNearestPuzzleResets = new("SpawnGroup.Set.Help.RespawnWhenNearestPuzzleResets","<color=#fd4>RespawnWhenNearestPuzzleResets</color>: true | false");
 
-            public static readonly LangEntry SpawnPointSetHelpExclusive = new LangEntry("SpawnPoint.Set.Help.Exclusive", "<color=#fd4>Exclusive</color>: true | false");
-            public static readonly LangEntry SpawnPointSetHelpSnapToGround = new LangEntry("SpawnPoint.Set.Help.SnapToGround", "<color=#fd4>SnapToGround</color>: true | false");
-            public static readonly LangEntry SpawnPointSetHelpCheckSpace = new LangEntry("SpawnPoint.Set.Help.CheckSpace", "<color=#fd4>CheckSpace</color>: true | false");
-            public static readonly LangEntry SpawnPointSetHelpRandomRotation = new LangEntry("SpawnPoint.Set.Help.RandomRotation", "<color=#fd4>RandomRotation</color>: true | false");
-            public static readonly LangEntry SpawnPointSetHelpRandomRadius = new LangEntry("SpawnPoint.Set.Help.RandomRadius", "<color=#fd4>RandomRadius</color>: number");
-            public static readonly LangEntry SpawnPointSetHelpPlayerDetectionRadius = new LangEntry("SpawnPoint.Set.Help.PlayerDetectionRadius", "<color=#fd4>PlayerDetectionRadius</color>: number");
+            public static readonly LangEntry0 SpawnPointSetHelpExclusive = new("SpawnPoint.Set.Help.Exclusive", "<color=#fd4>Exclusive</color>: true | false");
+            public static readonly LangEntry0 SpawnPointSetHelpSnapToGround = new("SpawnPoint.Set.Help.SnapToGround", "<color=#fd4>SnapToGround</color>: true | false");
+            public static readonly LangEntry0 SpawnPointSetHelpCheckSpace = new("SpawnPoint.Set.Help.CheckSpace", "<color=#fd4>CheckSpace</color>: true | false");
+            public static readonly LangEntry0 SpawnPointSetHelpRandomRotation = new("SpawnPoint.Set.Help.RandomRotation", "<color=#fd4>RandomRotation</color>: true | false");
+            public static readonly LangEntry0 SpawnPointSetHelpRandomRadius = new("SpawnPoint.Set.Help.RandomRadius", "<color=#fd4>RandomRadius</color>: number");
+            public static readonly LangEntry0 SpawnPointSetHelpPlayerDetectionRadius = new("SpawnPoint.Set.Help.PlayerDetectionRadius", "<color=#fd4>PlayerDetectionRadius</color>: number");
 
-            public static readonly LangEntry PuzzleAddSpawnGroupSyntax = new LangEntry("Puzzle.AddSpawnGroup.Syntax", "Syntax: <color=#fd4>{0} add <group_name></color>");
-            public static readonly LangEntry PuzzleAddSpawnGroupSuccess = new LangEntry("Puzzle.AddSpawnGroup.Success", "Successfully added spawn group <color=#fd4>{0}</color> to puzzle.");
-            public static readonly LangEntry PuzzleRemoveSpawnGroupSyntax = new LangEntry("Puzzle.RemoveSpawnGroup.Syntax", "Syntax: <color=#fd4>{0} remove <group_name></color>");
-            public static readonly LangEntry PuzzleRemoveSpawnGroupSuccess = new LangEntry("Puzzle.RemoveSpawnGroup.Success", "Successfully removed spawn group <color=#fd4>{0}</color> from puzzle.");
-            public static readonly LangEntry PuzzleNotPresent = new LangEntry("Puzzle.Error.NotPresent", "That is not a puzzle entity.");
-            public static readonly LangEntry PuzzleNotConnected = new LangEntry("Puzzle.Error.NotConnected", "Entity <color=#fd4>{0}</color> is not connected to a puzzle.");
-            public static readonly LangEntry PuzzleResetSuccess = new LangEntry("Puzzle.Reset.Success", "Puzzle successfully reset.");
-            public static readonly LangEntry PuzzleSetSuccess = new LangEntry("Puzzle.Set.Success", "Successfully updated puzzle with option <color=#fd4>{0}</color>: <color=#fd4>{1}</color>.");
+            public static readonly LangEntry1 PuzzleAddSpawnGroupSyntax = new("Puzzle.AddSpawnGroup.Syntax", "Syntax: <color=#fd4>{0} add <group_name></color>");
+            public static readonly LangEntry1 PuzzleAddSpawnGroupSuccess = new("Puzzle.AddSpawnGroup.Success", "Successfully added spawn group <color=#fd4>{0}</color> to puzzle.");
+            public static readonly LangEntry1 PuzzleRemoveSpawnGroupSyntax = new("Puzzle.RemoveSpawnGroup.Syntax", "Syntax: <color=#fd4>{0} remove <group_name></color>");
+            public static readonly LangEntry1 PuzzleRemoveSpawnGroupSuccess = new("Puzzle.RemoveSpawnGroup.Success", "Successfully removed spawn group <color=#fd4>{0}</color> from puzzle.");
+            public static readonly LangEntry0 PuzzleNotPresent = new("Puzzle.Error.NotPresent", "That is not a puzzle entity.");
+            public static readonly LangEntry1 PuzzleNotConnected = new("Puzzle.Error.NotConnected", "Entity <color=#fd4>{0}</color> is not connected to a puzzle.");
+            public static readonly LangEntry0 PuzzleResetSuccess = new("Puzzle.Reset.Success", "Puzzle successfully reset.");
+            public static readonly LangEntry2 PuzzleSetSuccess = new("Puzzle.Set.Success", "Successfully updated puzzle with option <color=#fd4>{0}</color>: <color=#fd4>{1}</color>.");
 
-            public static readonly LangEntry PuzzleHelpHeader = new LangEntry("Puzzle.Help.Header", "<size=18>Monument Addons Puzzle Commands</size>");
-            public static readonly LangEntry PuzzleHelpReset = new LangEntry("Puzzle.Help.Reset", "<color=#fd4>{0} reset</color> - Reset the puzzle connected to the entity you are looking at");
-            public static readonly LangEntry PuzzleHelpSet = new LangEntry("Puzzle.Help.Set", "<color=#fd4>{0} set <option> <value></color> - Set a property of a puzzle");
-            public static readonly LangEntry PuzzleHelpAdd = new LangEntry("Puzzle.Help.Add", "<color=#fd4>{0} add <group_name></color> - Associate a spawn group with a puzzle");
-            public static readonly LangEntry PuzzleHelpRemove = new LangEntry("Puzzle.Help.Remove", "<color=#fd4>{0} remove <group_name></color> - Disassociate a spawn group with a puzzle");
+            public static readonly LangEntry0 PuzzleHelpHeader = new("Puzzle.Help.Header", "<size=18>Monument Addons Puzzle Commands</size>");
+            public static readonly LangEntry1 PuzzleHelpReset = new("Puzzle.Help.Reset", "<color=#fd4>{0} reset</color> - Reset the puzzle connected to the entity you are looking at");
+            public static readonly LangEntry1 PuzzleHelpSet = new("Puzzle.Help.Set", "<color=#fd4>{0} set <option> <value></color> - Set a property of a puzzle");
+            public static readonly LangEntry1 PuzzleHelpAdd = new("Puzzle.Help.Add", "<color=#fd4>{0} add <group_name></color> - Associate a spawn group with a puzzle");
+            public static readonly LangEntry1 PuzzleHelpRemove = new("Puzzle.Help.Remove", "<color=#fd4>{0} remove <group_name></color> - Disassociate a spawn group with a puzzle");
 
-            public static readonly LangEntry PuzzleSetHelpMaxPlayersBlockReset = new LangEntry("Puzzle.Set.Help.MaxPlayersBlockReset", "<color=#fd4>PlayersBlockReset</color>: true | false");
-            public static readonly LangEntry PuzzleSetHelpPlayerDetectionRadius = new LangEntry("Puzzle.Set.Help.PlayerDetectionRadius", "<color=#fd4>PlayerDetectionRadius</color>: number");
-            public static readonly LangEntry PuzzleSetHelpSecondsBetweenResets = new LangEntry("Puzzle.Set.Help.SecondsBetweenResets", "<color=#fd4>SecondsBetweenResets</color>: number");
+            public static readonly LangEntry0 PuzzleSetHelpMaxPlayersBlockReset = new("Puzzle.Set.Help.MaxPlayersBlockReset", "<color=#fd4>PlayersBlockReset</color>: true | false");
+            public static readonly LangEntry0 PuzzleSetHelpPlayerDetectionRadius = new("Puzzle.Set.Help.PlayerDetectionRadius", "<color=#fd4>PlayerDetectionRadius</color>: number");
+            public static readonly LangEntry0 PuzzleSetHelpSecondsBetweenResets = new("Puzzle.Set.Help.SecondsBetweenResets", "<color=#fd4>SecondsBetweenResets</color>: number");
 
-            public static readonly LangEntry ShowVanillaNoSpawnPoints = new LangEntry("Show.Vanilla.NoSpawnPoints", "No spawn points found in <color=#fd4>{0}</color>.");
-            public static readonly LangEntry GenerateSuccess = new LangEntry("Generate.Success", "Successfully generated profile <color=#fd4>{0}</color>.");
+            public static readonly LangEntry1 ShowVanillaNoSpawnPoints = new("Show.Vanilla.NoSpawnPoints", "No spawn points found in <color=#fd4>{0}</color>.");
+            public static readonly LangEntry1 GenerateSuccess = new("Generate.Success", "Successfully generated profile <color=#fd4>{0}</color>.");
 
-            public static readonly LangEntry ShowSuccess = new LangEntry("Show.Success", "Showing nearby Monument Addons for <color=#fd4>{0}</color>.");
-            public static readonly LangEntry ShowLabelPlugin = new LangEntry("Show.Label.Plugin", "Plugin: {0}");
-            public static readonly LangEntry ShowLabelProfile = new LangEntry("Show.Label.Profile", "Profile: {0}");
-            public static readonly LangEntry ShowLabelCustomMonument = new LangEntry("Show.Label.CustomMonument", "Custom Monument: {0} (x{1})");
-            public static readonly LangEntry ShowLabelMonument = new LangEntry("Show.Label.Monument", "Monument: {0} (x{1})");
-            public static readonly LangEntry ShowLabelMonumentWithTier = new LangEntry("Show.Label.MonumentWithTier", "Monument: {0} (x{1} | {2})");
-            public static readonly LangEntry ShowLabelSkin = new LangEntry("Show.Label.Skin", "Skin: {0}");
-            public static readonly LangEntry ShowLabelScale = new LangEntry("Show.Label.Scale", "Scale: {0}");
-            public static readonly LangEntry ShowLabelRCIdentifier = new LangEntry("Show.Label.RCIdentifier", "RC Identifier: {0}");
+            public static readonly LangEntry1 ShowSuccess = new("Show.Success", "Showing nearby Monument Addons for <color=#fd4>{0}</color>.");
+            public static readonly LangEntry1 ShowLabelPlugin = new("Show.Label.Plugin", "Plugin: {0}");
+            public static readonly LangEntry1 ShowLabelProfile = new("Show.Label.Profile", "Profile: {0}");
+            public static readonly LangEntry2 ShowLabelCustomMonument = new("Show.Label.CustomMonument", "Custom Monument: {0} (x{1})");
+            public static readonly LangEntry2 ShowLabelMonument = new("Show.Label.Monument", "Monument: {0} (x{1})");
+            public static readonly LangEntry3 ShowLabelMonumentWithTier = new("Show.Label.MonumentWithTier", "Monument: {0} (x{1} | {2})");
+            public static readonly LangEntry1 ShowLabelSkin = new("Show.Label.Skin", "Skin: {0}");
+            public static readonly LangEntry1 ShowLabelScale = new("Show.Label.Scale", "Scale: {0}");
+            public static readonly LangEntry1 ShowLabelRCIdentifier = new("Show.Label.RCIdentifier", "RC Identifier: {0}");
 
-            public static readonly LangEntry ShowHeaderEntity = new LangEntry("Show.Header.Entity", "Entity: {0}");
-            public static readonly LangEntry ShowHeaderPrefab = new LangEntry("Show.Header.Prefab", "Prefab: {0}");
-            public static readonly LangEntry ShowHeaderPuzzle = new LangEntry("Show.Header.Puzzle", "Puzzle");
-            public static readonly LangEntry ShowHeaderSpawnGroup = new LangEntry("Show.Header.SpawnGroup", "Spawn Group: {0}");
-            public static readonly LangEntry ShowHeaderVanillaSpawnGroup = new LangEntry("Show.Header.Vanilla.SpawnGroup", "Vanilla Spawn Group: {0}");
-            public static readonly LangEntry ShowHeaderSpawnPoint = new LangEntry("Show.Header.SpawnPoint", "Spawn Point ({0})");
-            public static readonly LangEntry ShowHeaderVanillaSpawnPoint = new LangEntry("Show.Header.Vanilla.SpawnPoint", "Vanilla Spawn Point ({0})");
-            public static readonly LangEntry ShowHeaderVanillaIndividualSpawnPoint = new LangEntry("Show.Header.Vanilla.IndividualSpawnPoint", "Vanilla Individual Spawn Point: {0}");
-            public static readonly LangEntry ShowHeaderPaste = new LangEntry("Show.Header.Paste", "Paste: {0}");
-            public static readonly LangEntry ShowHeaderCustom = new LangEntry("Show.Header.Custom", "Custom Addon: {0}");
+            public static readonly LangEntry1 ShowHeaderEntity = new("Show.Header.Entity", "Entity: {0}");
+            public static readonly LangEntry1 ShowHeaderPrefab = new("Show.Header.Prefab", "Prefab: {0}");
+            public static readonly LangEntry0 ShowHeaderPuzzle = new("Show.Header.Puzzle", "Puzzle");
+            public static readonly LangEntry1 ShowHeaderSpawnGroup = new("Show.Header.SpawnGroup", "Spawn Group: {0}");
+            public static readonly LangEntry1 ShowHeaderVanillaSpawnGroup = new("Show.Header.Vanilla.SpawnGroup", "Vanilla Spawn Group: {0}");
+            public static readonly LangEntry1 ShowHeaderSpawnPoint = new("Show.Header.SpawnPoint", "Spawn Point ({0})");
+            public static readonly LangEntry1 ShowHeaderVanillaSpawnPoint = new("Show.Header.Vanilla.SpawnPoint", "Vanilla Spawn Point ({0})");
+            public static readonly LangEntry1 ShowHeaderVanillaIndividualSpawnPoint = new("Show.Header.Vanilla.IndividualSpawnPoint", "Vanilla Individual Spawn Point: {0}");
+            public static readonly LangEntry1 ShowHeaderPaste = new("Show.Header.Paste", "Paste: {0}");
+            public static readonly LangEntry1 ShowHeaderCustom = new("Show.Header.Custom", "Custom Addon: {0}");
 
-            public static readonly LangEntry ShowLabelFlags = new LangEntry("Show.Label.SpawnPoint.Flags", "Flags: {0}");
-            public static readonly LangEntry ShowLabelSpawnPointExclusive = new LangEntry("Show.Label.SpawnPoint.Exclusive", "Exclusive");
-            public static readonly LangEntry ShowLabelSpawnPointRandomRotation = new LangEntry("Show.Label.SpawnPoint.RandomRotation2", "RandomRotation");
-            public static readonly LangEntry ShowLabelSpawnPointSnapToGround = new LangEntry("Show.Label.SpawnPoint.SnapToGround", "SnapToGround");
-            public static readonly LangEntry ShowLabelSpawnPointCheckSpace = new LangEntry("Show.Label.SpawnPoint.CheckSpace", "CheckSpace");
-            public static readonly LangEntry ShowLabelSpawnPointRandomRadius = new LangEntry("Show.Label.SpawnPoint.RandomRadius", "Random spawn radius: {0:f1}");
+            public static readonly LangEntry1 ShowLabelFlags = new("Show.Label.SpawnPoint.Flags", "Flags: {0}");
+            public static readonly LangEntry0 ShowLabelSpawnPointExclusive = new("Show.Label.SpawnPoint.Exclusive", "Exclusive");
+            public static readonly LangEntry0 ShowLabelSpawnPointRandomRotation = new("Show.Label.SpawnPoint.RandomRotation2", "RandomRotation");
+            public static readonly LangEntry0 ShowLabelSpawnPointSnapToGround = new("Show.Label.SpawnPoint.SnapToGround", "SnapToGround");
+            public static readonly LangEntry0 ShowLabelSpawnPointCheckSpace = new("Show.Label.SpawnPoint.CheckSpace", "CheckSpace");
+            public static readonly LangEntry1 ShowLabelSpawnPointRandomRadius = new("Show.Label.SpawnPoint.RandomRadius", "Random spawn radius: {0:f1}");
 
-            public static readonly LangEntry ShowLabelSpawnPoints = new LangEntry("Show.Label.Points", "Spawn points: {0}");
-            public static readonly LangEntry ShowLabelTiers = new LangEntry("Show.Label.Tiers", "Tiers: {0}");
-            public static readonly LangEntry ShowLabelSpawnWhenParentSpawns = new LangEntry("Show.Label.SpawnWhenParentSpawns", "Spawn when parent spawns");
-            public static readonly LangEntry ShowLabelSpawnOnServerStart = new LangEntry("Show.Label.SpawnOnServerStart", "Spawn on server start");
-            public static readonly LangEntry ShowLabelSpawnOnMapWipe = new LangEntry("Show.Label.SpawnOnMapWipe", "Spawn on map wipe");
-            public static readonly LangEntry ShowLabelInitialSpawn = new LangEntry("Show.Label.InitialSpawn", "InitialSpawn");
-            public static readonly LangEntry ShowLabelPreventDuplicates = new LangEntry("Show.Label.PreventDuplicates2", "PreventDuplicates");
-            public static readonly LangEntry ShowLabelPauseScheduleWhileFull = new LangEntry("Show.Label.PauseScheduleWhileFull", "PauseScheduleWhileFull");
-            public static readonly LangEntry ShowLabelRespawnWhenNearestPuzzleResets = new LangEntry("Show.Label.RespawnWhenNearestPuzzleResets", "RespawnWhenNearestPuzzleResets");
-            public static readonly LangEntry ShowLabelPopulation = new LangEntry("Show.Label.Population", "Population: {0} / {1}");
-            public static readonly LangEntry ShowLabelRespawnPerTick = new LangEntry("Show.Label.RespawnPerTick", "Spawn per tick: {0} - {1}");
-            public static readonly LangEntry ShowLabelRespawnDelay = new LangEntry("Show.Label.RespawnDelay", "Respawn delay: {0} - {1}");
-            public static readonly LangEntry ShowLabelNextSpawn = new LangEntry("Show.Label.NextSpawn", "Next spawn: {0}");
-            public static readonly LangEntry ShowLabelNextSpawnQueued = new LangEntry("Show.Label.NextSpawn.Queued", "Queued");
-            public static readonly LangEntry ShowLabelNextSpawnPaused = new LangEntry("Show.Label.NextSpawn.Paused", "Paused");
-            public static readonly LangEntry ShowLabelEntities = new LangEntry("Show.Label.Entities", "Entities:");
-            public static readonly LangEntry ShowLabelEntityDetail = new LangEntry("Show.Label.Entities.Detail2", "{0} | weight: {1} ({2:P1})");
-            public static readonly LangEntry ShowLabelNoEntities = new LangEntry("Show.Label.NoEntities", "No entities configured. Run /maspawngroup add <entity> <weight>");
-            public static readonly LangEntry ShowLabelPlayerDetectionRadius = new LangEntry("Show.Label.PlayerDetectionRadius", "Player detection radius: {0:f1}");
-            public static readonly LangEntry ShowLabelPlayerDetectedInRadius = new LangEntry("Show.Label.PlayerDetectedInRadius", "(!) Player detected in radius (!)");
+            public static readonly LangEntry1 ShowLabelSpawnPoints = new("Show.Label.Points", "Spawn points: {0}");
+            public static readonly LangEntry1 ShowLabelTiers = new("Show.Label.Tiers", "Tiers: {0}");
+            public static readonly LangEntry0 ShowLabelSpawnWhenParentSpawns = new("Show.Label.SpawnWhenParentSpawns", "Spawn when parent spawns");
+            public static readonly LangEntry0 ShowLabelSpawnOnServerStart = new("Show.Label.SpawnOnServerStart", "Spawn on server start");
+            public static readonly LangEntry0 ShowLabelSpawnOnMapWipe = new("Show.Label.SpawnOnMapWipe", "Spawn on map wipe");
+            public static readonly LangEntry0 ShowLabelInitialSpawn = new("Show.Label.InitialSpawn", "InitialSpawn");
+            public static readonly LangEntry0 ShowLabelPreventDuplicates = new("Show.Label.PreventDuplicates2", "PreventDuplicates");
+            public static readonly LangEntry0 ShowLabelPauseScheduleWhileFull = new("Show.Label.PauseScheduleWhileFull", "PauseScheduleWhileFull");
+            public static readonly LangEntry0 ShowLabelRespawnWhenNearestPuzzleResets = new("Show.Label.RespawnWhenNearestPuzzleResets", "RespawnWhenNearestPuzzleResets");
+            public static readonly LangEntry2 ShowLabelPopulation = new("Show.Label.Population", "Population: {0} / {1}");
+            public static readonly LangEntry2 ShowLabelRespawnPerTick = new("Show.Label.RespawnPerTick", "Spawn per tick: {0} - {1}");
+            public static readonly LangEntry2 ShowLabelRespawnDelay = new("Show.Label.RespawnDelay", "Respawn delay: {0} - {1}");
+            public static readonly LangEntry1 ShowLabelNextSpawn = new("Show.Label.NextSpawn", "Next spawn: {0}");
+            public static readonly LangEntry0 ShowLabelNextSpawnQueued = new("Show.Label.NextSpawn.Queued", "Queued");
+            public static readonly LangEntry0 ShowLabelNextSpawnPaused = new("Show.Label.NextSpawn.Paused", "Paused");
+            public static readonly LangEntry0 ShowLabelEntities = new("Show.Label.Entities", "Entities:");
+            public static readonly LangEntry3 ShowLabelEntityDetail = new("Show.Label.Entities.Detail2", "{0} | weight: {1} ({2:P1})");
+            public static readonly LangEntry0 ShowLabelNoEntities = new("Show.Label.NoEntities", "No entities configured. Run /maspawngroup add <entity> <weight>");
+            public static readonly LangEntry1 ShowLabelPlayerDetectionRadius = new("Show.Label.PlayerDetectionRadius", "Player detection radius: {0:f1}");
+            public static readonly LangEntry0 ShowLabelPlayerDetectedInRadius = new("Show.Label.PlayerDetectedInRadius", "(!) Player detected in radius (!)");
 
-            public static readonly LangEntry ShowLabelPuzzlePlayersBlockReset = new LangEntry("Show.Label.Puzzle.PlayersBlockReset", "Players block reset progress: {0}");
-            public static readonly LangEntry ShowLabelPuzzleTimeBetweenResets = new LangEntry("Show.Label.Puzzle.TimeBetweenResets", "Time between resets: {0}");
-            public static readonly LangEntry ShowLabelPuzzleNextReset = new LangEntry("Show.Label.Puzzle.NextReset", "Time until next reset: {0}");
-            public static readonly LangEntry ShowLabelPuzzleNextResetOverdue = new LangEntry("Show.Label.Puzzle.NextReset.Overdue", "Any moment now");
-            public static readonly LangEntry ShowLabelPuzzleSpawnGroups = new LangEntry("Show.Label.Puzzle.SpawnGroups", "Resets spawn groups: {0}");
+            public static readonly LangEntry1 ShowLabelPuzzlePlayersBlockReset = new("Show.Label.Puzzle.PlayersBlockReset", "Players block reset progress: {0}");
+            public static readonly LangEntry1 ShowLabelPuzzleTimeBetweenResets = new("Show.Label.Puzzle.TimeBetweenResets", "Time between resets: {0}");
+            public static readonly LangEntry1 ShowLabelPuzzleNextReset = new("Show.Label.Puzzle.NextReset", "Time until next reset: {0}");
+            public static readonly LangEntry0 ShowLabelPuzzleNextResetOverdue = new("Show.Label.Puzzle.NextReset.Overdue", "Any moment now");
+            public static readonly LangEntry1 ShowLabelPuzzleSpawnGroups = new("Show.Label.Puzzle.SpawnGroups", "Resets spawn groups: {0}");
 
-            public static readonly LangEntry SkinGet = new LangEntry("Skin.Get", "Skin ID: <color=#fd4>{0}</color>. Run <color=#fd4>{1} <skin id></color> to change it.");
-            public static readonly LangEntry SkinSetSyntax = new LangEntry("Skin.Set.Syntax", "Syntax: <color=#fd4>{0} <skin id></color>");
-            public static readonly LangEntry SkinSetSuccess = new LangEntry("Skin.Set.Success2", "Updated skin ID to <color=#fd4>{0}</color> at <color=#fd4>{1}</color> matching monument(s) and saved to profile <color=#fd4>{2}</color>.");
-            public static readonly LangEntry SkinErrorRedirect = new LangEntry("Skin.Error.Redirect", "Error: Skin <color=#fd4>{0}</color> is a redirect skin and cannot be set directly. Instead, spawn the entity as <color=#fd4>{1}</color>.");
+            public static readonly LangEntry2 SkinGet = new("Skin.Get", "Skin ID: <color=#fd4>{0}</color>. Run <color=#fd4>{1} <skin id></color> to change it.");
+            public static readonly LangEntry1 SkinSetSyntax = new("Skin.Set.Syntax", "Syntax: <color=#fd4>{0} <skin id></color>");
+            public static readonly LangEntry3 SkinSetSuccess = new("Skin.Set.Success2", "Updated skin ID to <color=#fd4>{0}</color> at <color=#fd4>{1}</color> matching monument(s) and saved to profile <color=#fd4>{2}</color>.");
+            public static readonly LangEntry2 SkinErrorRedirect = new("Skin.Error.Redirect", "Error: Skin <color=#fd4>{0}</color> is a redirect skin and cannot be set directly. Instead, spawn the entity as <color=#fd4>{1}</color>.");
 
-            public static readonly LangEntry FlagsGet = new LangEntry("Flags.Get", "Current flags: <color=#fd4>{0}</color>\nEnabled flags: <color=#fd4>{1}</color>\nDisabled flags: <color=#fd4>{2}</color>");
-            public static readonly LangEntry FlagsSetSyntax = new LangEntry("Flags.Syntax", "Syntax: <color=#fd4>{0} <flag></color>");
-            public static readonly LangEntry FlagsEnableSuccess = new LangEntry("Flags.Enable.Success", "Overrode flag <color=#fd4>{0}</color> to enabled");
-            public static readonly LangEntry FlagsDisableSuccess = new LangEntry("Flags.Disable.Success", "Overrode flag <color=#fd4>{0}</color> to disabled");
-            public static readonly LangEntry FlagsUnsetSuccess = new LangEntry("Flags.Unset.Success", "Removed override for flag <color=#fd4>{0}</color>");
+            public static readonly LangEntry3 FlagsGet = new("Flags.Get", "Current flags: <color=#fd4>{0}</color>\nEnabled flags: <color=#fd4>{1}</color>\nDisabled flags: <color=#fd4>{2}</color>");
+            public static readonly LangEntry1 FlagsSetSyntax = new("Flags.Syntax", "Syntax: <color=#fd4>{0} <flag></color>");
+            public static readonly LangEntry1 FlagsEnableSuccess = new("Flags.Enable.Success", "Overrode flag <color=#fd4>{0}</color> to enabled");
+            public static readonly LangEntry1 FlagsDisableSuccess = new("Flags.Disable.Success", "Overrode flag <color=#fd4>{0}</color> to disabled");
+            public static readonly LangEntry1 FlagsUnsetSuccess = new("Flags.Unset.Success", "Removed override for flag <color=#fd4>{0}</color>");
 
-            public static readonly LangEntry CCTVSetIdSyntax = new LangEntry("CCTV.SetId.Error.Syntax", "Syntax: <color=#fd4>{0} <id></color>");
-            public static readonly LangEntry CCTVSetIdSuccess = new LangEntry("CCTV.SetId.Success2", "Updated CCTV id to <color=#fd4>{0}</color> at <color=#fd4>{1}</color> matching monument(s) and saved to profile <color=#fd4>{2}</color>.");
-            public static readonly LangEntry CCTVSetDirectionSuccess = new LangEntry("CCTV.SetDirection.Success2", "Updated CCTV direction at <color=#fd4>{0}</color> matching monument(s) and saved to profile <color=#fd4>{1}</color>.");
+            public static readonly LangEntry1 CCTVSetIdSyntax = new("CCTV.SetId.Error.Syntax", "Syntax: <color=#fd4>{0} <id></color>");
+            public static readonly LangEntry3 CCTVSetIdSuccess = new("CCTV.SetId.Success2", "Updated CCTV id to <color=#fd4>{0}</color> at <color=#fd4>{1}</color> matching monument(s) and saved to profile <color=#fd4>{2}</color>.");
+            public static readonly LangEntry2 CCTVSetDirectionSuccess = new("CCTV.SetDirection.Success2", "Updated CCTV direction at <color=#fd4>{0}</color> matching monument(s) and saved to profile <color=#fd4>{1}</color>.");
 
-            public static readonly LangEntry SkullNameSyntax = new LangEntry("SkullName.Syntax", "Syntax: <color=#fd4>{0} <name></color>");
-            public static readonly LangEntry SkullNameSetSuccess = new LangEntry("SkullName.Set.Success", "Updated skull name to <color=#fd4>{0}</color> at <color=#fd4>{1}</color> matching monument(s) and saved to profile <color=#fd4>{2}</color>.");
+            public static readonly LangEntry1 SkullNameSyntax = new("SkullName.Syntax", "Syntax: <color=#fd4>{0} <name></color>");
+            public static readonly LangEntry3 SkullNameSetSuccess = new("SkullName.Set.Success", "Updated skull name to <color=#fd4>{0}</color> at <color=#fd4>{1}</color> matching monument(s) and saved to profile <color=#fd4>{2}</color>.");
 
-            public static readonly LangEntry SetHeadNoHeadItem = new LangEntry("Head.Set.NoHeadItem", "Error: You must be holding a head bag item to do that.");
-            public static readonly LangEntry SetHeadMismatch = new LangEntry("Head.Set.Mismatch", "Error: That is the wrong type of head for that trophy.");
-            public static readonly LangEntry SetHeadSuccess = new LangEntry("Head.Set.Success", "Updated head trophy according to your equipped item at <color=#fd4>{0}</color> matching monument(s) and saved to profile <color=#fd4>{1}</color>.");
+            public static readonly LangEntry0 SetHeadNoHeadItem = new("Head.Set.NoHeadItem", "Error: You must be holding a head bag item to do that.");
+            public static readonly LangEntry0 SetHeadMismatch = new("Head.Set.Mismatch", "Error: That is the wrong type of head for that trophy.");
+            public static readonly LangEntry2 SetHeadSuccess = new("Head.Set.Success", "Updated head trophy according to your equipped item at <color=#fd4>{0}</color> matching monument(s) and saved to profile <color=#fd4>{1}</color>.");
 
-            public static readonly LangEntry CardReaderSetLevelSyntax = new LangEntry("CardReader.SetLevel.Error.Syntax", "Syntax: <color=#fd4>{0} <1-3></color>");
-            public static readonly LangEntry CardReaderSetLevelSuccess = new LangEntry("CardReader.SetLevel.Success", "Updated card reader access level to <color=#fd4>{0}</color>.");
+            public static readonly LangEntry1 CardReaderSetLevelSyntax = new("CardReader.SetLevel.Error.Syntax", "Syntax: <color=#fd4>{0} <1-3></color>");
+            public static readonly LangEntry1 CardReaderSetLevelSuccess = new("CardReader.SetLevel.Success", "Updated card reader access level to <color=#fd4>{0}</color>.");
 
-            public static readonly LangEntry ProfileListEmpty = new LangEntry("Profile.List.Empty", "You have no profiles. Create one with <color=#fd4>maprofile create <name></maprofile>");
-            public static readonly LangEntry ProfileListHeader = new LangEntry("Profile.List.Header", "<size=18>Monument Addons Profiles</size>");
-            public static readonly LangEntry ProfileListItemEnabled = new LangEntry("Profile.List.Item.Enabled2", "<color=#fd4>{0}</color>{1} - <color=#6e6>ENABLED</color>");
-            public static readonly LangEntry ProfileListItemDisabled = new LangEntry("Profile.List.Item.Disabled2", "<color=#fd4>{0}</color>{1} - <color=#ccc>DISABLED</color>");
-            public static readonly LangEntry ProfileListItemSelected = new LangEntry("Profile.List.Item.Selected2", "<color=#fd4>{0}</color>{1} - <color=#6cf>SELECTED</color>");
-            public static readonly LangEntry ProfileByAuthor = new LangEntry("Profile.ByAuthor", " by {0}");
+            public static readonly LangEntry0 ProfileListEmpty = new("Profile.List.Empty", "You have no profiles. Create one with <color=#fd4>maprofile create <name></maprofile>");
+            public static readonly LangEntry0 ProfileListHeader = new("Profile.List.Header", "<size=18>Monument Addons Profiles</size>");
+            public static readonly LangEntry2 ProfileListItemEnabled = new("Profile.List.Item.Enabled2", "<color=#fd4>{0}</color>{1} - <color=#6e6>ENABLED</color>");
+            public static readonly LangEntry2 ProfileListItemDisabled = new("Profile.List.Item.Disabled2", "<color=#fd4>{0}</color>{1} - <color=#ccc>DISABLED</color>");
+            public static readonly LangEntry2 ProfileListItemSelected = new("Profile.List.Item.Selected2", "<color=#fd4>{0}</color>{1} - <color=#6cf>SELECTED</color>");
+            public static readonly LangEntry1 ProfileByAuthor = new("Profile.ByAuthor", " by {0}");
 
-            public static readonly LangEntry ProfileInstallSyntax = new LangEntry("Profile.Install.Syntax", "Syntax: <color=#fd4>maprofile install <url></color>");
-            public static readonly LangEntry ProfileInstallShorthandSyntax = new LangEntry("Profile.Install.Shorthand.Syntax", "Syntax: <color=#fd4>mainstall <url></color>");
-            public static readonly LangEntry ProfileUrlInvalid = new LangEntry("Profile.Url.Invalid", "Invalid URL: {0}");
-            public static readonly LangEntry ProfileAlreadyExistsNotEmpty = new LangEntry("Profile.Error.AlreadyExists.NotEmpty", "Error: Profile <color=#fd4>{0}</color> already exists and is not empty.");
-            public static readonly LangEntry ProfileInstallSuccess = new LangEntry("Profile.Install.Success2", "Successfully installed and <color=#6e6>ENABLED</color> profile <color=#fd4>{0}</color>{1}.");
-            public static readonly LangEntry ProfileInstallError = new LangEntry("Profile.Install.Error", "Error installing profile from url {0}. See the error logs for more details.");
-            public static readonly LangEntry ProfileDownloadError = new LangEntry("Profile.Download.Error", "Error downloading profile from url {0}\nStatus code: {1}");
-            public static readonly LangEntry ProfileParseError = new LangEntry("Profile.Parse.Error", "Error parsing profile from url {0}\n{1}");
+            public static readonly LangEntry0 ProfileInstallSyntax = new("Profile.Install.Syntax", "Syntax: <color=#fd4>maprofile install <url></color>");
+            public static readonly LangEntry0 ProfileInstallShorthandSyntax = new("Profile.Install.Shorthand.Syntax", "Syntax: <color=#fd4>mainstall <url></color>");
+            public static readonly LangEntry1 ProfileUrlInvalid = new("Profile.Url.Invalid", "Invalid URL: {0}");
+            public static readonly LangEntry1 ProfileAlreadyExistsNotEmpty = new("Profile.Error.AlreadyExists.NotEmpty", "Error: Profile <color=#fd4>{0}</color> already exists and is not empty.");
+            public static readonly LangEntry2 ProfileInstallSuccess = new("Profile.Install.Success2", "Successfully installed and <color=#6e6>ENABLED</color> profile <color=#fd4>{0}</color>{1}.");
+            public static readonly LangEntry1 ProfileInstallError = new("Profile.Install.Error", "Error installing profile from url {0}. See the error logs for more details.");
+            public static readonly LangEntry2 ProfileDownloadError = new("Profile.Download.Error", "Error downloading profile from url {0}\nStatus code: {1}");
+            public static readonly LangEntry2 ProfileParseError = new("Profile.Parse.Error", "Error parsing profile from url {0}\n{1}");
 
-            public static readonly LangEntry ProfileDescribeSyntax = new LangEntry("Profile.Describe.Syntax", "Syntax: <color=#fd4>maprofile describe <name></color>");
-            public static readonly LangEntry ProfileNotFound = new LangEntry("Profile.Error.NotFound", "Error: Profile <color=#fd4>{0}</color> not found.");
-            public static readonly LangEntry ProfileEmpty = new LangEntry("Profile.Empty", "Profile <color=#fd4>{0}</color> is empty.");
-            public static readonly LangEntry ProfileDescribeHeader = new LangEntry("Profile.Describe.Header", "Describing profile <color=#fd4>{0}</color>.");
-            public static readonly LangEntry ProfileDescribeItem = new LangEntry("Profile.Describe.Item2", "{0}: <color=#fd4>{1}</color> x{2} @ {3}");
-            public static readonly LangEntry ProfileSelectSyntax = new LangEntry("Profile.Select.Syntax", "Syntax: <color=#fd4>maprofile select <name></color>");
-            public static readonly LangEntry ProfileSelectSuccess = new LangEntry("Profile.Select.Success2", "Successfully <color=#6cf>SELECTED</color> profile <color=#fd4>{0}</color>.");
-            public static readonly LangEntry ProfileSelectEnableSuccess = new LangEntry("Profile.Select.Enable.Success", "Successfully <color=#6cf>SELECTED</color> and <color=#6e6>ENABLED</color> profile <color=#fd4>{0}</color>.");
+            public static readonly LangEntry0 ProfileDescribeSyntax = new("Profile.Describe.Syntax", "Syntax: <color=#fd4>maprofile describe <name></color>");
+            public static readonly LangEntry1 ProfileNotFound = new("Profile.Error.NotFound", "Error: Profile <color=#fd4>{0}</color> not found.");
+            public static readonly LangEntry1 ProfileEmpty = new("Profile.Empty", "Profile <color=#fd4>{0}</color> is empty.");
+            public static readonly LangEntry1 ProfileDescribeHeader = new("Profile.Describe.Header", "Describing profile <color=#fd4>{0}</color>.");
+            public static readonly LangEntry4 ProfileDescribeItem = new("Profile.Describe.Item2", "{0}: <color=#fd4>{1}</color> x{2} @ {3}");
+            public static readonly LangEntry0 ProfileSelectSyntax = new("Profile.Select.Syntax", "Syntax: <color=#fd4>maprofile select <name></color>");
+            public static readonly LangEntry1 ProfileSelectSuccess = new("Profile.Select.Success2", "Successfully <color=#6cf>SELECTED</color> profile <color=#fd4>{0}</color>.");
+            public static readonly LangEntry1 ProfileSelectEnableSuccess = new("Profile.Select.Enable.Success", "Successfully <color=#6cf>SELECTED</color> and <color=#6e6>ENABLED</color> profile <color=#fd4>{0}</color>.");
 
-            public static readonly LangEntry ProfileEnableSyntax = new LangEntry("Profile.Enable.Syntax", "Syntax: <color=#fd4>maprofile enable <name></color>");
-            public static readonly LangEntry ProfileAlreadyEnabled = new LangEntry("Profile.AlreadyEnabled", "Profile <color=#fd4>{0}</color> is already <color=#6e6>ENABLED</color>.");
-            public static readonly LangEntry ProfileEnableSuccess = new LangEntry("Profile.Enable.Success", "Profile <color=#fd4>{0}</color> is now: <color=#6e6>ENABLED</color>.");
-            public static readonly LangEntry ProfileDisableSyntax = new LangEntry("Profile.Disable.Syntax", "Syntax: <color=#fd4>maprofile disable <name></color>");
-            public static readonly LangEntry ProfileAlreadyDisabled = new LangEntry("Profile.AlreadyDisabled2", "Profile <color=#fd4>{0}</color> is already <color=#ccc>DISABLED</color>.");
-            public static readonly LangEntry ProfileDisableSuccess = new LangEntry("Profile.Disable.Success2", "Profile <color=#fd4>{0}</color> is now: <color=#ccc>DISABLED</color>.");
-            public static readonly LangEntry ProfileReloadSyntax = new LangEntry("Profile.Reload.Syntax", "Syntax: <color=#fd4>maprofile reload <name></color>");
-            public static readonly LangEntry ProfileNotEnabled = new LangEntry("Profile.NotEnabled", "Error: Profile <color=#fd4>{0}</color> is not enabled.");
-            public static readonly LangEntry ProfileReloadSuccess = new LangEntry("Profile.Reload.Success", "Reloaded profile <color=#fd4>{0}</color>.");
+            public static readonly LangEntry0 ProfileEnableSyntax = new("Profile.Enable.Syntax", "Syntax: <color=#fd4>maprofile enable <name></color>");
+            public static readonly LangEntry1 ProfileAlreadyEnabled = new("Profile.AlreadyEnabled", "Profile <color=#fd4>{0}</color> is already <color=#6e6>ENABLED</color>.");
+            public static readonly LangEntry1 ProfileEnableSuccess = new("Profile.Enable.Success", "Profile <color=#fd4>{0}</color> is now: <color=#6e6>ENABLED</color>.");
+            public static readonly LangEntry0 ProfileDisableSyntax = new("Profile.Disable.Syntax", "Syntax: <color=#fd4>maprofile disable <name></color>");
+            public static readonly LangEntry1 ProfileAlreadyDisabled = new("Profile.AlreadyDisabled2", "Profile <color=#fd4>{0}</color> is already <color=#ccc>DISABLED</color>.");
+            public static readonly LangEntry1 ProfileDisableSuccess = new("Profile.Disable.Success2", "Profile <color=#fd4>{0}</color> is now: <color=#ccc>DISABLED</color>.");
+            public static readonly LangEntry0 ProfileReloadSyntax = new("Profile.Reload.Syntax", "Syntax: <color=#fd4>maprofile reload <name></color>");
+            public static readonly LangEntry1 ProfileNotEnabled = new("Profile.NotEnabled", "Error: Profile <color=#fd4>{0}</color> is not enabled.");
+            public static readonly LangEntry1 ProfileReloadSuccess = new("Profile.Reload.Success", "Reloaded profile <color=#fd4>{0}</color>.");
 
-            public static readonly LangEntry ProfileCreateSyntax = new LangEntry("Profile.Create.Syntax", "Syntax: <color=#fd4>maprofile create <name></color>");
-            public static readonly LangEntry ProfileAlreadyExists = new LangEntry("Profile.Error.AlreadyExists", "Error: Profile <color=#fd4>{0}</color> already exists.");
-            public static readonly LangEntry ProfileCreateSuccess = new LangEntry("Profile.Create.Success", "Successfully created and <color=#6cf>SELECTED</color> profile <color=#fd4>{0}</color>.");
-            public static readonly LangEntry ProfileRenameSyntax = new LangEntry("Profile.Rename.Syntax", "Syntax: <color=#fd4>maprofile rename <old name> <new name></color>");
-            public static readonly LangEntry ProfileRenameSuccess = new LangEntry("Profile.Rename.Success2", "Successfully renamed profile <color=#fd4>{0}</color> to <color=#fd4>{1}</color>");
-            public static readonly LangEntry ProfileClearSyntax = new LangEntry("Profile.Clear.Syntax", "Syntax: <color=#fd4>maprofile clear <name></color>");
-            public static readonly LangEntry ProfileClearSuccess = new LangEntry("Profile.Clear.Success", "Successfully cleared profile <color=#fd4>{0}</color>.");
-            public static readonly LangEntry ProfileDeleteSyntax = new LangEntry("Profile.Delete.Syntax", "Syntax: <color=#fd4>maprofile delete <name></color>");
-            public static readonly LangEntry ProfileDeleteBlocked = new LangEntry("Profile.Delete.Blocked", "Profile <color=#fd4>{0}</color> must be empty or disabled before it can be deleted.");
-            public static readonly LangEntry ProfileDeleteSuccess = new LangEntry("Profile.Delete.Success", "Successfully deleted profile <color=#fd4>{0}</color>.");
+            public static readonly LangEntry0 ProfileCreateSyntax = new("Profile.Create.Syntax", "Syntax: <color=#fd4>maprofile create <name></color>");
+            public static readonly LangEntry1 ProfileAlreadyExists = new("Profile.Error.AlreadyExists", "Error: Profile <color=#fd4>{0}</color> already exists.");
+            public static readonly LangEntry1 ProfileCreateSuccess = new("Profile.Create.Success", "Successfully created and <color=#6cf>SELECTED</color> profile <color=#fd4>{0}</color>.");
+            public static readonly LangEntry0 ProfileRenameSyntax = new("Profile.Rename.Syntax", "Syntax: <color=#fd4>maprofile rename <old name> <new name></color>");
+            public static readonly LangEntry2 ProfileRenameSuccess = new("Profile.Rename.Success2", "Successfully renamed profile <color=#fd4>{0}</color> to <color=#fd4>{1}</color>");
+            public static readonly LangEntry0 ProfileClearSyntax = new("Profile.Clear.Syntax", "Syntax: <color=#fd4>maprofile clear <name></color>");
+            public static readonly LangEntry1 ProfileClearSuccess = new("Profile.Clear.Success", "Successfully cleared profile <color=#fd4>{0}</color>.");
+            public static readonly LangEntry0 ProfileDeleteSyntax = new("Profile.Delete.Syntax", "Syntax: <color=#fd4>maprofile delete <name></color>");
+            public static readonly LangEntry1 ProfileDeleteBlocked = new("Profile.Delete.Blocked", "Profile <color=#fd4>{0}</color> must be empty or disabled before it can be deleted.");
+            public static readonly LangEntry1 ProfileDeleteSuccess = new("Profile.Delete.Success", "Successfully deleted profile <color=#fd4>{0}</color>.");
 
-            public static readonly LangEntry ProfileMoveToSyntax = new LangEntry("Profile.MoveTo.Syntax", "Syntax: <color=#fd4>maprofile moveto <name></color>");
-            public static readonly LangEntry ProfileMoveToAlreadyPresent = new LangEntry("Profile.MoveTo.AlreadyPresent", "Error: <color=#fd4>{0}</color> is already part of profile <color=#fd4>{1}</color>.");
-            public static readonly LangEntry ProfileMoveToSuccess = new LangEntry("Profile.MoveTo.Success", "Successfully moved <color=#fd4>{0}</color> from profile <color=#fd4>{1}</color> to <color=#fd4>{2}</color>.");
+            public static readonly LangEntry0 ProfileMoveToSyntax = new("Profile.MoveTo.Syntax", "Syntax: <color=#fd4>maprofile moveto <name></color>");
+            public static readonly LangEntry2 ProfileMoveToAlreadyPresent = new("Profile.MoveTo.AlreadyPresent", "Error: <color=#fd4>{0}</color> is already part of profile <color=#fd4>{1}</color>.");
+            public static readonly LangEntry3 ProfileMoveToSuccess = new("Profile.MoveTo.Success", "Successfully moved <color=#fd4>{0}</color> from profile <color=#fd4>{1}</color> to <color=#fd4>{2}</color>.");
 
-            public static readonly LangEntry ProfileHelpHeader = new LangEntry("Profile.Help.Header", "<size=18>Monument Addons Profile Commands</size>");
-            public static readonly LangEntry ProfileHelpList = new LangEntry("Profile.Help.List", "<color=#fd4>maprofile list</color> - List all profiles");
-            public static readonly LangEntry ProfileHelpDescribe = new LangEntry("Profile.Help.Describe", "<color=#fd4>maprofile describe <name></color> - Describe profile contents");
-            public static readonly LangEntry ProfileHelpEnable = new LangEntry("Profile.Help.Enable", "<color=#fd4>maprofile enable <name></color> - Enable a profile");
-            public static readonly LangEntry ProfileHelpDisable = new LangEntry("Profile.Help.Disable", "<color=#fd4>maprofile disable <name></color> - Disable a profile");
-            public static readonly LangEntry ProfileHelpReload = new LangEntry("Profile.Help.Reload", "<color=#fd4>maprofile reload <name></color> - Reload a profile from disk");
-            public static readonly LangEntry ProfileHelpSelect = new LangEntry("Profile.Help.Select", "<color=#fd4>maprofile select <name></color> - Select a profile");
-            public static readonly LangEntry ProfileHelpCreate = new LangEntry("Profile.Help.Create", "<color=#fd4>maprofile create <name></color> - Create a new profile");
-            public static readonly LangEntry ProfileHelpRename = new LangEntry("Profile.Help.Rename", "<color=#fd4>maprofile rename <name> <new name></color> - Rename a profile");
-            public static readonly LangEntry ProfileHelpClear = new LangEntry("Profile.Help.Clear2", "<color=#fd4>maprofile clear <name></color> - Clear a profile");
-            public static readonly LangEntry ProfileHelpDelete = new LangEntry("Profile.Help.Delete", "<color=#fd4>maprofile delete <name></color> - Delete a profile");
-            public static readonly LangEntry ProfileHelpMoveTo = new LangEntry("Profile.Help.MoveTo2", "<color=#fd4>maprofile moveto <name></color> - Move an entity to a profile");
-            public static readonly LangEntry ProfileHelpInstall = new LangEntry("Profile.Help.Install", "<color=#fd4>maprofile install <url></color> - Install a profile from a URL");
+            public static readonly LangEntry0 ProfileHelpHeader = new("Profile.Help.Header", "<size=18>Monument Addons Profile Commands</size>");
+            public static readonly LangEntry0 ProfileHelpList = new("Profile.Help.List", "<color=#fd4>maprofile list</color> - List all profiles");
+            public static readonly LangEntry0 ProfileHelpDescribe = new("Profile.Help.Describe", "<color=#fd4>maprofile describe <name></color> - Describe profile contents");
+            public static readonly LangEntry0 ProfileHelpEnable = new("Profile.Help.Enable", "<color=#fd4>maprofile enable <name></color> - Enable a profile");
+            public static readonly LangEntry0 ProfileHelpDisable = new("Profile.Help.Disable", "<color=#fd4>maprofile disable <name></color> - Disable a profile");
+            public static readonly LangEntry0 ProfileHelpReload = new("Profile.Help.Reload", "<color=#fd4>maprofile reload <name></color> - Reload a profile from disk");
+            public static readonly LangEntry0 ProfileHelpSelect = new("Profile.Help.Select", "<color=#fd4>maprofile select <name></color> - Select a profile");
+            public static readonly LangEntry0 ProfileHelpCreate = new("Profile.Help.Create", "<color=#fd4>maprofile create <name></color> - Create a new profile");
+            public static readonly LangEntry0 ProfileHelpRename = new("Profile.Help.Rename", "<color=#fd4>maprofile rename <name> <new name></color> - Rename a profile");
+            public static readonly LangEntry0 ProfileHelpClear = new("Profile.Help.Clear2", "<color=#fd4>maprofile clear <name></color> - Clear a profile");
+            public static readonly LangEntry0 ProfileHelpDelete = new("Profile.Help.Delete", "<color=#fd4>maprofile delete <name></color> - Delete a profile");
+            public static readonly LangEntry0 ProfileHelpMoveTo = new("Profile.Help.MoveTo2", "<color=#fd4>maprofile moveto <name></color> - Move an entity to a profile");
+            public static readonly LangEntry0 ProfileHelpInstall = new("Profile.Help.Install", "<color=#fd4>maprofile install <url></color> - Install a profile from a URL");
 
-            public static readonly LangEntry WireToolInvisible = new LangEntry("WireTool.Invisible", "Invisible");
-            public static readonly LangEntry WireToolInvalidColor = new LangEntry("WireTool.Error.InvalidColor", "Invalid wire color: <color=#fd4>{0}</color>.");
-            public static readonly LangEntry WireToolNotEquipped = new LangEntry("WireTool.Error.NotEquipped", "Error: No Wire Tool or Hose Tool equipped.");
-            public static readonly LangEntry WireToolActivated = new LangEntry("WireTool.Activated", "Monument Addons Wire Tool activated with color <color=#fd4>{0}</color>.");
-            public static readonly LangEntry WireToolDeactivated = new LangEntry("WireTool.Deactivated", "Monument Addons Wire Tool deactivated.");
-            public static readonly LangEntry WireToolTypeMismatch = new LangEntry("WireTool.TypeMismatch", "Error: You can only connect slots of the same type. Looking for <color=#fd4>{0}</color>, but found <color=#fd4>{1}</color>.");
-            public static readonly LangEntry WireToolProfileMismatch = new LangEntry("WireTool.ProfileMismatch", "Error: You can only connect entities in the same profile. Looking for <color=#fd4>{0}</color>, but found <color=#fd4>{1}</color>.");
-            public static readonly LangEntry WireToolMonumentMismatch = new LangEntry("WireTool.MonumentMismatch", "Error: You can only connect entities at the same monument.");
+            public static readonly LangEntry0 WireToolInvisible = new("WireTool.Invisible", "Invisible");
+            public static readonly LangEntry1 WireToolInvalidColor = new("WireTool.Error.InvalidColor", "Invalid wire color: <color=#fd4>{0}</color>.");
+            public static readonly LangEntry0 WireToolNotEquipped = new("WireTool.Error.NotEquipped", "Error: No Wire Tool or Hose Tool equipped.");
+            public static readonly LangEntry1 WireToolActivated = new("WireTool.Activated", "Monument Addons Wire Tool activated with color <color=#fd4>{0}</color>.");
+            public static readonly LangEntry0 WireToolDeactivated = new("WireTool.Deactivated", "Monument Addons Wire Tool deactivated.");
+            public static readonly LangEntry2 WireToolTypeMismatch = new("WireTool.TypeMismatch", "Error: You can only connect slots of the same type. Looking for <color=#fd4>{0}</color>, but found <color=#fd4>{1}</color>.");
+            public static readonly LangEntry2 WireToolProfileMismatch = new("WireTool.ProfileMismatch", "Error: You can only connect entities in the same profile. Looking for <color=#fd4>{0}</color>, but found <color=#fd4>{1}</color>.");
+            public static readonly LangEntry0 WireToolMonumentMismatch = new("WireTool.MonumentMismatch", "Error: You can only connect entities at the same monument.");
 
-            public static readonly LangEntry HelpHeader = new LangEntry("Help.Header", "<size=18>Monument Addons Help</size>");
-            public static readonly LangEntry HelpSpawn = new LangEntry("Help.Spawn", "<color=#fd4>maspawn <entity></color> - Spawn an entity");
-            public static readonly LangEntry HelpPrefab = new LangEntry("Help.Prefab", "<color=#fd4>maprefab <prefab></color> - Create a non-entity prefab instance");
-            public static readonly LangEntry HelpKill = new LangEntry("Help.Kill", "<color=#fd4>makill</color> - Delete an entity or other addon");
-            public static readonly LangEntry HelpUndo = new LangEntry("Help.Undo", "<color=#fd4>maundo</color> - Undo a recent <color=#fd4>makill</color> action");
-            public static readonly LangEntry HelpSave = new LangEntry("Help.Save", "<color=#fd4>masave</color> - Save an entity's updated position");
-            public static readonly LangEntry HelpFlag = new LangEntry("Help.Flag", "<color=#fd4>maflag <flag></color> - Toggle a flag of an entity");
-            public static readonly LangEntry HelpSkin = new LangEntry("Help.Skin", "<color=#fd4>maskin <skin id></color> - Change the skin of an entity");
-            public static readonly LangEntry HelpSetId = new LangEntry("Help.SetId", "<color=#fd4>masetid <id></color> - Set the id of a CCTV");
-            public static readonly LangEntry HelpSetDir = new LangEntry("Help.SetDir", "<color=#fd4>masetdir</color> - Set the direction of a CCTV");
-            public static readonly LangEntry HelpSkull = new LangEntry("Help.Skull", "<color=#fd4>maskull <name></color> - Set skull trophy display name");
-            public static readonly LangEntry HelpTrophy = new LangEntry("Help.Trophy", "<color=#fd4>matrophy <name></color> - Update a hunting trophy");
-            public static readonly LangEntry HelpCardReaderLevel = new LangEntry("Help.CardReaderLevel", "<color=#fd4>macardlevel <1-3></color> - Set a card reader's access level");
-            public static readonly LangEntry HelpPuzzle = new LangEntry("Help.Puzzle", "<color=#fd4>mapuzzle</color> - Print puzzle help");
-            public static readonly LangEntry HelpSpawnGroup = new LangEntry("Help.SpawnGroup", "<color=#fd4>maspawngroup</color> - Print spawn group help");
-            public static readonly LangEntry HelpSpawnPoint = new LangEntry("Help.SpawnPoint", "<color=#fd4>maspawnpoint</color> - Print spawn point help");
-            public static readonly LangEntry HelpPaste = new LangEntry("Help.Paste", "<color=#fd4>mapaste <file></color> - Paste a building");
-            public static readonly LangEntry HelpShow = new LangEntry("Help.Show", "<color=#fd4>mashow</color> - Show nearby addons");
-            public static readonly LangEntry HelpShowVanilla = new LangEntry("Help.ShowVanilla", "<color=#fd4>mashowvanilla</color> - Show vanilla spawn points");
-            public static readonly LangEntry HelpProfile = new LangEntry("Help.Profile", "<color=#fd4>maprofile</color> - Print profile help");
+            public static readonly LangEntry0 HelpHeader = new("Help.Header", "<size=18>Monument Addons Help</size>");
+            public static readonly LangEntry0 HelpSpawn = new("Help.Spawn", "<color=#fd4>maspawn <entity></color> - Spawn an entity");
+            public static readonly LangEntry0 HelpPrefab = new("Help.Prefab", "<color=#fd4>maprefab <prefab></color> - Create a non-entity prefab instance");
+            public static readonly LangEntry0 HelpKill = new("Help.Kill", "<color=#fd4>makill</color> - Delete an entity or other addon");
+            public static readonly LangEntry0 HelpUndo = new("Help.Undo", "<color=#fd4>maundo</color> - Undo a recent <color=#fd4>makill</color> action");
+            public static readonly LangEntry0 HelpSave = new("Help.Save", "<color=#fd4>masave</color> - Save an entity's updated position");
+            public static readonly LangEntry0 HelpFlag = new("Help.Flag", "<color=#fd4>maflag <flag></color> - Toggle a flag of an entity");
+            public static readonly LangEntry0 HelpSkin = new("Help.Skin", "<color=#fd4>maskin <skin id></color> - Change the skin of an entity");
+            public static readonly LangEntry0 HelpSetId = new("Help.SetId", "<color=#fd4>masetid <id></color> - Set the id of a CCTV");
+            public static readonly LangEntry0 HelpSetDir = new("Help.SetDir", "<color=#fd4>masetdir</color> - Set the direction of a CCTV");
+            public static readonly LangEntry0 HelpSkull = new("Help.Skull", "<color=#fd4>maskull <name></color> - Set skull trophy display name");
+            public static readonly LangEntry0 HelpTrophy = new("Help.Trophy", "<color=#fd4>matrophy <name></color> - Update a hunting trophy");
+            public static readonly LangEntry0 HelpCardReaderLevel = new("Help.CardReaderLevel", "<color=#fd4>macardlevel <1-3></color> - Set a card reader's access level");
+            public static readonly LangEntry0 HelpPuzzle = new("Help.Puzzle", "<color=#fd4>mapuzzle</color> - Print puzzle help");
+            public static readonly LangEntry0 HelpSpawnGroup = new("Help.SpawnGroup", "<color=#fd4>maspawngroup</color> - Print spawn group help");
+            public static readonly LangEntry0 HelpSpawnPoint = new("Help.SpawnPoint", "<color=#fd4>maspawnpoint</color> - Print spawn point help");
+            public static readonly LangEntry0 HelpPaste = new("Help.Paste", "<color=#fd4>mapaste <file></color> - Paste a building");
+            public static readonly LangEntry0 HelpShow = new("Help.Show", "<color=#fd4>mashow</color> - Show nearby addons");
+            public static readonly LangEntry0 HelpShowVanilla = new("Help.ShowVanilla", "<color=#fd4>mashowvanilla</color> - Show vanilla spawn points");
+            public static readonly LangEntry0 HelpProfile = new("Help.Profile", "<color=#fd4>maprofile</color> - Print profile help");
 
             public string Name;
             public string English;
 
-            public LangEntry(string name, string english)
+            protected LangEntry(string name, string english)
             {
                 Name = name;
                 English = english;
@@ -13653,82 +13661,213 @@ namespace Oxide.Plugins
             }
         }
 
-        // Multi-argument overloads are defined to reduce array allocations.
-        private string GetMessage(string playerId, LangEntry langEntry)
+        private struct TemplateProvider
         {
-            return lang.GetMessage(langEntry.Name, this, playerId);
+            private MonumentAddons _plugin;
+            private string _playerId;
+
+            public TemplateProvider(MonumentAddons plugin, string playerId)
+            {
+                _plugin = plugin;
+                _playerId = playerId;
+            }
+
+            public string Get(string templateName)
+            {
+                return _plugin.lang.GetMessage(templateName, _plugin, _playerId);
+            }
         }
 
-        private string GetMessage(string playerId, LangEntry langEntry, object arg1)
+        private interface IMessageFormatter
         {
-            return string.Format(GetMessage(playerId, langEntry), arg1);
+            string Format(TemplateProvider templateProvider);
         }
 
-        private string GetMessage(string playerId, LangEntry langEntry, object arg1, object arg2)
+        private class LangEntry0 : LangEntry, IMessageFormatter
         {
-            return string.Format(GetMessage(playerId, langEntry), arg1, arg2);
+            public LangEntry0(string name, string english) : base(name, english) {}
+
+            public string Format(TemplateProvider templateProvider)
+            {
+                return templateProvider.Get(Name);
+            }
         }
 
-        private string GetMessage(string playerId, LangEntry langEntry, object arg1, object arg2, string arg3)
+        private class LangEntry1 : LangEntry
         {
-            return string.Format(GetMessage(playerId, langEntry), arg1, arg2, arg3);
+            public struct Formatter : IMessageFormatter
+            {
+                private string _langKey;
+                private Tuple1 _args;
+
+                public Formatter(LangEntry1 langEntry, Tuple1 args)
+                {
+                    _langKey = langEntry.Name;
+                    _args = args;
+                }
+
+                public string Format(TemplateProvider templateProvider)
+                {
+                    return string.Format(templateProvider.Get(_langKey), _args.Item1);
+                }
+            }
+
+            public LangEntry1(string name, string english) : base(name, english) {}
+
+            public Formatter Bind(Tuple1 args) => new(this, args);
+            public Formatter Bind(object arg1) => Bind(new Tuple1(arg1));
         }
 
-        private string GetMessage(string playerId, LangEntry langEntry, params object[] args)
+        private class LangEntry2 : LangEntry
         {
-            return string.Format(GetMessage(playerId, langEntry), args);
+            public struct Formatter : IMessageFormatter
+            {
+                private string _langKey;
+                private Tuple2 _args;
+
+                public Formatter(LangEntry2 langEntry, Tuple2 args)
+                {
+                    _langKey = langEntry.Name;
+                    _args = args;
+                }
+
+                public string Format(TemplateProvider templateProvider)
+                {
+                    return string.Format(templateProvider.Get(_langKey), _args.Item1, _args.Item2);
+                }
+            }
+
+            public LangEntry2(string name, string english) : base(name, english) {}
+
+            public Formatter Bind(Tuple2 args) => new(this, args);
+            public Formatter Bind(object arg1, object arg2) => Bind(new Tuple2(arg1, arg2));
+        }
+
+        private class LangEntry3 : LangEntry
+        {
+            public struct Formatter : IMessageFormatter
+            {
+                private string _langKey;
+                private Tuple3 _args;
+
+                public Formatter(LangEntry3 langEntry, Tuple3 args)
+                {
+                    _langKey = langEntry.Name;
+                    _args = args;
+                }
+
+                public string Format(TemplateProvider templateProvider)
+                {
+                    return string.Format(templateProvider.Get(_langKey), _args.Item1, _args.Item2, _args.Item3);
+                }
+            }
+
+            public LangEntry3(string name, string english) : base(name, english) {}
+
+            public Formatter Bind(Tuple3 args) => new(this, args);
+            public Formatter Bind(object arg1, object arg2, object arg3) => Bind(new Tuple3(arg1, arg2, arg3));
+        }
+
+        private class LangEntry4 : LangEntry
+        {
+            public struct Formatter : IMessageFormatter
+            {
+                private string _langKey;
+                private Tuple4 _args;
+
+                public Formatter(LangEntry4 langEntry, Tuple4 args)
+                {
+                    _langKey = langEntry.Name;
+                    _args = args;
+                }
+
+                public string Format(TemplateProvider templateProvider)
+                {
+                    return string.Format(templateProvider.Get(_langKey), _args.Item1, _args.Item2, _args.Item3, _args.Item4);
+                }
+            }
+
+            public LangEntry4(string name, string english) : base(name, english) {}
+
+            public Formatter Bind(Tuple4 args) => new(this, args);
+            public Formatter Bind(object arg1, object arg2, object arg3, object arg4) => Bind(new Tuple4(arg1, arg2, arg3, arg4));
+        }
+
+        private string GetMessage<T>(string playerId, T formatter) where T : IMessageFormatter
+        {
+            return formatter.Format(new TemplateProvider(this, playerId));
+        }
+
+        private string GetMessage(string playerId, LangEntry1 langEntry, object arg1)
+        {
+            return GetMessage(playerId, langEntry.Bind(arg1));
+        }
+
+        private string GetMessage(string playerId, LangEntry2 langEntry, object arg1, object arg2)
+        {
+            return GetMessage(playerId, langEntry.Bind(arg1, arg2));
+        }
+
+        private string GetMessage(string playerId, LangEntry3 langEntry, object arg1, object arg2, object arg3)
+        {
+            return GetMessage(playerId, langEntry.Bind(arg1, arg2, arg3));
+        }
+
+        private string GetMessage(string playerId, LangEntry4 langEntry, object arg1, object arg2, object arg3, object arg4)
+        {
+            return GetMessage(playerId, langEntry.Bind(arg1, arg2, arg3, arg4));
         }
 
 
-        private void ReplyToPlayer(IPlayer player, LangEntry langEntry)
+        private void ReplyToPlayer<T>(IPlayer player, T formatter) where T : IMessageFormatter
         {
-            player.Reply(GetMessage(player.Id, langEntry));
+            player.Reply(GetMessage(player.Id, formatter));
         }
 
-        private void ReplyToPlayer(IPlayer player, LangEntry langEntry, object arg1)
+        private void ReplyToPlayer(IPlayer player, LangEntry1 langEntry, object arg1)
         {
-            player.Reply(GetMessage(player.Id, langEntry, arg1));
+            ReplyToPlayer(player, langEntry.Bind(arg1));
         }
 
-        private void ReplyToPlayer(IPlayer player, LangEntry langEntry, object arg1, object arg2)
+        private void ReplyToPlayer(IPlayer player, LangEntry2 langEntry, object arg1, object arg2)
         {
-            player.Reply(GetMessage(player.Id, langEntry, arg1, arg2));
+            ReplyToPlayer(player, langEntry.Bind(arg1, arg2));
         }
 
-        private void ReplyToPlayer(IPlayer player, LangEntry langEntry, object arg1, object arg2, object arg3)
+        private void ReplyToPlayer(IPlayer player, LangEntry3 langEntry, object arg1, object arg2, object arg3)
         {
-            player.Reply(GetMessage(player.Id, langEntry, arg1, arg2, arg3));
+            ReplyToPlayer(player, langEntry.Bind(arg1, arg2, arg3));
         }
 
-        private void ReplyToPlayer(IPlayer player, LangEntry langEntry, params object[] args)
+        private void ReplyToPlayer(IPlayer player, LangEntry4 langEntry, object arg1, object arg2, object arg3, object arg4)
         {
-            player.Reply(GetMessage(player.Id, langEntry, args));
+            ReplyToPlayer(player, langEntry.Bind(arg1, arg2, arg3, arg4));
         }
 
 
-        private void ChatMessage(BasePlayer player, LangEntry langEntry)
+        private void ChatMessage<T>(BasePlayer player, T formatter) where T : IMessageFormatter
         {
-            player.ChatMessage(GetMessage(player.UserIDString, langEntry));
+            player.ChatMessage(formatter.Format(new TemplateProvider(this, player.UserIDString)));
         }
 
-        private void ChatMessage(BasePlayer player, LangEntry langEntry, object arg1)
+        private void ChatMessage(BasePlayer player, LangEntry1 langEntry, object arg1)
         {
-            player.ChatMessage(GetMessage(player.UserIDString, langEntry, arg1));
+            ChatMessage(player, langEntry.Bind(arg1));
         }
 
-        private void ChatMessage(BasePlayer player, LangEntry langEntry, object arg1, object arg2)
+        private void ChatMessage(BasePlayer player, LangEntry2 langEntry, object arg1, object arg2)
         {
-            player.ChatMessage(GetMessage(player.UserIDString, langEntry, arg1, arg2));
+            ChatMessage(player, langEntry.Bind(arg1, arg2));
         }
 
-        private void ChatMessage(BasePlayer player, LangEntry langEntry, object arg1, object arg2, object arg3)
+        private void ChatMessage(BasePlayer player, LangEntry3 langEntry, object arg1, object arg2, object arg3)
         {
-            player.ChatMessage(GetMessage(player.UserIDString, langEntry, arg1, arg2, arg3));
+            ChatMessage(player, langEntry.Bind(arg1, arg2, arg3));
         }
 
-        private void ChatMessage(BasePlayer player, LangEntry langEntry, params object[] args)
+        private void ChatMessage(BasePlayer player, LangEntry4 langEntry, object arg1, object arg2, object arg3, object arg4)
         {
-            player.ChatMessage(GetMessage(player.UserIDString, langEntry, args));
+            ChatMessage(player, langEntry.Bind(arg1, arg2, arg3, arg4));
         }
 
 
