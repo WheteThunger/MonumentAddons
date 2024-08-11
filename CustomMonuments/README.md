@@ -70,3 +70,7 @@ Note: If you are thinking of registering a mobile entity as a monument, such as 
 
 - Register your custom monument with Monument Addons in two places: (1) In `OnServerInitialized` hook, and (2) in the `OnPluginLoaded` hook in case MonumentAddons loads late or reloads
 - When creating a new object to represent a custom monument, if not using an entity, when cleaning up your monument (e.g., when the event is over, or when your plugin unloads), make sure to destroy the `GameObject`, not just the `Component`.
+
+## Examples
+
+For example code, see the files in this folder.

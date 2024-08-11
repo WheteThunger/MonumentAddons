@@ -25,6 +25,7 @@ using SkullTrophyGlobal = global::SkullTrophy;
 
 using CustomInitializeCallback = System.Func<BasePlayer, string[], object>;
 using CustomSpawnCallback = System.Func<UnityEngine.Vector3, UnityEngine.Quaternion, Newtonsoft.Json.Linq.JObject, UnityEngine.Component>;
+using CustomSpawnCallbackV2 = System.Func<System.Guid, UnityEngine.Component, UnityEngine.Vector3, UnityEngine.Quaternion, Newtonsoft.Json.Linq.JObject, UnityEngine.Component>;
 using CustomKillCallback = System.Action<UnityEngine.Component>;
 using CustomUnloadCallback = System.Action<UnityEngine.Component>;
 using CustomUpdateCallback = System.Action<UnityEngine.Component, Newtonsoft.Json.Linq.JObject>;
@@ -2803,18 +2804,8 @@ namespace Oxide.Plugins
             LogWarning($"API_RegisterCustomAddon is experimental and may be changed or removed in future updates.");
 
             var addonDefinition = CustomAddonDefinition.FromDictionary(addonName, plugin, addonSpec);
-
-            if (addonDefinition.Spawn == null)
-            {
-                LogError($"Unable to register custom addon \"{addonName}\" for plugin {plugin.Name} due to missing Spawn method.");
+            if (!addonDefinition.Validate())
                 return null;
-            }
-
-            if (addonDefinition.Kill == null)
-            {
-                LogError($"Unable to register custom addon \"{addonName}\" for plugin {plugin.Name} due to missing Kill method.");
-                return null;
-            }
 
             if (_customAddonManager.IsRegistered(addonName, out var otherPlugin))
             {
@@ -4014,7 +4005,7 @@ namespace Oxide.Plugins
             }
             catch (ArgumentException)
             {
-                // Don't log argument exception, assume that the addon plugin through this intentionally.
+                // Don't log argument exception, assume that the addon plugin threw this intentionally.
                 data = null;
                 return false;
             }
@@ -9149,6 +9140,7 @@ namespace Oxide.Plugins
                 if (addonSpec.TryGetValue("Spawn", out var spawnCallback))
                 {
                     addonDefinition.Spawn = spawnCallback as CustomSpawnCallback;
+                    addonDefinition.SpawnV2 = spawnCallback as CustomSpawnCallbackV2;
                 }
 
                 if (addonSpec.TryGetValue("Kill", out var killCallback))
@@ -9177,7 +9169,8 @@ namespace Oxide.Plugins
             public string AddonName;
             public Plugin OwnerPlugin;
             public CustomInitializeCallback Initialize;
-            public CustomSpawnCallback Spawn;
+            private CustomSpawnCallback Spawn;
+            private CustomSpawnCallbackV2 SpawnV2;
             public CustomKillCallback Kill;
             public CustomUnloadCallback Unload;
             public CustomUpdateCallback Update;
@@ -9216,6 +9209,29 @@ namespace Oxide.Plugins
                         }
                     ),
                 };
+            }
+
+            public bool Validate()
+            {
+                if (Spawn == null && SpawnV2 == null)
+                {
+                    LogError($"Unable to register custom addon \"{AddonName}\" for plugin {OwnerPlugin.Name} due to missing Spawn method.");
+                    return false;
+                }
+
+                if (Kill == null)
+                {
+                    LogError($"Unable to register custom addon \"{AddonName}\" for plugin {OwnerPlugin.Name} due to missing Kill method.");
+                    return false;
+                }
+
+                return true;
+            }
+
+            public UnityEngine.Component DoSpawn(Guid guid, UnityEngine.Component monument, Vector3 position, Quaternion rotation, JObject jObject)
+            {
+                return Spawn?.Invoke(position, rotation, jObject)
+                    ?? SpawnV2?.Invoke(guid, monument, position, rotation, jObject);
             }
         }
 
@@ -9369,7 +9385,7 @@ namespace Oxide.Plugins
 
             public override void Spawn()
             {
-                Component = AddonDefinition.Spawn(IntendedPosition, IntendedRotation, CustomAddonData.GetSerializedData());
+                Component = AddonDefinition.DoSpawn(CustomAddonData.Id, Monument.Object, IntendedPosition, IntendedRotation, CustomAddonData.GetSerializedData());
                 AddonDefinition.AdapterUsers.Add(this);
 
                 var entity = Component as BaseEntity;

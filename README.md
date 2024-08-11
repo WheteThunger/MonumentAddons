@@ -463,11 +463,11 @@ Ensure the plugin is loaded with `Persist entities while the plugin is unloaded`
 
 ### API_RegisterCustomAddon (experimental)
 
-Coming soon. For early access, see [Custom Addons API documentation](https://github.com/WheteThunger/MonumentAddons/blob/master/CustomAddons.md).
+Coming soon. For early access, see [Custom Addons API documentation](https://github.com/WheteThunger/MonumentAddons/blob/master/CustomAddons/README.md).
 
 ### API_RegisterCustomMonument
 
-See [Custom Monuments API documentation](https://github.com/WheteThunger/MonumentAddons/blob/master/CustomMonuments.md).
+See [Custom Monuments API documentation](https://github.com/WheteThunger/MonumentAddons/blob/master/CustomMonuments/README.md).
 
 ## Developer hooks
 

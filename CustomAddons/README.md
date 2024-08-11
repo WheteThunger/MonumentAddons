@@ -19,9 +19,16 @@ Dictionary<string, object> API_RegisterCustomAddon(Plugin plugin, string addonNa
 ```
 
 The `addonDefinition` dictionary should have the following keys:
+- `"Initialize"` -- A method that Monument Addons will call when a player places this addon via the `maspawn` command.
+  - Type: `System.Func<BasePlayer, string[], object>`
+    - `BasePlayer` -- The player who ran `maspawn`.
+    - `string[]` -- The arguments the player passed to the `maspawn` command. This includes the addon name as the first argument.
+    - `object` -- The return value of the method should be an object that you want to save for the addon's initial data. This may optionally be a `JObject`. This data will be passed to `Spawn` and `AddDisplayInfo` as `JObject`.
 - `"Spawn"` -- A method that Monument Addons can call to spawn each instance of the addon.
-  - Type: `System.Func<Vector3, Quaternion, JObject, UnityEngine.Component>`
-    - `Vector3` -- The world position to at which to spawn the addon.
+  - Type: `System.Func<Guid, UnityEngine.Component, Vector3, Quaternion, JObject, UnityEngine.Component>`
+    - `Guid` -- The unique ID of the monument, generated whenever it's created with `maspawn`. If the addon is spawned at multiple instances of the same monument, this ID will be the same for each call to `Spawn`.
+    - `UnityEngine.Component` -- The monument object. This may derive from `BaseEntity` if it's a dynamic monument or monument registered by another plugin. When this object derives from `BaseEntity`, you are advised to parent your addon to it if feasible, since the monument entity may be mobile, such as Cargo Ship.
+    - `Vector3` -- The world position at which to spawn the addon.
     - `Quaternion` -- The world rotation to at which to spawn the addon.
     - `JObject` -- The partially serialized representation of the data that you previously set on the addon instance.
     - `UnityEngine.Component` -- The return value of the method should be a Unity component that Monument Addons will keep track of, which will be passed to the `"Kill"` or `"Update"` methods.
@@ -49,101 +56,6 @@ If the addon was successfully registered, the resulting `Dictionary<string, obje
 - In the `"Kill"` callback, verify that the objects haven't already been destroyed, in case they were killed outside of the context of Monument Addons such as via `ent kill`.
 - Make entities you spawn invincible by updating protection properties, disabling stability, etc. This is important because Monument Addons does not currently respawn custom addons that have been destroyed (unless the plugin or profile is reloaded).
 
-## Example
+## Examples
 
-```csharp
-// ExampleAddonPlugin.cs
-
-// These type aliases should be declared outside of the namespace.
-using SpawnAddonCallback = System.Func<UnityEngine.Vector3, UnityEngine.Quaternion, Newtonsoft.Json.Linq.JObject, UnityEngine.Component>;
-using KillAddonCallback = System.Action<UnityEngine.Component>;
-using UpdateAddonCallback = System.Action<UnityEngine.Component, Newtonsoft.Json.Linq.JObject>;
-using AddDisplayInfoCallback = System.Action<UnityEngine.Component, Newtonsoft.Json.Linq.JObject, System.Text.StringBuilder>;
-using SetAddonDataCallback = System.Action<UnityEngine.Component, object>;
-
-[PluginReference]
-Plugin MonumentAddons;
-
-SetAddonDataCallback _setAddonData;
-
-void OnPluginLoaded(Plugin plugin)
-{
-    if (plugin == MonumentAddons)
-    {
-        RegisterCustomAddon();
-    }
-}
-
-void RegisterCustomAddon()
-{
-    var registeredAddon = MonumentAddons.Call(
-        "API_RegisterCustomAddon",
-        this,
-        "exampleaddon",
-        new Dictionary<string, object>
-        {
-            ["Spawn"] = new SpawnAddonCallback(SpawnCustomAddon),
-            ["Kill"] = new KillAddonCallback(KillCustomAddon),
-            ["Update"] = new UpdateAddonCallback((component, data) =>
-            {
-                var entity = component as SamSite;
-                var addonData = data.ToObject<AddonData>();
-                if (addonData != null)
-                {
-                    entity.SetHealth(addonData.Health);
-                }
-            }),
-            ["AddDisplayInfo"] = new AddDisplayInfoCallback((component, data, sb) =>
-            {
-                var addonData = data?.ToObject<AddonData>();
-                if (addonData != null)
-                {
-                    sb.AppendLine($"Health: {addonData.Health}");
-                }
-            }),
-        }
-    ) as Dictionary<string, object>;
-
-    if (registeredAddon == null)
-    {
-        LogError($"Error registering addon with Monument Addons.");
-        return;
-    }
-
-    _setAddonData = registeredAddon["SetData"] as SetAddonDataCallback;
-    if (_setAddonData == null)
-    {
-        LogError($"SetData method not present in MonumentAddons return value.");
-    }
-}
-
-private UnityEngine.Component SpawnCustomAddon(Vector3 position, Quaternion rotation, JObject data)
-{
-    var entity = GameManager.server.CreateEntity("assets/prefabs/npc/sam_site_turret/sam_site_turret_deployed.prefab", position, rotation) as SamSite;
-    entity.EnableSaving(false);
-    entity.Spawn();
-
-    var addonData = data?.ToObject<AddonData>();
-    if (addonData != null)
-    {
-        entity.SetHealth(addonData.Health);
-    }
-
-    return entity;
-}
-
-private void KillCustomAddon(UnityEngine.Component component)
-{
-    var entity = component as BaseEntity;
-    if (entity != null && !entity.IsDestroyed)
-    {
-        entity.Kill();
-    }
-}
-
-private class AddonData
-{
-    [JsonProperty("Health")]
-    public float Health = 500;
-}
-```
+For example code, see the files in this folder.
