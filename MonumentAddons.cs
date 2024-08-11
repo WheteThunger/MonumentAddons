@@ -6232,7 +6232,8 @@ namespace Oxide.Plugins
             // Destroys all GameObjects/Components that make up the addon.
             public abstract void Kill();
 
-            public virtual void Unregister() {}
+            // Detaches entities that should be saved/persisted across restarts/reloads.
+            public virtual void DetachSavedEntities() {}
 
             // Called when the addon is scheduled to be killed or unregistered.
             public virtual void PreUnload() {}
@@ -6385,12 +6386,12 @@ namespace Oxide.Plugins
                 }
             }
 
-            public void Unregister()
+            public void DetachSavedEntities()
             {
                 for (var i = Adapters.Count - 1; i >= 0; i--)
                 {
                     Plugin.TrackStart();
-                    Adapters[i].Unregister();
+                    Adapters[i].DetachSavedEntities();
                     Plugin.TrackEnd();
                 }
             }
@@ -6696,7 +6697,7 @@ namespace Oxide.Plugins
 
                         ExposedHooks.OnMonumentEntitySpawned(Entity, Monument.Object, Data.Id);
 
-                        if (!_config.EnableEntitySaving)
+                        if (!ShouldEnableSaving(Entity))
                         {
                             // If saving is no longer enabled, remove the entity from the data file.
                             // This prevents a bug where a subsequent reload would discover the entity before it is destroyed.
@@ -6716,7 +6717,7 @@ namespace Oxide.Plugins
                 PostEntitySpawn();
                 ExposedHooks.OnMonumentEntitySpawned(Entity, Monument.Object, Data.Id);
 
-                if (_config.EnableEntitySaving && Entity != existingEntity)
+                if (ShouldEnableSaving(Entity) && Entity != existingEntity)
                 {
                     _profileStateData.AddEntity(Profile.Name, Monument, Data.Id, Entity.net.ID);
                     Plugin._saveProfileStateDebounced.Schedule();
@@ -7039,7 +7040,7 @@ namespace Oxide.Plugins
 
             protected virtual void PostEntitySpawn()
             {
-                EntitySetupUtils.PostSpawnShared(Plugin, Entity, _config.EnableEntitySaving);
+                EntitySetupUtils.PostSpawnShared(Plugin, Entity, ShouldEnableSaving(Entity));
 
                 UpdatePuzzle();
                 DisableFlags();
@@ -7247,19 +7248,27 @@ namespace Oxide.Plugins
 
             protected virtual void PreEntityKill() {}
 
-            public override void Unregister()
+            public override void DetachSavedEntities()
             {
                 if (IsDestroyed)
                     return;
 
-                // Not safe to unregister the entity if the profile no longer declares it.
+                // Only unregister the adapter if it has saving enabled.
+                if (!ShouldEnableSaving(Entity))
+                    return;
+
+                // Don't unregister the entity if the profile no longer declares it.
+                // Entity should be killed along with the adapter.
                 if (!Profile.HasEntity(Monument.UniqueName, EntityData))
                     return;
 
-                // Not safe to unregister the entity if it's not tracked in the profile state.
+                // Don't unregister the entity if it's not tracked in the profile state.
+                // Entity should be killed along with the adapter.
                 if (!_profileStateData.HasEntity(Profile.Name, Monument, Data.Id, Entity.net.ID))
                     return;
 
+                // Unregister the adapter to prevent the entity from being killed when the adapter is killed.
+                // The primary use case is to persist the entity while the plugin is unloaded.
                 MonumentEntityComponent.RemoveFromEntity(Entity);
             }
 
@@ -7269,7 +7278,7 @@ namespace Oxide.Plugins
                 if (entity == null)
                     return null;
 
-                EnableSavingRecursive(entity, enableSaving: _config.EnableEntitySaving);
+                EnableSavingRecursive(entity, enableSaving: ShouldEnableSaving(entity));
 
                 if (Monument is IEntityMonument entityMonument)
                 {
@@ -7289,6 +7298,11 @@ namespace Oxide.Plugins
                 MonumentEntityComponent.AddToEntity(Plugin._entityTracker, entity, this, Monument);
 
                 return entity;
+            }
+
+            private bool ShouldEnableSaving(BaseEntity entity)
+            {
+                return _config.EntitySaveSettings.ShouldEnableSaving(entity);
             }
 
             private void UpdatePosition()
@@ -10427,11 +10441,14 @@ namespace Oxide.Plugins
                 }
             }
 
-            public void Unregister()
+            public void DetachSavedEntities()
             {
+                if (_controllersByData.Count == 0)
+                    return;
+
                 foreach (var controller in _controllersByData.Values.ToList())
                 {
-                    controller.Unregister();
+                    controller.DetachSavedEntities();
                 }
             }
 
@@ -10448,11 +10465,7 @@ namespace Oxide.Plugins
             {
                 Interrupt();
                 PreUnload();
-
-                if (_config.EnableEntitySaving)
-                {
-                    Unregister();
-                }
+                DetachSavedEntities();
 
                 StartCoroutine(ReloadRoutine(newProfileData));
             }
@@ -10499,16 +10512,13 @@ namespace Oxide.Plugins
 
                 IEnumerator cleanupRoutine = null;
 
-                if (_config.EnableEntitySaving)
-                {
-                    Unregister();
+                DetachSavedEntities();
 
-                    var entitiesToKill = _profileStateData.FindAndRemoveValidEntities(Profile.Name);
-                    if (entitiesToKill is { Count: > 0 })
-                    {
-                        Plugin._saveProfileStateDebounced.Schedule();
-                        cleanupRoutine = KillEntitiesRoutine(entitiesToKill);
-                    }
+                var entitiesToKill = _profileStateData.FindAndRemoveValidEntities(Profile.Name);
+                if (entitiesToKill is { Count: > 0 })
+                {
+                    Plugin._saveProfileStateDebounced.Schedule();
+                    cleanupRoutine = KillEntitiesRoutine(entitiesToKill);
                 }
 
                 Unload(cleanupRoutine);
@@ -10545,9 +10555,8 @@ namespace Oxide.Plugins
 
             public T FindEntity<T>(Guid guid, BaseMonument monument) where T : BaseEntity
             {
-                return _config.EnableEntitySaving
-                    ? _profileStateData.FindEntity(Profile.Name, monument, guid) as T
-                    : (FindAdapter(guid, monument) as EntityAdapter)?.Entity as T;
+                return _profileStateData.FindEntity(Profile.Name, monument, guid) as T
+                    ?? (FindAdapter(guid, monument) as EntityAdapter)?.Entity as T;
             }
 
             public void SetupIO()
@@ -10928,11 +10937,7 @@ namespace Oxide.Plugins
                 foreach (var profileController in _profileControllers)
                 {
                     profileController.PreUnload();
-
-                    if (_config.EnableEntitySaving)
-                    {
-                        profileController.Unregister();
-                    }
+                    profileController.DetachSavedEntities();
                 }
 
                 CoroutineManager.StartGlobalCoroutine(UnloadAllProfilesRoutine());
@@ -12735,10 +12740,11 @@ namespace Oxide.Plugins
                 if (profileState == null)
                     return null;
 
-                var entityList = new List<BaseEntity>();
+                List<BaseEntity> entityList = null;
 
                 foreach (var entityEntry in profileState.FindValidEntities())
                 {
+                    entityList ??= new List<BaseEntity>();
                     entityList.Add(entityEntry.Entity);
                 }
 
@@ -12992,40 +12998,6 @@ namespace Oxide.Plugins
         #region Configuration
 
         [JsonObject(MemberSerialization.OptIn)]
-        private class DynamicMonumentSettings
-        {
-            [JsonProperty("Entity prefabs to consider as monuments")]
-            public string[] DynamicMonumentPrefabs = { CargoShipPrefab };
-
-            [JsonIgnore]
-            private uint[] _dynamicMonumentPrefabIds;
-
-            public void Init()
-            {
-                var prefabIds = new List<uint>();
-
-                foreach (var prefabPath in DynamicMonumentPrefabs)
-                {
-                    var baseEntity = FindBaseEntityForPrefab(prefabPath);
-                    if (baseEntity == null)
-                    {
-                        LogError($"Invalid prefab path in configuration: {prefabPath}");
-                        continue;
-                    }
-
-                    prefabIds.Add(baseEntity.prefabID);
-                }
-
-                _dynamicMonumentPrefabIds = prefabIds.ToArray();
-            }
-
-            public bool IsConfiguredAsDynamicMonument(BaseEntity entity)
-            {
-                return _dynamicMonumentPrefabIds.Contains(entity.prefabID);
-            }
-        }
-
-        [JsonObject(MemberSerialization.OptIn)]
         private class DebugDisplaySettings
         {
             [JsonProperty("Display distance")]
@@ -13057,6 +13029,81 @@ namespace Oxide.Plugins
             [JsonProperty("Inactive profile color")]
             [JsonConverter(typeof(HtmlColorConverter))]
             public Color InactiveProfileColor = Color.grey;
+        }
+
+        [JsonObject(MemberSerialization.OptIn)]
+        private class EntitySaveSettings
+        {
+            [JsonProperty("Enable saving for storage entities")]
+            public bool EnabledForStorageEntities;
+
+            [JsonProperty("Enable saving for non-storage entities")]
+            public bool EnabledForNonStorageEntities;
+
+            [JsonProperty("Override saving enabled by prefab")]
+            private Dictionary<string, bool> OverrideEnabledByPrefab = new();
+
+            private Dictionary<uint, bool> _overrideEnabledByPrefabId = new();
+
+            public void Init()
+            {
+                foreach (var (prefabPath, enabled) in OverrideEnabledByPrefab)
+                {
+                    var entity = GameManager.server.FindPrefab(prefabPath)?.GetComponent<BaseEntity>();
+                    if (entity == null)
+                    {
+                        LogError($"Invalid entity prefab in config: {prefabPath}");
+                        continue;
+                    }
+
+                    _overrideEnabledByPrefabId[entity.prefabID] = enabled;
+                }
+            }
+
+            public bool ShouldEnableSaving(BaseEntity entity)
+            {
+                if (_overrideEnabledByPrefabId.TryGetValue(entity.prefabID, out var enabled))
+                    return enabled;
+
+                if (entity is IItemContainerEntity or MiningQuarry)
+                    return EnabledForStorageEntities;
+
+                return EnabledForNonStorageEntities;
+            }
+        }
+
+        [JsonObject(MemberSerialization.OptIn)]
+        private class DynamicMonumentSettings
+        {
+            [JsonProperty("Entity prefabs to consider as monuments")]
+            public string[] DynamicMonumentPrefabs = { CargoShipPrefab };
+
+            [JsonIgnore]
+            private uint[] _dynamicMonumentPrefabIds;
+
+            public void Init()
+            {
+                var prefabIds = new List<uint>();
+
+                foreach (var prefabPath in DynamicMonumentPrefabs)
+                {
+                    var baseEntity = FindBaseEntityForPrefab(prefabPath);
+                    if (baseEntity == null)
+                    {
+                        LogError($"Invalid prefab path in configuration: {prefabPath}");
+                        continue;
+                    }
+
+                    prefabIds.Add(baseEntity.prefabID);
+                }
+
+                _dynamicMonumentPrefabIds = prefabIds.ToArray();
+            }
+
+            public bool IsConfiguredAsDynamicMonument(BaseEntity entity)
+            {
+                return _dynamicMonumentPrefabIds.Contains(entity.prefabID);
+            }
         }
 
         [JsonObject(MemberSerialization.OptIn)]
@@ -13190,8 +13237,18 @@ namespace Oxide.Plugins
                 }
             }
 
+            [JsonProperty("Save entities between restarts/reloads to preserve their state throughout a wipe")]
+            public EntitySaveSettings EntitySaveSettings = new();
+
             [JsonProperty("Persist entities while the plugin is unloaded")]
-            public bool EnableEntitySaving;
+            private bool DeprecatedEnableEntitySaving
+            {
+                set
+                {
+                    EntitySaveSettings.EnabledForStorageEntities = value;
+                    EntitySaveSettings.EnabledForNonStorageEntities = value;
+                }
+            }
 
             [JsonProperty("Dynamic monuments")]
             public DynamicMonumentSettings DynamicMonuments = new();
@@ -13238,6 +13295,7 @@ namespace Oxide.Plugins
 
             public void Init()
             {
+                EntitySaveSettings.Init();
                 DynamicMonuments.Init();
 
                 if (XmasTreeDecorations != null)

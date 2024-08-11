@@ -239,7 +239,11 @@ Profiles allow you to organize entities into groups. Each profile can be indepen
     "Custom monument color": "#00FF00",
     "Inactive profile color": "#808080"
   },
-  "Persist entities while the plugin is unloaded": false,
+  "Save entities between restarts/reloads to preserve their state throughout a wipe": {
+    "Enable saving for storage entities": false,
+    "Enable saving for non-storage entities": false,
+    "Override saving enabled by prefab": {}
+  },
   "Dynamic monuments": {
     "Entity prefabs to consider as monuments": [
       "assets/content/vehicles/boats/cargoship/cargoshiptest.prefab"
@@ -313,9 +317,18 @@ Profiles allow you to organize entities into groups. Each profile can be indepen
   - `Custom addon color` -- Determines the debug text color for custom addons registered by other plugins.
   - `Custom monument color` -- Determines the debug text color for custom monuments registered by other plugins.
   - `Inactive profile color` -- Determines the debug text color for addons that are not part of the specified profile (i.e., when using `mashow <profile_name>`).
-- `Persist entities while the plugin is unloaded` (`true` or `false`) -- Determines whether entities spawned by `maspawn` will remain while the plugin is unloaded. Please carefully read and understand the documentation about this option before enabling it. Note: This option currently has no effect on Pastes, Spawn Groups or Custom Addons, meaning that those will always be despawned/respawned when the plugin reloads.
-  - While `false` (default), when the plugin unloads, it will despawn all entities spawned via `maspawn`. When the plugin subsequently reloads, those entities will be respawned from scratch. This means, for entities that maintain state (such as player items temporarily residing in recyclers), that state will be lost whenever the plugin unloads. The most practical consequence of using this mode is that player items inside containers will be lost when a profile is reloaded, when the plugin is reloaded, or when the server reboots. Despite that limitation, `false` is the most simple and stable value for this option because it ensures consistent reproducibility across plugin reloads.
-  - While `true`, when the plugin unloads, all entities spawned by via `maspawn` will remain, in order to preserve their state (e.g., items inside a recycler). When the plugin subsequently reloads, it will find the existing entities, reconcile how they differ from the enabled profiles, and despawn/respawn/reposition/modify them as needed. The plugin will try to avoid despawning/respawning an entity that is already present, in order to preserve the entity's state. Despite this sounding like the more obvious mode of the plugin, it is more complex and less stable than the default mode, and should therefore be enabled with caution.
+- `Save entities between restarts/reloads to preserve their state throughout a wipe` -- Determines whether entities spawned by `maspawn` will remain while the plugin is unloaded, and will be saved by Rust across server restarts. Please carefully read and understand the documentation about this option before enabling it. Note: This option currently has no effect on Pastes, Spawn Groups or Custom Addons, nor for any addons placed at monuments registered via the Custom Monument API, meaning that those addons will always be despawned/respawned when the plugin reloads.
+  - While saving is disabled (`false`), when the plugin unloads, it will despawn all entities spawned via `maspawn`. When the plugin subsequently reloads, those entities will be respawned from scratch. This means, for entities that maintain state (such as player items temporarily residing in recyclers), that state will be lost whenever the plugin unloads. The most practical consequence of using this mode is that player items inside containers will be lost when a profile is reloaded, when the plugin is reloaded, or when the server reboots. Despite that limitation, having saving disabled is the most simple and stable value for this option because it ensures consistent reproducibility across plugin reloads.
+  - While saving is enabled (`true`), when the plugin unloads, all entities spawned by via `maspawn` will remain, in order to preserve their state (e.g., items inside a recycler). When the plugin subsequently reloads, it will find the existing entities, reconcile how they differ from the enabled profiles, and despawn/respawn/reposition/modify them as needed. The plugin will try to avoid despawning/respawning an entity that is already present, in order to preserve the entity's state. Despite this sounding like the more obvious mode of the plugin, it is more complex and less stable than the default mode, and should therefore be enabled with caution.
+  - `Enable saving for storage entities` (`true` or `false`) -- Applies to all entities that the plugin classifies as storage entities. This category includes hundreds of prefabs, including recyclers, furnaces, research tables, vending machines, and mining quarries. Enabling this is useful especially for vending machines as it will allow Custom Vending Setup to save dynamic prices throughout a wipe.
+  - `Enable saving for non-storage entities` (`true` or `false)` -- Applies to all entities that the plugin doesn't classify as storage entities. It's recommended to keep this disabled as there is a low but nonetheless real risk of "double entities" in some edge cases if you enable saving for anything. If you have specific entity prefabs that you know need their state saved, you can override them via `Override saving enabled by prefab`.
+  - `Override saving enabled by prefab` -- Allows you to forcibly enable or disable saving of specific entity prefabs regardless of whether you have enabled saving for the entity category. Example below.
+    ```json
+    "Override saving enabled by prefab": {
+      "assets/prefabs/deployable/vendingmachine/npcvendingmachine": true,
+      "assets/prefabs/deployable/vendingmachine/npcvendingmachines/shopkeeper_vm_invis": true
+    }
+    ```
 - `Dynamic monuments`
   - `Entity prefabs to consider as monuments` -- Determines which entities are considered dynamic monuments. When an entity is considered a dynamic monument, you can define addons for it via `maspawn` and similar commands, and the plugin will ensure every instance of that entity has those addons attached. For example, Cargo Ship has been considered a dynamic monument since an early version of this plugin, but now you can define additional ones such as desert military base modules and road-side junk piles.
     - Note: Updating this configuration is only necessary if you want to use `maspawn` and similar commands to recognize the entity as a monument. If you want to install an external profile that defines addons for a dynamic monument (such as the CargoShipCCTV profile), it isn't necessary to update this configuration because the plugin will automatically determine that the entity is a dynamic monument by reading the profile. Additionally, if you install an external profile which defines addons for a given dynamic monument, `maspawn` and similar commands will automatically recognize that entity as a dynamic monument. 
@@ -457,7 +470,7 @@ Note: Kinetic IO elements such as `wheelswitch` and `sliding_blast_door` are not
 
 ## Uninstallation
 
-Ensure the plugin is loaded with `Persist entities while the plugin is unloaded` set to `false`, then simply remove the plugin. All addons will be automatically removed.
+Ensure the plugin is loaded with saving disabled for all types of entities, then simply remove the plugin. All addons will be automatically removed.
 
 ## Developer API
 
@@ -489,7 +502,7 @@ void OnMonumentEntitySpawned(BaseEntity entity, UnityEngine.Component monument, 
 - Called only for entity addons, not for entities spanwed by spawn points, but this may change in the future (possibly a new hook in the future)
 - The `component` parameter represents the monument object
 - The `guid` parameter refers to the unique ID present in the profile data file
-- Note: When the plugin is configured to persist entities while the plugin is unloaded, this hook will be called again when the plugin finds and registers the existing entity (the entity will not technically be respawned, although the hook name suggests it was spawned)
+- Note: When the plugin is configured to save entities, this hook will be called again when the plugin finds and registers the existing entity (the entity will not technically be respawned, although the hook name suggests it was spawned)
 
 ### OnDynamicMonument
 
