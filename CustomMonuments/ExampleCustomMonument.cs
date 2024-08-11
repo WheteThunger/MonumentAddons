@@ -48,7 +48,7 @@ internal class ExampleCustomMonument : CovalencePlugin
         RegisterCustomMonument(smallMonument2, "MySmallMonument", new Bounds(new Vector3(0, 10, 0), new Vector3(20, 20, 20)));
 
         // Create and register a monument at (200, 0, 200) with 50x50x50 bounds.
-        var largeMonument = CreateCustomMonument(AtTerrainHeight(new Vector3(300, 0, 300)), Quaternion.Euler(0, 00, 0));
+        var largeMonument = CreateCustomMonument(AtTerrainHeight(new Vector3(300, 0, 300)), Quaternion.Euler(0, 0, 0));
         RegisterCustomMonument(largeMonument, "MyLargeMonument", new Bounds(new Vector3(0, 15, 0), new Vector3(50, 50, 50)));
     }
 

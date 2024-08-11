@@ -2801,19 +2801,22 @@ namespace Oxide.Plugins
         [HookMethod(nameof(API_RegisterCustomAddon))]
         public Dictionary<string, object> API_RegisterCustomAddon(Plugin plugin, string addonName, Dictionary<string, object> addonSpec)
         {
-            LogWarning($"API_RegisterCustomAddon is experimental and may be changed or removed in future updates.");
-
             var addonDefinition = CustomAddonDefinition.FromDictionary(addonName, plugin, addonSpec);
             if (!addonDefinition.Validate())
                 return null;
 
             if (_customAddonManager.IsRegistered(addonName, out var otherPlugin))
             {
-                LogError($"Unable to register custom addon \"{addonName}\" for plugin {plugin.Name} because it's already been registered by plugin {otherPlugin.Name}.");
-                return null;
+                if (otherPlugin.Name == plugin.Name)
+                {
+                    LogError($"Unable to register custom addon \"{addonName}\" for plugin {plugin.Name} because it's already been registered by plugin {otherPlugin.Name}.");
+                    return null;
+                }
             }
-
-            _customAddonManager.RegisterAddon(addonDefinition);
+            else
+            {
+                _customAddonManager.RegisterAddon(addonDefinition);
+            }
 
             return addonDefinition.ToApiResult(_profileStore);
         }
@@ -5706,17 +5709,13 @@ namespace Oxide.Plugins
         private interface IEntityMonument
         {
             BaseEntity RootEntity { get; }
+            NetworkableId EntityId { get; }
             bool IsMobile { get; }
             bool IsValid { get; }
         }
 
         private class DynamicMonument : BaseMonument, IDynamicMonument, IEntityMonument
         {
-            public static DynamicMonument FromEntity(BaseEntity entity)
-            {
-                return new DynamicMonument(entity);
-            }
-
             public BaseEntity RootEntity { get; }
             public bool IsMobile { get; }
             public override string PrefabName => RootEntity.PrefabName;
@@ -5731,6 +5730,7 @@ namespace Oxide.Plugins
             public DynamicMonument(BaseEntity entity, bool isMobile) : base(entity)
             {
                 RootEntity = entity;
+                // Cache the entity ID in case the entity gets killed, since the ID used in the state file.
                 EntityId = entity.net?.ID ?? new NetworkableId();
                 IsMobile = isMobile;
             }
@@ -5761,11 +5761,13 @@ namespace Oxide.Plugins
             public Bounds Bounds;
 
             private readonly string _monumentName;
+            private Vector3 _position;
 
             public override string PrefabName => _monumentName;
             public override string ShortName => _monumentName;
             public override string UniqueName => _monumentName;
             public override string UniqueDisplayName => _monumentName;
+            public override Vector3 Position => _position;
 
             public OBB BoundingBox => new OBB(Component.transform, Bounds);
 
@@ -5774,6 +5776,8 @@ namespace Oxide.Plugins
                 OwnerPlugin = ownerPlugin;
                 Component = component;
                 _monumentName = monumentName;
+                // Cache the position in case the monument gets killed, since the position is used in the state file.
+                _position = component.transform.position;
                 Bounds = bounds;
             }
 
@@ -5797,12 +5801,14 @@ namespace Oxide.Plugins
         private class CustomEntityMonument : CustomMonument, IEntityMonument
         {
             public BaseEntity RootEntity { get; }
+            public NetworkableId EntityId { get; }
             public bool IsMobile { get; }
 
             public CustomEntityMonument(Plugin ownerPlugin, BaseEntity entity, string monumentName, Bounds bounds)
                 : base(ownerPlugin, entity, monumentName, bounds)
             {
                 RootEntity = entity;
+                EntityId = entity.net?.ID ?? new NetworkableId();
                 IsMobile = HasRigidBody(entity);
             }
         }
@@ -6196,6 +6202,8 @@ namespace Oxide.Plugins
         // Represents a single entity, spawn group, or spawn point at a single monument.
         private abstract class BaseAdapter
         {
+            public abstract bool IsValid { get; }
+
             public BaseData Data { get; }
             public BaseController Controller { get; }
             public BaseMonument Monument { get; }
@@ -6410,6 +6418,7 @@ namespace Oxide.Plugins
             public Transform Transform { get; private set; }
             public override Vector3 Position => Transform.position;
             public override Quaternion Rotation => Transform.rotation;
+            public override bool IsValid => GameObject != null;
 
             public PrefabAdapter(BaseController controller, PrefabData prefabData, BaseMonument monument)
                 : base(prefabData, controller, monument)
@@ -6622,6 +6631,7 @@ namespace Oxide.Plugins
             public virtual bool IsDestroyed => Entity == null || Entity.IsDestroyed;
             public override Vector3 Position => Transform.position;
             public override Quaternion Rotation => Transform.rotation;
+            public override bool IsValid => !IsDestroyed;
 
             public Transform Transform { get; private set; }
 
@@ -8551,6 +8561,7 @@ namespace Oxide.Plugins
             public CustomSpawnPoint SpawnPoint { get; private set; }
             public override Vector3 Position => _transform.position;
             public override Quaternion Rotation => _transform.rotation;
+            public override bool IsValid => SpawnPoint != null;
 
             private Transform _transform;
 
@@ -8611,6 +8622,7 @@ namespace Oxide.Plugins
             public List<SpawnPointAdapter> SpawnPointAdapters { get; } = new List<SpawnPointAdapter>();
             public CustomSpawnGroup SpawnGroup { get; private set; }
             public PuzzleReset AssociatedPuzzleReset { get; private set; }
+            public override bool IsValid => SpawnGroup != null;
 
             public SpawnGroupAdapter(SpawnGroupData spawnGroupData, BaseController controller, BaseMonument monument) : base(spawnGroupData, controller, monument)
             {
@@ -9001,6 +9013,7 @@ namespace Oxide.Plugins
             public PasteData PasteData { get; }
             public override Vector3 Position => _position;
             public override Quaternion Rotation => _rotation;
+            public override bool IsValid => true;
 
             private Vector3 _position;
             private Quaternion _rotation;
@@ -9374,6 +9387,7 @@ namespace Oxide.Plugins
 
             public override Vector3 Position => Component.transform.position;
             public override Quaternion Rotation => Component.transform.rotation;
+            public override bool IsValid => Component != null;
 
             private bool _wasKilled;
 
@@ -10181,6 +10195,9 @@ namespace Oxide.Plugins
 
                 foreach (var adapter in _plugin._profileManager.GetEnabledAdapters<BaseAdapter>())
                 {
+                    if (!adapter.IsValid)
+                        continue;
+
                     var drawer = CreateDrawer(player, adapter, playerInfo);
 
                     if (adapter is EntityAdapter entityAdapter)
@@ -12584,16 +12601,16 @@ namespace Oxide.Plugins
 
             public MonumentState GetMonumentState(BaseMonument monument)
             {
-                if (monument is DynamicMonument dynamicMonument)
-                    return ByEntity.GetValueOrDefault(dynamicMonument.EntityId.Value);
+                if (monument is IEntityMonument entityMonument)
+                    return ByEntity.GetValueOrDefault(entityMonument.EntityId.Value);
 
                 return ByLocation.GetValueOrDefault(monument.Position);
             }
 
             public MonumentState GetOrCreateMonumentState(BaseMonument monument)
             {
-                if (monument is DynamicMonument dynamicMonument)
-                    return ByEntity.GetOrCreate(dynamicMonument.EntityId.Value);
+                if (monument is IEntityMonument entityMonument)
+                    return ByEntity.GetOrCreate(entityMonument.EntityId.Value);
 
                 return ByLocation.GetOrCreate(monument.Position);
             }
