@@ -431,3 +431,45 @@ Note: Kinetic IO elements such as `wheelswitch` and `sliding_blast_door` are not
 ## Uninstallation
 
 Ensure the plugin is loaded with `Persist entities while the plugin is unloaded` set to `false`, then simply remove the plugin. All addons will be automatically removed.
+
+## Developer API
+
+### API_RegisterCustomAddon (experimental)
+
+Coming soon. For early access, see [Custom Addons API documentation](https://github.com/WheteThunger/MonumentAddons/blob/master/CustomAddons.md).
+
+### API_RegisterCustomMonument
+
+See [Custom Monuments API documentation](https://github.com/WheteThunger/MonumentAddons/blob/master/CustomMonuments.md).
+
+## Developer hooks
+
+### OnMonumentAddonsInitialized
+
+```
+void OnMonumentAddonsInitialized()
+```
+
+- Called after this plugin has loaded and finished spawning all addons for all enabled profiles
+
+### OnMonumentEntitySpawned
+
+```
+void OnMonumentEntitySpawned(BaseEntity entity, UnityEngine.Component monument, Guid guid)
+```
+
+- Called after this plugin has spawned an entity at a monument
+- Called only for entity addons, not for entities spanwed by spawn points, but this may change in the future (possibly a new hook in the future)
+- The `component` parameter represents the monument object
+- The `guid` parameter refers to the unique ID present in the profile data file
+- Note: When the plugin is configured to persist entities while the plugin is unloaded, this hook will be called again when the plugin finds and registers the existing entity (the entity will not technically be respawned, although the hook name suggests it was spawned)
+
+### OnDynamicMonument
+
+```
+object OnDynamicMonument(BaseEntity entity)
+```
+
+- Called when this plugin wants to evaluate whether a given entity can be considered a dynamic monument.
+- Called only for entity prefabs configured under `Dynamic monuments` -> `Entity prefabs to consider as monuments`
+- Returning `false` will prevent that specific entity from being considered a custom monument

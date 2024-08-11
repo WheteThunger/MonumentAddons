@@ -1,16 +1,20 @@
-# Custom Monument Addons
+# Custom Addons API
 
-**Custom addon support is currently experimental!**
+***This document describes how plugin developers can define custom addons and register them with Monument Addons***
+
+**Important: Custom addon support is currently experimental!**
 
 ## How custom addons work
 
-At a high level, a plugin can register a custom addon definition with Monument Addons, then players can use `maspawn <addon_name>` to spawn that addon as if it were a typical entity.
+At a high level, a plugin can register a custom addon definition with Monument Addons, then server administrators can use `maspawn <addon_name>` to spawn that addon as if it were a typical entity.
 
 Additional features allow plugins to save data for each custom addon instance, which will be saved in the data file of the Monument Addons profile, and passed back to the plugin when the entity needs to be spawned.
 
+Basically any type of addon currently supported by Monument Addons, such as entities, spawn points and pastes could have each been registered as a type of custom addon.
+
 ## API
 
-```csharp
+```cs
 Dictionary<string, object> API_RegisterCustomAddon(Plugin plugin, string addonName, Dictionary<string, object> addonDefinition)
 ```
 
