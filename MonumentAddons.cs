@@ -111,6 +111,7 @@ namespace Oxide.Plugins
         private ProtectionProperties _immortalProtection;
         private ActionDebounced _saveProfileStateDebounced;
         private StringBuilder _sb = new StringBuilder();
+        private HashSet<string> _deployablePrefabs = new();
 
         private Coroutine _startupCoroutine;
         private bool _serverInitialized;
@@ -186,6 +187,8 @@ namespace Oxide.Plugins
             {
                 StartupRoutine();
             }
+
+            _deployablePrefabs = DetermineAllDeployablePrefabs();
 
             _profileManager.ProfileStatusChanged += (_, _, _) => _dynamicMonumentHooks.Refresh();
             _serverInitialized = true;
@@ -711,6 +714,11 @@ namespace Oxide.Plugins
 
             ReplyToPlayer(player, LangEntry.SpawnSuccess, matchingMonuments.Count, profileController.Profile.Name, monument.UniqueDisplayName);
             _adapterDisplayManager.ShowAllRepeatedly(basePlayer);
+
+            if (addonData is not CustomAddonData && ShouldRecommendSpawnPoints(prefabName))
+            {
+                ReplyToPlayer(player, LangEntry.WarningRecommendSpawnPoint);
+            }
         }
 
         [Command("maprefab")]
@@ -724,7 +732,7 @@ namespace Oxide.Plugins
                 || !VerifyLookingAtMonumentPosition(player, out var position, out var monument))
                 return;
 
-            if (FindBaseEntityForPrefab(prefabName) != null)
+            if (FindPrefabBaseEntity(prefabName) != null)
             {
                 ReplyToPlayer(player, LangEntry.PrefabErrorIsEntity, prefabName);
                 return;
@@ -3573,6 +3581,22 @@ namespace Oxide.Plugins
             return false;
         }
 
+        private static HashSet<string> DetermineAllDeployablePrefabs()
+        {
+            var prefabList = new HashSet<string>(StringComparer.InvariantCultureIgnoreCase);
+
+            foreach (var itemDefinition in ItemManager.itemList)
+            {
+                var deployablePrefab = itemDefinition.GetComponent<ItemModDeployable>()?.entityPrefab?.resourcePath;
+                if (deployablePrefab == null)
+                    continue;
+
+                prefabList.Add(deployablePrefab);
+            }
+
+            return prefabList;
+        }
+
         private static bool IsKeyBindArg(string arg)
         {
             return arg == "True";
@@ -3684,13 +3708,14 @@ namespace Oxide.Plugins
             return false;
         }
 
-        private static BaseEntity FindBaseEntityForPrefab(string prefabName)
+        private static T FindPrefabComponent<T>(string prefabName) where T : UnityEngine.Component
         {
-            var prefab = GameManager.server.FindPrefab(prefabName);
-            if (prefab == null)
-                return null;
+            return GameManager.server.FindPrefab(prefabName)?.GetComponent<T>();
+        }
 
-            return prefab.GetComponent<BaseEntity>();
+        private static BaseEntity FindPrefabBaseEntity(string prefabName)
+        {
+            return FindPrefabComponent<BaseEntity>(prefabName);
         }
 
         private static string FormatTime(double seconds)
@@ -3893,7 +3918,7 @@ namespace Oxide.Plugins
         {
             if (monumentIdentifier.StartsWith("assets/"))
             {
-                var baseEntity = FindBaseEntityForPrefab(monumentIdentifier);
+                var baseEntity = FindPrefabBaseEntity(monumentIdentifier);
                 if (baseEntity != null && IsDynamicMonument(baseEntity))
                     return GetDynamicMonumentInstances(baseEntity.prefabID);
             }
@@ -4020,6 +4045,27 @@ namespace Oxide.Plugins
             }
         }
 
+        // This is a best-effort attempt to flag as many possible entities as possible without false positives.
+        // Hopefully this will help users learn they are using the wrong command before they open a support thread.
+        private bool ShouldRecommendSpawnPoints(string prefabName)
+        {
+            var entity = FindPrefabBaseEntity(prefabName);
+
+            if (entity is BaseNpc or BradleyAPC or PatrolHelicopter or SimpleShark)
+                return true;
+
+            if (entity is LootContainer && !_deployablePrefabs.Contains(prefabName))
+                return true;
+
+            if (entity is NPCPlayer and not NPCShopKeeper and not BanditGuard)
+                return true;
+
+            if (entity is BaseBoat or BaseHelicopter or BaseRidableAnimal or BaseSubmarine or BasicCar or GroundVehicle or HotAirBalloon or Sled or TrainCar)
+                return true;
+
+            return false;
+        }
+
         #endregion
 
         #region Helper Classes
@@ -4053,7 +4099,7 @@ namespace Oxide.Plugins
             {
                 return FindMatches(
                     GameManifest.Current.entities,
-                    prefabPath => StringUtils.Contains(prefabPath, partialName) && FindBaseEntityForPrefab(prefabPath) != null,
+                    prefabPath => StringUtils.Contains(prefabPath, partialName) && FindPrefabBaseEntity(prefabPath) != null,
                     prefabPath => StringUtils.EqualsCaseInsensitive(prefabPath, partialName),
                     prefabPath => StringUtils.Contains(uniqueNameRegistry.GetUniqueShortName(prefabPath), partialName),
                     prefabPath => StringUtils.EqualsCaseInsensitive(uniqueNameRegistry.GetUniqueShortName(prefabPath), partialName)
@@ -7932,7 +7978,7 @@ namespace Oxide.Plugins
                 if (adapter.Data is not EntityData entityData)
                     return false;
 
-                return FindBaseEntityForPrefab(entityData.PrefabName) is T;
+                return FindPrefabBaseEntity(entityData.PrefabName) is T;
             }
         }
 
@@ -9574,7 +9620,7 @@ namespace Oxide.Plugins
 
             private EntityControllerFactory ResolveEntityFactory(EntityData entityData)
             {
-                var baseEntity = FindBaseEntityForPrefab(entityData.PrefabName);
+                var baseEntity = FindPrefabBaseEntity(entityData.PrefabName);
                 if (baseEntity == null)
                     return null;
 
@@ -9660,7 +9706,7 @@ namespace Oxide.Plugins
             {
                 foreach (var prefabPath in GameManifest.Current.entities)
                 {
-                    var ioEntity = GameManager.server.FindPrefab(prefabPath)?.GetComponent<IOEntity>();
+                    var ioEntity = FindPrefabComponent<IOEntity>(prefabPath);
                     if (ioEntity == null || !HasInput(ioEntity, IOType.Electric))
                         continue;
 
@@ -9672,7 +9718,7 @@ namespace Oxide.Plugins
 
                 foreach (var entry in _inputSlotsByPrefabName)
                 {
-                    var ioEntity = GameManager.server.FindPrefab(entry.Key)?.GetComponent<IOEntity>();
+                    var ioEntity = FindPrefabComponent<IOEntity>(entry.Key);
                     if (ioEntity == null)
                         continue;
 
@@ -12370,7 +12416,7 @@ namespace Oxide.Plugins
                     if (!monumentUniqueName.StartsWith("assets/"))
                         continue;
 
-                    var baseEntity = FindBaseEntityForPrefab(monumentUniqueName);
+                    var baseEntity = FindPrefabBaseEntity(monumentUniqueName);
                     if (baseEntity != null)
                     {
                         _dynamicMonumentPrefabIds.Add(baseEntity.prefabID);
@@ -13066,7 +13112,7 @@ namespace Oxide.Plugins
             {
                 foreach (var (prefabPath, enabled) in OverrideEnabledByPrefab)
                 {
-                    var entity = GameManager.server.FindPrefab(prefabPath)?.GetComponent<BaseEntity>();
+                    var entity = FindPrefabBaseEntity(prefabPath);
                     if (entity == null)
                     {
                         LogError($"Invalid entity prefab in config: {prefabPath}");
@@ -13104,7 +13150,7 @@ namespace Oxide.Plugins
 
                 foreach (var prefabPath in DynamicMonumentPrefabs)
                 {
-                    var baseEntity = FindBaseEntityForPrefab(prefabPath);
+                    var baseEntity = FindPrefabBaseEntity(prefabPath);
                     if (baseEntity == null)
                     {
                         LogError($"Invalid prefab path in configuration: {prefabPath}");
@@ -13473,6 +13519,8 @@ namespace Oxide.Plugins
             public static readonly LangEntry1 ErrorSetSyntaxGeneric = new("Error.Set.Syntax.Generic", "Syntax: <color=#fd4>{0} set <option> <value></color>");
             public static readonly LangEntry2 ErrorSetSyntax = new("Error.Set.Syntax", "Syntax: <color=#fd4>{0} set {1} <value></color>");
             public static readonly LangEntry1 ErrorSetUnknownOption = new("Error.Set.UnknownOption", "Unrecognized option: <color=#fd4>{0}</color>");
+
+            public static readonly LangEntry0 WarningRecommendSpawnPoint = new("Warning.RecommandSpawnPoints", "<color=#fd4>Warning: It is not recommended to use /maspawn to place temporary entities such as NPCs, loot containers, and vehicles. Consider creating a spawn point for that entity instead.</color>");
 
             public static readonly LangEntry0 SpawnErrorSyntax = new("Spawn.Error.Syntax", "Syntax: <color=#fd4>maspawn <entity></color>");
             public static readonly LangEntry0 SpawnErrorNoProfileSelected = new("Spawn.Error.NoProfileSelected", "Error: No profile selected. Run <color=#fd4>maprofile help</color> for help.");
