@@ -149,7 +149,6 @@ namespace Oxide.Plugins
 
         private void Init()
         {
-            _plugin = this;
             _data = StoredData.Load(_profileStore);
             _profileStateData = ProfileStateData.Load(_data);
 
@@ -2393,16 +2392,16 @@ namespace Oxide.Plugins
                     totalWeight += prefab.weight;
                 }
 
-                sb.AppendLine(_plugin.GetMessage(player.Id, LangEntry.ShowLabelEntities));
+                sb.AppendLine(GetMessage(player.Id, LangEntry.ShowLabelEntities));
                 foreach (var prefabEntry in spawnGroup.prefabs)
                 {
                     var relativeChance = (float)prefabEntry.weight / totalWeight;
-                    sb.AppendLine(_plugin.GetMessage(player.Id, LangEntry.ShowLabelEntityDetail, _uniqueNameRegistry.GetUniqueShortName(prefabEntry.prefab.resourcePath), prefabEntry.weight, relativeChance));
+                    sb.AppendLine(GetMessage(player.Id, LangEntry.ShowLabelEntityDetail, _uniqueNameRegistry.GetUniqueShortName(prefabEntry.prefab.resourcePath), prefabEntry.weight, relativeChance));
                 }
             }
             else
             {
-                sb.AppendLine(_plugin.GetMessage(player.Id, LangEntry.ShowLabelNoEntities));
+                sb.AppendLine(GetMessage(player.Id, LangEntry.ShowLabelNoEntities));
             }
         }
 
@@ -2500,28 +2499,28 @@ namespace Oxide.Plugins
                         var genericSpawnPoint = spawnPoint as GenericSpawnPoint;
                         if (genericSpawnPoint != null)
                         {
-                            booleanProperties.Add(_plugin.GetMessage(player.Id, LangEntry.ShowLabelSpawnPointExclusive));
+                            booleanProperties.Add(GetMessage(player.Id, LangEntry.ShowLabelSpawnPointExclusive));
 
                             if (genericSpawnPoint.randomRot)
                             {
-                                booleanProperties.Add(_plugin.GetMessage(player.Id, LangEntry.ShowLabelSpawnPointRandomRotation));
+                                booleanProperties.Add(GetMessage(player.Id, LangEntry.ShowLabelSpawnPointRandomRotation));
                             }
 
                             if (genericSpawnPoint.dropToGround)
                             {
-                                booleanProperties.Add(_plugin.GetMessage(player.Id, LangEntry.ShowLabelSpawnPointSnapToGround));
+                                booleanProperties.Add(GetMessage(player.Id, LangEntry.ShowLabelSpawnPointSnapToGround));
                             }
                         }
 
                         var spaceCheckingSpawnPoint = spawnPoint as SpaceCheckingSpawnPoint;
                         if (spaceCheckingSpawnPoint != null)
                         {
-                            booleanProperties.Add(_plugin.GetMessage(player.Id, LangEntry.ShowLabelSpawnPointCheckSpace));
+                            booleanProperties.Add(GetMessage(player.Id, LangEntry.ShowLabelSpawnPointCheckSpace));
                         }
 
                         if (booleanProperties.Count > 0)
                         {
-                            _sb.AppendLine(_plugin.GetMessage(player.Id, LangEntry.ShowLabelFlags, string.Join(" | ", booleanProperties)));
+                            _sb.AppendLine(GetMessage(player.Id, LangEntry.ShowLabelFlags, string.Join(" | ", booleanProperties)));
                         }
 
                         var radialSpawnPoint = spawnPoint as RadialSpawnPoint;
@@ -3959,7 +3958,7 @@ namespace Oxide.Plugins
                 body: null,
                 callback: (statusCode, responseBody) =>
                 {
-                    if (_plugin == null)
+                    if (!IsLoaded)
                     {
                         // Ignore the response because the plugin was unloaded.
                         return;
