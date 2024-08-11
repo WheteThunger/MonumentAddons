@@ -13177,14 +13177,11 @@ namespace Oxide.Plugins
             [JsonProperty("Debug", DefaultValueHandling = DefaultValueHandling.Ignore)]
             public bool Debug = false;
 
-            [JsonProperty("DebugDisplayDistance")]
-            private float DeprecatedDebugDisplayDistance { set => DebugDisplayDistance = value; }
-
             [JsonProperty("Debug display settings")]
             public DebugDisplaySettings DebugDisplaySettings = new();
 
             [JsonProperty("Debug display distance")]
-            private float DebugDisplayDistance
+            private float DeprecatedDebugDisplayDistance
             {
                 set
                 {
@@ -13192,9 +13189,6 @@ namespace Oxide.Plugins
                     DebugDisplaySettings.DisplayDistanceAbbreviated = value * 2;
                 }
             }
-
-            [JsonProperty("PersistEntitiesAfterUnload")]
-            private bool DeprecatedEnableEntitySaving { set => EnableEntitySaving = value; }
 
             [JsonProperty("Persist entities while the plugin is unloaded")]
             public bool EnableEntitySaving;
@@ -13204,9 +13198,6 @@ namespace Oxide.Plugins
 
             [JsonProperty("Addon defaults")]
             public AddonDefaults AddonDefaults = new();
-
-            [JsonProperty("DeployableOverrides")]
-            public Dictionary<string, string> DeprecatedDeployableOverrides { set => DeployableOverrides = value; }
 
             [JsonProperty("Deployable overrides")]
             public Dictionary<string, string> DeployableOverrides = new Dictionary<string, string>
