@@ -6324,10 +6324,19 @@ namespace Oxide.Plugins
                     if (!monument.IsValid)
                         continue;
 
+                    BaseAdapter adapter = null;
                     Plugin.TrackStart();
-                    var adapter = SpawnAtMonument(monument);
+                    try
+                    {
+                        adapter = SpawnAtMonument(monument);
+                    }
+                    catch (Exception ex)
+                    {
+                        LogError($"Caught exception when spawning addon {Data.Id}.\n{ex}");
+                    }
+
                     Plugin.TrackEnd();
-                    yield return adapter.WaitInstruction;
+                    yield return adapter?.WaitInstruction;
                 }
             }
 
@@ -10701,7 +10710,15 @@ namespace Oxide.Plugins
                                 continue;
                             }
 
-                            controller.SpawnAtMonument(queueItem.Monument);
+                            try
+                            {
+                                controller.SpawnAtMonument(queueItem.Monument);
+                            }
+                            catch (Exception ex)
+                            {
+                                LogError($"Caught exception when spawning addon {queueItem.Data.Id}.\n{ex}");
+                            }
+
                             yield return null;
                         }
                     }
