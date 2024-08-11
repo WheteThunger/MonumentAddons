@@ -245,6 +245,32 @@ Profiles allow you to organize entities into groups. Each profile can be indepen
       "assets/content/vehicles/boats/cargoship/cargoshiptest.prefab"
     ]
   },
+  "Addon defaults": {
+    "Spawn group defaults": {
+      "MaxPopulation": 1,
+      "SpawnPerTickMin": 1,
+      "SpawnPerTickMax": 2,
+      "RespawnDelayMin": 1500.0,
+      "RespawnDelayMax": 2100.0,
+      "InitialSpawn": true,
+      "PreventDuplicates": false,
+      "PauseScheduleWhileFull": false,
+      "RespawnWhenNearestPuzzleResets": false
+    },
+    "Spawn point defaults": {
+      "Exclusive": true,
+      "SnapToGround": true,
+      "CheckSpace": false,
+      "RandomRotation": false,
+      "RandomRadius": 0.0,
+      "PlayerDetectionRadius": 0.0
+    },
+    "Puzzle defaults": {
+      "PlayersBlockReset": true,
+      "PlayerDetectionRadius": 30.0,
+      "SecondsBetweenResets": 1800.0
+    }
+  },
   "Deployable overrides": {
     "arcade.machine.chippy": "assets/bundled/prefabs/static/chippyarcademachine.static.prefab",
     "autoturret": "assets/content/props/sentry_scientists/sentry.bandit.static.prefab",
@@ -293,6 +319,7 @@ Profiles allow you to organize entities into groups. Each profile can be indepen
 - `Dynamic monuments`
   - `Entity prefabs to consider as monuments` -- Determines which entities are considered dynamic monuments. When an entity is considered a dynamic monument, you can define addons for it via `maspawn` and similar commands, and the plugin will ensure every instance of that entity has those addons attached. For example, Cargo Ship has been considered a dynamic monument since an early version of this plugin, but now you can define additional ones such as desert military base modules and road-side junk piles.
     - Note: Updating this configuration is only necessary if you want to use `maspawn` and similar commands to recognize the entity as a monument. If you want to install an external profile that defines addons for a dynamic monument (such as the CargoShipCCTV profile), it isn't necessary to update this configuration because the plugin will automatically determine that the entity is a dynamic monument by reading the profile. Additionally, if you install an external profile which defines addons for a given dynamic monument, `maspawn` and similar commands will automatically recognize that entity as a dynamic monument. 
+- `Addon defaults` -- Determines the default values for various addon parameters when placing new addons. These options do not affect addons which have already been placed. To understand these options, see the documentation for the respective commands (`maspawngroup`, `maspawnpoint`, `mapuzzle`).
 - `Deployable overrides` -- Determines which entity will be spawned when using `maspawn` if you don't specify the entity name in the command. For example, while you are holding an auto turret, running `maspawn` will spawn the `sentry.bandit.static` prefab instead of the `autoturret_deployed` prefab.
 - `Xmas tree decorations (item short names)` -- Determines which decorations will be automatically added to `xmas_tree.deployed` entities spawned via `maspawn`.
 

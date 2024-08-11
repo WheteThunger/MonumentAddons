@@ -676,12 +676,7 @@ namespace Oxide.Plugins
 
                 if (shortPrefabName.StartsWith("generator.static"))
                 {
-                    entityData.Puzzle = new PuzzleData
-                    {
-                        PlayersBlockReset = true,
-                        PlayerDetectionRadius = 30,
-                        SecondsBetweenResets = 1800,
-                    };
+                    entityData.Puzzle = _config.AddonDefaults.Puzzles.ApplyTo(new PuzzleData());
                 }
 
                 addonData = entityData;
@@ -1799,23 +1794,21 @@ namespace Oxide.Plugins
 
                     DetermineLocalTransformData(position, basePlayer, monument, out var localPosition, out var localRotationAngles, out var isOnTerrain);
 
-                    var spawnGroupData = new SpawnGroupData
+                    var spawnGroupData = _config.AddonDefaults.SpawnGroups.ApplyTo(new SpawnGroupData
                     {
                         Id = Guid.NewGuid(),
                         Name = spawnGroupName,
                         SpawnPoints = new List<SpawnPointData>
                         {
-                            new SpawnPointData
+                            _config.AddonDefaults.SpawnPoints.ApplyTo(new SpawnPointData
                             {
                                 Id = Guid.NewGuid(),
                                 Position = localPosition,
                                 RotationAngles = localRotationAngles,
                                 SnapToTerrain = isOnTerrain,
-                                Exclusive = true,
-                                SnapToGround = true,
-                            },
+                            }),
                         },
-                    };
+                    });
 
                     var matchingMonuments = GetMonumentsByIdentifier(monument.UniqueName);
 
@@ -2139,15 +2132,13 @@ namespace Oxide.Plugins
 
                     DetermineLocalTransformData(position, basePlayer, monument, out var localPosition, out var localRotationAngles, out var isOnTerrain);
 
-                    var spawnPointData = new SpawnPointData
+                    var spawnPointData = _config.AddonDefaults.SpawnPoints.ApplyTo(new SpawnPointData
                     {
                         Id = Guid.NewGuid(),
                         Position = localPosition,
                         RotationAngles = localRotationAngles,
                         SnapToTerrain = isOnTerrain,
-                        Exclusive = true,
-                        SnapToGround = true,
-                    };
+                    });
 
                     spawnGroupController.SpawnGroupData.SpawnPoints.Add(spawnPointData);
                     _profileStore.Save(spawnGroupController.Profile);
@@ -13028,6 +13019,118 @@ namespace Oxide.Plugins
         }
 
         [JsonObject(MemberSerialization.OptIn)]
+        private class SpawnGroupDefaults
+        {
+            [JsonProperty(nameof(SpawnGroupOption.MaxPopulation))]
+            private int MaxPopulation = 1;
+
+            [JsonProperty(nameof(SpawnGroupOption.SpawnPerTickMin))]
+            private int SpawnPerTickMin = 1;
+
+            [JsonProperty(nameof(SpawnGroupOption.SpawnPerTickMax))]
+            private int SpawnPerTickMax = 2;
+
+            [JsonProperty(nameof(SpawnGroupOption.RespawnDelayMin))]
+            private float RespawnDelayMin = 1500;
+
+            [JsonProperty(nameof(SpawnGroupOption.RespawnDelayMax))]
+            private float RespawnDelayMax = 2100;
+
+            [JsonProperty(nameof(SpawnGroupOption.InitialSpawn))]
+            private bool InitialSpawn = true;
+
+            [JsonProperty(nameof(SpawnGroupOption.PreventDuplicates))]
+            private bool PreventDuplicates;
+
+            [JsonProperty(nameof(SpawnGroupOption.PauseScheduleWhileFull))]
+            private bool PauseScheduleWhileFull;
+
+            [JsonProperty(nameof(SpawnGroupOption.RespawnWhenNearestPuzzleResets))]
+            private bool RespawnWhenNearestPuzzleResets;
+
+            public SpawnGroupData ApplyTo(SpawnGroupData spawnGroupData)
+            {
+                spawnGroupData.MaxPopulation = MaxPopulation;
+                spawnGroupData.SpawnPerTickMin = SpawnPerTickMin;
+                spawnGroupData.SpawnPerTickMax = SpawnPerTickMax;
+                spawnGroupData.RespawnDelayMin = RespawnDelayMin;
+                spawnGroupData.RespawnDelayMax = RespawnDelayMax;
+                spawnGroupData.InitialSpawn = InitialSpawn;
+                spawnGroupData.PreventDuplicates = PreventDuplicates;
+                spawnGroupData.PauseScheduleWhileFull = PauseScheduleWhileFull;
+                spawnGroupData.RespawnWhenNearestPuzzleResets = RespawnWhenNearestPuzzleResets;
+                return spawnGroupData;
+            }
+        }
+
+        [JsonObject(MemberSerialization.OptIn)]
+        private class SpawnPointDefaults
+        {
+            [JsonProperty(nameof(SpawnPointOption.Exclusive))]
+            private bool Exclusive = true;
+
+            [JsonProperty(nameof(SpawnPointOption.SnapToGround))]
+            private bool SnapToGround = true;
+
+            [JsonProperty(nameof(SpawnPointOption.CheckSpace))]
+            private bool CheckSpace;
+
+            [JsonProperty(nameof(SpawnPointOption.RandomRotation))]
+            private bool RandomRotation;
+
+            [JsonProperty(nameof(SpawnPointOption.RandomRadius))]
+            private float RandomRadius;
+
+            [JsonProperty(nameof(SpawnPointOption.PlayerDetectionRadius))]
+            private float PlayerDetectionRadius;
+
+            public SpawnPointData ApplyTo(SpawnPointData spawnPointData)
+            {
+                spawnPointData.Exclusive = Exclusive;
+                spawnPointData.SnapToGround = SnapToGround;
+                spawnPointData.CheckSpace = CheckSpace;
+                spawnPointData.RandomRotation = RandomRotation;
+                spawnPointData.RandomRadius = RandomRadius;
+                spawnPointData.PlayerDetectionRadius = PlayerDetectionRadius;
+                return spawnPointData;
+            }
+        }
+
+        [JsonObject(MemberSerialization.OptIn)]
+        private class PuzzleDefaults
+        {
+            [JsonProperty(nameof(PuzzleOption.PlayersBlockReset))]
+            public bool PlayersBlockReset = true;
+
+            [JsonProperty(nameof(PuzzleOption.PlayerDetectionRadius))]
+            public float PlayerDetectionRadius = 30f;
+
+            [JsonProperty(nameof(PuzzleOption.SecondsBetweenResets))]
+            public float SecondsBetweenResets = 1800f;
+
+            public PuzzleData ApplyTo(PuzzleData puzzleData)
+            {
+                puzzleData.PlayersBlockReset = PlayersBlockReset;
+                puzzleData.PlayerDetectionRadius = PlayerDetectionRadius;
+                puzzleData.SecondsBetweenResets = SecondsBetweenResets;
+                return puzzleData;
+            }
+        }
+
+        [JsonObject(MemberSerialization.OptIn)]
+        private class AddonDefaults
+        {
+            [JsonProperty("Spawn group defaults")]
+            public SpawnGroupDefaults SpawnGroups = new();
+
+            [JsonProperty("Spawn point defaults")]
+            public SpawnPointDefaults SpawnPoints = new();
+
+            [JsonProperty("Puzzle defaults")]
+            public PuzzleDefaults Puzzles = new();
+        }
+
+        [JsonObject(MemberSerialization.OptIn)]
         private class Configuration : BaseConfiguration
         {
             [JsonProperty("Debug", DefaultValueHandling = DefaultValueHandling.Ignore)]
@@ -13055,11 +13158,14 @@ namespace Oxide.Plugins
             [JsonProperty("Persist entities while the plugin is unloaded")]
             public bool EnableEntitySaving;
 
-            [JsonProperty("DeployableOverrides")]
-            public Dictionary<string, string> DeprecatedDeployableOverrides { set => DeployableOverrides = value; }
-
             [JsonProperty("Dynamic monuments")]
             public DynamicMonumentSettings DynamicMonuments = new();
+
+            [JsonProperty("Addon defaults")]
+            public AddonDefaults AddonDefaults = new();
+
+            [JsonProperty("DeployableOverrides")]
+            public Dictionary<string, string> DeprecatedDeployableOverrides { set => DeployableOverrides = value; }
 
             [JsonProperty("Deployable overrides")]
             public Dictionary<string, string> DeployableOverrides = new Dictionary<string, string>
