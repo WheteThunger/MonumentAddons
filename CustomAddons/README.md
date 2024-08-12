@@ -22,7 +22,7 @@ The `addonDefinition` dictionary should have the following keys:
 - `"Initialize"` -- A method that Monument Addons will call when a player places this addon via the `maspawn` command.
   - Type: `System.Func<BasePlayer, string[], object>`
     - `BasePlayer` -- The player who ran `maspawn`.
-    - `string[]` -- The arguments the player passed to the `maspawn` command. This includes the addon name as the first argument.
+    - `string[]` -- The arguments the player passed to the `maspawn` command, after the addon name. For example, `/maspawn example foo bar` will provide an array with `foo` and `bar` only.
     - `object` -- The return value of the method should be an object that you want to save for the addon's initial data. This may optionally be a `JObject`. This data will be passed to `Spawn` and `AddDisplayInfo` as `JObject`.
 - `"Spawn"` -- A method that Monument Addons can call to spawn each instance of the addon.
   - Type: `System.Func<Guid, UnityEngine.Component, Vector3, Quaternion, JObject, UnityEngine.Component>`

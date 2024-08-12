@@ -86,10 +86,9 @@ internal class ExampleCustomAddon : CovalencePlugin
     private object InitializeAddon(BasePlayer player, string[] args)
     {
         // Example: /maspawn exampleaddon 500
-        // args[0] == "exampleaddon"
-        // args[1] == "500"
+        // args[0] == "500"
 
-        if (args.Length < 2 || !float.TryParse(args[1], out var health))
+        if (args.Length < 1 || !float.TryParse(args[0], out var health))
         {
             // Set health to 500 if not specified via /maspawn.
             health = 500;
@@ -101,6 +100,10 @@ internal class ExampleCustomAddon : CovalencePlugin
     private Component SpawnCustomAddon(Guid guid, Component monument, Vector3 position, Quaternion rotation, JObject data)
     {
         var entity = GameManager.server.CreateEntity("assets/prefabs/npc/sam_site_turret/sam_site_turret_deployed.prefab", position, rotation) as SamSite;
+        if (entity == null)
+            return null;
+
+        UnityEngine.Object.DestroyImmediate(entity.GetComponent<DestroyOnGroundMissing>());
         entity.EnableSaving(false);
         entity.Spawn();
 

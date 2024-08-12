@@ -693,7 +693,7 @@ namespace Oxide.Plugins
             else
             {
                 // Found a custom addon definition.
-                if (!TryInitializeCustomAddonData(addonDefinition, basePlayer, args, out var pluginData))
+                if (!TryInitializeCustomAddonData(addonDefinition, basePlayer, args.Skip(1).ToArray(), out var pluginData))
                     return;
 
                 addonData = new CustomAddonData
