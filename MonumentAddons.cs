@@ -26,6 +26,7 @@ using SkullTrophyGlobal = global::SkullTrophy;
 using CustomInitializeCallback = System.Func<BasePlayer, string[], object>;
 using CustomSpawnCallback = System.Func<UnityEngine.Vector3, UnityEngine.Quaternion, Newtonsoft.Json.Linq.JObject, UnityEngine.Component>;
 using CustomSpawnCallbackV2 = System.Func<System.Guid, UnityEngine.Component, UnityEngine.Vector3, UnityEngine.Quaternion, Newtonsoft.Json.Linq.JObject, UnityEngine.Component>;
+using CustomCheckSpaceCallback = System.Func<UnityEngine.Vector3, UnityEngine.Quaternion, bool>;
 using CustomKillCallback = System.Action<UnityEngine.Component>;
 using CustomUnloadCallback = System.Action<UnityEngine.Component>;
 using CustomUpdateCallback = System.Action<UnityEngine.Component, Newtonsoft.Json.Linq.JObject>;
@@ -1995,7 +1996,7 @@ namespace Oxide.Plugins
                         return;
                     }
 
-                    if (!VerifyValidEntityPrefab(player, args[1], out var prefabPath))
+                    if (!VerifyValidEntityPrefabOrCustomAddon(player, args[1], out var prefabPath, out var customAddonDefinition))
                         return;
 
                     if (!VerifyLookingAtAdapter(player, out SpawnGroupController spawnGroupController, LangEntry.ErrorNoSpawnPointFound))
@@ -2004,7 +2005,9 @@ namespace Oxide.Plugins
                     var updatedExistingEntry = false;
 
                     var spawnGroupData = spawnGroupController.SpawnGroupData;
-                    var prefabData = spawnGroupData.Prefabs.FirstOrDefault(entry => entry.PrefabName == prefabPath);
+                    var prefabData = spawnGroupData.Prefabs.FirstOrDefault(entry => entry.PrefabName == prefabPath
+                        || entry.CustomAddonName == customAddonDefinition?.AddonName);
+
                     if (prefabData != null)
                     {
                         prefabData.Weight = weight;
@@ -2015,6 +2018,7 @@ namespace Oxide.Plugins
                         prefabData = new WeightedPrefabData
                         {
                             PrefabName = prefabPath,
+                            CustomAddonName = customAddonDefinition?.AddonName,
                             Weight = weight,
                         };
                         spawnGroupData.Prefabs.Add(prefabData);
@@ -2023,7 +2027,8 @@ namespace Oxide.Plugins
                     spawnGroupController.UpdateSpawnGroups();
                     _profileStore.Save(spawnGroupController.Profile);
 
-                    ReplyToPlayer(player, LangEntry.SpawnGroupAddSuccess, _uniqueNameRegistry.GetUniqueShortName(prefabData.PrefabName), weight, spawnGroupData.Name);
+                    var displayName = prefabData.CustomAddonName ?? _uniqueNameRegistry.GetUniqueShortName(prefabData.PrefabName);
+                    ReplyToPlayer(player, LangEntry.SpawnGroupAddSuccess, displayName, weight, spawnGroupData.Name);
 
                     _adapterDisplayManager.ShowAllRepeatedly(basePlayer, immediate: updatedExistingEntry);
                     break;
@@ -2043,30 +2048,19 @@ namespace Oxide.Plugins
                     string desiredPrefab = args[1];
 
                     var spawnGroupData = spawnGroupController.SpawnGroupData;
-
-                    var matchingPrefabs = spawnGroupData.FindPrefabMatches(desiredPrefab, _uniqueNameRegistry);
-                    if (matchingPrefabs.Count == 0)
+                    if (!VerifySpawnGroupPrefabOrCustomAddon(player, spawnGroupData, desiredPrefab, out var prefabData))
                     {
-                        ReplyToPlayer(player, LangEntry.SpawnGroupRemoveNoMatch, spawnGroupData.Name, desiredPrefab);
                         _adapterDisplayManager.ShowAllRepeatedly(basePlayer);
                         return;
                     }
 
-                    if (matchingPrefabs.Count > 1)
-                    {
-                        ReplyToPlayer(player, LangEntry.SpawnGroupRemoveMultipleMatches, spawnGroupData.Name, desiredPrefab);
-                        _adapterDisplayManager.ShowAllRepeatedly(basePlayer);
-                        return;
-                    }
-
-                    var prefabMatch = matchingPrefabs[0];
-
-                    spawnGroupData.Prefabs.Remove(prefabMatch);
-                    spawnGroupController.StartKillSpawnedInstancesRoutine(prefabMatch.PrefabName);
+                    spawnGroupData.Prefabs.Remove(prefabData);
+                    spawnGroupController.StartKillSpawnedInstancesRoutine(prefabData);
                     spawnGroupController.UpdateSpawnGroups();
                     _profileStore.Save(spawnGroupController.Profile);
 
-                    ReplyToPlayer(player, LangEntry.SpawnGroupRemoveSuccess, _uniqueNameRegistry.GetUniqueShortName(prefabMatch.PrefabName), spawnGroupData.Name);
+                    var displayName = prefabData.CustomAddonName ?? _uniqueNameRegistry.GetUniqueShortName(prefabData.PrefabName);
+                    ReplyToPlayer(player, LangEntry.SpawnGroupRemoveSuccess, displayName, spawnGroupData.Name);
 
                     _adapterDisplayManager.ShowAllRepeatedly(basePlayer, immediate: false);
                     break;
@@ -3217,6 +3211,35 @@ namespace Oxide.Plugins
             return false;
         }
 
+        private bool VerifySpawnGroupPrefabOrCustomAddon(IPlayer player, SpawnGroupData spawnGroupData, string prefabArg, out WeightedPrefabData weightedPrefabData)
+        {
+            var customAddonMatches = spawnGroupData.FindCustomAddonMatches(prefabArg);
+            if (customAddonMatches.Count == 1)
+            {
+                weightedPrefabData = customAddonMatches.First();
+                return true;
+            }
+
+            var prefabMatches = spawnGroupData.FindPrefabMatches(prefabArg, _uniqueNameRegistry);
+            if (prefabMatches.Count == 1)
+            {
+                weightedPrefabData = prefabMatches.First();
+                return true;
+            }
+
+            var matchCount = prefabMatches.Count + customAddonMatches.Count;
+            if (matchCount == 0)
+            {
+                ReplyToPlayer(player, LangEntry.SpawnGroupRemoveNoMatch, spawnGroupData.Name, prefabArg);
+                weightedPrefabData = null;
+                return false;
+            }
+
+            ReplyToPlayer(player, LangEntry.SpawnGroupRemoveMultipleMatches, spawnGroupData.Name, prefabArg);
+            weightedPrefabData = null;
+            return false;
+        }
+
         private bool VerifyLookingAtAdapter<TAdapter, TController, TFormatter>(IPlayer player, out AdapterFindResult<TAdapter, TController> findResult, TFormatter errorFormatter)
             where TAdapter : TransformAdapter
             where TController : BaseController
@@ -4078,7 +4101,7 @@ namespace Oxide.Plugins
 
             public static bool Contains(string haystack, string needle)
             {
-                return haystack.Contains(needle, CompareOptions.IgnoreCase);
+                return haystack?.Contains(needle, CompareOptions.IgnoreCase) ?? false;
             }
         }
 
@@ -4094,6 +4117,17 @@ namespace Oxide.Plugins
                 );
             }
 
+            public static List<T> FindPrefabMatches<T>(IEnumerable<T> sourceList, Func<T, string> selector, string partialName, UniqueNameRegistry uniqueNameRegistry)
+            {
+                return SearchUtils.FindMatches(
+                    sourceList,
+                    prefabPath => StringUtils.Contains(selector(prefabPath), partialName),
+                    prefabPath => StringUtils.EqualsCaseInsensitive(selector(prefabPath), partialName),
+                    prefabPath => StringUtils.Contains(uniqueNameRegistry.GetUniqueShortName(selector(prefabPath)), partialName),
+                    prefabPath => StringUtils.EqualsCaseInsensitive(uniqueNameRegistry.GetUniqueShortName(selector(prefabPath)), partialName)
+                );
+            }
+
             public static List<string> FindEntityPrefabMatches(string partialName, UniqueNameRegistry uniqueNameRegistry)
             {
                 return FindMatches(
@@ -4105,13 +4139,18 @@ namespace Oxide.Plugins
                 );
             }
 
-            public static List<CustomAddonDefinition> FindCustomAddonMatches(string partialName, IEnumerable<CustomAddonDefinition> customAddons)
+            public static List<T> FindCustomAddonMatches<T>(IEnumerable<T> sourceList, Func<T, string> selector, string partialName)
             {
                 return FindMatches(
-                    customAddons,
-                    addonDefinition => StringUtils.Contains(addonDefinition.AddonName, partialName),
-                    addonDefinition => StringUtils.EqualsCaseInsensitive(addonDefinition.AddonName, partialName)
+                    sourceList,
+                    addonDefinition => StringUtils.Contains(selector(addonDefinition), partialName),
+                    addonDefinition => StringUtils.EqualsCaseInsensitive(selector(addonDefinition), partialName)
                 );
+            }
+
+            public static List<CustomAddonDefinition> FindCustomAddonMatches(string partialName, IEnumerable<CustomAddonDefinition> customAddons)
+            {
+                return FindCustomAddonMatches(customAddons, customAddonDefinition => customAddonDefinition.AddonName, partialName);
             }
 
             public static List<T> FindMatches<T>(IEnumerable<T> sourceList, params Func<T, bool>[] predicateList)
@@ -8226,6 +8265,36 @@ namespace Oxide.Plugins
             }
         }
 
+        private class CustomAddonSpawnPointInstance : SpawnPointInstance
+        {
+            public static CustomAddonSpawnPointInstance AddToComponent(UnityEngine.Component component, CustomAddonDefinition customAddonDefinition)
+            {
+                var spawnPointInstance = component.gameObject.AddComponent<CustomAddonSpawnPointInstance>();
+                spawnPointInstance.CustomAddonDefinition = customAddonDefinition;
+                spawnPointInstance._customAddonComponent = component;
+                customAddonDefinition.SpawnPointInstances.Add(spawnPointInstance);
+                return spawnPointInstance;
+            }
+
+            public CustomAddonDefinition CustomAddonDefinition { get; private set; }
+            private UnityEngine.Component _customAddonComponent;
+
+            public void Kill()
+            {
+                CustomAddonDefinition.Kill(_customAddonComponent);
+            }
+
+            public new void OnDestroy()
+            {
+                CustomAddonDefinition.SpawnPointInstances.Remove(this);
+
+                if (!Rust.Application.isQuitting)
+                {
+                    Retire();
+                }
+            }
+        }
+
         private class CustomSpawnPoint : BaseSpawnPoint
         {
             private const int TrainCarLayerMask = Rust.Layers.Mask.AI
@@ -8334,12 +8403,25 @@ namespace Oxide.Plugins
                 Adapter.SpawnGroupAdapter.SpawnGroup.HandleObjectRetired();
             }
 
+            public bool IsAvailableTo(CustomSpawnGroup.SpawnEntry spawnEntry)
+            {
+                if (_spawnPointData.Exclusive && _instances.Count > 0)
+                    return false;
+
+                if (spawnEntry.CustomAddonDefinition != null)
+                {
+                    if (_spawnPointData.CheckSpace)
+                        return spawnEntry.CustomAddonDefinition.CheckSpace?.Invoke(_transform.position, _transform.rotation) ?? true;
+
+                    return true;
+                }
+
+                return IsAvailableTo(spawnEntry.Prefab.Get());
+            }
+
             public override bool IsAvailableTo(GameObject prefab)
             {
                 if (!base.IsAvailableTo(prefab))
-                    return false;
-
-                if (_spawnPointData.Exclusive && _instances.Count > 0)
                     return false;
 
                 if (_spawnPointData.CheckSpace)
@@ -8372,12 +8454,24 @@ namespace Oxide.Plugins
                 Adapter.OnSpawnPointKilled();
             }
 
-            public void KillSpawnedInstances(string prefabName = null)
+            public void KillSpawnedInstances(WeightedPrefabData weightedPrefabData = null)
             {
                 for (var i = _instances.Count - 1; i >= 0; i--)
                 {
-                    var entity = _instances[i].GetComponent<BaseEntity>();
-                    if ((prefabName == null || entity.PrefabName == prefabName) && entity != null && !entity.IsDestroyed)
+                    var spawnPointInstance = _instances[i];
+                    if (spawnPointInstance is CustomAddonSpawnPointInstance customAddonSpawnPointInstance)
+                    {
+                        if (weightedPrefabData == null || weightedPrefabData.CustomAddonName == customAddonSpawnPointInstance.CustomAddonDefinition.AddonName)
+                        {
+                            customAddonSpawnPointInstance.Kill();
+                        }
+
+                        continue;
+                    }
+
+                    var entity = spawnPointInstance.GetComponent<BaseEntity>();
+                    if ((weightedPrefabData == null || entity.PrefabName == weightedPrefabData.PrefabName)
+                        && entity != null && !entity.IsDestroyed)
                     {
                         entity.Kill();
                     }
@@ -8458,6 +8552,27 @@ namespace Oxide.Plugins
 
         private class CustomSpawnGroup : SpawnGroup
         {
+            public new class SpawnEntry
+            {
+                public readonly CustomAddonDefinition CustomAddonDefinition;
+                public readonly GameObjectRef Prefab;
+                public int Weight;
+
+                public bool IsValid => CustomAddonDefinition?.IsValid ?? !string.IsNullOrEmpty(Prefab.guid);
+
+                public SpawnEntry(CustomAddonDefinition customAddonDefinition, int weight)
+                {
+                    CustomAddonDefinition = customAddonDefinition;
+                    Weight = weight;
+                }
+
+                public SpawnEntry(GameObjectRef prefab, int weight)
+                {
+                    Prefab = prefab;
+                    Weight = weight;
+                }
+            }
+
             private static AIInformationZone FindVirtualInfoZone(Vector3 position)
             {
                 foreach (var zone in AIInformationZone.zones)
@@ -8470,6 +8585,7 @@ namespace Oxide.Plugins
             }
 
             public SpawnGroupAdapter SpawnGroupAdapter { get; private set; }
+            public List<SpawnEntry> SpawnEntries { get; } = new();
             private AIInformationZone _cachedInfoZone;
             private bool _didLookForInfoZone;
 
@@ -8521,6 +8637,52 @@ namespace Oxide.Plugins
                 DelayedSpawn();
             }
 
+            protected override void Spawn(int numToSpawn)
+            {
+                numToSpawn = Mathf.Min(numToSpawn, maxPopulation - currentPopulation);
+
+                for (int i = 0; i < numToSpawn; i++)
+                {
+                    var spawnEntry = GetRandomSpawnEntry();
+                    if (spawnEntry is not { IsValid: true })
+                        continue;
+
+                    var spawnPoint = GetRandomSpawnPoint(spawnEntry, out var position, out var rotation);
+                    if (spawnPoint == null)
+                        continue;
+
+                    SpawnPointInstance spawnPointInstance = null;
+
+                    if (spawnEntry.CustomAddonDefinition != null)
+                    {
+                        // TODO: Figure out how to associate data with addons spawned this via spawn points.
+                        var component = spawnEntry.CustomAddonDefinition.DoSpawn(SpawnGroupData.Id, SpawnGroupAdapter.Monument.Object, position, rotation, null);
+                        if (component != null)
+                        {
+                            spawnPointInstance = CustomAddonSpawnPointInstance.AddToComponent(component, spawnEntry.CustomAddonDefinition);
+                        }
+                    }
+                    else
+                    {
+                        var entity = GameManager.server.CreateEntity(spawnEntry.Prefab.resourcePath, position, rotation, startActive: false);
+                        if (entity != null)
+                        {
+                            entity.gameObject.AwakeFromInstantiate();
+                            entity.Spawn();
+                            PostSpawnProcess(entity, spawnPoint);
+                            spawnPointInstance = entity.gameObject.AddComponent<SpawnPointInstance>();
+                        }
+                    }
+
+                    if (spawnPointInstance is not null)
+                    {
+                        spawnPointInstance.parentSpawnPointUser = this;
+                        spawnPointInstance.parentSpawnPoint = spawnPoint;
+                        spawnPointInstance.Notify();
+                    }
+                }
+            }
+
             protected override void PostSpawnProcess(BaseEntity entity, BaseSpawnPoint spawnPoint)
             {
                 base.PostSpawnProcess(entity, spawnPoint);
@@ -8562,6 +8724,77 @@ namespace Oxide.Plugins
                 }
             }
 
+            private bool HasSpawned(SpawnEntry spawnEntry)
+            {
+                foreach (var spawnInstance in spawnInstances)
+                {
+                    if (spawnInstance is CustomAddonSpawnPointInstance customAddonSpawnPointInstance)
+                    {
+                        if (spawnEntry.CustomAddonDefinition == customAddonSpawnPointInstance.CustomAddonDefinition)
+                            return true;
+
+                        continue;
+                    }
+
+                    var entity = spawnInstance.gameObject.ToBaseEntity();
+                    if (entity != null && entity.prefabID == spawnEntry.Prefab.resourceID)
+                        return true;
+                }
+
+                return false;
+            }
+
+            private BaseSpawnPoint GetRandomSpawnPoint(SpawnEntry spawnEntry, out Vector3 position, out Quaternion rotation)
+            {
+                BaseSpawnPoint baseSpawnPoint = null;
+                position = Vector3.zero;
+                rotation = Quaternion.identity;
+
+                var randomIndex = UnityEngine.Random.Range(0, spawnPoints.Length);
+
+                for (int i = 0; i < spawnPoints.Length; i++)
+                {
+                    var spawnPoint = spawnPoints[(randomIndex + i) % spawnPoints.Length] as CustomSpawnPoint;
+                    if (spawnPoint != null
+                        && spawnPoint.IsAvailableTo(spawnEntry)
+                        && !spawnPoint.HasPlayersIntersecting())
+                    {
+                        baseSpawnPoint = spawnPoint;
+                        break;
+                    }
+                }
+
+                if (baseSpawnPoint != null)
+                {
+                    baseSpawnPoint.GetLocation(out position, out rotation);
+                }
+
+                return baseSpawnPoint;
+            }
+
+            private float DetermineSpawnEntryWeight(SpawnEntry spawnEntry)
+            {
+                return preventDuplicates && HasSpawned(spawnEntry) ? 0 : spawnEntry.Weight;
+            }
+
+            private SpawnEntry GetRandomSpawnEntry()
+            {
+                var totalWeight = SpawnEntries.Sum(DetermineSpawnEntryWeight);
+                if (totalWeight == 0)
+                    return null;
+
+                var randomWeight = UnityEngine.Random.Range(0f, totalWeight);
+
+                foreach (var spawnEntry in SpawnEntries)
+                {
+                    var weight = DetermineSpawnEntryWeight(spawnEntry);
+                    if ((randomWeight -= weight) <= 0f)
+                        return spawnEntry;
+                }
+
+                return SpawnEntries[^1];
+            }
+
             private AIInformationZone GetVirtualInfoZone()
             {
                 if (!_didLookForInfoZone)
@@ -8586,7 +8819,7 @@ namespace Oxide.Plugins
                 spawnClock.events[0] = clockEvent;
             }
 
-            private void OnDestroy()
+            private new void OnDestroy()
             {
                 SingletonComponent<SpawnHandler>.Instance.SpawnGroups.Remove(this);
                 SpawnGroupAdapter.OnSpawnGroupKilled();
@@ -8640,9 +8873,9 @@ namespace Oxide.Plugins
                 SpawnGroupAdapter.OnSpawnPointAdapterKilled(this);
             }
 
-            public void KillSpawnedInstances(string prefabName)
+            public void KillSpawnedInstances(WeightedPrefabData weightedPrefabData)
             {
-                SpawnPoint.KillSpawnedInstances(prefabName);
+                SpawnPoint.KillSpawnedInstances(weightedPrefabData);
             }
 
             public void UpdatePosition()
@@ -8805,8 +9038,8 @@ namespace Oxide.Plugins
                 var respawnDelayMin = SpawnGroupData.RespawnDelayMin;
                 var respawnDelayMax = Mathf.Max(respawnDelayMin, SpawnGroupData.RespawnDelayMax > 0 ? SpawnGroupData.RespawnDelayMax : float.PositiveInfinity);
 
-                var respawnDelayMinChanged = SpawnGroup.respawnDelayMin != respawnDelayMin;
-                var respawnDelayMaxChanged = SpawnGroup.respawnDelayMax != respawnDelayMax;
+                var respawnDelayMinChanged = !Mathf.Approximately(SpawnGroup.respawnDelayMin, respawnDelayMin);
+                var respawnDelayMaxChanged = !Mathf.Approximately(SpawnGroup.respawnDelayMax, respawnDelayMax);
 
                 SpawnGroup.respawnDelayMin = respawnDelayMin;
                 SpawnGroup.respawnDelayMax = respawnDelayMax;
@@ -8819,28 +9052,35 @@ namespace Oxide.Plugins
 
             private void UpdatePrefabEntries()
             {
-                if (SpawnGroup.prefabs.Count == SpawnGroupData.Prefabs.Count)
+                if (SpawnGroup.SpawnEntries.Count == SpawnGroupData.Prefabs.Count)
                 {
-                    for (var i = 0; i < SpawnGroup.prefabs.Count; i++)
+                    for (var i = 0; i < SpawnGroup.SpawnEntries.Count; i++)
                     {
-                        SpawnGroup.prefabs[i].weight = SpawnGroupData.Prefabs[i].Weight;
+                        SpawnGroup.SpawnEntries[i].Weight = SpawnGroupData.Prefabs[i].Weight;
                     }
 
                     return;
                 }
 
-                SpawnGroup.prefabs.Clear();
+                SpawnGroup.SpawnEntries.Clear();
 
                 foreach (var prefabEntry in SpawnGroupData.Prefabs)
                 {
-                    if (!GameManifest.pathToGuid.TryGetValue(prefabEntry.PrefabName, out var guid))
-                        continue;
-
-                    SpawnGroup.prefabs.Add(new SpawnGroup.SpawnEntry
+                    if (prefabEntry.CustomAddonName != null)
                     {
-                        prefab = new GameObjectRef { guid = guid },
-                        weight = prefabEntry.Weight,
-                    });
+                        var customAddonDefinition = Plugin._customAddonManager.GetAddon(prefabEntry.CustomAddonName);
+                        if (customAddonDefinition != null)
+                        {
+                            SpawnGroup.SpawnEntries.Add(new CustomSpawnGroup.SpawnEntry(customAddonDefinition, prefabEntry.Weight));
+                        }
+
+                        continue;
+                    }
+
+                    if (prefabEntry.PrefabName != null && GameManifest.pathToGuid.TryGetValue(prefabEntry.PrefabName, out var guid))
+                    {
+                        SpawnGroup.SpawnEntries.Add(new CustomSpawnGroup.SpawnEntry(new GameObjectRef { guid = guid }, prefabEntry.Weight));
+                    }
                 }
             }
 
@@ -8909,11 +9149,11 @@ namespace Oxide.Plugins
                 SpawnGroup.Spawn();
             }
 
-            public void KillSpawnedInstances(string prefabName)
+            public void KillSpawnedInstances(WeightedPrefabData weightedPrefabData)
             {
                 foreach (var spawnPointAdapter in SpawnPointAdapters)
                 {
-                    spawnPointAdapter.KillSpawnedInstances(prefabName);
+                    spawnPointAdapter.KillSpawnedInstances(weightedPrefabData);
                 }
             }
 
@@ -9006,9 +9246,9 @@ namespace Oxide.Plugins
                 ProfileController.StartCoroutine(SpawnTickRoutine());
             }
 
-            public void StartKillSpawnedInstancesRoutine(string prefabName)
+            public void StartKillSpawnedInstancesRoutine(WeightedPrefabData weightedPrefabData)
             {
-                ProfileController.StartCoroutine(KillSpawnedInstancesRoutine(prefabName));
+                ProfileController.StartCoroutine(KillSpawnedInstancesRoutine(weightedPrefabData));
             }
 
             public void StartRespawnRoutine()
@@ -9025,11 +9265,11 @@ namespace Oxide.Plugins
                 }
             }
 
-            private IEnumerator KillSpawnedInstancesRoutine(string prefabName = null)
+            private IEnumerator KillSpawnedInstancesRoutine(WeightedPrefabData weightedPrefabData = null)
             {
                 foreach (var spawnGroupAdapter in SpawnGroupAdapters.ToList())
                 {
-                    spawnGroupAdapter.KillSpawnedInstances(prefabName);
+                    spawnGroupAdapter.KillSpawnedInstances(weightedPrefabData);
                     yield return null;
                 }
             }
@@ -9195,6 +9435,11 @@ namespace Oxide.Plugins
                     addonDefinition.SpawnV2 = spawnCallback as CustomSpawnCallbackV2;
                 }
 
+                if (addonSpec.TryGetValue("CheckSpace", out var checkSpaceCallback))
+                {
+                    addonDefinition.CheckSpace = checkSpaceCallback as CustomCheckSpaceCallback;
+                }
+
                 if (addonSpec.TryGetValue("Kill", out var killCallback))
                 {
                     addonDefinition.Kill = killCallback as CustomKillCallback;
@@ -9223,12 +9468,15 @@ namespace Oxide.Plugins
             public CustomInitializeCallback Initialize;
             private CustomSpawnCallback Spawn;
             private CustomSpawnCallbackV2 SpawnV2;
+            public CustomCheckSpaceCallback CheckSpace;
             public CustomKillCallback Kill;
             public CustomUnloadCallback Unload;
             public CustomUpdateCallback Update;
             public CustomAddDisplayInfoCallback AddDisplayInfo;
+            public bool IsValid = true;
 
-            public List<CustomAddonAdapter> AdapterUsers = new List<CustomAddonAdapter>();
+            public List<CustomAddonAdapter> AdapterUsers = new();
+            public List<CustomAddonSpawnPointInstance> SpawnPointInstances = new();
 
             public Dictionary<string, object> ToApiResult(ProfileStore profileStore)
             {
@@ -9359,10 +9607,11 @@ namespace Oxide.Plugins
                     return;
 
                 var controllerList = new HashSet<CustomAddonController>();
-                var profileControllerList = new HashSet<ProfileController>();
 
                 foreach (var addonDefinition in addonsForPlugin)
                 {
+                    addonDefinition.IsValid = false;
+
                     foreach (var adapter in addonDefinition.AdapterUsers)
                     {
                         controllerList.Add(adapter.Controller as CustomAddonController);
@@ -9370,6 +9619,11 @@ namespace Oxide.Plugins
                         // Remove the controller from the profile,
                         // since we may need to respawn it immediately after as part of the other plugin reloading.
                         adapter.Controller.ProfileController.OnControllerKilled(adapter.Controller);
+                    }
+
+                    foreach (var spawnPointInstance in addonDefinition.SpawnPointInstances)
+                    {
+                        spawnPointInstance.Kill();
                     }
 
                     _customAddonsByName.Remove(addonDefinition.AddonName);
@@ -9387,16 +9641,12 @@ namespace Oxide.Plugins
 
             public CustomAddonDefinition GetAddon(string addonName)
             {
-                return _customAddonsByName.TryGetValue(addonName, out var addonDefinition)
-                    ? addonDefinition
-                    : null;
+                return _customAddonsByName.GetValueOrDefault(addonName);
             }
 
             private List<CustomAddonDefinition> GetAddonsForPlugin(Plugin plugin)
             {
-                return _customAddonsByPlugin.TryGetValue(plugin.Name, out var addonsForPlugin)
-                    ? addonsForPlugin
-                    : null;
+                return _customAddonsByPlugin.GetValueOrDefault(plugin.Name);
             }
 
             private IEnumerator DestroyControllersRoutine(ICollection<CustomAddonController> controllerList)
@@ -10101,7 +10351,8 @@ namespace Oxide.Plugins
                         foreach (var prefabEntry in spawnGroupData.Prefabs)
                         {
                             var relativeChance = (float)prefabEntry.Weight / totalWeight;
-                            _sb.AppendLine(_plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelEntityDetail, _uniqueNameRegistry.GetUniqueShortName(prefabEntry.PrefabName), prefabEntry.Weight, relativeChance));
+                            var displayName = prefabEntry.CustomAddonName ?? _uniqueNameRegistry.GetUniqueShortName(prefabEntry.PrefabName);
+                            _sb.AppendLine(_plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelEntityDetail, displayName, prefabEntry.Weight, relativeChance));
                         }
                     }
                     else
@@ -11498,8 +11749,11 @@ namespace Oxide.Plugins
 
         private class WeightedPrefabData
         {
-            [JsonProperty("PrefabName")]
+            [JsonProperty("PrefabName", DefaultValueHandling = DefaultValueHandling.Ignore)]
             public string PrefabName;
+
+            [JsonProperty("CustomAddonName", DefaultValueHandling = DefaultValueHandling.Ignore)]
+            public string CustomAddonName;
 
             [JsonProperty("Weight")]
             public int Weight = 1;
@@ -11559,15 +11813,14 @@ namespace Oxide.Plugins
                 }
             }
 
+            public List<WeightedPrefabData> FindCustomAddonMatches(string partialName)
+            {
+                return SearchUtils.FindCustomAddonMatches(Prefabs, prefabData => prefabData.CustomAddonName, partialName);
+            }
+
             public List<WeightedPrefabData> FindPrefabMatches(string partialName, UniqueNameRegistry uniqueNameRegistry)
             {
-                return SearchUtils.FindMatches(
-                    Prefabs,
-                    prefabData => StringUtils.Contains(prefabData.PrefabName, partialName),
-                    prefabData => StringUtils.EqualsCaseInsensitive(prefabData.PrefabName, partialName),
-                    prefabData => StringUtils.Contains(uniqueNameRegistry.GetUniqueShortName(prefabData.PrefabName), partialName),
-                    prefabData => StringUtils.EqualsCaseInsensitive(uniqueNameRegistry.GetUniqueShortName(prefabData.PrefabName), partialName)
-                );
+                return SearchUtils.FindPrefabMatches(Prefabs, prefabData => prefabData.PrefabName, partialName, uniqueNameRegistry);
             }
         }
 
@@ -12036,6 +12289,10 @@ namespace Oxide.Plugins
                     {
                         foreach (var prefabData in spawnGroupData.Prefabs)
                         {
+                            // Custom addons won't have prefab name.
+                            if (prefabData.PrefabName == null)
+                                continue;
+
                             var correctedPrefabName = GetPrefabCorrectionIfExists(prefabData.PrefabName);
                             if (correctedPrefabName != prefabData.PrefabName)
                             {
