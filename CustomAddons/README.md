@@ -32,6 +32,11 @@ The `addonDefinition` dictionary should have the following keys:
     - `Quaternion` -- The world rotation to at which to spawn the addon.
     - `JObject` -- The partially serialized representation of the data that you previously set on the addon instance.
     - `UnityEngine.Component` -- The return value of the method should be a Unity component that Monument Addons will keep track of, which will be passed to the `"Kill"` or `"Update"` methods.
+- `"CheckSpace"` -- A method that Monument Addons can call to check if there is space to spawn your addon. Applies to spawn points that have the `CheckSpace` property enabled.
+  - Type: `System.Func<Vector3, Quaternion, bool>`
+    - `Vector3` -- The position at which to check.
+    - `Quaternion` -- The rotation that the addon is intended to be spawned at.
+    - `bool` -- The return value should be `true` to indicate that there is sufficience space, else `false`.
 - `"Kill"` -- A method that Monument Addons can call to kill each instance of the addon.
   - Type: `System.Action<UnityEngine.Component>`
     - `UnityEngine.Component` -- The object that you returned in the `"Spawn"` method.
