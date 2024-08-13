@@ -8774,6 +8774,9 @@ namespace Oxide.Plugins
 
             private float DetermineSpawnEntryWeight(SpawnEntry spawnEntry)
             {
+                if (spawnEntry.CustomAddonDefinition is { IsValid: false })
+                    return 0;
+
                 return preventDuplicates && HasSpawned(spawnEntry) ? 0 : spawnEntry.Weight;
             }
 
@@ -8972,6 +8975,21 @@ namespace Oxide.Plugins
                 foreach (var spawnPointAdapter in SpawnPointAdapters.ToList())
                 {
                     spawnPointAdapter.Kill();
+                }
+            }
+
+            public void UpdateCustomAddons(CustomAddonDefinition customAddonDefinition)
+            {
+                foreach (var prefabData in SpawnGroupData.Prefabs)
+                {
+                    if (prefabData.CustomAddonName != null
+                        && prefabData.CustomAddonName == customAddonDefinition.AddonName)
+                    {
+                        // Clear and recreate the prefab entries since an entry may have been skipped for an invalid custom addon.
+                        SpawnGroup.SpawnEntries.Clear();
+                        UpdatePrefabEntries();
+                        break;
+                    }
                 }
             }
 
@@ -9580,6 +9598,11 @@ namespace Oxide.Plugins
                 {
                     foreach (var profileController in _plugin._profileManager.GetEnabledProfileControllers())
                     {
+                        foreach (var spawnGroupAdapter in profileController.GetAdapters<SpawnGroupAdapter>())
+                        {
+                            spawnGroupAdapter.UpdateCustomAddons(addonDefinition);
+                        }
+
                         foreach (var monumentEntry in profileController.Profile.MonumentDataMap)
                         {
                             var monumentName = monumentEntry.Key;
@@ -10352,6 +10375,10 @@ namespace Oxide.Plugins
                         {
                             var relativeChance = (float)prefabEntry.Weight / totalWeight;
                             var displayName = prefabEntry.CustomAddonName ?? _uniqueNameRegistry.GetUniqueShortName(prefabEntry.PrefabName);
+                            if (prefabEntry.CustomAddonName != null && _plugin._customAddonManager.GetAddon(prefabEntry.CustomAddonName) == null)
+                            {
+                                displayName += " (!)";
+                            }
                             _sb.AppendLine(_plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelEntityDetail, displayName, prefabEntry.Weight, relativeChance));
                         }
                     }
