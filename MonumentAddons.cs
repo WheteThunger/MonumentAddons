@@ -24,13 +24,17 @@ using HumanNPCGlobal = global::HumanNPC;
 using SkullTrophyGlobal = global::SkullTrophy;
 
 using CustomInitializeCallback = System.Func<BasePlayer, string[], object>;
+using CustomInitializeCallbackV2 = System.Func<BasePlayer, string[], System.ValueTuple<bool, object>>;
+using CustomEditCallback = System.Func<BasePlayer, string[], UnityEngine.Component, Newtonsoft.Json.Linq.JObject, System.ValueTuple<bool, object>>;
 using CustomSpawnCallback = System.Func<UnityEngine.Vector3, UnityEngine.Quaternion, Newtonsoft.Json.Linq.JObject, UnityEngine.Component>;
 using CustomSpawnCallbackV2 = System.Func<System.Guid, UnityEngine.Component, UnityEngine.Vector3, UnityEngine.Quaternion, Newtonsoft.Json.Linq.JObject, UnityEngine.Component>;
-using CustomCheckSpaceCallback = System.Func<UnityEngine.Vector3, UnityEngine.Quaternion, bool>;
+using CustomCheckSpaceCallback = System.Func<UnityEngine.Vector3, UnityEngine.Quaternion, Newtonsoft.Json.Linq.JObject, bool>;
 using CustomKillCallback = System.Action<UnityEngine.Component>;
 using CustomUnloadCallback = System.Action<UnityEngine.Component>;
 using CustomUpdateCallback = System.Action<UnityEngine.Component, Newtonsoft.Json.Linq.JObject>;
-using CustomAddDisplayInfoCallback = System.Action<UnityEngine.Component, Newtonsoft.Json.Linq.JObject, System.Text.StringBuilder>;
+using CustomUpdateCallbackV2 = System.Func<UnityEngine.Component, Newtonsoft.Json.Linq.JObject, UnityEngine.Component>;
+using CustomDisplayCallback = System.Action<UnityEngine.Component, Newtonsoft.Json.Linq.JObject, System.Text.StringBuilder>;
+using CustomDisplayCallbackV2 = System.Action<UnityEngine.Component, Newtonsoft.Json.Linq.JObject, BasePlayer, System.Text.StringBuilder, float>;
 using CustomSetDataCallback = System.Action<UnityEngine.Component, object>;
 using System.Text.RegularExpressions;
 using Facepunch;
@@ -693,7 +697,7 @@ namespace Oxide.Plugins
             else
             {
                 // Found a custom addon definition.
-                if (!TryInitializeCustomAddonData(addonDefinition, basePlayer, args.Skip(1).ToArray(), out var pluginData))
+                if (!addonDefinition.TryInitialize(basePlayer, args.Skip(1).ToArray(), out var pluginData))
                     return;
 
                 addonData = new CustomAddonData
@@ -719,6 +723,37 @@ namespace Oxide.Plugins
             {
                 ReplyToPlayer(player, LangEntry.WarningRecommendSpawnPoint);
             }
+        }
+
+        [Command("maedit")]
+        private void CommandEdit(IPlayer player, string cmd, string[] args)
+        {
+            if (!VerifyPlayer(player, out var basePlayer)
+                || !VerifyHasPermission(player)
+                || !VerifyLookingAtAdapter(player, out CustomAddonAdapter adapter, out CustomAddonController controller, LangEntry.ErrorNoCustomAddonFound))
+                return;
+
+            var addonDefinition = adapter.AddonDefinition;
+            var addonName = addonDefinition.AddonName;
+            if (addonName != args[0])
+            {
+                ReplyToPlayer(player, LangEntry.EditErrorNoMatch, args[0]);
+                return;
+            }
+
+            if (!addonDefinition.SupportsEditing)
+            {
+                ReplyToPlayer(player, LangEntry.EditErrorNotEditable, addonName);
+                return;
+            }
+
+            if (!addonDefinition.TryEdit(basePlayer, args.Skip(1).ToArray(), adapter.Component, adapter.CustomAddonData.GetSerializedData(), out var data))
+                return;
+
+            addonDefinition.SetData(_profileStore, controller, data);
+
+            ReplyToPlayer(player, LangEntry.EditSuccess, addonName);
+            _adapterDisplayManager.ShowAllRepeatedly(basePlayer);
         }
 
         [Command("maprefab")]
@@ -4034,37 +4069,6 @@ namespace Oxide.Plugins
                 return null;
 
             return itemModDeployable.entityPrefab.resourcePath;
-        }
-
-        private bool TryInitializeCustomAddonData(CustomAddonDefinition addonDefinition, BasePlayer player, string[] args, out object data)
-        {
-            var initializer = _customAddonManager
-                .GetAddon(addonDefinition.AddonName)
-                .Initialize;
-
-            if (initializer == null)
-            {
-                data = null;
-                return true;
-            }
-
-            try
-            {
-                data = initializer.Invoke(player, args);
-                return true;
-            }
-            catch (ArgumentException)
-            {
-                // Don't log argument exception, assume that the addon plugin threw this intentionally.
-                data = null;
-                return false;
-            }
-            catch (Exception ex)
-            {
-                data = null;
-                LogError($"Caught exception when calling plugin '{addonDefinition.OwnerPlugin}' to initialize custom addon '{addonDefinition.AddonName}': {ex}");
-                return false;
-            }
         }
 
         // This is a best-effort attempt to flag as many possible entities as possible without false positives.
@@ -8411,7 +8415,8 @@ namespace Oxide.Plugins
                 if (spawnEntry.CustomAddonDefinition != null)
                 {
                     if (_spawnPointData.CheckSpace)
-                        return spawnEntry.CustomAddonDefinition.CheckSpace?.Invoke(_transform.position, _transform.rotation) ?? true;
+                        // Pass null data for now since data isn't supported for custom addons with spawn points.
+                        return spawnEntry.CustomAddonDefinition.CheckSpace?.Invoke(_transform.position, _transform.rotation, null) ?? true;
 
                     return true;
                 }
@@ -9445,6 +9450,12 @@ namespace Oxide.Plugins
                 if (addonSpec.TryGetValue("Initialize", out var initializeCallback))
                 {
                     addonDefinition.Initialize = initializeCallback as CustomInitializeCallback;
+                    addonDefinition.InitializeV2 = initializeCallback as CustomInitializeCallbackV2;
+                }
+
+                if (addonSpec.TryGetValue("Edit", out var editCallback))
+                {
+                    addonDefinition.Edit = editCallback as CustomEditCallback;
                 }
 
                 if (addonSpec.TryGetValue("Spawn", out var spawnCallback))
@@ -9471,11 +9482,17 @@ namespace Oxide.Plugins
                 if (addonSpec.TryGetValue("Update", out var updateCallback))
                 {
                     addonDefinition.Update = updateCallback as CustomUpdateCallback;
+                    addonDefinition.UpdateV2 = updateCallback as CustomUpdateCallbackV2;
                 }
 
-                if (addonSpec.TryGetValue("AddDisplayInfo", out var addDataCallback))
+                if (addonSpec.TryGetValue("AddDisplayInfo", out var addDisplayInfoCallback))
                 {
-                    addonDefinition.AddDisplayInfo = addDataCallback as CustomAddDisplayInfoCallback;
+                    addonDefinition.Display = addDisplayInfoCallback as CustomDisplayCallback;
+                }
+
+                if (addonSpec.TryGetValue("Display", out var displayCallback))
+                {
+                    addonDefinition.DisplayV2 = displayCallback as CustomDisplayCallbackV2;
                 }
 
                 return addonDefinition;
@@ -9483,49 +9500,30 @@ namespace Oxide.Plugins
 
             public string AddonName;
             public Plugin OwnerPlugin;
-            public CustomInitializeCallback Initialize;
+            private CustomInitializeCallback Initialize;
+            private CustomInitializeCallbackV2 InitializeV2;
+            private CustomEditCallback Edit;
             private CustomSpawnCallback Spawn;
             private CustomSpawnCallbackV2 SpawnV2;
             public CustomCheckSpaceCallback CheckSpace;
             public CustomKillCallback Kill;
             public CustomUnloadCallback Unload;
-            public CustomUpdateCallback Update;
-            public CustomAddDisplayInfoCallback AddDisplayInfo;
+            private CustomUpdateCallback Update;
+            private CustomUpdateCallbackV2 UpdateV2;
+            private CustomDisplayCallback Display;
+            private CustomDisplayCallbackV2 DisplayV2;
             public bool IsValid = true;
 
             public List<CustomAddonAdapter> AdapterUsers = new();
             public List<CustomAddonSpawnPointInstance> SpawnPointInstances = new();
 
+            public bool SupportsEditing => Edit != null && (Update != null || UpdateV2 != null);
+
             public Dictionary<string, object> ToApiResult(ProfileStore profileStore)
             {
                 return new Dictionary<string, object>
                 {
-                    ["SetData"] = new CustomSetDataCallback(
-                        (component, data) =>
-                        {
-                            if (Update == null)
-                            {
-                                LogError($"Unable to set data for custom addon \"{AddonName}\" due to missing Update method.");
-                                return;
-                            }
-
-                            var matchingAdapter = AdapterUsers.FirstOrDefault(adapter => adapter.Component == component);
-                            if (matchingAdapter == null)
-                            {
-                                LogError($"Unable to set data for custom addon \"{AddonName}\" because it has no spawned instances.");
-                                return;
-                            }
-
-                            var controller = matchingAdapter.Controller as CustomAddonController;
-                            controller.CustomAddonData.SetData(data);
-                            profileStore.Save(controller.Profile);
-
-                            foreach (var adapter in controller.Adapters)
-                            {
-                                Update((adapter as CustomAddonAdapter).Component, controller.CustomAddonData.GetSerializedData());
-                            }
-                        }
-                    ),
+                    ["SetData"] = new CustomSetDataCallback((component, data) => SetData(profileStore, component, data)),
                 };
             }
 
@@ -9546,10 +9544,123 @@ namespace Oxide.Plugins
                 return true;
             }
 
+            public bool TryInitialize(BasePlayer player, string[] args, out object data)
+            {
+                try
+                {
+                    if (Initialize != null)
+                    {
+                        try
+                        {
+                            data = Initialize.Invoke(player, args);
+                            return true;
+                        }
+                        catch (ArgumentException)
+                        {
+                            // Don't log argument exception, assume that the addon plugin threw this intentionally.
+                            data = null;
+                            return false;
+                        }
+                    }
+
+                    if (InitializeV2 != null)
+                    {
+                        (var success, data) = InitializeV2.Invoke(player, args);
+                        return success;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    data = null;
+                    LogError($"Caught exception when calling plugin '{OwnerPlugin}' to initialize custom addon '{AddonName}': {ex}");
+                    return false;
+                }
+
+                data = null;
+                return true;
+            }
+
+            public bool TryEdit(BasePlayer player, string[] args, UnityEngine.Component component, JObject data, out object newData)
+            {
+                try
+                {
+                    (var success, newData) = Edit(player, args, component, data);
+                    return success;
+                }
+                catch (Exception ex)
+                {
+                    LogError($"Caught exception when calling plugin '{OwnerPlugin}' to initialize custom addon '{AddonName}': {ex}");
+                    newData = null;
+                    return false;
+                }
+            }
+
             public UnityEngine.Component DoSpawn(Guid guid, UnityEngine.Component monument, Vector3 position, Quaternion rotation, JObject jObject)
             {
                 return Spawn?.Invoke(position, rotation, jObject)
                     ?? SpawnV2?.Invoke(guid, monument, position, rotation, jObject);
+            }
+
+            public void SetData(ProfileStore profileStore, CustomAddonController controller, object data)
+            {
+                controller.CustomAddonData.SetData(data);
+                profileStore.Save(controller.Profile);
+
+                var serializedData = controller.CustomAddonData.GetSerializedData();
+
+                foreach (var adapter in controller.Adapters)
+                {
+                    if (adapter is not CustomAddonAdapter customAddonAdapter)
+                        continue;
+
+                    var newComponent = UpdateAdapter(customAddonAdapter.Component, serializedData);
+                    if (newComponent != customAddonAdapter.Component)
+                    {
+                        customAddonAdapter.SetupComponent(newComponent);
+                    }
+                }
+            }
+
+            public void SetData(ProfileStore profileStore, UnityEngine.Component component, object data)
+            {
+                if (Update == null && UpdateV2 == null)
+                {
+                    LogError($"Unable to set data for custom addon \"{AddonName}\" due to missing Update method.");
+                    return;
+                }
+
+                var matchingAdapter = AdapterUsers.FirstOrDefault(adapter => adapter.Component == component);
+                if (matchingAdapter == null)
+                {
+                    LogError($"Unable to set data for custom addon \"{AddonName}\" because it has no spawned instances.");
+                    return;
+                }
+
+                if (matchingAdapter.Controller is not CustomAddonController controller)
+                    return;
+
+                SetData(profileStore, controller, data);
+            }
+
+            public void DoDisplay(UnityEngine.Component component, JObject data, BasePlayer player, StringBuilder sb, float duration)
+            {
+                Display?.Invoke(component, data, sb);
+                DisplayV2?.Invoke(component, data, player, sb, duration);
+            }
+
+            private UnityEngine.Component UpdateAdapter(UnityEngine.Component component, JObject data)
+            {
+                if (Update != null)
+                {
+                    Update(component, data);
+                    return component;
+                }
+
+                if (UpdateV2 != null)
+                    return UpdateV2(component, data);
+
+                // This should not happen.
+                return component;
             }
         }
 
@@ -9685,11 +9796,20 @@ namespace Oxide.Plugins
         {
             private class CustomAddonComponent : MonoBehaviour
             {
-                public CustomAddonAdapter Adapter;
+                public static CustomAddonComponent AddToComponent(UnityEngine.Component hostComponent, CustomAddonAdapter adapter)
+                {
+                    var addonComponent = hostComponent.gameObject.AddComponent<CustomAddonComponent>();
+                    addonComponent._hostComponent = hostComponent;
+                    addonComponent._adapter = adapter;
+                    return addonComponent;
+                }
+
+                private UnityEngine.Component _hostComponent;
+                private CustomAddonAdapter _adapter;
 
                 private void OnDestroy()
                 {
-                    Adapter.OnAddonDestroyed();
+                    _adapter.OnAddonDestroyed(_hostComponent);
                 }
             }
 
@@ -9711,18 +9831,9 @@ namespace Oxide.Plugins
 
             public override void Spawn()
             {
-                Component = AddonDefinition.DoSpawn(CustomAddonData.Id, Monument.Object, IntendedPosition, IntendedRotation, CustomAddonData.GetSerializedData());
+                var component = AddonDefinition.DoSpawn(CustomAddonData.Id, Monument.Object, IntendedPosition, IntendedRotation, CustomAddonData.GetSerializedData());
                 AddonDefinition.AdapterUsers.Add(this);
-
-                var entity = Component as BaseEntity;
-                if (entity != null)
-                {
-                    MonumentEntityComponent.AddToEntity(Plugin._entityTracker, entity, this, Monument);
-                }
-                else
-                {
-                    Component.gameObject.AddComponent<CustomAddonComponent>().Adapter = this;
-                }
+                SetupComponent(component);
             }
 
             public override void PreUnload()
@@ -9741,6 +9852,10 @@ namespace Oxide.Plugins
 
             public void OnEntityKilled(BaseEntity entity)
             {
+                // Don't kill the addon if the component was replaced.
+                if (entity != Component)
+                    return;
+
                 // In case it's a multi-part addon, call Kill() to ensure the whole addon is removed.
                 Kill();
 
@@ -9748,13 +9863,31 @@ namespace Oxide.Plugins
                 Controller.OnAdapterKilled(this);
             }
 
-            public void OnAddonDestroyed()
+            public void OnAddonDestroyed(UnityEngine.Component component)
             {
+                // Don't kill the addon if the component was replaced.
+                if (component != Component)
+                    return;
+
                 // In case it's a multi-part addon, call Kill() to ensure the whole addon is removed.
                 Kill();
 
                 AddonDefinition.AdapterUsers.Remove(this);
                 Controller.OnAdapterKilled(this);
+            }
+
+            public void SetupComponent(UnityEngine.Component component)
+            {
+                Component = component;
+
+                if (component is BaseEntity entity)
+                {
+                    MonumentEntityComponent.AddToEntity(Plugin._entityTracker, entity, this, Monument);
+                }
+                else
+                {
+                    CustomAddonComponent.AddToComponent(component, this);
+                }
             }
         }
 
@@ -10442,7 +10575,7 @@ namespace Oxide.Plugins
                 _sb.AppendLine(_plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelPlugin, addonDefinition.OwnerPlugin.Name));
                 AddCommonInfo(player, profileController, controller, adapter);
 
-                addonDefinition.AddDisplayInfo?.Invoke(adapter.Component, customAddonData.GetSerializedData(), _sb);
+                addonDefinition.DoDisplay(adapter.Component, customAddonData.GetSerializedData(), player, _sb, DisplayIntervalDuration);
 
                 drawer.Text(adapter.Position, _sb.ToString());
             }
@@ -13768,6 +13901,7 @@ namespace Oxide.Plugins
             public static readonly LangEntry0 ErrorNoMonuments = new("Error.NoMonuments", "Error: No monuments found.");
             public static readonly LangEntry2 ErrorNotAtMonument = new("Error.NotAtMonument", "Error: Not at a monument. Nearest is <color=#fd4>{0}</color> with distance <color=#fd4>{1}</color>");
             public static readonly LangEntry0 ErrorNoSuitableAddonFound = new("Error.NoSuitableAddonFound", "Error: No suitable addon found.");
+            public static readonly LangEntry0 ErrorNoCustomAddonFound = new("Error.NoCustomAddonFound", "Error: No custom addon found.");
             public static readonly LangEntry0 ErrorEntityNotEligible = new("Error.EntityNotEligible", "Error: That entity is not managed by Monument Addons.");
             public static readonly LangEntry0 ErrorNoSpawnPointFound = new("Error.NoSpawnPointFound", "Error: No spawn point found.");
             public static readonly LangEntry1 ErrorSetSyntaxGeneric = new("Error.Set.Syntax.Generic", "Syntax: <color=#fd4>{0} set <option> <value></color>");
@@ -13794,6 +13928,10 @@ namespace Oxide.Plugins
 
             public static readonly LangEntry0 UndoNotFound = new("Undo.NotFound", "No recent action to undo.");
             public static readonly LangEntry3 UndoKillSuccess = new("Undo.Kill.Success", "Successfully restored <color=#fd4>{0}</color> at monument <color=#fd4>{1}</color> in profile <color=#fd4>{2}</color>.");
+
+            public static readonly LangEntry1 EditErrorNoMatch = new("Edit.Error.NoMatch", "Error: That custom addon does not have name <color=#fd4>{0}</color>.");
+            public static readonly LangEntry1 EditErrorNotEditable = new("Edit.Error.NotEditable", "Error: The custom addon <color=#fd4>{0}</color> does not support editing.");
+            public static readonly LangEntry1 EditSuccess = new("Edit.Success", "Successfully edited custom addon <color=#fd4>{0}</color>.");
 
             public static readonly LangEntry0 PasteNotCompatible = new("Paste.NotCompatible", "CopyPaste is not loaded or its version is incompatible.");
             public static readonly LangEntry0 PasteSyntax = new("Paste.Syntax", "Syntax: <color=#fd4>mapaste <file></color>");

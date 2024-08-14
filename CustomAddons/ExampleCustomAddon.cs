@@ -3,21 +3,25 @@ using Newtonsoft.Json.Linq;
 using Oxide.Core.Plugins;
 using System;
 using System.Collections.Generic;
+using System.Text;
 using UnityEngine;
 
-using InitializeCallback = System.Func<BasePlayer, string[], object>;
+using InitializeCallback = System.Func<BasePlayer, string[], System.ValueTuple<bool, object>>;
+using EditCallback = System.Func<BasePlayer, string[], UnityEngine.Component, Newtonsoft.Json.Linq.JObject, System.ValueTuple<bool, object>>;
 using SpawnAddonCallback = System.Func<System.Guid, UnityEngine.Component, UnityEngine.Vector3, UnityEngine.Quaternion, Newtonsoft.Json.Linq.JObject, UnityEngine.Component>;
 using KillAddonCallback = System.Action<UnityEngine.Component>;
-using UpdateAddonCallback = System.Action<UnityEngine.Component, Newtonsoft.Json.Linq.JObject>;
-using AddDisplayInfoCallback = System.Action<UnityEngine.Component, Newtonsoft.Json.Linq.JObject, System.Text.StringBuilder>;
+using UpdateAddonCallback = System.Func<UnityEngine.Component, Newtonsoft.Json.Linq.JObject, UnityEngine.Component>;
+using DisplayCallback = System.Action<UnityEngine.Component, Newtonsoft.Json.Linq.JObject, BasePlayer, System.Text.StringBuilder, float>;
 using SetAddonDataCallback = System.Action<UnityEngine.Component, object>;
 
 namespace Oxide.Plugins;
 
-[Info("Example Custom Addon", "WhiteThunder", "0.2.0")]
+[Info("Example Custom Addon", "WhiteThunder", "0.3.0")]
 [Description("Example plugin which demonstrates how to define a custom addon for Monument Addons.")]
 internal class ExampleCustomAddon : CovalencePlugin
 {
+    private const string AddonName = "exampleaddon";
+
     [PluginReference]
     private readonly Plugin MonumentAddons;
 
@@ -44,29 +48,15 @@ internal class ExampleCustomAddon : CovalencePlugin
         var registeredAddon = MonumentAddons.Call(
             "API_RegisterCustomAddon",
             this,
-            "exampleaddon",
+            AddonName,
             new Dictionary<string, object>
             {
                 ["Initialize"] = new InitializeCallback(InitializeAddon),
-                ["Spawn"] = new SpawnAddonCallback(SpawnCustomAddon),
-                ["Kill"] = new KillAddonCallback(KillCustomAddon),
-                ["Update"] = new UpdateAddonCallback((component, data) =>
-                {
-                    var entity = component as SamSite;
-                    var addonData = data.ToObject<AddonData>();
-                    if (addonData != null)
-                    {
-                        entity.SetHealth(addonData.Health);
-                    }
-                }),
-                ["AddDisplayInfo"] = new AddDisplayInfoCallback((component, data, sb) =>
-                {
-                    var addonData = data?.ToObject<AddonData>();
-                    if (addonData != null)
-                    {
-                        sb.AppendLine($"Health: {addonData.Health}");
-                    }
-                }),
+                ["Edit"] = new EditCallback(EditAddon),
+                ["Spawn"] = new SpawnAddonCallback(SpawnAddon),
+                ["Kill"] = new KillAddonCallback(KillAddon),
+                ["Update"] = new UpdateAddonCallback(UpdateAddon),
+                ["Display"] = new DisplayCallback(Display),
             }
         ) as Dictionary<string, object>;
 
@@ -83,21 +73,47 @@ internal class ExampleCustomAddon : CovalencePlugin
         }
     }
 
-    private object InitializeAddon(BasePlayer player, string[] args)
+    // Called when a player runs the "maspawn exampleaddon" command.
+    private (bool, object) InitializeAddon(BasePlayer player, string[] args)
     {
         // Example: /maspawn exampleaddon 500
         // args[0] == "500"
 
-        if (args.Length < 1 || !float.TryParse(args[0], out var health))
-        {
-            // Set health to 500 if not specified via /maspawn.
-            health = 500;
-        }
+        if (!VerifyValidArgs(player, "maspawn", args, out var health))
+            return (false, null);
 
-        return new AddonData { Health = health };
+        return (true, new AddonData { Health = health });
     }
 
-    private Component SpawnCustomAddon(Guid guid, Component monument, Vector3 position, Quaternion rotation, JObject data)
+    // Called when a player runs the "maedit exampleaddon" command while looking at an existing instance.
+    private (bool, object) EditAddon(BasePlayer player, string[] args, Component component, JObject data)
+    {
+        // Example: /maedit exampleaddon 500
+        // args[0] == "500"
+
+        if (!VerifyValidArgs(player, "maedit", args, out var health))
+            return (false, null);
+
+        return (true, new AddonData { Health = health });
+    }
+
+    private bool VerifyValidArgs(BasePlayer player, string cmd, string[] args, out float health)
+    {
+        if (args.Length == 0)
+        {
+            // Set health to 1000 if the player doesn't specify it.
+            health = 1000f;
+            return true;
+        }
+
+        if (float.TryParse(args[0], out health))
+            return true;
+
+        player.IPlayer.Reply($"Syntax: /{cmd} {AddonName} <health>");
+        return false;
+    }
+
+    private Component SpawnAddon(Guid guid, Component monument, Vector3 position, Quaternion rotation, JObject data)
     {
         var entity = GameManager.server.CreateEntity("assets/prefabs/npc/sam_site_turret/sam_site_turret_deployed.prefab", position, rotation) as SamSite;
         if (entity == null)
@@ -116,12 +132,40 @@ internal class ExampleCustomAddon : CovalencePlugin
         return entity;
     }
 
-    private void KillCustomAddon(Component component)
+    // Called when a player runs "maedit" if `EditAddon` succeeded.
+    // Called as a result of invoking the `SetData` callback.
+    private Component UpdateAddon(Component component, JObject data)
+    {
+        if (component is not SamSite samSite)
+            return component;
+
+        var addonData = data?.ToObject<AddonData>();
+        if (addonData != null)
+        {
+            samSite.SetHealth(addonData.Health);
+        }
+
+        // This is where you could return a different object, if you needed to respawn it for some reason.
+        // For example, if the edit that the user requested required a different prefab, you can spawn a new one and
+        // return that here, and Monument Addons will track that one going forward.
+        return component;
+    }
+
+    private void KillAddon(Component component)
     {
         var entity = component as BaseEntity;
         if (entity != null && !entity.IsDestroyed)
         {
             entity.Kill();
+        }
+    }
+
+    private void Display(Component component, JObject data, BasePlayer player, StringBuilder sb, float duration)
+    {
+        var addonData = data?.ToObject<AddonData>();
+        if (addonData != null)
+        {
+            sb.AppendLine($"Health: {addonData.Health}");
         }
     }
 
