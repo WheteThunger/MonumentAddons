@@ -2843,7 +2843,7 @@ namespace Oxide.Plugins
 
             if (_customAddonManager.IsRegistered(addonName, out var otherPlugin))
             {
-                if (otherPlugin.Name == plugin.Name)
+                if (otherPlugin.Name != plugin.Name)
                 {
                     LogError($"Unable to register custom addon \"{addonName}\" for plugin {plugin.Name} because it's already been registered by plugin {otherPlugin.Name}.");
                     return null;
