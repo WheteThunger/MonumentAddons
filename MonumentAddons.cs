@@ -733,6 +733,12 @@ namespace Oxide.Plugins
                 || !VerifyLookingAtAdapter(player, out CustomAddonAdapter adapter, out CustomAddonController controller, LangEntry.ErrorNoCustomAddonFound))
                 return;
 
+            if (args.Length == 0)
+            {
+                ReplyToPlayer(player, LangEntry.EditSynax);
+                return;
+            }
+
             var addonDefinition = adapter.AddonDefinition;
             var addonName = addonDefinition.AddonName;
             if (addonName != args[0])
@@ -13929,6 +13935,7 @@ namespace Oxide.Plugins
             public static readonly LangEntry0 UndoNotFound = new("Undo.NotFound", "No recent action to undo.");
             public static readonly LangEntry3 UndoKillSuccess = new("Undo.Kill.Success", "Successfully restored <color=#fd4>{0}</color> at monument <color=#fd4>{1}</color> in profile <color=#fd4>{2}</color>.");
 
+            public static readonly LangEntry0 EditSynax = new("Edit.Syntax", "Syntax: <color=#fd4>maedit <addon-name> <arg1> <arg2> ...</color>");
             public static readonly LangEntry1 EditErrorNoMatch = new("Edit.Error.NoMatch", "Error: That custom addon does not have name <color=#fd4>{0}</color>.");
             public static readonly LangEntry1 EditErrorNotEditable = new("Edit.Error.NotEditable", "Error: The custom addon <color=#fd4>{0}</color> does not support editing.");
             public static readonly LangEntry1 EditSuccess = new("Edit.Success", "Successfully edited custom addon <color=#fd4>{0}</color>.");
