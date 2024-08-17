@@ -10,8 +10,12 @@ internal class ExampleCustomMonument : CovalencePlugin
     [PluginReference]
     private readonly Plugin MonumentAddons;
 
+    private bool _isServerInitialized;
+
     private void OnServerInitialized()
     {
+        _isServerInitialized = true;
+
         if (MonumentAddons != null)
         {
             RegisterCustomMonuments();
@@ -30,6 +34,9 @@ internal class ExampleCustomMonument : CovalencePlugin
 
     private void OnPluginLoaded(Plugin plugin)
     {
+        if (!_isServerInitialized)
+            return;
+
         if (plugin.Name == nameof(MonumentAddons))
         {
             RegisterCustomMonuments();
