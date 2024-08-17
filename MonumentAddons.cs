@@ -401,13 +401,24 @@ namespace Oxide.Plugins
                 adapterCount = spawnGroupController.Adapters.Count;
                 profileName = spawnPointAdapter.Profile.Name;
             }
-            else if (_entityTracker.IsMonumentEntity(moveEntity, out EntityAdapter adapter, out EntityController controller))
+            else if (_entityTracker.IsMonumentEntity(moveEntity, out EntityAdapter entityAdapter, out EntityController entityController))
             {
-                if (!adapter.TrySaveAndApplyChanges())
+                if (!entityAdapter.TrySaveAndApplyChanges())
                     return;
 
-                adapterCount = controller.Adapters.Count;
-                profileName = controller.Profile.Name;
+                adapterCount = entityController.Adapters.Count;
+                profileName = entityController.Profile.Name;
+            }
+            else if (_entityTracker.IsMonumentEntity(moveEntity, out CustomAddonAdapter customAddonAdapter, out CustomAddonController customAddonController))
+            {
+                if (!MaybeUpdatePosition(customAddonAdapter, customAddonAdapter.CustomAddonData))
+                    return;
+
+                customAddonController.StartHandleChangesRoutine();
+                _profileStore.Save(customAddonController.Profile);
+
+                adapterCount = customAddonController.Adapters.Count;
+                profileName = customAddonController.Profile.Name;
             }
             else
             {
@@ -3919,6 +3930,17 @@ namespace Oxide.Plugins
             }
         }
 
+        private static bool MaybeUpdatePosition(TransformAdapter adapter, BaseTransformData data)
+        {
+            if (adapter.IsAtIntendedPosition)
+                return false;
+
+            data.Position = adapter.LocalPosition;
+            data.RotationAngles = adapter.LocalRotation.eulerAngles;
+            data.SnapToTerrain = IsOnTerrain(adapter.Position);
+            return true;
+        }
+
         private bool HasAdminPermission(string userId)
         {
             return permission.UserHasPermission(userId, PermissionAdmin);
@@ -6248,8 +6270,8 @@ namespace Oxide.Plugins
             }
 
             public bool IsMonumentEntity<TAdapter, TController>(BaseEntity entity, out TAdapter adapter, out TController controller)
-                where TAdapter : EntityAdapter
-                where TController : EntityController
+                where TAdapter : TransformAdapter
+                where TController : BaseController
             {
                 adapter = null;
                 controller = null;
@@ -6268,7 +6290,7 @@ namespace Oxide.Plugins
             }
 
             public bool IsMonumentEntity<TController>(BaseEntity entity, out TController controller)
-                where TController : EntityController
+                where TController : BaseController
             {
                 return IsMonumentEntity(entity, out EntityAdapter _, out controller);
             }
@@ -6890,13 +6912,7 @@ namespace Oxide.Plugins
             {
                 var hasChanged = false;
 
-                if (!IsAtIntendedPosition)
-                {
-                    EntityData.Position = LocalPosition;
-                    EntityData.RotationAngles = LocalRotation.eulerAngles;
-                    EntityData.SnapToTerrain = IsOnTerrain(Position);
-                    hasChanged = true;
-                }
+                hasChanged |= MaybeUpdatePosition(this, EntityData);
 
                 var buildingBlock = Entity as BuildingBlock;
                 if (buildingBlock != null && buildingBlock.grade != IntendedBuildingGrade)
@@ -9825,7 +9841,7 @@ namespace Oxide.Plugins
 
             public override Vector3 Position => Component.transform.position;
             public override Quaternion Rotation => Component.transform.rotation;
-            public override bool IsValid => Component != null;
+            public override bool IsValid => Component != null && (Component is not BaseEntity { IsDestroyed: true });
 
             private bool _wasKilled;
 
@@ -9895,6 +9911,24 @@ namespace Oxide.Plugins
                     CustomAddonComponent.AddToComponent(component, this);
                 }
             }
+
+            public void HandleChanges()
+            {
+                UpdatePosition();
+            }
+
+            private void UpdatePosition()
+            {
+                if (IsAtIntendedPosition)
+                    return;
+
+                Component.transform.SetPositionAndRotation(IntendedPosition, IntendedRotation);
+
+                if (Component is BaseEntity entity)
+                {
+                    BroadcastEntityTransformChange(entity);
+                }
+            }
         }
 
         private class CustomAddonController : BaseController
@@ -9912,6 +9946,27 @@ namespace Oxide.Plugins
             public override BaseAdapter CreateAdapter(BaseMonument monument)
             {
                 return new CustomAddonAdapter(CustomAddonData, this, monument, _addonDefinition);
+            }
+
+            public Coroutine StartHandleChangesRoutine()
+            {
+                return ProfileController.StartCoroutine(HandleChangesRoutine());
+            }
+
+            private IEnumerator HandleChangesRoutine()
+            {
+                foreach (var adapter in Adapters.ToList())
+                {
+                    if (!_addonDefinition.IsValid)
+                        yield break;
+
+                    var customAddonAdapter = adapter as CustomAddonAdapter;
+                    if (!customAddonAdapter.IsValid)
+                        continue;
+
+                    customAddonAdapter.HandleChanges();
+                    yield return null;
+                }
             }
         }
 
