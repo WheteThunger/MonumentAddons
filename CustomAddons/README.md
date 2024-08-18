@@ -80,7 +80,7 @@ Type: `System.Action<UnityEngine.Component>`
 
 ### `"Update"`
 
-A method that Monument Addons can call to apply updated data to each instance of the addon. This will be called as the result of calling `"SetData"`, or as the result of a player running the `maedit` command (which calls the `"Edit"` callback to determine the new data).
+A method that Monument Addons can call to apply updated data to each instance of the addon. This will be called as the result of calling `"SetData"`, as the result of a player running the `maedit` command (which calls the `"Edit"` callback to determine the new data), and as the result of a player moving the addon via a supported plugin integration such as [Telekinesis](https://umod.org/plugins/telekinesis).
 
 Type: `System.Func<UnityEngine.Component, JObject, UnityEngine.Component>`
 

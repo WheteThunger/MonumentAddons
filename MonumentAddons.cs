@@ -5961,7 +5961,8 @@ namespace Oxide.Plugins
 
             public void Unregister(CustomMonument monument)
             {
-                MonumentList.Remove(monument);
+                if (!MonumentList.Remove(monument))
+                    return;
 
                 _plugin._coroutineManager.StartCoroutine(KillRoutine(
                     _plugin._profileManager.GetEnabledAdaptersForMonument<BaseAdapter>(monument).ToList()));
@@ -9810,24 +9811,27 @@ namespace Oxide.Plugins
                     ?? SpawnV2?.Invoke(guid, monument, position, rotation, jObject);
             }
 
+            public Component DoUpdate(Component component, JObject data)
+            {
+                if (Update != null)
+                {
+                    Update(component, data);
+                    return component;
+                }
+
+                if (UpdateV2 != null)
+                    return UpdateV2(component, data);
+
+                // This should not happen.
+                return component;
+            }
+
             public void SetData(ProfileStore profileStore, CustomAddonController controller, object data)
             {
                 controller.CustomAddonData.SetData(data);
                 profileStore.Save(controller.Profile);
 
-                var serializedData = controller.CustomAddonData.GetSerializedData();
-
-                foreach (var adapter in controller.Adapters)
-                {
-                    if (adapter is not CustomAddonAdapter customAddonAdapter)
-                        continue;
-
-                    var newComponent = UpdateAdapter(customAddonAdapter.Component, serializedData);
-                    if (newComponent != customAddonAdapter.Component)
-                    {
-                        customAddonAdapter.SetupComponent(newComponent);
-                    }
-                }
+                controller.StartUpdateRoutine();
             }
 
             public void SetData(ProfileStore profileStore, Component component, object data)
@@ -9855,21 +9859,6 @@ namespace Oxide.Plugins
             {
                 Display?.Invoke(component, data, sb);
                 DisplayV2?.Invoke(component, data, player, sb, duration);
-            }
-
-            private Component UpdateAdapter(Component component, JObject data)
-            {
-                if (Update != null)
-                {
-                    Update(component, data);
-                    return component;
-                }
-
-                if (UpdateV2 != null)
-                    return UpdateV2(component, data);
-
-                // This should not happen.
-                return component;
             }
         }
 
@@ -10025,7 +10014,6 @@ namespace Oxide.Plugins
             public override void Spawn()
             {
                 var component = AddonDefinition.DoSpawn(CustomAddonData.Id, Monument.Object, IntendedPosition, IntendedRotation, CustomAddonData.GetSerializedData());
-                _transform = component.transform;
                 AddonDefinition.AdapterUsers.Add(this);
                 SetupComponent(component);
             }
@@ -10060,12 +10048,26 @@ namespace Oxide.Plugins
             public void SetupComponent(Component component)
             {
                 _component = component;
+                _transform = component.transform;
                 AddonComponent.AddToComponent(Plugin._componentTracker, component, this);
             }
 
             public void HandleChanges()
             {
                 UpdatePosition();
+                UpdateViaOwnerPlugin();
+            }
+
+            private void UpdateViaOwnerPlugin()
+            {
+                if (!AddonDefinition.SupportsEditing)
+                    return;
+
+                var newComponent = AddonDefinition.DoUpdate(_component, CustomAddonData.GetSerializedData());
+                if (newComponent != _component)
+                {
+                    SetupComponent(newComponent);
+                }
             }
 
             private void UpdatePosition()
