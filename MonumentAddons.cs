@@ -4214,6 +4214,8 @@ namespace Oxide.Plugins
 
         private struct Ddraw
         {
+            private const float DefaultBoxSphereRadius = 0.5f;
+
             public static void Sphere(BasePlayer player, float duration, Color color, Vector3 origin, float radius)
             {
                 player.SendConsoleCommand("ddraw.sphere", duration, color, origin, radius);
@@ -4241,10 +4243,8 @@ namespace Oxide.Plugins
                 player.SendConsoleCommand("ddraw.text", duration, color, origin, text);
             }
 
-            public static void Box(BasePlayer player, float duration, Color color, Vector3 center, Quaternion rotation, Vector3 extents)
+            public static void Box(BasePlayer player, float duration, Color color, Vector3 center, Quaternion rotation, Vector3 extents, float sphereRadius = 0.5f)
             {
-                var sphereRadius = 0.5f;
-
                 var forwardUpperLeft = center + rotation * extents.WithX(-extents.x);
                 var forwardUpperRight = center + rotation * extents;
                 var forwardLowerLeft = center + rotation * extents.WithX(-extents.x).WithY(-extents.y);
@@ -4281,9 +4281,9 @@ namespace Oxide.Plugins
                 Line(player, duration, color, forwardLowerRight, backLowerRight);
             }
 
-            public static void Box(BasePlayer player, float duration, Color color, OBB obb)
+            public static void Box(BasePlayer player, float duration, Color color, OBB obb, float sphereRadius)
             {
-                Box(player, duration, color, obb.position, obb.rotation, obb.extents);
+                Box(player, duration, color, obb.position, obb.rotation, obb.extents, sphereRadius);
             }
 
             private BasePlayer _player;
@@ -4322,14 +4322,14 @@ namespace Oxide.Plugins
                 Text(_player, duration ?? _duration, color ?? _color, position, text);
             }
 
-            public void Box(Vector3 center, Quaternion rotation, Vector3 extents, float? duration = null, Color? color = null)
+            public void Box(Vector3 center, Quaternion rotation, Vector3 extents, float sphereRadius = DefaultBoxSphereRadius, float? duration = null, Color? color = null)
             {
-                Box(_player, duration ?? _duration, color ?? _color, center, rotation, extents);
+                Box(_player, duration ?? _duration, color ?? _color, center, rotation, extents, sphereRadius);
             }
 
-            public void Box(OBB obb, float? duration = null, Color? color = null)
+            public void Box(OBB obb, float sphereRadius = DefaultBoxSphereRadius, float? duration = null, Color? color = null)
             {
-                Box(_player, duration ?? _duration, color ?? _color, obb);
+                Box(_player, duration ?? _duration, color ?? _color, obb, sphereRadius);
             }
         }
 
@@ -9425,6 +9425,7 @@ namespace Oxide.Plugins
             private const float KillBatchSize = 5;
 
             public PasteData PasteData { get; }
+            public OBB Bounds => new OBB(_bounds.center + Position, _bounds.size, Rotation);
             public override Component Component => _transform;
             public override Transform Transform => _transform;
             public override Vector3 Position => _transform.position;
@@ -9435,6 +9436,7 @@ namespace Oxide.Plugins
             private Transform _transform;
             private Vector3 _spawnedPosition;
             private Quaternion _spawnedRotation;
+            private Bounds _bounds;
             private bool _isWorking;
             private Action _cancelPaste;
             private List<BaseEntity> _pastedEntities = new List<BaseEntity>();
@@ -9570,6 +9572,23 @@ namespace Oxide.Plugins
             private void OnPasteComplete()
             {
                 _isWorking = false;
+                _bounds = GetBounds();
+            }
+
+            private Bounds GetBounds()
+            {
+                var bounds = new Bounds(Position, Vector3.zero);
+
+                foreach (var entity in _pastedEntities)
+                {
+                    if (entity == null || entity.IsDestroyed)
+                        continue;
+
+                    bounds.Encapsulate(entity.WorldSpaceBounds().ToBounds());
+                }
+
+                bounds.center -= Position;
+                return bounds;
             }
         }
 
@@ -10752,6 +10771,7 @@ namespace Oxide.Plugins
                     _sb.AppendLine(string.Join(" ", pasteData.Args));
                 }
 
+                drawer.Box(adapter.Bounds, 0.25f);
                 drawer.Text(adapter.Position, _sb.ToString());
             }
 
