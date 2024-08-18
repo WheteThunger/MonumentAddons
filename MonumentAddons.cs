@@ -338,21 +338,21 @@ namespace Oxide.Plugins
         }
 
         // This hook is exposed by plugin: Telekinesis.
-        private object CanStartTelekinesis(BasePlayer player, Component moveComponent, Component rotateComponent)
-        {
-            if (IsTransformAddon(moveComponent, out _) && !HasAdminPermission(player))
-                return False;
-
-            return null;
-        }
-
-        // This hook is exposed by plugin: Telekinesis.
         private Tuple<Component, Component> OnTelekinesisStart(BasePlayer player, BaseEntity entity)
         {
             if (!_componentTracker.IsAddonComponent(entity, out PasteAdapter adapter, out PasteController _))
                 return null;
 
             return new Tuple<Component, Component>(adapter.Component, adapter.Component);
+        }
+
+        // This hook is exposed by plugin: Telekinesis.
+        private object CanStartTelekinesis(BasePlayer player, Component moveComponent, Component rotateComponent)
+        {
+            if (IsTransformAddon(moveComponent, out _) && !HasAdminPermission(player))
+                return False;
+
+            return null;
         }
 
         // This hook is exposed by plugin: Telekinesis.
