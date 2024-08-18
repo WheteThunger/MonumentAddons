@@ -10836,11 +10836,17 @@ namespace Oxide.Plugins
                         && (playerPosition - monument.ClosestPointOnBounds(playerPosition)).sqrMagnitude > DisplayDistanceSquared)
                         continue;
 
-                    _sb.Clear();
-                    var monumentCount = _plugin._customMonumentManager.CountMonumentByName(monument.UniqueName);
-                    _sb.AppendLine($"<size={HeaderSize}>{_plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelCustomMonument, monument.UniqueDisplayName, monumentCount)}</size>");
-                    _sb.AppendLine(_plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelPlugin, monument.OwnerPlugin.Name));
-                    drawer.Text(monument.Position, _sb.ToString());
+                    // If an object is both a custom monument and an addon (perhaps even a custom addon),
+                    // don't show debug test since it will overlap.
+                    if (!_plugin._componentTracker.IsAddonComponent(monument.Object))
+                    {
+                        _sb.Clear();
+                        var monumentCount = _plugin._customMonumentManager.CountMonumentByName(monument.UniqueName);
+                        _sb.AppendLine($"<size={HeaderSize}>{_plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelCustomMonument, monument.UniqueDisplayName, monumentCount)}</size>");
+                        _sb.AppendLine(_plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelPlugin, monument.OwnerPlugin.Name));
+                        drawer.Text(monument.Position, _sb.ToString());
+                    }
+
                     drawer.Box(monument.BoundingBox);
                 }
             }
