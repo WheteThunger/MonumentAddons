@@ -10871,7 +10871,25 @@ namespace Oxide.Plugins
                 return closestSpawnPointAdapter;
             }
 
-            private Vector3 GetClosestAdapterPosition(BaseAdapter adapter, Vector3 origin, out BaseAdapter closestAdapter)
+            private SpawnPointAdapter FindClosestSpawnPointAdapterToRay(SpawnGroupAdapter spawnGroupAdapter, Ray ray)
+            {
+                SpawnPointAdapter closestSpawnPointAdapter = null;
+                var highestDot = float.MinValue;
+
+                foreach (var spawnPointAdapter in spawnGroupAdapter.SpawnPointAdapters)
+                {
+                    var dot = Vector3.Dot(ray.direction, (spawnPointAdapter.Position - ray.origin).normalized);
+                    if (dot > highestDot)
+                    {
+                        closestSpawnPointAdapter = spawnPointAdapter;
+                        highestDot = dot;
+                    }
+                }
+
+                return closestSpawnPointAdapter;
+            }
+
+            private Vector3 GetClosestAdapterPosition(BaseAdapter adapter, Ray ray, out BaseAdapter closestAdapter)
             {
                 if (adapter is TransformAdapter transformAdapter)
                 {
@@ -10881,7 +10899,7 @@ namespace Oxide.Plugins
 
                 if (adapter is SpawnGroupAdapter spawnGroupAdapter)
                 {
-                    var spawnPointAdapter = FindClosestSpawnPointAdapter(spawnGroupAdapter, origin);
+                    var spawnPointAdapter = FindClosestSpawnPointAdapterToRay(spawnGroupAdapter, ray);
                     closestAdapter = spawnPointAdapter;
                     return spawnPointAdapter.Position;
                 }
@@ -11072,16 +11090,27 @@ namespace Oxide.Plugins
 
                 ShowNearbyCustomMonuments(player, playerPosition, playerInfo);
 
-                foreach (var (adapter, closestAdapter, distanceSquared) in _plugin._profileManager.GetEnabledAdapters<BaseAdapter>()
+                var headRay = player.eyes.HeadRay();
+
+                foreach (var (adapter, closestAdapter, distanceSquared, _) in _plugin._profileManager.GetEnabledAdapters<BaseAdapter>()
                              .Where(adapter => adapter.IsValid)
                              .Select(adapter =>
                              {
-                                 var position = GetClosestAdapterPosition(adapter, playerPosition, out var closestAdapter);
+                                 var position = GetClosestAdapterPosition(adapter, headRay, out var closestAdapter);
                                  var distanceSquared = (position - playerPosition).sqrMagnitude;
-                                 return (adapter, closestAdapter, distanceSquared);
+                                 return (adapter, closestAdapter, distanceSquared, position);
                              })
                              .Where(tuple => tuple.Item3 <= DisplayDistanceAbbreviatedSquared)
-                             .OrderBy(tuple => tuple.Item3))
+                             .OrderByDescending(tuple =>
+                             {
+                                 var dot = Vector3.Dot(headRay.direction, (tuple.Item4 - headRay.origin).normalized);
+                                 if (tuple.Item3 > DisplayDistanceSquared)
+                                 {
+                                     dot -= 2;
+                                 }
+                                 return dot;
+                             })
+                         )
                 {
                     if (adapter == playerInfo.MovingAdapter)
                         continue;
@@ -13808,7 +13837,7 @@ namespace Oxide.Plugins
         private class DebugDisplaySettings
         {
             [JsonProperty("Display distance")]
-            public float DisplayDistance = 50;
+            public float DisplayDistance = 100;
 
             [JsonProperty("Display distance abbreviated")]
             public float DisplayDistanceAbbreviated = 200;
