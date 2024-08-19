@@ -1335,6 +1335,7 @@ namespace Oxide.Plugins
                     break;
                 }
 
+                case "sel":
                 case "select":
                 {
                     if (player.IsServer)
