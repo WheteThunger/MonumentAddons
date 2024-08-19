@@ -14324,7 +14324,7 @@ namespace Oxide.Plugins
             public static readonly LangEntry1 EditSuccess = new("Edit.Success", "Successfully edited custom addon <color=#fd4>{0}</color>.");
 
             public static readonly LangEntry0 PasteNotCompatible = new("Paste.NotCompatible", "CopyPaste is not loaded or its version is incompatible.");
-            public static readonly LangEntry0 PasteSyntax = new("Paste.Syntax", "Syntax: <color=#fd4>mapaste <file></color>");
+            public static readonly LangEntry0 PasteSyntax = new("Paste.Syntax2", "Syntax: <color=#fd4>mapaste <file> <arg1> <arg2> ...</color>");
             public static readonly LangEntry1 PasteNotFound = new("Paste.NotFound", "File <color=#fd4>{0}</color> does not exist.");
             public static readonly LangEntry4 PasteSuccess = new("Paste.Success", "Pasted <color=#fd4>{0}</color> at <color=#fd4>{1}</color> (x<color=#fd4>{2}</color>) and saved to profile <color=#fd4>{3}</color>.");
 
