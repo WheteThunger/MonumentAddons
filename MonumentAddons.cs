@@ -358,9 +358,14 @@ namespace Oxide.Plugins
         // This hook is exposed by plugin: Telekinesis.
         private void OnTelekinesisStarted(BasePlayer player, Component moveComponent, Component rotateComponent)
         {
-            if (!IsTransformAddon(moveComponent, out var controller)
+            if (!IsTransformAddon(moveComponent, out var adapter, out var controller)
                 || controller is not IUpdateableController)
                 return;
+
+            if (adapter.Component == moveComponent || adapter.Component == rotateComponent)
+            {
+                _adapterDisplayManager.SetPlayerMovingAdapter(player, adapter);
+            }
 
             _adapterDisplayManager.ShowAllRepeatedly(player);
 
@@ -380,8 +385,15 @@ namespace Oxide.Plugins
         private void OnTelekinesisStopped(BasePlayer player, Component moveComponent, Component rotateComponent)
         {
             if (!IsTransformAddon(moveComponent, out TransformAdapter transformAdapter, out BaseController controller)
-                || controller is not IUpdateableController updateableController
-                || !transformAdapter.TryRecordUpdates(moveComponent.transform, rotateComponent.transform))
+                || controller is not IUpdateableController updateableController)
+                return;
+
+            if (player != null)
+            {
+                _adapterDisplayManager.SetPlayerMovingAdapter(player, null);
+            }
+
+            if (!transformAdapter.TryRecordUpdates(moveComponent.transform, rotateComponent.transform))
                 return;
 
             if (moveComponent is CustomSpawnPoint spawnPoint)
@@ -4289,48 +4301,48 @@ namespace Oxide.Plugins
 
             private BasePlayer _player;
             private Color _color;
-            private float _duration;
+            public float Duration { get; }
 
             public Ddraw(BasePlayer player, float duration, Color? color = null)
             {
                 _player = player;
                 _color = color ?? Color.white;
-                _duration = duration;
+                Duration = duration;
             }
 
             public void Sphere(Vector3 position, float radius, float? duration = null, Color? color = null)
             {
-                Sphere(_player, duration ?? _duration, color ?? _color, position, radius);
+                Sphere(_player, duration ?? Duration, color ?? _color, position, radius);
             }
 
             public void Line(Vector3 origin, Vector3 target, float? duration = null, Color? color = null)
             {
-                Line(_player, duration ?? _duration, color ?? _color, origin, target);
+                Line(_player, duration ?? Duration, color ?? _color, origin, target);
             }
 
             public void Arrow(Vector3 origin, Vector3 target, float headSize, float? duration = null, Color? color = null)
             {
-                Arrow(_player, duration ?? _duration, color ?? _color, origin, target, headSize);
+                Arrow(_player, duration ?? Duration, color ?? _color, origin, target, headSize);
             }
 
             public void Arrow(Vector3 center, Quaternion rotation, float length, float headSize, float? duration = null, Color? color = null)
             {
-                Arrow(_player, duration ?? _duration, color ?? _color, center, rotation, length, headSize);
+                Arrow(_player, duration ?? Duration, color ?? _color, center, rotation, length, headSize);
             }
 
             public void Text(Vector3 position, string text, float? duration = null, Color? color = null)
             {
-                Text(_player, duration ?? _duration, color ?? _color, position, text);
+                Text(_player, duration ?? Duration, color ?? _color, position, text);
             }
 
             public void Box(Vector3 center, Quaternion rotation, Vector3 extents, float sphereRadius = DefaultBoxSphereRadius, float? duration = null, Color? color = null)
             {
-                Box(_player, duration ?? _duration, color ?? _color, center, rotation, extents, sphereRadius);
+                Box(_player, duration ?? Duration, color ?? _color, center, rotation, extents, sphereRadius);
             }
 
             public void Box(OBB obb, float sphereRadius = DefaultBoxSphereRadius, float? duration = null, Color? color = null)
             {
-                Box(_player, duration ?? _duration, color ?? _color, obb, sphereRadius);
+                Box(_player, duration ?? Duration, color ?? _color, obb, sphereRadius);
             }
         }
 
@@ -5928,17 +5940,17 @@ namespace Oxide.Plugins
             public static CustomMonumentComponent AddToMonument(CustomMonumentManager manager, CustomMonument monument)
             {
                 var component = monument.Component.gameObject.AddComponent<CustomMonumentComponent>();
+                component.Monument = monument;
                 component._manager = manager;
-                component._monument = monument;
                 return component;
             }
 
+            public CustomMonument Monument { get; private set; }
             private CustomMonumentManager _manager;
-            private CustomMonument _monument;
 
             private void OnDestroy()
             {
-                _manager.Unregister(_monument);
+                _manager.Unregister(Monument);
             }
         }
 
@@ -9438,7 +9450,7 @@ namespace Oxide.Plugins
             private const float KillBatchSize = 5;
 
             public PasteData PasteData { get; }
-            public OBB Bounds => new OBB(_bounds.center + Position, _bounds.size, Rotation);
+            public OBB Bounds => new OBB(Position + Rotation * _bounds.center, _bounds.size, Rotation);
             public override Component Component => _transform;
             public override Transform Transform => _transform;
             public override Vector3 Position => _transform.position;
@@ -9590,17 +9602,22 @@ namespace Oxide.Plugins
 
             private Bounds GetBounds()
             {
-                var bounds = new Bounds(Position, Vector3.zero);
+                var bounds = new Bounds();
+                var pastePosition = Position;
+                var pasteInverseRotation = Quaternion.Inverse(Rotation);
 
                 foreach (var entity in _pastedEntities)
                 {
                     if (entity == null || entity.IsDestroyed)
                         continue;
 
-                    bounds.Encapsulate(entity.WorldSpaceBounds().ToBounds());
+                    var transform = entity.transform;
+                    var relativePosition = pasteInverseRotation * (transform.position - pastePosition);
+                    var relativeRotation = pasteInverseRotation * transform.rotation;
+                    var obb = new OBB(relativePosition, transform.lossyScale, relativeRotation, entity.bounds);
+                    bounds.Encapsulate(obb.ToBounds());
                 }
 
-                bounds.center -= Position;
                 return bounds;
             }
         }
@@ -10376,12 +10393,29 @@ namespace Oxide.Plugins
             public static readonly string Divider = $"<size={HeaderSize}>------------------------------</size>";
             public static readonly Vector3 ArrowVerticalOffeset = new Vector3(0, 0.5f, 0);
 
-            private const int DisplayIntervalDuration = 2;
+            private const float DisplayIntervalDurationFast = 0.01f;
+            private const float DisplayIntervalDuration = 2;
 
             private class PlayerInfo
             {
                 public Timer Timer;
                 public ProfileController ProfileController;
+                public TransformAdapter MovingAdapter;
+                public CustomMonument MovingCustomMonument;
+                public RealTimeSince RealTimeSinceShown;
+
+                public float DisplayDurationSlow => DisplayIntervalDuration * 1.1f;
+                public float DisplayDurationFast => Performance.report.frameTime / 1000f + 0.01f;
+
+                public float GetDisplayDuration(BaseAdapter adapter)
+                {
+                    return MovingAdapter == adapter ? DisplayDurationFast : DisplayDurationSlow;
+                }
+
+                public float GetDisplayDuration(CustomMonument monument)
+                {
+                    return monument == MovingCustomMonument ? DisplayDurationFast : DisplayDurationSlow;
+                }
             }
 
             private float DisplayDistanceSquared => Mathf.Pow(_config.DebugDisplaySettings.DisplayDistance, 2);
@@ -10401,12 +10435,22 @@ namespace Oxide.Plugins
                 GetOrCreatePlayerInfo(player).ProfileController = profileController;
             }
 
+            public void SetPlayerMovingAdapter(BasePlayer player, TransformAdapter adapter)
+            {
+                var playerInfo = GetOrCreatePlayerInfo(player);
+                playerInfo.MovingAdapter = adapter;
+                playerInfo.MovingCustomMonument = adapter is CustomAddonAdapter { IsValid: true } customAddonAdapter
+                    ? customAddonAdapter.Component.GetComponent<CustomMonumentComponent>()?.Monument
+                    : null;
+            }
+
             public void ShowAllRepeatedly(BasePlayer player, int duration = -1, bool immediate = true)
             {
                 var playerInfo = GetOrCreatePlayerInfo(player);
 
                 if (immediate || playerInfo.Timer == null || playerInfo.Timer.Destroyed)
                 {
+                    playerInfo.RealTimeSinceShown = float.MaxValue;
                     ShowNearbyAdapters(player, player.transform.position, playerInfo);
                 }
 
@@ -10418,9 +10462,9 @@ namespace Oxide.Plugins
                     }
                     else
                     {
-                        var remainingTime = playerInfo.Timer.Repetitions * DisplayIntervalDuration;
+                        var remainingTime = playerInfo.Timer.Repetitions * DisplayIntervalDurationFast;
                         var newDuration = duration > 0 ? duration : Math.Max(remainingTime, DefaultDisplayDuration);
-                        var newRepetitions = Math.Max(newDuration / DisplayIntervalDuration, 1);
+                        var newRepetitions = Math.Max(Mathf.CeilToInt(newDuration / DisplayIntervalDurationFast), 1);
                         playerInfo.Timer.Reset(delay: -1, repetitions: newRepetitions);
                     }
                     return;
@@ -10432,9 +10476,9 @@ namespace Oxide.Plugins
                 }
 
                 // Ensure repetitions is not 0 since that would result in infintire repetitions.
-                var repetitions = Math.Max(duration / DisplayIntervalDuration, 1);
+                var repetitions = Math.Max(Mathf.CeilToInt(duration / DisplayIntervalDurationFast), 1);
 
-                playerInfo.Timer = _plugin.timer.Repeat(DisplayIntervalDuration - 0.2f, repetitions, () =>
+                playerInfo.Timer = _plugin.timer.Repeat(DisplayIntervalDurationFast, repetitions, () =>
                 {
                     if (player == null || player.IsDestroyed || !player.IsConnected)
                     {
@@ -10519,10 +10563,10 @@ namespace Oxide.Plugins
                             spawnGroupNameList ??= Pool.GetList<string>();
                             spawnGroupNameList.Add(spawnGroupAdapter.SpawnGroupData.Name);
 
-                            var spawnPointAdapter = FindClosestSpawnPointAdapter(spawnGroupAdapter, playerPosition, out _);
+                            var spawnPointAdapter = FindClosestSpawnPointAdapter(spawnGroupAdapter, playerPosition);
                             if (spawnPointAdapter != null)
                             {
-                                new Ddraw(player, DisplayIntervalDuration, DetermineColor(spawnPointAdapter, playerInfo, profileController))
+                                new Ddraw(player, playerInfo.GetDisplayDuration(spawnPointAdapter), DetermineColor(spawnPointAdapter, playerInfo, profileController))
                                     .Arrow(entityAdapter.Position + ArrowVerticalOffeset, spawnPointAdapter.Position + ArrowVerticalOffeset, 0.25f);
                             }
                         }
@@ -10538,7 +10582,7 @@ namespace Oxide.Plugins
 
             private Ddraw CreateDrawer(BasePlayer player, BaseAdapter adapter, PlayerInfo playerInfo)
             {
-                return new Ddraw(player, DisplayIntervalDuration, DetermineColor(adapter, playerInfo, adapter.ProfileController));
+                return new Ddraw(player, playerInfo.GetDisplayDuration(adapter), DetermineColor(adapter, playerInfo, adapter.ProfileController));
             }
 
             private void ShowEntityInfo(ref Ddraw drawer, BasePlayer player, EntityAdapter adapter, Vector3 playerPosition, PlayerInfo playerInfo)
@@ -10599,7 +10643,7 @@ namespace Oxide.Plugins
                 drawer.Text(adapter.Position, _sb.ToString());
             }
 
-            private void ShowPrefabInfo(ref Ddraw drawer, BasePlayer player, PrefabAdapter adapter)
+            private void ShowPrefabInfo(ref Ddraw drawer, BasePlayer player, PrefabAdapter adapter, PlayerInfo playerInfo)
             {
                 var prefabData = adapter.PrefabData;
                 var controller = adapter.Controller;
@@ -10611,7 +10655,9 @@ namespace Oxide.Plugins
                 _sb.AppendLine($"<size={HeaderSize}>{_plugin.GetMessage(player.UserIDString, LangEntry.ShowHeaderPrefab, uniqueEntityName)}</size>");
                 AddCommonInfo(player, profileController, controller, adapter);
 
-                drawer.Text(adapter.Position, _sb.ToString());
+                var position = adapter.Position;
+                drawer.Sphere(position, 0.25f);
+                drawer.Text(position, _sb.ToString());
             }
 
             private void ShowSpawnPointInfo(BasePlayer player, SpawnPointAdapter adapter, SpawnGroupAdapter spawnGroupAdapter, PlayerInfo playerInfo, bool showGroupInfo)
@@ -10620,7 +10666,7 @@ namespace Oxide.Plugins
                 var controller = adapter.Controller;
                 var profileController = controller.ProfileController;
                 var color = DetermineColor(adapter, playerInfo, profileController);
-                var drawer = new Ddraw(player, DisplayIntervalDuration, color);
+                var drawer = new Ddraw(player, playerInfo.GetDisplayDuration(adapter), color);
 
                 var spawnGroupData = spawnGroupAdapter.SpawnGroupData;
 
@@ -10802,15 +10848,15 @@ namespace Oxide.Plugins
                 _sb.AppendLine(_plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelPlugin, addonDefinition.OwnerPlugin.Name));
                 AddCommonInfo(player, profileController, controller, adapter);
 
-                addonDefinition.DoDisplay(adapter.Component, customAddonData.GetSerializedData(), player, _sb, DisplayIntervalDuration);
+                addonDefinition.DoDisplay(adapter.Component, customAddonData.GetSerializedData(), player, _sb, drawer.Duration);
 
                 drawer.Text(adapter.Position, _sb.ToString());
             }
 
-            private SpawnPointAdapter FindClosestSpawnPointAdapter(SpawnGroupAdapter spawnGroupAdapter, Vector3 origin, out float closestDistanceSquared)
+            private SpawnPointAdapter FindClosestSpawnPointAdapter(SpawnGroupAdapter spawnGroupAdapter, Vector3 origin)
             {
                 SpawnPointAdapter closestSpawnPointAdapter = null;
-                closestDistanceSquared = float.MaxValue;
+                var closestDistanceSquared = float.MaxValue;
 
                 foreach (var spawnPointAdapter in spawnGroupAdapter.SpawnPointAdapters)
                 {
@@ -10835,7 +10881,7 @@ namespace Oxide.Plugins
 
                 if (adapter is SpawnGroupAdapter spawnGroupAdapter)
                 {
-                    var spawnPointAdapter = FindClosestSpawnPointAdapter(spawnGroupAdapter, origin, out _);
+                    var spawnPointAdapter = FindClosestSpawnPointAdapter(spawnGroupAdapter, origin);
                     closestAdapter = spawnPointAdapter;
                     return spawnPointAdapter.Position;
                 }
@@ -10859,58 +10905,47 @@ namespace Oxide.Plugins
                 drawer.Text(adapter.Position, "<size=25>*</size>");
             }
 
-            private void ShowNearbyCustomMonuments(BasePlayer player, Vector3 playerPosition)
+            private void DisplayMonument(BasePlayer player, PlayerInfo playerInfo, CustomMonument monument)
             {
-                var drawer = new Ddraw(player, DisplayIntervalDuration, _config.DebugDisplaySettings.CustomMonumentColor);
+                var drawer = new Ddraw(player, playerInfo.GetDisplayDuration(monument), _config.DebugDisplaySettings.CustomMonumentColor);
 
+                // If an object is both a custom monument and an addon (perhaps even a custom addon),
+                // don't show debug test since it will overlap.
+                if (!_plugin._componentTracker.IsAddonComponent(monument.Object))
+                {
+                    _sb.Clear();
+                    var monumentCount = _plugin._customMonumentManager.CountMonumentByName(monument.UniqueName);
+                    _sb.AppendLine($"<size={HeaderSize}>{_plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelCustomMonument, monument.UniqueDisplayName, monumentCount)}</size>");
+                    _sb.AppendLine(_plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelPlugin, monument.OwnerPlugin.Name));
+                    drawer.Text(monument.Position, _sb.ToString());
+                }
+
+                drawer.Box(monument.BoundingBox);
+            }
+
+            private void ShowNearbyCustomMonuments(BasePlayer player, Vector3 playerPosition, PlayerInfo playerInfo)
+            {
                 foreach (var monument in _plugin._customMonumentManager.MonumentList)
                 {
+                    if (monument == playerInfo.MovingCustomMonument)
+                        continue;
+
                     if (!monument.IsInBounds(playerPosition)
                         && (playerPosition - monument.ClosestPointOnBounds(playerPosition)).sqrMagnitude > DisplayDistanceSquared)
                         continue;
 
-                    // If an object is both a custom monument and an addon (perhaps even a custom addon),
-                    // don't show debug test since it will overlap.
-                    if (!_plugin._componentTracker.IsAddonComponent(monument.Object))
-                    {
-                        _sb.Clear();
-                        var monumentCount = _plugin._customMonumentManager.CountMonumentByName(monument.UniqueName);
-                        _sb.AppendLine($"<size={HeaderSize}>{_plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelCustomMonument, monument.UniqueDisplayName, monumentCount)}</size>");
-                        _sb.AppendLine(_plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelPlugin, monument.OwnerPlugin.Name));
-                        drawer.Text(monument.Position, _sb.ToString());
-                    }
-
-                    drawer.Box(monument.BoundingBox);
+                    DisplayMonument(player, playerInfo, monument);
                 }
             }
 
-            private void ShowNearbyAdapters(BasePlayer player, Vector3 playerPosition, PlayerInfo playerInfo)
+            private void DisplayAdapter(BasePlayer player, Vector3 playerPosition, PlayerInfo playerInfo,
+                BaseAdapter adapter, BaseAdapter closestAdapter, float distanceSquared, ref int remainingToShow)
             {
-                var isAdmin = player.IsAdmin;
-                if (!isAdmin)
+                var drawer = CreateDrawer(player, adapter, playerInfo);
+
+                switch (adapter)
                 {
-                    player.SetPlayerFlag(BasePlayer.PlayerFlags.IsAdmin, true);
-                    player.SendNetworkUpdateImmediate();
-                }
-
-                ShowNearbyCustomMonuments(player, playerPosition);
-
-                var remainingToShow = _config.DebugDisplaySettings.MaxAddonsToShowUnabbreviated;
-
-                foreach (var (adapter, closestAdapter, distanceSquared) in _plugin._profileManager.GetEnabledAdapters<BaseAdapter>()
-                             .Where(adapter => adapter.IsValid)
-                             .Select(adapter =>
-                             {
-                                 var position = GetClosestAdapterPosition(adapter, playerPosition, out var closestAdapter);
-                                 var distanceSquared = (position - playerPosition).sqrMagnitude;
-                                 return (adapter, closestAdapter, distanceSquared);
-                             })
-                             .Where(tuple => tuple.Item3 <= DisplayDistanceAbbreviatedSquared)
-                             .OrderBy(tuple => tuple.Item3))
-                {
-                    var drawer = CreateDrawer(player, adapter, playerInfo);
-
-                    if (adapter is EntityAdapter entityAdapter)
+                    case EntityAdapter entityAdapter:
                     {
                         if (remainingToShow-- > 0 && distanceSquared <= DisplayDistanceSquared)
                         {
@@ -10921,28 +10956,32 @@ namespace Oxide.Plugins
                             DrawAbbreviation(ref drawer, entityAdapter);
                         }
 
-                        continue;
+                        return;
                     }
-
-                    if (adapter is PrefabAdapter prefabAdapter)
+                    case PrefabAdapter prefabAdapter:
                     {
                         if (remainingToShow-- > 0 && distanceSquared <= DisplayDistanceSquared)
                         {
-                            ShowPrefabInfo(ref drawer, player, prefabAdapter);
+                            ShowPrefabInfo(ref drawer, player, prefabAdapter, playerInfo);
                         }
                         else
                         {
                             DrawAbbreviation(ref drawer, prefabAdapter);
                         }
 
-                        continue;
+                        return;
                     }
-
-                    if (adapter is SpawnGroupAdapter spawnGroupAdapter)
+                    case SpawnPointAdapter spawnPointAdapter:
+                    {
+                        // This case only occurs when calling for the adapter being moved.
+                        ShowSpawnPointInfo(player, spawnPointAdapter, spawnPointAdapter.SpawnGroupAdapter, playerInfo, showGroupInfo: true);
+                        return;
+                    }
+                    case SpawnGroupAdapter spawnGroupAdapter:
                     {
                         var closestSpawnPointAdapter = closestAdapter as SpawnPointAdapter;
                         if (closestAdapter == null)
-                            continue;
+                            return;
 
                         if (remainingToShow-- > 0 && distanceSquared <= DisplayDistanceSquared)
                         {
@@ -10964,10 +11003,9 @@ namespace Oxide.Plugins
                             }
                         }
 
-                        continue;
+                        return;
                     }
-
-                    if (adapter is PasteAdapter pasteAdapter)
+                    case PasteAdapter pasteAdapter:
                     {
                         if (remainingToShow-- > 0 && distanceSquared <= DisplayDistanceSquared)
                         {
@@ -10978,14 +11016,10 @@ namespace Oxide.Plugins
                             DrawAbbreviation(ref drawer, pasteAdapter);
                         }
 
-                        continue;
+                        return;
                     }
-
-                    if (adapter is CustomAddonAdapter customAddonAdapter)
+                    case CustomAddonAdapter customAddonAdapter:
                     {
-                        if (customAddonAdapter.Component == null)
-                            continue;
-
                         if (remainingToShow-- > 0 && distanceSquared <= DisplayDistanceSquared)
                         {
                             ShowCustomAddonInfo(ref drawer, player, customAddonAdapter);
@@ -10995,8 +11029,64 @@ namespace Oxide.Plugins
                             DrawAbbreviation(ref drawer, customAddonAdapter);
                         }
 
-                        continue;
+                        return;
                     }
+                }
+            }
+
+            private void ShowNearbyAdapters(BasePlayer player, Vector3 playerPosition, PlayerInfo playerInfo)
+            {
+                var remainingToShow = _config.DebugDisplaySettings.MaxAddonsToShowUnabbreviated;
+
+                var movingAdapter = playerInfo.MovingAdapter;
+                if (movingAdapter != null)
+                {
+                    if (movingAdapter.IsValid)
+                    {
+                        DisplayAdapter(player, playerPosition, playerInfo, movingAdapter, movingAdapter, 0, ref remainingToShow);
+
+                        var movingMonument = playerInfo.MovingCustomMonument;
+                        if (movingMonument != null)
+                        {
+                            DisplayMonument(player, playerInfo, movingMonument);
+                        }
+                    }
+                    else
+                    {
+                        playerInfo.MovingAdapter = null;
+                        playerInfo.MovingCustomMonument = null;
+                    }
+                }
+
+                if (playerInfo.RealTimeSinceShown < DisplayIntervalDuration)
+                    return;
+
+                playerInfo.RealTimeSinceShown = 0;
+
+                var isAdmin = player.IsAdmin;
+                if (!isAdmin)
+                {
+                    player.SetPlayerFlag(BasePlayer.PlayerFlags.IsAdmin, true);
+                    player.SendNetworkUpdateImmediate();
+                }
+
+                ShowNearbyCustomMonuments(player, playerPosition, playerInfo);
+
+                foreach (var (adapter, closestAdapter, distanceSquared) in _plugin._profileManager.GetEnabledAdapters<BaseAdapter>()
+                             .Where(adapter => adapter.IsValid)
+                             .Select(adapter =>
+                             {
+                                 var position = GetClosestAdapterPosition(adapter, playerPosition, out var closestAdapter);
+                                 var distanceSquared = (position - playerPosition).sqrMagnitude;
+                                 return (adapter, closestAdapter, distanceSquared);
+                             })
+                             .Where(tuple => tuple.Item3 <= DisplayDistanceAbbreviatedSquared)
+                             .OrderBy(tuple => tuple.Item3))
+                {
+                    if (adapter == playerInfo.MovingAdapter)
+                        continue;
+
+                    DisplayAdapter(player, playerPosition, playerInfo, adapter, closestAdapter, distanceSquared, ref remainingToShow);
                 }
 
                 if (!isAdmin)
