@@ -232,6 +232,7 @@ Profiles allow you to organize entities into groups. Each profile can be indepen
   "Debug display settings": {
     "Display distance": 50.0,
     "Display distance abbreviated": 200.0,
+    "Max addons to show unabbreviated": 1,
     "Entity color": "#FF00FF",
     "Spawn point color": "#FF8000",
     "Paste color": "#00FFFF",
@@ -310,7 +311,8 @@ Profiles allow you to organize entities into groups. Each profile can be indepen
 
 - `Debug display settings` -- Determines the appearance of addon debug information (i.e., when using `mashow`).
   - `Display distance` -- Determines how far away you can see full debug information about addons.
-  - `Display distance abbreviated` -- Determines how far away you can see an abbreviated symbol for addons, to reduce screen clutter. This number should be set higher than `Display distance`.
+  - `Display distance abbreviated` -- Determines how far away you can see an abbreviated symbol for addons, instead of the full debug information, to reduce screen clutter. This number should be set higher than `Display distance`.
+  - `Max addons to show unabbreviated` -- Determines how many addons you can see unabbreviated at once. When there are more than this number of addons within `Display distance`, the ones farther away will be abbreviated. This number should be set low to reduce screen clutter.
   - `Entity color` -- Determines the debug text color for entity addons (the most common type of addon).
   - `Spawn point color` -- Determines the debug text color for spawn point addons.
   - `Paste color` -- Determines the debug text color for paste addons.

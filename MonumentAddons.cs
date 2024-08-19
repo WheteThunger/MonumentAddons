@@ -10824,6 +10824,25 @@ namespace Oxide.Plugins
                 return closestSpawnPointAdapter;
             }
 
+            private Vector3 GetClosestAdapterPosition(BaseAdapter adapter, Vector3 origin, out BaseAdapter closestAdapter)
+            {
+                if (adapter is TransformAdapter transformAdapter)
+                {
+                    closestAdapter = adapter;
+                    return transformAdapter.Position;
+                }
+
+                if (adapter is SpawnGroupAdapter spawnGroupAdapter)
+                {
+                    var spawnPointAdapter = FindClosestSpawnPointAdapter(spawnGroupAdapter, origin, out _);
+                    closestAdapter = spawnPointAdapter;
+                    return spawnPointAdapter.Position;
+                }
+
+                closestAdapter = null;
+                return Vector3.positiveInfinity;
+            }
+
             private static bool IsWithinDistanceSquared(Vector3 position1, Vector3 position2, float distanceSquared)
             {
                 return (position1 - position2).sqrMagnitude <= distanceSquared;
@@ -10875,20 +10894,28 @@ namespace Oxide.Plugins
 
                 ShowNearbyCustomMonuments(player, playerPosition);
 
-                foreach (var adapter in _plugin._profileManager.GetEnabledAdapters<BaseAdapter>())
-                {
-                    if (!adapter.IsValid)
-                        continue;
+                var remainingToShow = _config.DebugDisplaySettings.MaxAddonsToShowUnabbreviated;
 
+                foreach (var (adapter, closestAdapter, distanceSquared) in _plugin._profileManager.GetEnabledAdapters<BaseAdapter>()
+                             .Where(adapter => adapter.IsValid)
+                             .Select(adapter =>
+                             {
+                                 var position = GetClosestAdapterPosition(adapter, playerPosition, out var closestAdapter);
+                                 var distanceSquared = (position - playerPosition).sqrMagnitude;
+                                 return (adapter, closestAdapter, distanceSquared);
+                             })
+                             .Where(tuple => tuple.Item3 <= DisplayDistanceAbbreviatedSquared)
+                             .OrderBy(tuple => tuple.Item3))
+                {
                     var drawer = CreateDrawer(player, adapter, playerInfo);
 
                     if (adapter is EntityAdapter entityAdapter)
                     {
-                        if (IsWithinDistanceSquared(entityAdapter, playerPosition, DisplayDistanceSquared))
+                        if (remainingToShow-- > 0 && distanceSquared <= DisplayDistanceSquared)
                         {
                             ShowEntityInfo(ref drawer, player, entityAdapter, playerPosition, playerInfo);
                         }
-                        else if (IsWithinDistanceSquared(entityAdapter, playerPosition, DisplayDistanceAbbreviatedSquared))
+                        else
                         {
                             DrawAbbreviation(ref drawer, entityAdapter);
                         }
@@ -10898,11 +10925,11 @@ namespace Oxide.Plugins
 
                     if (adapter is PrefabAdapter prefabAdapter)
                     {
-                        if (IsWithinDistanceSquared(prefabAdapter, playerPosition, DisplayDistanceSquared))
+                        if (remainingToShow-- > 0 && distanceSquared <= DisplayDistanceSquared)
                         {
                             ShowPrefabInfo(ref drawer, player, prefabAdapter);
                         }
-                        else if (IsWithinDistanceSquared(prefabAdapter, playerPosition, DisplayDistanceAbbreviatedSquared))
+                        else
                         {
                             DrawAbbreviation(ref drawer, prefabAdapter);
                         }
@@ -10912,19 +10939,26 @@ namespace Oxide.Plugins
 
                     if (adapter is SpawnGroupAdapter spawnGroupAdapter)
                     {
-                        var closestSpawnPointAdapter = FindClosestSpawnPointAdapter(spawnGroupAdapter, playerPosition, out var closestDistanceSquared);
+                        var closestSpawnPointAdapter = closestAdapter as SpawnPointAdapter;
+                        if (closestAdapter == null)
+                            continue;
 
-                        if (closestDistanceSquared <= DisplayDistanceSquared)
+                        if (remainingToShow-- > 0 && distanceSquared <= DisplayDistanceSquared)
                         {
-                            foreach (var spawnPointAdapter in spawnGroupAdapter.SpawnPointAdapters)
-                            {
-                                ShowSpawnPointInfo(player, spawnPointAdapter, spawnGroupAdapter, playerInfo, showGroupInfo: spawnPointAdapter == closestSpawnPointAdapter);
-                            }
+                            ShowSpawnPointInfo(player, closestSpawnPointAdapter, spawnGroupAdapter, playerInfo, showGroupInfo: true);
                         }
-                        else if (closestDistanceSquared <= DisplayDistanceAbbreviatedSquared)
+                        else
                         {
-                            foreach (var spawnPointAdapter in spawnGroupAdapter.SpawnPointAdapters)
+                            DrawAbbreviation(ref drawer, closestSpawnPointAdapter);
+                        }
+
+                        foreach (var spawnPointAdapter in spawnGroupAdapter.SpawnPointAdapters)
+                        {
+                            if (IsWithinDistanceSquared(spawnPointAdapter, playerPosition, DisplayDistanceAbbreviatedSquared))
                             {
+                                if (spawnPointAdapter == closestSpawnPointAdapter)
+                                    continue;
+
                                 DrawAbbreviation(ref drawer, spawnPointAdapter);
                             }
                         }
@@ -10934,11 +10968,11 @@ namespace Oxide.Plugins
 
                     if (adapter is PasteAdapter pasteAdapter)
                     {
-                        if (IsWithinDistanceSquared(pasteAdapter, playerPosition, DisplayDistanceSquared))
+                        if (remainingToShow-- > 0 && distanceSquared <= DisplayDistanceSquared)
                         {
                             ShowPasteInfo(ref drawer, player, pasteAdapter);
                         }
-                        else if (IsWithinDistanceSquared(pasteAdapter, playerPosition, DisplayDistanceAbbreviatedSquared))
+                        else
                         {
                             DrawAbbreviation(ref drawer, pasteAdapter);
                         }
@@ -10951,11 +10985,11 @@ namespace Oxide.Plugins
                         if (customAddonAdapter.Component == null)
                             continue;
 
-                        if (IsWithinDistanceSquared(customAddonAdapter, playerPosition, DisplayDistanceSquared))
+                        if (remainingToShow-- > 0 && distanceSquared <= DisplayDistanceSquared)
                         {
                             ShowCustomAddonInfo(ref drawer, player, customAddonAdapter);
                         }
-                        else if (IsWithinDistanceSquared(customAddonAdapter, playerPosition, DisplayDistanceAbbreviatedSquared))
+                        else
                         {
                             DrawAbbreviation(ref drawer, customAddonAdapter);
                         }
@@ -13687,6 +13721,9 @@ namespace Oxide.Plugins
 
             [JsonProperty("Display distance abbreviated")]
             public float DisplayDistanceAbbreviated = 200;
+
+            [JsonProperty("Max addons to show unabbreviated")]
+            public int MaxAddonsToShowUnabbreviated = 1;
 
             [JsonProperty("Entity color")]
             [JsonConverter(typeof(HtmlColorConverter))]
