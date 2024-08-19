@@ -2822,6 +2822,7 @@ namespace Oxide.Plugins
             _sb.AppendLine(GetMessage(player.Id, LangEntry.HelpSpawnGroup));
             _sb.AppendLine(GetMessage(player.Id, LangEntry.HelpSpawnPoint));
             _sb.AppendLine(GetMessage(player.Id, LangEntry.HelpPaste));
+            _sb.AppendLine(GetMessage(player.Id, LangEntry.HelpEdit));
             _sb.AppendLine(GetMessage(player.Id, LangEntry.HelpShow));
             _sb.AppendLine(GetMessage(player.Id, LangEntry.HelpShowVanilla));
             _sb.AppendLine(GetMessage(player.Id, LangEntry.HelpProfile));
@@ -14574,6 +14575,7 @@ namespace Oxide.Plugins
             public static readonly LangEntry0 HelpSpawnGroup = new("Help.SpawnGroup", "<color=#fd4>maspawngroup</color> - Print spawn group help");
             public static readonly LangEntry0 HelpSpawnPoint = new("Help.SpawnPoint", "<color=#fd4>maspawnpoint</color> - Print spawn point help");
             public static readonly LangEntry0 HelpPaste = new("Help.Paste", "<color=#fd4>mapaste <file></color> - Paste a building");
+            public static readonly LangEntry0 HelpEdit = new("Help.Edit", "<color=#fd4>maedit <addon-name> <arg1> <arg2> ...</color> - Edit a custom addon");
             public static readonly LangEntry0 HelpShow = new("Help.Show", "<color=#fd4>mashow</color> - Show nearby addons");
             public static readonly LangEntry0 HelpShowVanilla = new("Help.ShowVanilla", "<color=#fd4>mashowvanilla</color> - Show vanilla spawn points");
             public static readonly LangEntry0 HelpProfile = new("Help.Profile", "<color=#fd4>maprofile</color> - Print profile help");
