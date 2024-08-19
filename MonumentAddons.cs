@@ -7472,7 +7472,18 @@ namespace Oxide.Plugins
                 var entityToRotate = Entity;
 
                 entityToMove.transform.position = IntendedPosition;
-                entityToRotate.transform.rotation = IntendedRotation;
+
+                var intendedRotation = IntendedRotation;
+                entityToRotate.transform.rotation = intendedRotation;
+                if (entityToRotate is BasePlayer playerToRotate)
+                {
+                    playerToRotate.viewAngles = intendedRotation.eulerAngles;
+
+                    if (playerToRotate is NPCShopKeeper shopKeeper)
+                    {
+                        shopKeeper.initialFacingDir = intendedRotation * Vector3.forward;
+                    }
+                }
 
                 BroadcastEntityTransformChange(entityToMove);
 
