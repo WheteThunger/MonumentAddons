@@ -1147,7 +1147,7 @@ namespace Oxide.Plugins
                 case "add":
                 case "remove":
                 {
-                    var isAdd = args[0] == "add";
+                    var isAdd = subCommandLower == "add";
                     if (args.Length < 2)
                     {
                         ReplyToPlayer(player, isAdd ? LangEntry.PuzzleAddSpawnGroupSyntax : LangEntry.PuzzleRemoveSpawnGroupSyntax, cmd);
