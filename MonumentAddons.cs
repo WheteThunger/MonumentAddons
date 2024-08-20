@@ -1414,6 +1414,7 @@ namespace Oxide.Plugins
                     _data.SetProfileEnabled(newName);
 
                     ReplyToPlayer(player, LangEntry.ProfileCreateSuccess, controller.Profile.Name);
+                    _adapterDisplayManager.SetPlayerProfile(basePlayer, controller);
                     break;
                 }
 
