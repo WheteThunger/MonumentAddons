@@ -231,6 +231,7 @@ Profiles allow you to organize entities into groups. Each profile can be indepen
 ```json
 {
   "Debug display settings": {
+    "Default display duration (seconds)": 60.0,
     "Display distance": 100.0,
     "Display distance abbreviated": 200.0,
     "Max addons to show unabbreviated": 1,
@@ -310,7 +311,8 @@ Profiles allow you to organize entities into groups. Each profile can be indepen
 }
 ```
 
-- `Debug display settings` -- Determines the appearance of addon debug information (i.e., when using `mashow`).
+- `Debug display settings` -- Determines the appearance of addon debug information (i.e., when using `mashow`). Note that running most commands in the plugin will automatically show or renew debug information for a period of time.
+  - `Default display duration (seconds)` -- Determines how long debug information will be displayed when using `mashow` without specifying the duration, or when automatically showing debug information due to running a relevant command.
   - `Display distance` -- Determines how far away you can see full debug information about addons.
   - `Display distance abbreviated` -- Determines how far away you can see an abbreviated symbol for addons, instead of the full debug information, to reduce screen clutter. This number should be set higher than `Display distance`.
   - `Max addons to show unabbreviated` -- Determines how many addons you can see unabbreviated at once. When there are more than this number of addons within `Display distance`, addons closer to where you are aiming will be prioritized. This number should be set low to reduce screen clutter.

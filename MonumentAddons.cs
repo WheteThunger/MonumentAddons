@@ -1787,7 +1787,7 @@ namespace Oxide.Plugins
             if (!VerifyPlayer(player, out var basePlayer) || !VerifyHasPermission(player))
                 return;
 
-            int duration = AdapterDisplayManager.DefaultDisplayDuration;
+            var duration = _config.DebugDisplaySettings.DefaultDisplayDuration;
             string profileName = null;
 
             foreach (var arg in args)
@@ -10438,7 +10438,6 @@ namespace Oxide.Plugins
             private UniqueNameRegistry _uniqueNameRegistry;
             private Configuration _config => _plugin._config;
 
-            public const int DefaultDisplayDuration = 60;
             public const int HeaderSize = 25;
             public static readonly string Divider = $"<size={HeaderSize}>------------------------------</size>";
             public static readonly Vector3 ArrowVerticalOffeset = new Vector3(0, 0.5f, 0);
@@ -10468,6 +10467,7 @@ namespace Oxide.Plugins
                 }
             }
 
+            private float DefaultDisplayDuration => _config.DebugDisplaySettings.DefaultDisplayDuration;
             private float DisplayDistanceSquared => Mathf.Pow(_config.DebugDisplaySettings.DisplayDistance, 2);
             private float DisplayDistanceAbbreviatedSquared => Mathf.Pow(_config.DebugDisplaySettings.DisplayDistanceAbbreviated, 2);
 
@@ -10494,7 +10494,7 @@ namespace Oxide.Plugins
                     : null;
             }
 
-            public void ShowAllRepeatedly(BasePlayer player, int duration = -1, bool immediate = true)
+            public void ShowAllRepeatedly(BasePlayer player, float? duration = null, bool immediate = true)
             {
                 var playerInfo = GetOrCreatePlayerInfo(player);
 
@@ -10513,20 +10513,17 @@ namespace Oxide.Plugins
                     else
                     {
                         var remainingTime = playerInfo.Timer.Repetitions * DisplayIntervalDurationFast;
-                        var newDuration = duration > 0 ? duration : Math.Max(remainingTime, DefaultDisplayDuration);
+                        var newDuration = duration > 0 ? duration.Value : Math.Max(remainingTime, DefaultDisplayDuration);
                         var newRepetitions = Math.Max(Mathf.CeilToInt(newDuration / DisplayIntervalDurationFast), 1);
                         playerInfo.Timer.Reset(delay: -1, repetitions: newRepetitions);
                     }
                     return;
                 }
 
-                if (duration == -1)
-                {
-                    duration = DefaultDisplayDuration;
-                }
+                duration ??= DefaultDisplayDuration;
 
                 // Ensure repetitions is not 0 since that would result in infintire repetitions.
-                var repetitions = Math.Max(Mathf.CeilToInt(duration / DisplayIntervalDurationFast), 1);
+                var repetitions = Math.Max(Mathf.CeilToInt(duration.Value / DisplayIntervalDurationFast), 1);
 
                 playerInfo.Timer = _plugin.timer.Repeat(DisplayIntervalDurationFast, repetitions, () =>
                 {
@@ -13913,6 +13910,9 @@ namespace Oxide.Plugins
         [JsonObject(MemberSerialization.OptIn)]
         private class DebugDisplaySettings
         {
+            [JsonProperty("Default display duration (seconds)")]
+            public float DefaultDisplayDuration = 60;
+
             [JsonProperty("Display distance")]
             public float DisplayDistance = 100;
 
