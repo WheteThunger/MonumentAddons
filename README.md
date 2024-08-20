@@ -176,6 +176,7 @@ The following commands only work on objects managed by this plugin. The effect o
 - `maspawngroup create <name>` -- Creates a spawn group **and** a spawn point where you are looking.
 - `maspawngroup set <option> <value>` -- Sets a property of the spawn group you are looking at.
   - `Name`: string -- This name must be unique for the given profile + monument. This name can be used to create additional spawn points for this spawn group using `maspawnpoint create <group_name>`.
+  - `Color`: string -- The debug color of the spawn group, when using `mashow`. Supports some color names such as "red", as well as HTML color codes like `#F90` and `#FF9900`. Set to `none` to revert to the default color controlled by the config.
   - `MaxPopulation`: number -- The maximum number of entities that can be spawned across all spawn points in this spawn group.
   - `RespawnDelayMin`: number -- The minimum time in seconds to wait between spawning entities.
   - `RespawnDelayMax`: number -- The maximum time in seconds to wait between spawning entities. Set to `0` to disable automated respawns, which is useful if you are associating the spawn group with a puzzle.
@@ -195,7 +196,7 @@ Note: `masg` can be used in place of `maspawngroup`.
 #### Spawn points
 
 - `maspawnpoint create <group_name>` -- Creates a spawn point where you are looking, for the specified spawn group. The spawn group must be in your selected profile and be at the same monument.
-- `maspawnpoint set <option> <value>` -- Sets a property of the spawn group you are looking at.
+- `maspawnpoint set <option> <value>` -- Sets a property of the spawn group you are looking at. You can also use `setall` to apply the change to all spawn points within the same spawn group.
   - `Exclusive`: true/false -- While `true`, only one entity can be spawned at this spawn point at a time.
   - `DropToGround`: true/false -- While `true`, entities will be spawned on the nearest flat surface below the spawn point.
   - `CheckSpace`: true/false -- While `true`, entities can only spawn at this spawn point when there is sufficient space. This option is recommended for vehicle spawn points.

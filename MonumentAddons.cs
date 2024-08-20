@@ -608,6 +608,7 @@ namespace Oxide.Plugins
         private enum SpawnGroupOption
         {
             Name,
+            Color,
             MaxPopulation,
             RespawnDelayMin,
             RespawnDelayMax,
@@ -1885,6 +1886,7 @@ namespace Oxide.Plugins
                         _sb.Clear();
                         _sb.AppendLine(GetMessage(player.Id, LangEntry.ErrorSetSyntaxGeneric, cmd, subCommandLower));
                         _sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnGroupSetHelpName));
+                        _sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnGroupSetHelpColor));
                         _sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnGroupSetHelpMaxPopulation));
                         _sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnGroupSetHelpRespawnDelayMin));
                         _sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnGroupSetHelpRespawnDelayMax));
@@ -1918,6 +1920,23 @@ namespace Oxide.Plugins
 
                             spawnGroupData.Name = args[2];
                             break;
+                        }
+
+                        case SpawnGroupOption.Color:
+                        {
+                            if (StringUtils.EqualsCaseInsensitive(args[2], "none"))
+                            {
+                                spawnGroupData.Color = null;
+                                break;
+                            }
+                            else if (ColorUtility.TryParseHtmlString(args[2], out var color))
+                            {
+                                spawnGroupData.Color = color;
+                                break;
+                            }
+
+                            ReplyToPlayer(player, LangEntry.ErrorSetSyntax, cmd, SpawnGroupOption.Color);
+                            return;
                         }
 
                         case SpawnGroupOption.MaxPopulation:
@@ -10527,8 +10546,11 @@ namespace Oxide.Plugins
                 if (playerInfo.ProfileController != null && playerInfo.ProfileController != profileController)
                     return _config.DebugDisplaySettings.InactiveProfileColor;
 
-                if (adapter is SpawnPointAdapter or SpawnGroupAdapter)
-                    return _config.DebugDisplaySettings.SpawnPointColor;
+                if (adapter is SpawnPointAdapter spawnPointAdapter)
+                    return spawnPointAdapter.SpawnGroupAdapter.SpawnGroupData.Color ?? _config.DebugDisplaySettings.SpawnPointColor;
+
+                if (adapter is SpawnGroupAdapter spawnGroupAdapter)
+                    return spawnGroupAdapter.SpawnGroupData.Color ?? _config.DebugDisplaySettings.SpawnPointColor;
 
                 if (adapter is PasteAdapter)
                     return _config.DebugDisplaySettings.PasteColor;
@@ -12360,6 +12382,10 @@ namespace Oxide.Plugins
         {
             [JsonProperty("Name")]
             public string Name;
+
+            [JsonProperty("Color", DefaultValueHandling = DefaultValueHandling.Ignore)]
+            [JsonConverter(typeof(HtmlColorConverter))]
+            public Color? Color;
 
             [JsonProperty("MaxPopulation")]
             public int MaxPopulation = 1;
@@ -14417,6 +14443,7 @@ namespace Oxide.Plugins
             public static readonly LangEntry1 SpawnPointHelpSet = new("SpawnPoint.Help.Set", "<color=#fd4>{0} set <option> <value></color> - Set a property of a spawn point");
 
             public static readonly LangEntry0 SpawnGroupSetHelpName = new("SpawnGroup.Set.Help.Name", "<color=#fd4>Name</color>: string");
+            public static readonly LangEntry0 SpawnGroupSetHelpColor = new("SpawnGroup.Set.Help.Color", "<color=#fd4>Color</color>: string");
             public static readonly LangEntry0 SpawnGroupSetHelpMaxPopulation = new("SpawnGroup.Set.Help.MaxPopulation", "<color=#fd4>MaxPopulation</color>: number");
             public static readonly LangEntry0 SpawnGroupSetHelpRespawnDelayMin = new("SpawnGroup.Set.Help.RespawnDelayMin", "<color=#fd4>RespawnDelayMin</color>: number");
             public static readonly LangEntry0 SpawnGroupSetHelpRespawnDelayMax = new("SpawnGroup.Set.Help.RespawnDelayMax", "<color=#fd4>RespawnDelayMax</color>: number");
