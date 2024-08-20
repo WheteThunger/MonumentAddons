@@ -1122,7 +1122,8 @@ namespace Oxide.Plugins
                 return;
             }
 
-            switch (args[0].ToLower())
+            var subCommandLower = args[0].ToLower();
+            switch (subCommandLower)
             {
                 case "reset":
                 {
@@ -1187,7 +1188,7 @@ namespace Oxide.Plugins
                     if (args.Length < 3)
                     {
                         _sb.Clear();
-                        _sb.AppendLine(GetMessage(player.Id, LangEntry.ErrorSetSyntaxGeneric, cmd));
+                        _sb.AppendLine(GetMessage(player.Id, LangEntry.ErrorSetSyntaxGeneric, cmd, subCommandLower));
                         _sb.AppendLine(GetMessage(player.Id, LangEntry.PuzzleSetHelpMaxPlayersBlockReset));
                         _sb.AppendLine(GetMessage(player.Id, LangEntry.PuzzleSetHelpPlayerDetectionRadius));
                         _sb.AppendLine(GetMessage(player.Id, LangEntry.PuzzleSetHelpSecondsBetweenResets));
@@ -1828,7 +1829,8 @@ namespace Oxide.Plugins
                 return;
             }
 
-            switch (args[0].ToLower())
+            var subCommandLower = args[0].ToLower();
+            switch (subCommandLower)
             {
                 case "create":
                 {
@@ -1881,7 +1883,7 @@ namespace Oxide.Plugins
                     if (args.Length < 3)
                     {
                         _sb.Clear();
-                        _sb.AppendLine(GetMessage(player.Id, LangEntry.ErrorSetSyntaxGeneric, cmd));
+                        _sb.AppendLine(GetMessage(player.Id, LangEntry.ErrorSetSyntaxGeneric, cmd, subCommandLower));
                         _sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnGroupSetHelpName));
                         _sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnGroupSetHelpMaxPopulation));
                         _sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnGroupSetHelpRespawnDelayMin));
@@ -2160,7 +2162,8 @@ namespace Oxide.Plugins
                 return;
             }
 
-            switch (args[0].ToLower())
+            var subCommandLower = args[0].ToLower();
+            switch (subCommandLower)
             {
                 case "create":
                 {
@@ -2198,11 +2201,12 @@ namespace Oxide.Plugins
                 }
 
                 case "set":
+                case "setall":
                 {
                     if (args.Length < 3)
                     {
                         _sb.Clear();
-                        _sb.AppendLine(GetMessage(player.Id, LangEntry.ErrorSetSyntaxGeneric, cmd));
+                        _sb.AppendLine(GetMessage(player.Id, LangEntry.ErrorSetSyntaxGeneric, cmd, subCommandLower));
                         _sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnPointSetHelpExclusive));
                         _sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnPointSetHelpSnapToGround));
                         _sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnPointSetHelpCheckSpace));
@@ -2219,7 +2223,7 @@ namespace Oxide.Plugins
                     if (!VerifyLookingAtAdapter(player, out SpawnPointAdapter spawnPointAdapter, out SpawnGroupController spawnGroupController, LangEntry.ErrorNoSpawnPointFound))
                         return;
 
-                    var spawnPointData = spawnPointAdapter.SpawnPointData;
+                    var spawnPointArgs = new SpawnPointData.Args();
                     object setValue = args[2];
 
                     switch (spawnPointOption)
@@ -2229,7 +2233,7 @@ namespace Oxide.Plugins
                             if (!VerifyValidBool(player, args[2], out var exclusive, LangEntry.SpawnGroupSetSuccess.Bind(LangEntry.ErrorSetSyntax, cmd, SpawnPointOption.Exclusive)))
                                 return;
 
-                            spawnPointData.Exclusive = exclusive;
+                            spawnPointArgs.Exclusive = exclusive;
                             setValue = exclusive;
                             break;
                         }
@@ -2239,7 +2243,7 @@ namespace Oxide.Plugins
                             if (!VerifyValidBool(player, args[2], out var snapToGround, LangEntry.ErrorSetSyntax.Bind(cmd, SpawnPointOption.SnapToGround)))
                                 return;
 
-                            spawnPointData.SnapToGround = snapToGround;
+                            spawnPointArgs.SnapToGround = snapToGround;
                             setValue = snapToGround;
                             break;
                         }
@@ -2249,7 +2253,7 @@ namespace Oxide.Plugins
                             if (!VerifyValidBool(player, args[2], out var checkSpace, LangEntry.ErrorSetSyntax.Bind(cmd, SpawnPointOption.CheckSpace)))
                                 return;
 
-                            spawnPointData.CheckSpace = checkSpace;
+                            spawnPointArgs.CheckSpace = checkSpace;
                             setValue = checkSpace;
                             break;
                         }
@@ -2259,7 +2263,7 @@ namespace Oxide.Plugins
                             if (!VerifyValidBool(player, args[2], out var randomRotation, LangEntry.ErrorSetSyntax.Bind(cmd, SpawnPointOption.RandomRotation)))
                                 return;
 
-                            spawnPointData.RandomRotation = randomRotation;
+                            spawnPointArgs.RandomRotation = randomRotation;
                             setValue = randomRotation;
                             break;
                         }
@@ -2269,7 +2273,7 @@ namespace Oxide.Plugins
                             if (!VerifyValidFloat(player, args[2], out var radius, LangEntry.ErrorSetSyntax.Bind(cmd, SpawnPointOption.RandomRadius)))
                                 return;
 
-                            spawnPointData.RandomRadius = radius;
+                            spawnPointArgs.RandomRadius = radius;
                             setValue = radius;
                             break;
                         }
@@ -2279,15 +2283,28 @@ namespace Oxide.Plugins
                             if (!VerifyValidFloat(player, args[2], out var radius, LangEntry.ErrorSetSyntax.Bind(cmd, SpawnPointOption.PlayerDetectionRadius)))
                                 return;
 
-                            spawnPointData.PlayerDetectionRadius = radius;
+                            spawnPointArgs.PlayerDetectionRadius = radius;
                             setValue = radius;
                             break;
                         }
                     }
 
+                    var doSetAll = subCommandLower == "setall";
+                    if (doSetAll)
+                    {
+                        foreach (var spawnPointData in spawnPointAdapter.SpawnGroupAdapter.SpawnGroupData.SpawnPoints)
+                        {
+                            spawnPointArgs.ApplyTo(spawnPointData);
+                        }
+                    }
+                    else
+                    {
+                        spawnPointArgs.ApplyTo(spawnPointAdapter.SpawnPointData);
+                    }
+
                     _profileStore.Save(spawnGroupController.Profile);
 
-                    ReplyToPlayer(player, LangEntry.SpawnPointSetSuccess, spawnPointOption, setValue);
+                    ReplyToPlayer(player, doSetAll ? LangEntry.SpawnPointSetAllSuccess : LangEntry.SpawnPointSetSuccess, spawnPointOption, setValue);
 
                     _adapterDisplayManager.ShowAllRepeatedly(basePlayer);
                     break;
@@ -12285,6 +12302,26 @@ namespace Oxide.Plugins
 
         private class SpawnPointData : BaseTransformData
         {
+            public struct Args
+            {
+                public bool? Exclusive;
+                public bool? SnapToGround;
+                public bool? CheckSpace;
+                public bool? RandomRotation;
+                public float? RandomRadius;
+                public float? PlayerDetectionRadius;
+
+                public void ApplyTo(SpawnPointData spawnPointData)
+                {
+                    spawnPointData.Exclusive = Exclusive ?? spawnPointData.Exclusive;
+                    spawnPointData.SnapToGround = SnapToGround ?? spawnPointData.SnapToGround;
+                    spawnPointData.CheckSpace = CheckSpace ?? spawnPointData.CheckSpace;
+                    spawnPointData.RandomRotation = RandomRotation ?? spawnPointData.RandomRotation;
+                    spawnPointData.RandomRadius = RandomRadius ?? spawnPointData.RandomRadius;
+                    spawnPointData.PlayerDetectionRadius = PlayerDetectionRadius ?? spawnPointData.PlayerDetectionRadius;
+                }
+            }
+
             [JsonProperty("Exclusive", DefaultValueHandling = DefaultValueHandling.Ignore)]
             public bool Exclusive;
 
@@ -14307,7 +14344,7 @@ namespace Oxide.Plugins
             public static readonly LangEntry0 ErrorNoCustomAddonFound = new("Error.NoCustomAddonFound", "Error: No custom addon found.");
             public static readonly LangEntry0 ErrorEntityNotEligible = new("Error.EntityNotEligible", "Error: That entity is not managed by Monument Addons.");
             public static readonly LangEntry0 ErrorNoSpawnPointFound = new("Error.NoSpawnPointFound", "Error: No spawn point found.");
-            public static readonly LangEntry1 ErrorSetSyntaxGeneric = new("Error.Set.Syntax.Generic", "Syntax: <color=#fd4>{0} set <option> <value></color>");
+            public static readonly LangEntry2 ErrorSetSyntaxGeneric = new("Error.Set.Syntax.Generic2", "Syntax: <color=#fd4>{0} {1} <option> <value></color>");
             public static readonly LangEntry2 ErrorSetSyntax = new("Error.Set.Syntax", "Syntax: <color=#fd4>{0} set {1} <value></color>");
             public static readonly LangEntry1 ErrorSetUnknownOption = new("Error.Set.UnknownOption", "Unrecognized option: <color=#fd4>{0}</color>");
 
@@ -14365,6 +14402,7 @@ namespace Oxide.Plugins
             public static readonly LangEntry1 SpawnPointCreateSyntax = new("SpawnPoint.Create.Syntax", "Syntax: <color=#fd4>{0} create <group_name></color>");
             public static readonly LangEntry1 SpawnPointCreateSuccess = new("SpawnPoint.Create.Success", "Successfully added spawn point to spawn group <color=#fd4>{0}</color>.");
             public static readonly LangEntry2 SpawnPointSetSuccess = new("SpawnPoint.Set.Success", "Successfully updated spawn point with option <color=#fd4>{0}</color>: <color=#fd4>{1}</color>.");
+            public static readonly LangEntry2 SpawnPointSetAllSuccess = new("SpawnPoint.SetAll.Success", "Successfully updated all spawn points in that spawn group with option <color=#fd4>{0}</color>: <color=#fd4>{1}</color>.");
 
             public static readonly LangEntry0 SpawnGroupHelpHeader = new("SpawnGroup.Help.Header", "<size=18>Monument Addons Spawn Group Commands</size>");
             public static readonly LangEntry1 SpawnGroupHelpCreate = new("SpawnGroup.Help.Create", "<color=#fd4>{0} create <name></color> - Create a spawn group with a spawn point");
