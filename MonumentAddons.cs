@@ -1353,13 +1353,19 @@ namespace Oxide.Plugins
                     if (player.IsServer)
                         return;
 
+                    ProfileController controller;
+
                     if (args.Length <= 1)
                     {
-                        ReplyToPlayer(player, LangEntry.ProfileSelectSyntax);
-                        return;
+                        // Find the adapter where the player is aiming, if they did not specify a profile name.
+                        controller = FindAdapter(basePlayer).Controller?.ProfileController;
+                        if (controller == null)
+                        {
+                            ReplyToPlayer(player, LangEntry.ProfileSelectSyntax);
+                            return;
+                        }
                     }
-
-                    if (!VerifyProfile(player, args, out var controller, LangEntry.ProfileSelectSyntax))
+                    else if (!VerifyProfile(player, args, out controller, LangEntry.ProfileSelectSyntax))
                         return;
 
                     var profile = controller.Profile;
@@ -3538,6 +3544,12 @@ namespace Oxide.Plugins
             where TAdapter : TransformAdapter
         {
             return FindAdapter<TAdapter, BaseController>(basePlayer);
+        }
+
+        // Convenient method that does not require an adapter or controller type.
+        private AdapterFindResult<TransformAdapter, BaseController> FindAdapter(BasePlayer basePlayer)
+        {
+            return FindAdapter<TransformAdapter, BaseController>(basePlayer);
         }
 
         private IEnumerable<SpawnGroupController> FindSpawnGroups(string partialGroupName, string monumentIdentifier, Profile profile = null, bool partialMatch = false)
