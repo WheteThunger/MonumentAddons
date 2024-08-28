@@ -2066,8 +2066,9 @@ namespace Oxide.Plugins
                     var updatedExistingEntry = false;
 
                     var spawnGroupData = spawnGroupController.SpawnGroupData;
-                    var prefabData = spawnGroupData.Prefabs.FirstOrDefault(entry => entry.PrefabName == prefabPath
-                        || entry.CustomAddonName == customAddonDefinition?.AddonName);
+                    var prefabData = customAddonDefinition != null
+                        ? spawnGroupData.Prefabs.FirstOrDefault(entry => entry.CustomAddonName == customAddonDefinition?.AddonName)
+                        : spawnGroupData.Prefabs.FirstOrDefault(entry => entry.PrefabName == prefabPath);
 
                     if (prefabData != null)
                     {
