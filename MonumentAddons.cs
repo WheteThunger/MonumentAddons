@@ -75,7 +75,8 @@ namespace Oxide.Plugins
         private const string DefaultUrlPattern = "https://github.com/WheteThunger/MonumentAddons/blob/master/Profiles/{0}.json?raw=true";
 
         private static readonly int HitLayers = Rust.Layers.Solid
-            | Rust.Layers.Mask.Water;
+            | Rust.Layers.Mask.Water
+            | Rust.Layers.Mask.Vehicle_World;
 
         private static readonly Dictionary<string, string> JsonRequestHeaders = new Dictionary<string, string>
         {
