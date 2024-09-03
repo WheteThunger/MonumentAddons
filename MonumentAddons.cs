@@ -6921,9 +6921,9 @@ namespace Oxide.Plugins
                             if (Monument is IEntityMonument { IsMobile: true })
                             {
                                 mountable.isMobile = true;
-                                if (!BaseMountable.FixedUpdateMountables.Contains(mountable))
+                                if (!BaseMountable.AllMountables.Contains(mountable))
                                 {
-                                    BaseMountable.FixedUpdateMountables.Add(mountable);
+                                    BaseMountable.AllMountables.Add(mountable);
                                 }
                             }
                         }
