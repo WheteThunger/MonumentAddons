@@ -6974,13 +6974,18 @@ namespace Oxide.Plugins
                 // For example, the scaled sphere parent may be killed if resized to default scale.
                 if (component == Entity)
                 {
-                    if (_profileStateData.RemoveEntity(Profile.Name, Monument, Data.Id))
+                    // Only remove the state record of the entity if it's actually destroyed.
+                    // If saving is enabled, the component may have been detached and called this method.
+                    if (Entity == null || Entity.IsDestroyed)
                     {
-                        Plugin._saveProfileStateDebounced.Schedule();
+                        if (_profileStateData.RemoveEntity(Profile.Name, Monument, Data.Id))
+                        {
+                            Plugin._saveProfileStateDebounced.Schedule();
+                        }
                     }
-                }
 
-                Controller.OnAdapterKilled(this);
+                    Controller.OnAdapterKilled(this);
+                }
 
                 Plugin.TrackEnd();
             }
