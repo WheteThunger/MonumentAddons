@@ -118,6 +118,7 @@ namespace Oxide.Plugins
         private ActionDebounced _saveProfileStateDebounced;
         private StringBuilder _sb = new StringBuilder();
         private HashSet<string> _deployablePrefabs = new();
+        private BaseEntity[] _entityBuffer = new BaseEntity[32];
 
         private Coroutine _startupCoroutine;
         private bool _serverInitialized;
@@ -6893,8 +6894,16 @@ namespace Oxide.Plugins
             public override void Spawn()
             {
                 var existingEntity = _profileStateData.FindEntity(Profile.Name, Monument, Data.Id);
+                var foundDuplicateEntity = FindAndCleanupDuplicateEntities(existingEntity);
+                if (foundDuplicateEntity != null)
+                {
+                    existingEntity = foundDuplicateEntity;
+                }
+
                 if (existingEntity != null)
                 {
+                    FindAndCleanupDuplicateEntities(existingEntity);
+
                     if (existingEntity.PrefabName != EntityData.PrefabName)
                     {
                         existingEntity.Kill();
@@ -7561,6 +7570,46 @@ namespace Oxide.Plugins
                 {
                     BroadcastEntityTransformChange(entityToRotate);
                 }
+            }
+
+            private BaseEntity FindAndCleanupDuplicateEntities(BaseEntity ignoreEntity = null)
+            {
+                var intendedPosition = IntendedPosition;
+                var entityBuffer = Plugin._entityBuffer;
+                var keepOne = ignoreEntity == null;
+
+                var numFound = BaseEntity.Query.Server.GetInSphereFast(intendedPosition, 0.1f, entityBuffer, entity =>
+                {
+                    if (entity == null || entity.IsDestroyed)
+                        return false;
+
+                    if (entity == ignoreEntity)
+                        return false;
+
+                    if (!entity.enableSaving)
+                        return false;
+
+                    if (entity.PrefabName != EntityData.PrefabName)
+                        return false;
+
+                    var transform = entity.transform;
+                    if (transform.position != intendedPosition)
+                        return false;
+
+                    return true;
+                });
+
+                if (numFound == 0)
+                    return null;
+
+                for (var i = keepOne ? 1 : 0; i < numFound; i++)
+                {
+                    var entity = entityBuffer[i];
+                    entity.Kill();
+                    LogWarning($"Found and killed likely duplicate entity [{entity.ShortPrefabName}] at {intendedPosition}");
+                }
+
+                return keepOne ? entityBuffer[0] : null;
             }
 
             private List<CCTV_RC> GetNearbyStaticCameras()
