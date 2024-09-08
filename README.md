@@ -509,6 +509,17 @@ void OnMonumentEntitySpawned(BaseEntity entity, UnityEngine.Component monument, 
 - The `guid` parameter refers to the unique ID present in the profile data file
 - Note: When the plugin is configured to save entities, this hook will be called again when the plugin finds and registers the existing entity (the entity will not technically be respawned, although the hook name suggests it was spawned)
 
+### OnMonumentPrefabCreated
+
+```
+void OnMonumentPrefabCreated(GameObject gameObject, Component monument, Guid guid)
+```
+
+- Called after this plugin has created a non-entity prefab at a monument
+- Called only for addons placed via `maprefab`
+- The `component` parameter represents the monument object
+- The `guid` parameter refers to the unique ID present in the profile data file
+
 ### OnDynamicMonument
 
 ```

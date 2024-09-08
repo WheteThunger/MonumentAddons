@@ -590,6 +590,11 @@ namespace Oxide.Plugins
                 Interface.CallHook("OnMonumentEntitySpawned", entity, monument, ObjectCache.Get(guid));
             }
 
+            public static void OnMonumentPrefabCreated(GameObject gameObject, Component monument, Guid guid)
+            {
+                Interface.CallHook("OnMonumentPrefabCreated", gameObject, monument, ObjectCache.Get(guid));
+            }
+
             public static object OnDynamicMonument(BaseEntity entity)
             {
                 return Interface.CallHook("OnDynamicMonument", entity);
@@ -6633,6 +6638,7 @@ namespace Oxide.Plugins
                 GameObject = GameManager.server.CreatePrefab(PrefabData.PrefabName, IntendedPosition, IntendedRotation);
                 _transform = GameObject.transform;
                 AddonComponent.AddToComponent(Plugin._componentTracker, _transform, this);
+                ExposedHooks.OnMonumentPrefabCreated(GameObject, Monument.Object, Data.Id);
             }
 
             public override void Kill()
