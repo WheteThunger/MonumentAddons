@@ -46,7 +46,7 @@ using Tuple4 = System.ValueTuple<object, object, object, object>;
 
 namespace Oxide.Plugins
 {
-    [Info("Monument Addons", "WhiteThunder", "0.18.1")]
+    [Info("Monument Addons", "WhiteThunder", "0.18.2")]
     [Description("Allows adding entities, spawn points and more to monuments.")]
     internal class MonumentAddons : CovalencePlugin
     {
@@ -77,6 +77,8 @@ namespace Oxide.Plugins
         private static readonly int HitLayers = Rust.Layers.Solid
             | Rust.Layers.Mask.Water
             | Rust.Layers.Mask.Vehicle_World;
+
+        private static readonly FieldInfo RadialSpawnPointRadiusField = typeof(RadialSpawnPoint).GetField("radius", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
 
         private static readonly Dictionary<string, string> JsonRequestHeaders = new Dictionary<string, string>
         {
@@ -2604,7 +2606,10 @@ namespace Oxide.Plugins
                         var radialSpawnPoint = spawnPoint as RadialSpawnPoint;
                         if (radialSpawnPoint != null)
                         {
-                            _sb.AppendLine(GetMessage(player.Id, LangEntry.ShowLabelSpawnPointRandomRadius, radialSpawnPoint.radius));
+                            if (RadialSpawnPointRadiusField != null)
+                            {
+                                _sb.AppendLine(GetMessage(player.Id, LangEntry.ShowLabelSpawnPointRandomRadius, (float)RadialSpawnPointRadiusField.GetValue(radialSpawnPoint)));
+                            }
                         }
 
                         if (spawnPoint == closestSpawnPoint)
@@ -2771,7 +2776,11 @@ namespace Oxide.Plugins
                         if (radialSpawnPoint != null)
                         {
                             spawnPointData.RandomRotation = true;
-                            spawnPointData.RandomRadius = radialSpawnPoint.radius;
+
+                            if (RadialSpawnPointRadiusField != null)
+                            {
+                                spawnPointData.RandomRadius = (float)RadialSpawnPointRadiusField.GetValue(radialSpawnPoint);
+                            }
                         }
 
                         if (spawnPoint is SpaceCheckingSpawnPoint)
