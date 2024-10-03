@@ -78,8 +78,6 @@ namespace Oxide.Plugins
             | Rust.Layers.Mask.Water
             | Rust.Layers.Mask.Vehicle_World;
 
-        private static readonly FieldInfo RadialSpawnPointRadiusField = typeof(RadialSpawnPoint).GetField("radius", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-
         private static readonly Dictionary<string, string> JsonRequestHeaders = new Dictionary<string, string>
         {
             { "Content-Type", "application/json" }
@@ -2606,10 +2604,7 @@ namespace Oxide.Plugins
                         var radialSpawnPoint = spawnPoint as RadialSpawnPoint;
                         if (radialSpawnPoint != null)
                         {
-                            if (RadialSpawnPointRadiusField != null)
-                            {
-                                _sb.AppendLine(GetMessage(player.Id, LangEntry.ShowLabelSpawnPointRandomRadius, (float)RadialSpawnPointRadiusField.GetValue(radialSpawnPoint)));
-                            }
+                            _sb.AppendLine(GetMessage(player.Id, LangEntry.ShowLabelSpawnPointRandomRadius, radialSpawnPoint.radius));
                         }
 
                         if (spawnPoint == closestSpawnPoint)
@@ -2776,11 +2771,7 @@ namespace Oxide.Plugins
                         if (radialSpawnPoint != null)
                         {
                             spawnPointData.RandomRotation = true;
-
-                            if (RadialSpawnPointRadiusField != null)
-                            {
-                                spawnPointData.RandomRadius = (float)RadialSpawnPointRadiusField.GetValue(radialSpawnPoint);
-                            }
+                            spawnPointData.RandomRadius = radialSpawnPoint.radius;
                         }
 
                         if (spawnPoint is SpaceCheckingSpawnPoint)
