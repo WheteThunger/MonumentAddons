@@ -83,6 +83,22 @@ namespace Oxide.Plugins
             { "Content-Type", "application/json" }
         };
 
+        private static readonly Dictionary<string, string> OfficialProfileNames = new string[]
+            {
+                "BarnAirwolf",
+                "CargoShipCCTV",
+                "FishingVillageAirwolf",
+                "MonumentCooking",
+                "MonumentLifts",
+                "MonumentsRecycler",
+                "OilRigSharks",
+                "OutpostAirwolf",
+                "OutpostExtended",
+                "SafeZoneRecyclers",
+                "TrainStationCCTV",
+            }
+            .ToDictionary(name => name, name => name, StringComparer.OrdinalIgnoreCase);
+
         private readonly HookCollection _dynamicMonumentHooks;
         private readonly ProfileStore _profileStore = new ProfileStore();
         private readonly OriginalProfileStore _originalProfileStore = new OriginalProfileStore();
@@ -1704,7 +1720,8 @@ namespace Oxide.Plugins
 
             if (!Uri.TryCreate(url, UriKind.Absolute, out var parsedUri))
             {
-                var fallbackUrl = string.Format(DefaultUrlPattern, url);
+                var profileName = OfficialProfileNames.GetValueOrDefault(url, url);
+                var fallbackUrl = string.Format(DefaultUrlPattern, profileName);
                 if (Uri.TryCreate(fallbackUrl, UriKind.Absolute, out parsedUri))
                 {
                     url = fallbackUrl;
