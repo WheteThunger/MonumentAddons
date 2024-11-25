@@ -7415,6 +7415,12 @@ namespace Oxide.Plugins
                     spooker.SetFlag(BaseEntity.Flags.Busy, true);
                 }
 
+                var door = Entity as Door;
+                if (door != null)
+                {
+                    door.canTakeLock = false;
+                }
+
                 var doorManipulator = Entity as DoorManipulator;
                 if (doorManipulator != null)
                 {
