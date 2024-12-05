@@ -46,7 +46,7 @@ using Tuple4 = System.ValueTuple<object, object, object, object>;
 
 namespace Oxide.Plugins
 {
-    [Info("Monument Addons", "WhiteThunder", "0.18.2")]
+    [Info("Monument Addons", "WhiteThunder", "0.18.3")]
     [Description("Allows adding entities, spawn points and more to monuments.")]
     internal class MonumentAddons : CovalencePlugin
     {
@@ -5712,7 +5712,7 @@ namespace Oxide.Plugins
 
                     if (ShouldAppendCoordinate(monument.ShortName, monumentHelper))
                     {
-                        phoneName += $" {PhoneController.PositionToGridCoord(position)}";
+                        phoneName += $" {MapHelper.PositionToString(position)}";
                     }
                 }
 
@@ -5735,14 +5735,14 @@ namespace Oxide.Plugins
 
                 telephone.Controller.PhoneName = !string.IsNullOrEmpty(phoneName)
                     ? phoneName
-                    : $"{telephone.GetDisplayName()} {PhoneController.PositionToGridCoord(position)}";
+                    : $"{telephone.GetDisplayName()} {MapHelper.PositionToString(position)}";
 
                 TelephoneManager.RegisterTelephone(telephone.Controller);
             }
 
             private static string GetFTLCorridorPhoneName(string tunnelName, Vector3 position)
             {
-                return $"{Tunnel} {tunnelName} {PhoneController.PositionToGridCoord(position)}";
+                return $"{Tunnel} {tunnelName} {MapHelper.PositionToString(position)}";
             }
 
             private static string GetFTLPhoneName(string tunnelAlias, DungeonGridCell dungeonGridCell, BaseMonument monument, Vector3 position, MonumentHelper monumentHelper)
@@ -5772,7 +5772,7 @@ namespace Oxide.Plugins
 
                 if (ShouldAppendCoordinate(shortname, monumentHelper))
                 {
-                    phoneName += $" {PhoneController.PositionToGridCoord(position)}";
+                    phoneName += $" {MapHelper.PositionToString(position)}";
                 }
 
                 return phoneName;
@@ -5781,7 +5781,7 @@ namespace Oxide.Plugins
             private static string GetUnderwaterLabPhoneName(DungeonBaseLink link, Vector3 position)
             {
                 var floors = link.Dungeon.Floors;
-                var gridCoordinate = PhoneController.PositionToGridCoord(position);
+                var gridCoordinate = MapHelper.GridToString(MapHelper.PositionToGrid(position));
 
                 for (int i = 0; i < floors.Count; i++)
                 {
