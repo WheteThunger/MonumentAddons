@@ -5205,8 +5205,9 @@ namespace Oxide.Plugins
                         ? session.StartSlot.handlePosition
                         : session.StartSlot.linePoints.LastOrDefault();
 
-                    drawer.Sphere(hitPosition, PreviewDotRadius);
-                    drawer.Line(ioEntity.transform.TransformPoint(lastPoint), hitPosition);
+                    var lineDrawer = new Ddraw(player, DrawIntervalWithBuffer, Color.green);
+                    lineDrawer.Sphere(hitPosition, PreviewDotRadius);
+                    lineDrawer.Line(ioEntity.transform.TransformPoint(lastPoint), hitPosition);
                 }
             }
 
