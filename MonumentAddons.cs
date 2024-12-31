@@ -46,7 +46,7 @@ using Tuple4 = System.ValueTuple<object, object, object, object>;
 
 namespace Oxide.Plugins
 {
-    [Info("Monument Addons", "WhiteThunder", "0.18.3")]
+    [Info("Monument Addons", "WhiteThunder", "0.18.4")]
     [Description("Allows adding entities, spawn points and more to monuments.")]
     internal class MonumentAddons : CovalencePlugin
     {
@@ -8877,7 +8877,11 @@ namespace Oxide.Plugins
                 DelayedSpawn();
             }
 
+            #if OXIDE_PUBLICIZED
+            public override void Spawn(int numToSpawn)
+            #else
             protected override void Spawn(int numToSpawn)
+            #endif
             {
                 numToSpawn = Mathf.Min(numToSpawn, maxPopulation - currentPopulation);
 
@@ -8923,7 +8927,11 @@ namespace Oxide.Plugins
                 }
             }
 
+            #if OXIDE_PUBLICIZED
+            public override void PostSpawnProcess(BaseEntity entity, BaseSpawnPoint spawnPoint)
+            #else
             protected override void PostSpawnProcess(BaseEntity entity, BaseSpawnPoint spawnPoint)
+            #endif
             {
                 base.PostSpawnProcess(entity, spawnPoint);
 
