@@ -8652,10 +8652,7 @@ namespace Oxide.Plugins
                 if (spawnEntry.CustomAddonDefinition != null)
                 {
                     if (_spawnPointData.CheckSpace)
-                    {
-                        // Pass null data for now since data isn't supported for custom addons with spawn points.
-                        return spawnEntry.CustomAddonDefinition.CheckSpace?.Invoke(SpaceCheckPosition, _transform.rotation, null) ?? true;
-                    }
+                        return HasSpace(spawnEntry.CustomAddonDefinition);
 
                     return true;
                 }
@@ -8669,12 +8666,7 @@ namespace Oxide.Plugins
                     return false;
 
                 if (_spawnPointData.CheckSpace)
-                {
-                    if (CustomBoundsCheckMask.TryGetValue(prefab.name, out var customBoundsCheckMask))
-                        return SpawnHandler.CheckBounds(prefab, SpaceCheckPosition, _transform.rotation, Vector3.one, customBoundsCheckMask);
-
-                    return SingletonComponent<SpawnHandler>.Instance.CheckBounds(prefab, SpaceCheckPosition, _transform.rotation, Vector3.one);
-                }
+                    return HasSpace(prefab);
 
                 return true;
             }
@@ -8714,6 +8706,28 @@ namespace Oxide.Plugins
                         entity.Kill();
                     }
                 }
+            }
+
+            public bool HasSpace(CustomSpawnGroup.SpawnEntry spawnEntry)
+            {
+                if (spawnEntry.CustomAddonDefinition != null)
+                    return HasSpace(spawnEntry.CustomAddonDefinition);
+
+                return HasSpace(spawnEntry.Prefab.Get());
+            }
+
+            private bool HasSpace(CustomAddonDefinition customAddonDefinition)
+            {
+                // Pass null data for now since data isn't supported for custom addons with spawn points.
+                return customAddonDefinition.CheckSpace?.Invoke(SpaceCheckPosition, _transform.rotation, null) ?? true;
+            }
+
+            private bool HasSpace(GameObject prefab)
+            {
+                if (CustomBoundsCheckMask.TryGetValue(prefab.name, out var customBoundsCheckMask))
+                    return SpawnHandler.CheckBounds(prefab, SpaceCheckPosition, _transform.rotation, Vector3.one, customBoundsCheckMask);
+
+                return SingletonComponent<SpawnHandler>.Instance.CheckBounds(prefab, SpaceCheckPosition, _transform.rotation, Vector3.one);
             }
 
             private bool IsVehicle(BaseEntity entity)
@@ -8845,6 +8859,35 @@ namespace Oxide.Plugins
             public void Init(SpawnGroupAdapter spawnGroupAdapter)
             {
                 SpawnGroupAdapter = spawnGroupAdapter;
+            }
+
+            public bool TryFindSpawnEntry(WeightedPrefabData prefabData, out SpawnEntry spawnEntry)
+            {
+                foreach (var entry in SpawnEntries)
+                {
+                    if (entry.CustomAddonDefinition != null)
+                    {
+                        if (entry.CustomAddonDefinition.AddonName == prefabData.CustomAddonName)
+                        {
+                            spawnEntry = entry;
+                            return true;
+                        }
+
+                        continue;
+                    }
+
+                    if (GameManifest.pathToGuid.TryGetValue(prefabData.PrefabName, out var guid))
+                    {
+                        if (entry.Prefab.guid == guid)
+                        {
+                            spawnEntry = entry;
+                            return true;
+                        }
+                    }
+                }
+
+                spawnEntry = null;
+                return false;
             }
 
             public void UpdateSpawnClock()
@@ -10935,11 +10978,20 @@ namespace Oxide.Plugins
                         {
                             var relativeChance = (float)prefabEntry.Weight / totalWeight;
                             var displayName = prefabEntry.CustomAddonName ?? _uniqueNameRegistry.GetUniqueShortName(prefabEntry.PrefabName);
+
                             if (prefabEntry.CustomAddonName != null && _plugin._customAddonManager.GetAddon(prefabEntry.CustomAddonName) == null)
                             {
                                 displayName += " (!)";
                             }
-                            _sb.AppendLine(_plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelEntityDetail, displayName, prefabEntry.Weight, relativeChance));
+
+                            var entityMessage = _plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelEntityDetail, displayName, prefabEntry.Weight, relativeChance);
+                            if (spawnGroupAdapter.SpawnGroup.TryFindSpawnEntry(prefabEntry, out var spawnEntry)
+                                && !adapter.SpawnPoint.HasSpace(spawnEntry))
+                            {
+                                entityMessage += $" | {_plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelEntityNoSpace)}";
+                            }
+
+                            _sb.AppendLine(entityMessage);
                         }
                     }
                     else
@@ -14633,6 +14685,7 @@ namespace Oxide.Plugins
             public static readonly LangEntry0 ShowLabelNextSpawnPaused = new("Show.Label.NextSpawn.Paused", "Paused");
             public static readonly LangEntry0 ShowLabelEntities = new("Show.Label.Entities", "Entities:");
             public static readonly LangEntry3 ShowLabelEntityDetail = new("Show.Label.Entities.Detail2", "{0} | weight: {1} ({2:P1})");
+            public static readonly LangEntry0 ShowLabelEntityNoSpace = new("Show.Label.Entities.NoSpace", "No space");
             public static readonly LangEntry0 ShowLabelNoEntities = new("Show.Label.NoEntities", "No entities configured. Run /maspawngroup add <entity> <weight>");
             public static readonly LangEntry1 ShowLabelPlayerDetectionRadius = new("Show.Label.PlayerDetectionRadius", "Player detection radius: {0:f1}");
             public static readonly LangEntry0 ShowLabelPlayerDetectedInRadius = new("Show.Label.PlayerDetectedInRadius", "(!) Player detected in radius (!)");
