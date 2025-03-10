@@ -8551,6 +8551,8 @@ namespace Oxide.Plugins
                 ["assets/content/vehicles/trains/caboose/traincaboose.entity.prefab"] = TrainCarLayerMask,
             };
 
+            private static readonly Vector3 SpaceCheckRelativeOffset = new Vector3(0, 0.05f, 0);
+
             public static CustomSpawnPoint AddToGameObject(AddonComponentTracker componentTracker, GameObject gameObject, SpawnPointAdapter adapter, SpawnPointData spawnPointData)
             {
                 var component = gameObject.AddComponent<CustomSpawnPoint>();
@@ -8568,6 +8570,7 @@ namespace Oxide.Plugins
             private Transform _transform;
             private BaseEntity _parentEntity;
             private List<SpawnPointInstance> _instances = new List<SpawnPointInstance>();
+            private Vector3 SpaceCheckPosition => _transform.TransformPoint(SpaceCheckRelativeOffset);
 
             public void PreUnload()
             {
@@ -8649,8 +8652,10 @@ namespace Oxide.Plugins
                 if (spawnEntry.CustomAddonDefinition != null)
                 {
                     if (_spawnPointData.CheckSpace)
+                    {
                         // Pass null data for now since data isn't supported for custom addons with spawn points.
-                        return spawnEntry.CustomAddonDefinition.CheckSpace?.Invoke(_transform.position, _transform.rotation, null) ?? true;
+                        return spawnEntry.CustomAddonDefinition.CheckSpace?.Invoke(SpaceCheckPosition, _transform.rotation, null) ?? true;
+                    }
 
                     return true;
                 }
@@ -8666,9 +8671,9 @@ namespace Oxide.Plugins
                 if (_spawnPointData.CheckSpace)
                 {
                     if (CustomBoundsCheckMask.TryGetValue(prefab.name, out var customBoundsCheckMask))
-                        return SpawnHandler.CheckBounds(prefab, _transform.position, _transform.rotation, Vector3.one, customBoundsCheckMask);
+                        return SpawnHandler.CheckBounds(prefab, SpaceCheckPosition, _transform.rotation, Vector3.one, customBoundsCheckMask);
 
-                    return SingletonComponent<SpawnHandler>.Instance.CheckBounds(prefab, _transform.position, _transform.rotation, Vector3.one);
+                    return SingletonComponent<SpawnHandler>.Instance.CheckBounds(prefab, SpaceCheckPosition, _transform.rotation, Vector3.one);
                 }
 
                 return true;
