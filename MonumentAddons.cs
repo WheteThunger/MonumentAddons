@@ -590,6 +590,124 @@ namespace Oxide.Plugins
             return ObjectCache.Get(adapter.Data.Id);
         }
 
+        [HookMethod(nameof(API_RegisterCustomAddon))]
+        public Dictionary<string, object> API_RegisterCustomAddon(Plugin plugin, string addonName, Dictionary<string, object> addonSpec)
+        {
+            var addonDefinition = CustomAddonDefinition.FromDictionary(addonName, plugin, addonSpec);
+            if (!addonDefinition.Validate())
+                return null;
+
+            if (_customAddonManager.IsRegistered(addonName, out var otherPlugin))
+            {
+                if (otherPlugin.Name != plugin.Name)
+                {
+                    LogError($"Unable to register custom addon \"{addonName}\" for plugin {plugin.Name} because it's already been registered by plugin {otherPlugin.Name}.");
+                    return null;
+                }
+            }
+            else
+            {
+                _customAddonManager.RegisterAddon(addonDefinition);
+            }
+
+            return addonDefinition.ToApiResult(_profileStore);
+        }
+
+        [HookMethod(nameof(API_RegisterCustomMonument))]
+        public object API_RegisterCustomMonument(Plugin plugin, string monumentName, Component component, Bounds bounds)
+        {
+            var objectType = component is BaseEntity ? "entity" : "object";
+
+            if (plugin == null)
+            {
+                LogError($"A plugin has attempted to register an {objectType} as a custom monument, but the plugin did not identify itself.");
+                return False;
+            }
+
+            if (String.IsNullOrWhiteSpace(monumentName))
+            {
+                LogError($"Plugin {plugin.Name} tried to register an {objectType} as a custom monument, but did not provide a valid monument name.");
+                return False;
+            }
+
+            if (component == null || (component is BaseEntity { IsDestroyed: true }))
+            {
+                LogError($"Plugin {plugin.Name} tried to register a null or destroyed {objectType} as a custom monument.");
+                return False;
+            }
+
+            if (bounds == default)
+            {
+                LogWarning($"Plugin {plugin.Name} tried to register an {objectType} as a custom monument, but did not provide bounds. This was most likely a mistake by the developer of {plugin.Name} ({plugin.Author}).");
+            }
+
+            var existingMonument = _customMonumentManager.FindByComponent(component);
+            if (existingMonument != null)
+            {
+                if (existingMonument.OwnerPlugin.Name != plugin.Name)
+                {
+                    LogError($"Plugin {plugin.Name} tried to register an {objectType} at {component.transform.position} as a custom monument with name '{monumentName}', but that {objectType} was already registered by plugin {existingMonument.OwnerPlugin.Name} with name '{existingMonument.UniqueName}'.");
+                    return False;
+                }
+                else if (existingMonument.UniqueName != monumentName)
+                {
+                    LogError($"Plugin {plugin.Name} tried to register an {objectType} at {component.transform.position} as a custom monument with name '{monumentName}', but that {objectType} was already registered with name '{existingMonument.UniqueName}'.");
+                    return False;
+                }
+                else if (existingMonument.Bounds != bounds)
+                {
+                    // Changing the bounds is permitted.
+                    existingMonument.Bounds = bounds;
+                    return True;
+                }
+                else
+                {
+                    LogWarning($"Plugin {plugin.Name} tried to double register a monument '{monumentName}'. This is OK but may be a mistake by the developer of {plugin.Name} ({plugin.Author}).");
+                    return True;
+                }
+            }
+
+            var monument = component is BaseEntity entity
+                ? new CustomEntityMonument(plugin, entity, monumentName, bounds)
+                : new CustomMonument(plugin, component, monumentName, bounds);
+
+            _customMonumentManager.Register(monument);
+            CustomMonumentComponent.AddToMonument(_customMonumentManager, monument);
+            _coroutineManager.StartCoroutine(_profileManager.PartialLoadForLateMonumentRoutine(monument));
+
+            LogInfo($"Plugin {plugin.Name} successfully registered an {objectType} at {component.transform.position} as a custom monument with name '{monumentName}'.");
+            return True;
+        }
+
+        [HookMethod(nameof(API_UnregisterCustomMonument))]
+        public object API_UnregisterCustomMonument(Plugin plugin, Component component)
+        {
+            var objectType = component is BaseEntity ? "entity" : "object";
+
+            if (component == null || (component is BaseEntity { IsDestroyed: true }))
+            {
+                LogWarning($"Plugin {plugin.Name} tried to unregister a null or destroyed {objectType} as a custom monument. This is not necessary because {Name} automatically detects when custom monuments are destroyed and despawns associated addons. This is OK but may be a mistake by the developer of {plugin.Name} ({plugin.Author}).");
+                return True;
+            }
+
+            var existingMonument = _customMonumentManager.FindByComponent(component);
+            if (existingMonument == null)
+            {
+                LogError($"Plugin {plugin.Name} tried to unregister an {objectType} at {component.transform.position} as a custom monument, but that {objectType} was not currently registered as a custom monument. Either the {objectType} was unregistered earlier, or the wrong {objectType} was provided. This was most likely a mistake by the developer of {plugin.Name} ({plugin.Author}).");
+                return True;
+            }
+
+            if (existingMonument.OwnerPlugin.Name != plugin.Name)
+            {
+                LogError($"Plugin {plugin.Name} tried to unregister an {objectType} at {component.transform.position} as a custom monument, but that {objectType} was registered as a custom monument by plugin {existingMonument.OwnerPlugin.Name}, so this was not allowed.");
+                return False;
+            }
+
+            _customMonumentManager.Unregister(existingMonument);
+            LogInfo($"Plugin {plugin.Name} successfully unregistered an {objectType} at {component.transform.position} as a custom monument with name '{existingMonument.UniqueName}'.");
+            return True;
+        }
+
         #endregion
 
         #region Exposed Hooks
@@ -2895,128 +3013,6 @@ namespace Oxide.Plugins
             _sb.AppendLine(GetMessage(player.Id, LangEntry.HelpShowVanilla));
             _sb.AppendLine(GetMessage(player.Id, LangEntry.HelpProfile));
             player.Reply(_sb.ToString());
-        }
-
-        #endregion
-
-        #region API
-
-        [HookMethod(nameof(API_RegisterCustomAddon))]
-        public Dictionary<string, object> API_RegisterCustomAddon(Plugin plugin, string addonName, Dictionary<string, object> addonSpec)
-        {
-            var addonDefinition = CustomAddonDefinition.FromDictionary(addonName, plugin, addonSpec);
-            if (!addonDefinition.Validate())
-                return null;
-
-            if (_customAddonManager.IsRegistered(addonName, out var otherPlugin))
-            {
-                if (otherPlugin.Name != plugin.Name)
-                {
-                    LogError($"Unable to register custom addon \"{addonName}\" for plugin {plugin.Name} because it's already been registered by plugin {otherPlugin.Name}.");
-                    return null;
-                }
-            }
-            else
-            {
-                _customAddonManager.RegisterAddon(addonDefinition);
-            }
-
-            return addonDefinition.ToApiResult(_profileStore);
-        }
-
-        [HookMethod(nameof(API_RegisterCustomMonument))]
-        public object API_RegisterCustomMonument(Plugin plugin, string monumentName, Component component, Bounds bounds)
-        {
-            var objectType = component is BaseEntity ? "entity" : "object";
-
-            if (plugin == null)
-            {
-                LogError($"A plugin has attempted to register an {objectType} as a custom monument, but the plugin did not identify itself.");
-                return False;
-            }
-
-            if (String.IsNullOrWhiteSpace(monumentName))
-            {
-                LogError($"Plugin {plugin.Name} tried to register an {objectType} as a custom monument, but did not provide a valid monument name.");
-                return False;
-            }
-
-            if (component == null || (component is BaseEntity { IsDestroyed: true }))
-            {
-                LogError($"Plugin {plugin.Name} tried to register a null or destroyed {objectType} as a custom monument.");
-                return False;
-            }
-
-            if (bounds == default)
-            {
-                LogWarning($"Plugin {plugin.Name} tried to register an {objectType} as a custom monument, but did not provide bounds. This was most likely a mistake by the developer of {plugin.Name} ({plugin.Author}).");
-            }
-
-            var existingMonument = _customMonumentManager.FindByComponent(component);
-            if (existingMonument != null)
-            {
-                if (existingMonument.OwnerPlugin.Name != plugin.Name)
-                {
-                    LogError($"Plugin {plugin.Name} tried to register an {objectType} at {component.transform.position} as a custom monument with name '{monumentName}', but that {objectType} was already registered by plugin {existingMonument.OwnerPlugin.Name} with name '{existingMonument.UniqueName}'.");
-                    return False;
-                }
-                else if (existingMonument.UniqueName != monumentName)
-                {
-                    LogError($"Plugin {plugin.Name} tried to register an {objectType} at {component.transform.position} as a custom monument with name '{monumentName}', but that {objectType} was already registered with name '{existingMonument.UniqueName}'.");
-                    return False;
-                }
-                else if (existingMonument.Bounds != bounds)
-                {
-                    // Changing the bounds is permitted.
-                    existingMonument.Bounds = bounds;
-                    return True;
-                }
-                else
-                {
-                    LogWarning($"Plugin {plugin.Name} tried to double register a monument '{monumentName}'. This is OK but may be a mistake by the developer of {plugin.Name} ({plugin.Author}).");
-                    return True;
-                }
-            }
-
-            var monument = component is BaseEntity entity
-                ? new CustomEntityMonument(plugin, entity, monumentName, bounds)
-                : new CustomMonument(plugin, component, monumentName, bounds);
-
-            _customMonumentManager.Register(monument);
-            CustomMonumentComponent.AddToMonument(_customMonumentManager, monument);
-            _coroutineManager.StartCoroutine(_profileManager.PartialLoadForLateMonumentRoutine(monument));
-
-            LogInfo($"Plugin {plugin.Name} successfully registered an {objectType} at {component.transform.position} as a custom monument with name '{monumentName}'.");
-            return True;
-        }
-
-        [HookMethod(nameof(API_UnregisterCustomMonument))]
-        public object API_UnregisterCustomMonument(Plugin plugin, Component component)
-        {
-            var objectType = component is BaseEntity ? "entity" : "object";
-
-            if (component == null || (component is BaseEntity { IsDestroyed: true }))
-            {
-                LogWarning($"Plugin {plugin.Name} tried to unregister a null or destroyed {objectType} as a custom monument. This is not necessary because {Name} automatically detects when custom monuments are destroyed and despawns associated addons. This is OK but may be a mistake by the developer of {plugin.Name} ({plugin.Author}).");
-                return True;
-            }
-
-            var existingMonument = _customMonumentManager.FindByComponent(component);
-            if (existingMonument == null)
-            {
-                LogError($"Plugin {plugin.Name} tried to unregister an {objectType} at {component.transform.position} as a custom monument, but that {objectType} was not currently registered as a custom monument. Either the {objectType} was unregistered earlier, or the wrong {objectType} was provided. This was most likely a mistake by the developer of {plugin.Name} ({plugin.Author}).");
-                return True;
-            }
-
-            if (existingMonument.OwnerPlugin.Name != plugin.Name)
-            {
-                LogError($"Plugin {plugin.Name} tried to unregister an {objectType} at {component.transform.position} as a custom monument, but that {objectType} was registered as a custom monument by plugin {existingMonument.OwnerPlugin.Name}, so this was not allowed.");
-                return False;
-            }
-
-            _customMonumentManager.Unregister(existingMonument);
-            LogInfo($"Plugin {plugin.Name} successfully unregistered an {objectType} at {component.transform.position} as a custom monument with name '{existingMonument.UniqueName}'.");
-            return True;
         }
 
         #endregion
