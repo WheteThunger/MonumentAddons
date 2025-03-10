@@ -8730,7 +8730,7 @@ namespace Oxide.Plugins
                         bike.timeSinceLastUsed = float.MinValue;
                         break;
                     case HotAirBalloon hab:
-                        hab.sinceLastBlast = float.MaxValue;
+                        hab.sinceLastBlast = float.MinValue;
                         break;
                     case Kayak kayak:
                         kayak.timeSinceLastUsed = float.MinValue;
