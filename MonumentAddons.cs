@@ -8720,6 +8720,9 @@ namespace Oxide.Plugins
             {
                 switch (vehicle)
                 {
+                    case BaseSiegeWeapon siegeWeapon:
+                        siegeWeapon.lastUseTime = float.MaxValue;
+                        break;
                     case BaseSubmarine sub:
                         sub.timeSinceLastUsed = float.MinValue;
                         break;
@@ -8743,6 +8746,9 @@ namespace Oxide.Plugins
                         break;
                     case RidableHorse horse:
                         horse.lastInputTime = float.MaxValue;
+                        break;
+                    case RidableHorse2 horse:
+                        horse.lastRiddenTime = float.MaxValue;
                         break;
                     case Snowmobile snowmobile:
                         snowmobile.timeSinceLastUsed = float.MinValue;
