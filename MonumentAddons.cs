@@ -46,7 +46,7 @@ using Tuple4 = System.ValueTuple<object, object, object, object>;
 
 namespace Oxide.Plugins
 {
-    [Info("Monument Addons", "WhiteThunder", "0.18.4")]
+    [Info("Monument Addons", "WhiteThunder", "0.18.5")]
     [Description("Allows adding entities, spawn points and more to monuments.")]
     internal class MonumentAddons : CovalencePlugin
     {
@@ -4192,7 +4192,7 @@ namespace Oxide.Plugins
             if (entity is NPCPlayer and not NPCShopKeeper and not BanditGuard)
                 return true;
 
-            if (entity is BaseBoat or BaseHelicopter or BaseRidableAnimal or BaseSubmarine or BasicCar or GroundVehicle or HotAirBalloon or Sled or TrainCar)
+            if (entity is BaseBoat or BaseHelicopter or RidableHorse or BaseSubmarine or BasicCar or GroundVehicle or HotAirBalloon or Sled or TrainCar)
                 return true;
 
             return false;
@@ -8760,9 +8760,6 @@ namespace Oxide.Plugins
                         heli.lastEngineOnTime = float.MaxValue;
                         break;
                     case RidableHorse horse:
-                        horse.lastInputTime = float.MaxValue;
-                        break;
-                    case RidableHorse2 horse:
                         horse.lastRiddenTime = float.MaxValue;
                         break;
                     case Snowmobile snowmobile:
