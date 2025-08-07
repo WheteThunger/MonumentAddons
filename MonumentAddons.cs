@@ -46,7 +46,7 @@ using Tuple4 = System.ValueTuple<object, object, object, object>;
 
 namespace Oxide.Plugins
 {
-    [Info("Monument Addons", "WhiteThunder", "0.18.5")]
+    [Info("Monument Addons", "WhiteThunder", "0.18.6")]
     [Description("Allows adding entities, spawn points and more to monuments.")]
     internal class MonumentAddons : CovalencePlugin
     {
