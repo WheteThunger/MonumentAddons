@@ -6632,6 +6632,17 @@ namespace Oxide.Plugins
 
         private class PrefabAdapter : TransformAdapter
         {
+            private static Dictionary<string, Func<Vector3, Quaternion, GameObject>> _spawnOverridesByPrefab = new()
+            {
+                ["assets/bundled/prefabs/modding/dropzone.prefab"] = (position, rotation) =>
+                {
+                    var gameObject = new GameObject();
+                    gameObject.transform.SetPositionAndRotation(position, rotation);
+                    gameObject.AddComponent<CH47DropZone>();
+                    return gameObject;
+                },
+            };
+
             public GameObject GameObject { get; private set; }
             public PrefabData PrefabData { get; }
             public override Component Component => _transform;
@@ -6649,7 +6660,10 @@ namespace Oxide.Plugins
 
             public override void Spawn()
             {
-                GameObject = GameManager.server.CreatePrefab(PrefabData.PrefabName, IntendedPosition, IntendedRotation);
+                GameObject = _spawnOverridesByPrefab.TryGetValue(PrefabData.PrefabName, out var spawnFunction)
+                    ? spawnFunction(IntendedPosition, IntendedRotation)
+                    : GameManager.server.CreatePrefab(PrefabData.PrefabName, IntendedPosition, IntendedRotation);
+
                 _transform = GameObject.transform;
                 AddonComponent.AddToComponent(Plugin._componentTracker, _transform, this);
                 ExposedHooks.OnMonumentPrefabCreated(GameObject, Monument.Object, Data.Id);
