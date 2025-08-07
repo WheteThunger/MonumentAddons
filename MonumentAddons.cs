@@ -188,6 +188,8 @@ namespace Oxide.Plugins
 
         private void OnServerInitialized()
         {
+            _config.OnServerInitialized();
+
             _waterDefinition = ItemManager.FindItemDefinition("water");
 
             _immortalProtection = ScriptableObject.CreateInstance<ProtectionProperties>();
@@ -14161,7 +14163,7 @@ namespace Oxide.Plugins
             [JsonIgnore]
             private uint[] _dynamicMonumentPrefabIds;
 
-            public void Init()
+            public void OnServerInitialized()
             {
                 var prefabIds = new List<uint>();
 
@@ -14376,7 +14378,6 @@ namespace Oxide.Plugins
             public void Init()
             {
                 EntitySaveSettings.Init();
-                DynamicMonuments.Init();
 
                 if (XmasTreeDecorations != null)
                 {
@@ -14396,6 +14397,11 @@ namespace Oxide.Plugins
                         }
                     }
                 }
+            }
+
+            public void OnServerInitialized()
+            {
+                DynamicMonuments.OnServerInitialized();
             }
         }
 
