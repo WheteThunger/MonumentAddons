@@ -38,11 +38,13 @@ using CustomUpdateCallbackV2 = System.Func<UnityEngine.Component, Newtonsoft.Jso
 using CustomDisplayCallback = System.Action<UnityEngine.Component, Newtonsoft.Json.Linq.JObject, System.Text.StringBuilder>;
 using CustomDisplayCallbackV2 = System.Action<UnityEngine.Component, Newtonsoft.Json.Linq.JObject, BasePlayer, System.Text.StringBuilder, float>;
 using CustomSetDataCallback = System.Action<UnityEngine.Component, object>;
-
+using Quaternion = UnityEngine.Quaternion;
 using Tuple1 = System.ValueTuple<object>;
 using Tuple2 = System.ValueTuple<object, object>;
 using Tuple3 = System.ValueTuple<object, object, object>;
 using Tuple4 = System.ValueTuple<object, object, object, object>;
+using Vector2 = UnityEngine.Vector2;
+using Vector3 = UnityEngine.Vector3;
 
 namespace Oxide.Plugins
 {
@@ -337,15 +339,22 @@ namespace Oxide.Plugins
             return null;
         }
 
-        private void OnEntityScaled(BaseEntity entity, float scale)
+        // This hook is exposed by plugin: Entity Scale Manager (EntityScaleManager) v3.
+        private void OnEntityScaled(BaseEntity entity, Vector3 scale)
         {
             if (!_componentTracker.IsAddonComponent(entity, out EntityController controller)
-                || controller.EntityData.Scale == scale)
+                || controller.EntityData.GetScale() == scale)
                 return;
 
-            controller.EntityData.Scale = scale;
+            controller.EntityData.SetScale(scale);
             controller.StartUpdateRoutine();
             _profileStore.Save(controller.Profile);
+        }
+
+        // This hook is exposed by plugin: Entity Scale Manager (EntityScaleManager) v2.
+        private void OnEntityScaled(BaseEntity entity, float scale)
+        {
+            OnEntityScaled(entity, Vector3.one * scale);
         }
 
         // This hook is exposed by plugin: Telekinesis.
@@ -468,17 +477,35 @@ namespace Oxide.Plugins
             return true;
         }
 
-        private float GetEntityScale(BaseEntity entity)
+        private Vector3 GetEntityScale(BaseEntity entity)
         {
             if (EntityScaleManager == null)
-                return 1;
+                return Vector3.one;
 
-            return Convert.ToSingle(EntityScaleManager?.Call("API_GetScale", entity));
+            var entityScale = EntityScaleManager.Call("API_GetScale", entity);
+            if (entityScale is float floatScale)
+                return Vector3.one * floatScale;
+
+            if (entityScale is Vector3 vector3Scale)
+                return vector3Scale;
+
+            return Vector3.one;
         }
 
-        private bool TryScaleEntity(BaseEntity entity, float scale)
+        private bool IsEntityScaled(BaseEntity entity)
         {
-            return EntityScaleManager?.Call("API_ScaleEntity", entity, scale) is true;
+            return GetEntityScale(entity) != Vector3.one;
+        }
+
+        private bool TryScaleEntity(BaseEntity entity, Vector3 scale)
+        {
+            if (EntityScaleManager == null)
+                return false;
+
+            if (EntityScaleManager.Version.Major < 3)
+                return EntityScaleManager.Call("API_ScaleEntity", entity, scale.x) is true;
+
+            return EntityScaleManager.Call("API_ScaleEntity", entity, scale) is true;
         }
 
         private void SkinSign(ISignage signage, SignArtistImage[] signArtistImages)
@@ -3830,6 +3857,14 @@ namespace Oxide.Plugins
             return TimeSpan.FromSeconds(seconds).ToString("g");
         }
 
+        private static string FormatScale(Vector3 scale)
+        {
+            if (Mathf.Approximately(scale.x, scale.y) && Mathf.Approximately(scale.x, scale.z))
+                return $"{scale.x:0.###}";
+
+            return $"{scale.x:0.###} {scale.y:0.###} {scale.z:0.###}";
+        }
+
         private static void BroadcastEntityTransformChange(BaseEntity entity)
         {
             if (entity is StabilityEntity)
@@ -7037,17 +7072,18 @@ namespace Oxide.Plugins
 
             public void UpdateScale()
             {
-                if (Plugin.TryScaleEntity(Entity, EntityData.Scale))
-                {
-                    var parentSphere = Entity.GetParentEntity() as SphereEntity;
-                    if (parentSphere == null)
-                        return;
+                if (!Plugin.TryScaleEntity(Entity, EntityData.GetScale()))
+                    return;
 
-                    if (Plugin._componentTracker.IsAddonComponent(parentSphere))
-                        return;
+                // For Entity Scale Manager v2, track the sphere entity.
+                var parentSphere = Entity.GetParentEntity() as SphereEntity;
+                if (parentSphere == null)
+                    return;
 
-                    AddonComponent.AddToComponent(Plugin._componentTracker, parentSphere, this);
-                }
+                if (Plugin._componentTracker.IsAddonComponent(parentSphere))
+                    return;
+
+                AddonComponent.AddToComponent(Plugin._componentTracker, parentSphere, this);
             }
 
             public void UpdateSkin()
@@ -7505,7 +7541,7 @@ namespace Oxide.Plugins
                     christmasTree.inventory.SetLocked(true);
                 }
 
-                if (EntityData.Scale != 1 || Entity.GetParentEntity() is SphereEntity)
+                if (EntityData.IsScaled())
                 {
                     UpdateScale();
                 }
@@ -7704,7 +7740,9 @@ namespace Oxide.Plugins
 
             private BaseEntity GetEntityToMove()
             {
-                if (EntityData.Scale != 1 && Plugin.GetEntityScale(Entity) != 1)
+                if (EntityData.IsScaled()
+                    && Plugin.IsEntityScaled(Entity)
+                    && Plugin.EntityScaleManager is { Version.Major: < 3 })
                 {
                     var parentSphere = Entity.GetParentEntity() as SphereEntity;
                     if (parentSphere != null)
@@ -10809,9 +10847,9 @@ namespace Oxide.Plugins
                     _sb.AppendLine(_plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelSkin, entityData.Skin));
                 }
 
-                if (entityData.Scale != 1)
+                if (entityData.IsScaled())
                 {
-                    _sb.AppendLine(_plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelScale, entityData.Scale));
+                    _sb.AppendLine(_plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelScale, FormatScale(entityData.GetScale())));
                 }
 
                 var vehicleVendor = adapter.Entity as VehicleVendor;
@@ -12384,9 +12422,11 @@ namespace Oxide.Plugins
             [JsonProperty("Puzzle", DefaultValueHandling = DefaultValueHandling.Ignore)]
             public PuzzleData Puzzle;
 
-            [JsonProperty("Scale", DefaultValueHandling = DefaultValueHandling.Ignore)]
-            [DefaultValue(1f)]
-            public float Scale = 1;
+            [JsonProperty("Scale")]
+            private float DeprecatedScale { set => SetScale(new Vector3(value, value, value)); }
+
+            [JsonProperty("Scale3D", DefaultValueHandling = DefaultValueHandling.Ignore)]
+            private Vector3 Scale3D;
 
             [JsonProperty("CardReaderLevel", DefaultValueHandling = DefaultValueHandling.Ignore)]
             public ushort CardReaderLevel;
@@ -12411,6 +12451,27 @@ namespace Oxide.Plugins
 
             [JsonProperty("HeadData", DefaultValueHandling = DefaultValueHandling.Ignore)]
             public HeadData HeadData;
+
+            public Vector3 GetScale()
+            {
+                return Scale3D == Vector3.zero ? Vector3.one : Scale3D;
+            }
+
+            public bool IsScaled()
+            {
+                return GetScale() != Vector3.one;
+            }
+
+            public void SetScale(Vector3 scale)
+            {
+                if (scale == Vector3.one)
+                {
+                    Scale3D = Vector3.zero;
+                    return;
+                }
+
+                Scale3D = scale;
+            }
 
             public void SetFlag(BaseEntity.Flags flag, bool? value)
             {
