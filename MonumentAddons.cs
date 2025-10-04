@@ -57,7 +57,6 @@ namespace Oxide.Plugins
         [PluginReference]
         private Plugin CopyPaste, CustomVendingSetup, EntityScaleManager, MonumentFinder, SignArtist;
 
-        private MonumentAddons _plugin;
         private Configuration _config;
         private StoredData _data;
         private ProfileStateData _profileStateData;
@@ -85,7 +84,7 @@ namespace Oxide.Plugins
             { "Content-Type", "application/json" }
         };
 
-        private static readonly Dictionary<string, string> OfficialProfileNames = new string[]
+        private static readonly Dictionary<string, string> OfficialProfileNames = new[]
             {
                 "BarnAirwolf",
                 "CargoShipCCTV",
@@ -827,7 +826,7 @@ namespace Oxide.Plugins
                 }
                 else if (shortPrefabName == "boatspawner")
                 {
-                    if (position.y == TerrainMeta.WaterMap.GetHeight(position))
+                    if (Mathf.Approximately(position.y, TerrainMeta.WaterMap.GetHeight(position)))
                     {
                         // Set the boatspawner to -1.5 like the vanilla ones.
                         localPosition.y -= 1.5f;
@@ -2238,7 +2237,7 @@ namespace Oxide.Plugins
 
                     var spawnGroupData = spawnGroupController.SpawnGroupData;
                     var prefabData = customAddonDefinition != null
-                        ? spawnGroupData.Prefabs.FirstOrDefault(entry => entry.CustomAddonName == customAddonDefinition?.AddonName)
+                        ? spawnGroupData.Prefabs.FirstOrDefault(entry => entry.CustomAddonName == customAddonDefinition.AddonName)
                         : spawnGroupData.Prefabs.FirstOrDefault(entry => entry.PrefabName == prefabPath);
 
                     if (prefabData != null)
@@ -2945,8 +2944,6 @@ namespace Oxide.Plugins
 
                         spawnGroupData.SpawnPoints.Add(spawnPointData);
                     }
-
-                    continue;
                 }
             }
 
@@ -3929,7 +3926,7 @@ namespace Oxide.Plugins
 
         private static float GetTimeToNextSpawn(IndividualSpawner spawner)
         {
-            if (spawner.nextSpawnTime == -1)
+            if (Mathf.Approximately(spawner.nextSpawnTime, -1))
                 return float.PositiveInfinity;
 
             return spawner.nextSpawnTime - UnityEngine.Time.time;
@@ -4471,7 +4468,7 @@ namespace Oxide.Plugins
 
             public static T GetClosestNearbyEntity<T>(Vector3 position, float maxDistance, int layerMask = -1, Func<T, bool> predicate = null) where T : BaseEntity
             {
-                var entityList = Pool.GetList<T>();
+                var entityList = Pool.Get<List<T>>();
                 Vis.Entities(position, maxDistance, entityList, layerMask, QueryTriggerInteraction.Ignore);
                 try
                 {
@@ -4479,13 +4476,13 @@ namespace Oxide.Plugins
                 }
                 finally
                 {
-                    Pool.FreeList(ref entityList);
+                    Pool.FreeUnmanaged(ref entityList);
                 }
             }
 
             public static T GetClosestNearbyComponent<T>(Vector3 position, float maxDistance, int layerMask = -1, Func<T, bool> predicate = null) where T : Component
             {
-                var componentList = Pool.GetList<T>();
+                var componentList = Pool.Get<List<T>>();
                 Vis.Components(position, maxDistance, componentList, layerMask, QueryTriggerInteraction.Ignore);
                 try
                 {
@@ -4493,7 +4490,7 @@ namespace Oxide.Plugins
                 }
                 finally
                 {
-                    Pool.FreeList(ref componentList);
+                    Pool.FreeUnmanaged(ref componentList);
                 }
             }
 
@@ -4640,8 +4637,8 @@ namespace Oxide.Plugins
 
         private static class BooleanParser
         {
-            private static string[] _booleanYesValues = new string[] { "true", "yes", "on", "1" };
-            private static string[] _booleanNoValues = new string[] { "false", "no", "off", "0" };
+            private static string[] _booleanYesValues = new[] { "true", "yes", "on", "1" };
+            private static string[] _booleanNoValues = new[] { "false", "no", "off", "0" };
 
             public static bool TryParse(string arg, out bool value)
             {
@@ -4792,10 +4789,7 @@ namespace Oxide.Plugins
 
                         var partialPath = GetPartialPath(segments, numSegmentsFromEnd);
 
-                        if (!countByPartialPath.TryGetValue(partialPath, out var segmentCount))
-                        {
-                            segmentCount = 0;
-                        }
+                        var segmentCount = countByPartialPath.GetValueOrDefault(partialPath, 0);
 
                         countByPartialPath[partialPath] = segmentCount + 1;
                     }
@@ -5276,10 +5270,10 @@ namespace Oxide.Plugins
                 var drawer = new Ddraw(player, DrawDuration, Color.red);
 
                 var headRay = player.eyes.HeadRay();
-                var slot = GetClosestIOSlot(ioEntity, headRay, MinAngleDot, out var slotIndex, out var distanceSquared, wantsSourceSlot: !session.IsSource);
+                var slot = GetClosestIOSlot(ioEntity, headRay, MinAngleDot, out var slotIndex, out _, wantsSourceSlot: !session.IsSource);
                 if (slot == null)
                 {
-                    slot = GetClosestIOSlot(ioEntity, headRay, MinAngleDot, out slotIndex, out distanceSquared, wantsSourceSlot: session.IsSource);
+                    slot = GetClosestIOSlot(ioEntity, headRay, MinAngleDot, out slotIndex, out _, wantsSourceSlot: session.IsSource);
                     if (slot != null)
                     {
                         drawer.Sphere(adapter.Transform.TransformPoint(slot.handlePosition), DrawSlotRadius);
@@ -5700,9 +5694,7 @@ namespace Oxide.Plugins
 
             private MonumentInfo GetMonumentFromEntrance(DungeonGridInfo dungeonGridInfo)
             {
-                return _entranceToMonument.TryGetValue(dungeonGridInfo, out var monumentInfo)
-                    ? monumentInfo
-                    : null;
+                return _entranceToMonument.GetValueOrDefault(dungeonGridInfo);
             }
         }
 
@@ -10617,9 +10609,7 @@ namespace Oxide.Plugins
 
             private int[] DeterminePowerInputSlots(IOEntity ioEntity)
             {
-                return _inputSlotsByPrefabId.TryGetValue(ioEntity.prefabID, out var inputSlots)
-                    ? inputSlots
-                    : _defaultInputSlots;
+                return _inputSlotsByPrefabId.GetValueOrDefault(ioEntity.prefabID, _defaultInputSlots);
             }
         }
 
@@ -10779,17 +10769,12 @@ namespace Oxide.Plugins
 
                 _sb.AppendLine(_plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelPuzzleTimeBetweenResets, FormatTime(puzzleReset.timeBetweenResets)));
 
-                var resetTimeElapsedField = typeof(PuzzleReset).GetField("resetTimeElapsed", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-                if (resetTimeElapsedField != null)
-                {
-                    var resetTimeElapsed = (float)resetTimeElapsedField.GetValue(puzzleReset);
-                    var timeRemaining = puzzleReset.GetResetSpacing() - resetTimeElapsed;
-                    var nextResetMessage = timeRemaining > 0
-                        ? FormatTime(timeRemaining)
-                        : _plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelPuzzleNextResetOverdue);
+                var timeRemaining = puzzleReset.GetResetSpacing() - puzzleReset.resetTimeElapsed;
+                var nextResetMessage = timeRemaining > 0
+                    ? FormatTime(timeRemaining)
+                    : _plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelPuzzleNextResetOverdue);
 
-                    _sb.AppendLine(_plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelPuzzleNextReset, nextResetMessage));
-                }
+                _sb.AppendLine(_plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelPuzzleNextReset, nextResetMessage));
 
                 if (entityAdapter != null)
                 {
@@ -10805,7 +10790,7 @@ namespace Oxide.Plugins
                             if (profileController.FindAdapter(spawnGroupId, entityAdapter.Monument) is not SpawnGroupAdapter spawnGroupAdapter)
                                 continue;
 
-                            spawnGroupNameList ??= Pool.GetList<string>();
+                            spawnGroupNameList ??= Pool.Get<List<string>>();
                             spawnGroupNameList.Add(spawnGroupAdapter.SpawnGroupData.Name);
 
                             var spawnPointAdapter = FindClosestSpawnPointAdapter(spawnGroupAdapter, playerPosition);
@@ -10819,7 +10804,7 @@ namespace Oxide.Plugins
                         if (spawnGroupNameList != null)
                         {
                             _sb.AppendLine(_plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelPuzzleSpawnGroups, string.Join(", ", spawnGroupNameList)));
-                            Pool.FreeList(ref spawnGroupNameList);
+                            Pool.FreeUnmanaged(ref spawnGroupNameList);
                         }
                     }
                 }
@@ -11426,7 +11411,6 @@ namespace Oxide.Plugins
             public WaitUntil WaitUntilLoaded;
             public WaitUntil WaitUntilUnloaded;
 
-            private Configuration _config => Plugin._config;
             private StoredData _pluginData => Plugin._data;
             private ProfileManager _profileManager => Plugin._profileManager;
             private ProfileStateData _profileStateData => Plugin._profileStateData;
@@ -11677,9 +11661,7 @@ namespace Oxide.Plugins
 
             private BaseController GetController(BaseData data)
             {
-                return _controllersByData.TryGetValue(data, out var controller)
-                    ? controller
-                    : null;
+                return _controllersByData.GetValueOrDefault(data);
             }
 
             private BaseController EnsureController(BaseData data)
@@ -11914,7 +11896,6 @@ namespace Oxide.Plugins
             private readonly ProfileStore _profileStore;
             private List<ProfileController> _profileControllers = new List<ProfileController>();
 
-            private Configuration _config => _plugin._config;
             private StoredData _pluginData => _plugin._data;
 
             public event Action<ProfileController, ProfileStatus, ProfileStatus> ProfileStatusChanged;
@@ -12392,7 +12373,7 @@ namespace Oxide.Plugins
 
                 if (Clothing?.Length > 0)
                 {
-                    headData.clothing = Pool.GetList<int>();
+                    headData.clothing = Pool.Get<List<int>>();
                     foreach (var itemData in Clothing)
                     {
                         headData.clothing.Add(itemData.ItemId);
@@ -12400,7 +12381,7 @@ namespace Oxide.Plugins
                 }
                 else if (headData.clothing != null)
                 {
-                    Pool.FreeList(ref headData.clothing);
+                    Pool.FreeUnmanaged(ref headData.clothing);
                 }
             }
         }
@@ -12522,11 +12503,7 @@ namespace Oxide.Plugins
 
             public void AddIOConnection(IOConnectionData connectionData)
             {
-                if (IOEntityData == null)
-                {
-                    IOEntityData = new IOEntityData();
-                }
-
+                IOEntityData ??= new IOEntityData();
                 RemoveIOConnection(connectionData.Slot);
                 IOEntityData.Outputs.Add(connectionData);
             }
@@ -13040,9 +13017,7 @@ namespace Oxide.Plugins
 
             private static string GetPrefabCorrectionIfExists(string prefabName)
             {
-                return _prefabCorrections.TryGetValue(prefabName, out var correctedPrefabName)
-                    ? correctedPrefabName
-                    : prefabName;
+                return _prefabCorrections.GetValueOrDefault(prefabName, prefabName);
             }
 
             public static bool MigrateToLatest(T data)
@@ -13073,7 +13048,7 @@ namespace Oxide.Plugins
                         foreach (var entityData in entityDataList)
                         {
                             if (GetShortName(entityData.PrefabName) == "big_wheel"
-                                && entityData.RotationAngles.x != 90)
+                                && !Mathf.Approximately(entityData.RotationAngles.x, 90))
                             {
                                 // The plugin used to coerce the x component to 90.
                                 entityData.RotationAngles.x = 90;
@@ -13529,7 +13504,7 @@ namespace Oxide.Plugins
 
             public static void Save<T>(string filepath, T data)
             {
-                Interface.Oxide.DataFileSystem.WriteObject<T>(filepath, data);
+                Interface.Oxide.DataFileSystem.WriteObject(filepath, data);
             }
         }
 
@@ -13537,7 +13512,7 @@ namespace Oxide.Plugins
         {
             private string _filepath;
 
-            public BaseDataFile(string filepath)
+            protected BaseDataFile(string filepath)
             {
                 _filepath = filepath;
             }
