@@ -474,6 +474,19 @@ Use the following steps to setup a clothing mannequin with persistent configurat
 
 When you want to edit the mannequin again, you will need to run `maflag Busy` again to unlock it and twice more to re-lock it.
 
+### RF Broadcasters and Receivers
+
+Use the following steps to set up RF broadcasters and receivers with persistent configuration.
+
+1. Spawn an RF broadcaster with `maspawn rfbroadcaster`.
+2. Configure the broadcaster like normal.
+3. Spawn an RF receiver with `maspawn rfreceiver`.
+4. Configure the receiver like normal.
+5. Run the command `masave` while looking at each entity to save its state.
+6. To prevent players from tampering with the entities, run `maflag Busy` while aiming at each one.
+
+When you want to edit an entity again, you will need to run `maflag Busy` again to unlock it and twice more to re-lock it.
+
 ## Tips
 
 - Bind `maspawn` and `makill` to keys while setting up entities to save time. Remember that running `maspawn` without specifying the entity name will spawn whichever deployable you are currently holding. Note: You may need to rotate the placement guide in some cases because the server cannot detect which way you have it rotated.

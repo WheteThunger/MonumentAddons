@@ -7110,19 +7110,24 @@ namespace Oxide.Plugins
             {
                 var hasChanged = base.TryRecordUpdates(moveTransform, rotateTransform);
 
-                var buildingBlock = Entity as BuildingBlock;
-                if (buildingBlock != null && buildingBlock.grade != IntendedBuildingGrade)
+                if (Entity is BuildingBlock buildingBlock && buildingBlock.grade != IntendedBuildingGrade)
                 {
                     EntityData.BuildingBlock ??= new BuildingBlockInfo();
                     EntityData.BuildingBlock.Grade = buildingBlock.grade;
                     hasChanged = true;
                 }
 
-                var mannequin = Entity as Mannequin;
-                if (mannequin != null
+                if (Entity is Mannequin mannequin
                     && (EntityData.MannequinData == null || !EntityData.MannequinData.MatchesMannequin(mannequin)))
                 {
                     EntityData.MannequinData = MannequinData.FromMannequin(mannequin);
+                    hasChanged = true;
+                }
+
+                if (Entity is IRFObject rfObject && EntityData.IOEntityData?.Frequency != rfObject.GetFrequency())
+                {
+                    EntityData.IOEntityData ??= new IOEntityData();
+                    EntityData.IOEntityData.Frequency = rfObject.GetFrequency();
                     hasChanged = true;
                 }
 
@@ -7148,7 +7153,7 @@ namespace Oxide.Plugins
                 UpdateMannequin();
                 UpdatePuzzle();
                 UpdateCardReaderLevel();
-                UpdateIOConnections();
+                UpdateIOStateAndConnections();
                 MaybeProvidePower();
                 EnableFlags();
             }
@@ -7214,7 +7219,29 @@ namespace Oxide.Plugins
                 mannequinData.ApplyToMannequin(mannequin);
             }
 
-            public void UpdateIOConnections()
+            private void UpdateFrequency(IOEntity ioEntity, IRFObject rfObject, int frequency)
+            {
+                frequency = RFManager.ClampFrequency(frequency);
+
+                if (rfObject.GetFrequency() == frequency)
+                    return;
+
+                RFManager.ChangeFrequency(rfObject.GetFrequency(), frequency, rfObject, isListener: rfObject is RFReceiver);
+
+                if (rfObject is RFReceiver rfReceiver)
+                {
+                    rfReceiver.frequency = frequency;
+                }
+                else if (rfObject is RFBroadcaster rfBroadcaster)
+                {
+                    rfBroadcaster.frequency = frequency;
+                }
+
+                ioEntity.MarkDirty();
+                ioEntity.SendNetworkUpdate();
+            }
+
+            public void UpdateIOStateAndConnections()
             {
                 var ioEntityData = EntityData.IOEntityData;
                 if (ioEntityData == null)
@@ -7223,6 +7250,11 @@ namespace Oxide.Plugins
                 var ioEntity = Entity as IOEntity;
                 if (ioEntity == null)
                     return;
+
+                if (ioEntity is IRFObject rfObject)
+                {
+                    UpdateFrequency(ioEntity, rfObject, ioEntityData.Frequency);
+                }
 
                 var hasChanged = false;
 
@@ -11697,7 +11729,7 @@ namespace Oxide.Plugins
 
                     foreach (var adapter in entityController.Adapters)
                     {
-                        (adapter as EntityAdapter)?.UpdateIOConnections();
+                        (adapter as EntityAdapter)?.UpdateIOStateAndConnections();
                     }
                 }
 
@@ -12318,6 +12350,9 @@ namespace Oxide.Plugins
 
         private class IOEntityData
         {
+            [JsonProperty("Frequency")]
+            public int Frequency;
+
             [JsonProperty("Outputs")]
             public List<IOConnectionData> Outputs = new List<IOConnectionData>();
 
