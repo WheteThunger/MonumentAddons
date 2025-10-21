@@ -282,21 +282,12 @@ namespace Oxide.Plugins
 
         private object CanChangeGrade(BasePlayer player, BuildingBlock block, BuildingGrade.Enum grade)
         {
-            if (_componentTracker.IsAddonComponent(block) && !HasAdminPermission(player))
-                return False;
-
-            return null;
+            return ReturnFalseIfNoPermission(player, block);
         }
 
         private object CanUpdateSign(BasePlayer player, ISignage signage)
         {
-            if (_componentTracker.IsAddonComponent(signage as BaseEntity) && !HasAdminPermission(player))
-            {
-                ChatMessage(player, LangEntry.ErrorNoPermission);
-                return False;
-            }
-
-            return null;
+            return ReturnFalseIfNoPermission(player, signage as BaseEntity, notify: true);
         }
 
         private void OnSignUpdated(ISignage signage, BasePlayer player)
@@ -336,6 +327,16 @@ namespace Oxide.Plugins
                 return False;
 
             return null;
+        }
+
+        private object CanMannequinChangePose(Mannequin mannequin, BasePlayer player)
+        {
+            return ReturnFalseIfNoPermission(player, mannequin, notify: true);
+        }
+
+        private object CanMannequinSwap(Mannequin mannequin, BasePlayer player)
+        {
+            return ReturnFalseIfNoPermission(player, mannequin, notify: true);
         }
 
         // This hook is exposed by plugin: Entity Scale Manager (EntityScaleManager) v3.
@@ -4063,6 +4064,19 @@ namespace Oxide.Plugins
             return HasAdminPermission(player.UserIDString);
         }
 
+        private object ReturnFalseIfNoPermission(BasePlayer player, BaseEntity entity, bool notify = false)
+        {
+            if (!_componentTracker.IsAddonComponent(entity) || HasAdminPermission(player))
+                return null;
+
+            if (notify)
+            {
+                ChatMessage(player, LangEntry.ErrorNoPermission);
+            }
+
+            return False;
+        }
+
         private bool IsDynamicMonument(BaseEntity entity)
         {
             return _config.DynamicMonuments.IsConfiguredAsDynamicMonument(entity)
@@ -7104,6 +7118,14 @@ namespace Oxide.Plugins
                     hasChanged = true;
                 }
 
+                var mannequin = Entity as Mannequin;
+                if (mannequin != null
+                    && (EntityData.MannequinData == null || !EntityData.MannequinData.MatchesMannequin(mannequin)))
+                {
+                    EntityData.MannequinData = MannequinData.FromMannequin(mannequin);
+                    hasChanged = true;
+                }
+
                 if (hasChanged)
                 {
                     var singleEntityController = Controller as EntityController;
@@ -7123,6 +7145,7 @@ namespace Oxide.Plugins
                 UpdateBuildingGrade();
                 UpdateSkullName();
                 UpdateHuntingTrophy();
+                UpdateMannequin();
                 UpdatePuzzle();
                 UpdateCardReaderLevel();
                 UpdateIOConnections();
@@ -7176,6 +7199,19 @@ namespace Oxide.Plugins
 
                 // Setting flag here so vanilla functionality is preserved for trophies without head set
                 huntingTrophy.SetFlag(BaseEntity.Flags.Busy, true);
+            }
+
+            public void UpdateMannequin()
+            {
+                var mannequinData = EntityData.MannequinData;
+                if (mannequinData == null)
+                    return;
+
+                var mannequin = Entity as Mannequin;
+                if (mannequin == null)
+                    return;
+
+                mannequinData.ApplyToMannequin(mannequin);
             }
 
             public void UpdateIOConnections()
@@ -7548,6 +7584,12 @@ namespace Oxide.Plugins
                 if (huntingTrophy != null)
                 {
                     UpdateHuntingTrophy();
+                }
+
+                var mannequin = Entity as Mannequin;
+                if (mannequin != null)
+                {
+                    UpdateMannequin();
                 }
 
                 EnableFlags();
@@ -8401,6 +8443,23 @@ namespace Oxide.Plugins
             }
         }
 
+        private class MannequinListener : DynamicHookListener
+        {
+            public MannequinListener(MonumentAddons plugin) : base(plugin)
+            {
+                _dynamicHookNames = new[]
+                {
+                    nameof(CanMannequinChangePose),
+                    nameof(CanMannequinSwap),
+                };
+            }
+
+            public override bool InterestedInAdapter(BaseAdapter adapter)
+            {
+                return IsEntityAdapter<Mannequin>(adapter);
+            }
+        }
+
         private class AdapterListenerManager
         {
             private AdapterListenerBase[] _listeners;
@@ -8412,6 +8471,7 @@ namespace Oxide.Plugins
                     new SignEntityListener(plugin),
                     new BuildingBlockEntityListener(plugin),
                     new SprayDecalListener(plugin),
+                    new MannequinListener(plugin),
                 };
             }
 
@@ -12306,10 +12366,56 @@ namespace Oxide.Plugins
             }
         }
 
+        private class BasicItemData
+        {
+            public static BasicItemData FromItemId(int itemId)
+            {
+                return new BasicItemData(itemId);
+            }
+
+            [JsonProperty("ItemId")]
+            public readonly int ItemId;
+
+            protected BasicItemData(int itemId)
+            {
+                ItemId = itemId;
+            }
+
+            public virtual bool Matches(Item item)
+            {
+                if (item == null)
+                    return false;
+
+                return item.info.itemid == ItemId;
+            }
+        }
+
+        private class ClothingItemData : BasicItemData
+        {
+            public static ClothingItemData FromItem(Item item)
+            {
+                return new ClothingItemData(item.info.itemid, item.skin);
+            }
+
+            [JsonProperty("SkinId")]
+            public readonly ulong SkinId;
+
+            public ClothingItemData(int itemId, ulong skinId) : base(itemId)
+            {
+                SkinId = skinId;
+            }
+
+            public override bool Matches(Item item)
+            {
+                if (!base.Matches(item))
+                    return false;
+
+                return item.skin == SkinId;
+            }
+        }
+
         private class HeadData
         {
-            private FieldInfo CurrentTrophyDataField = typeof(HuntingTrophy).GetField("CurrentTrophyData", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-
             public static HeadData FromHeadEntity(HeadEntity headEntity)
             {
                 var trophyData = headEntity.CurrentTrophyData;
@@ -12324,20 +12430,10 @@ namespace Oxide.Plugins
 
                 if (trophyData.clothing?.Count > 0)
                 {
-                    headData.Clothing = trophyData.clothing.Select(itemId => new BasicItemData(itemId)).ToArray();
+                    headData.Clothing = trophyData.clothing.Select(BasicItemData.FromItemId).ToArray();
                 }
 
                 return headData;
-            }
-
-            public class BasicItemData
-            {
-                public readonly int ItemId;
-
-                public BasicItemData(int itemId)
-                {
-                    ItemId = itemId;
-                }
             }
 
             [JsonProperty("EntitySource")]
@@ -12357,15 +12453,9 @@ namespace Oxide.Plugins
 
             public void ApplyToHuntingTrophy(HuntingTrophy huntingTrophy)
             {
-                if (CurrentTrophyDataField == null)
-                    return;
+                huntingTrophy.CurrentTrophyData ??= Pool.Get<ProtoBuf.HeadData>();
 
-                if (CurrentTrophyDataField.GetValue(huntingTrophy) is not ProtoBuf.HeadData headData)
-                {
-                    headData = Pool.Get<ProtoBuf.HeadData>();
-                    CurrentTrophyDataField.SetValue(huntingTrophy, headData);
-                }
-
+                var headData = huntingTrophy.CurrentTrophyData;
                 headData.entitySource = EntitySource;
                 headData.horseBreed = HorseBreed;
                 headData.playerId = PlayerId;
@@ -12384,6 +12474,82 @@ namespace Oxide.Plugins
                 {
                     Pool.FreeUnmanaged(ref headData.clothing);
                 }
+            }
+        }
+
+        private class MannequinData
+        {
+            public static MannequinData FromMannequin(Mannequin mannequin)
+            {
+                var mannequinData = new MannequinData
+                {
+                    PoseIndex = mannequin.PoseIndex,
+                };
+
+                if (mannequin.inventory.itemList.Count > 0)
+                {
+                    mannequinData.Clothing = mannequin.inventory.itemList.Select(ClothingItemData.FromItem).ToArray();
+                }
+
+                return mannequinData;
+            }
+
+            [JsonProperty("PoseIndex", DefaultValueHandling = DefaultValueHandling.Ignore)]
+            public int PoseIndex;
+
+            [JsonProperty("Clothing", DefaultValueHandling = DefaultValueHandling.Ignore)]
+            public ClothingItemData[] Clothing;
+
+            public void ApplyToMannequin(Mannequin mannequin)
+            {
+                mannequin.PoseIndex = PoseIndex;
+
+                if (MatchesInventory(mannequin.inventory))
+                    return;
+
+                mannequin.inventory.Clear();
+
+                if (Clothing is not { Length: > 0 })
+                    return;
+
+                foreach (var itemData in Clothing)
+                {
+                    var itemDefinition = ItemManager.FindItemDefinition(itemData.ItemId);
+                    if (itemDefinition == null)
+                        continue;
+
+                    var item = ItemManager.Create(itemDefinition, 1, itemData.SkinId);
+                    if (item == null)
+                    {
+                        LogError($"Failed to create item {itemData.ItemId} for mannequin inventory {mannequin.transform.position.ToString("f1")}.");
+                        continue;
+                    }
+
+                    if (!item.MoveToContainer(mannequin.inventory))
+                    {
+                        item.Remove();
+                        LogError($"Failed to move item {item.info.shortname} to mannequin inventory {mannequin.transform.position.ToString("f1")}.");
+                    }
+                }
+            }
+
+            public bool MatchesMannequin(Mannequin mannequin)
+            {
+                return mannequin.PoseIndex == PoseIndex && MatchesInventory(mannequin.inventory);
+            }
+
+            private bool MatchesInventory(ItemContainer inventory)
+            {
+                if (inventory.itemList.Count != Clothing?.Length)
+                    return false;
+
+                for (var i = 0; i < Clothing.Length; i++)
+                {
+                    if (!Clothing[i].Matches(inventory.itemList[i]))
+                        return false;
+                }
+
+                return true;
             }
         }
 
@@ -12433,6 +12599,9 @@ namespace Oxide.Plugins
 
             [JsonProperty("HeadData", DefaultValueHandling = DefaultValueHandling.Ignore)]
             public HeadData HeadData;
+
+            [JsonProperty("MannequinData", DefaultValueHandling = DefaultValueHandling.Ignore)]
+            public MannequinData MannequinData;
 
             public Vector3 GetScale()
             {

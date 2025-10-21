@@ -138,6 +138,7 @@ The following commands only work on objects managed by this plugin. The effect o
   - For addons that do not have colliders, such as spawn points, the plugin will attempt to find a nearby addon within 2 meters of the surface you are looking at. If this does not work, you have to remove the addon from the profile data file manually.
 - `masave` -- Saves the current position and rotation of the entity you are aiming at. This is useful if you moved the entity with a plugin such as Edit Tool or Uber Tool. This is not necessary if you are repositioning entities with [Telekinesis](https://umod.org/plugins/telekinesis) since that will be automatically detected.
   - Also saves the building grade if looking at a foundation, wall, floor, etc.
+  - Also saves the mannequin loadout if looking at a clothing mannequin.
 - `maflag <flag>` -- (Advanced) Toggles a flag between enabled/disabled/unspecified on the entity you are aiming at. When running this command without specifying a flag, the current/enabled/disabled flags will be printed. Allowed flags as of this writing: `Placeholder`, `On`, `OnFire`, `Open`, `Locked`, `Debugging`, `Disabled`, `Reserved1`, `Reserved2`, `Reserved3`, `Reserved4`, `Reserved5`, `Broken`, `Busy`, `Reserved6`, `Reserved7`, `Reserved8`, `Reserved9`, `Reserved10`, `Reserved11`, `InUse`, `Reserved12`, `Reserved13`, `Unused23`, `Protected`, `Transferring`.
   - This plugin forces certain flags in some cases, meaning that enabling or disabling flags via this command may not always work as expected. If you discover an issue with the flags the plugin is overriding, open a support thread to discuss the use case.
   - Even if you enable or disable a flag for a given entity, the game (or another plugin) may toggle the flag at any time (e.g., a recycler will toggle the `On` flag whenever it turns on/off). Overriding a flag with this plugin only ensures that the flag is enabled or disabled when the entity is spawned and when the profile or plugin reloads.
@@ -461,6 +462,17 @@ Note: In order for a CH47 to drop a crate at this location, it must be within a 
 - `door.hinged.security.green`, `door.hinged.security.blue`, `door.hinged.security.red`, `door.hinged.underwater_labs.security`, `door.hinged.garage_security`
 
 Note: Kinetic IO elements such as `wheelswitch` and `sliding_blast_door` are not currently able to be controlled by electricity.
+
+### Mannequins
+
+Use the following steps to setup a clothing mannequin with persistent configuration.
+
+1. Spawn a mannequin with `maspawn mannequin_deployed`.
+2. Configure the mannequin like normal.
+3. Run the command `masave` while looking at the mannequin to save its state.
+4. To prevent players from tampering with the mannequin, run `maflag Busy` while aiming at it.
+
+When you want to edit the mannequin again, you will need to run `maflag Busy` again to unlock it and twice more to re-lock it.
 
 ## Tips
 
