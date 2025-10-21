@@ -7800,7 +7800,8 @@ namespace Oxide.Plugins
 
             private void DisableFlags()
             {
-                Entity.SetFlag(EntityData.DisabledFlags, false);
+                var deltaToSet = Entity.flags & EntityData.DisabledFlags;
+                Entity.SetFlag(deltaToSet, false);
             }
 
             private void EnableFlags()
