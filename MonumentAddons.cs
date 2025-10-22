@@ -852,6 +852,10 @@ namespace Oxide.Plugins
                 {
                     entityData.Puzzle = _config.AddonDefaults.Puzzles.ApplyTo(new PuzzleData());
                 }
+                else if (shortPrefabName == "mannequin_deployed")
+                {
+                    entityData.MannequinData = MannequinData.FromPlayer(basePlayer);
+                }
 
                 addonData = entityData;
             }
@@ -12517,6 +12521,14 @@ namespace Oxide.Plugins
 
         private class MannequinData
         {
+            public static MannequinData FromPlayer(BasePlayer player)
+            {
+                return new MannequinData
+                {
+                    Clothing = player.inventory.containerWear.itemList.Select(ClothingItemData.FromItem).ToArray(),
+                };
+            }
+
             public static MannequinData FromMannequin(Mannequin mannequin)
             {
                 var mannequinData = new MannequinData

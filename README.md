@@ -467,8 +467,8 @@ Note: Kinetic IO elements such as `wheelswitch` and `sliding_blast_door` are not
 
 Use the following steps to setup a clothing mannequin with persistent configuration.
 
-1. Spawn a mannequin with `maspawn mannequin_deployed`.
-2. Configure the mannequin like normal.
+1. Spawn a mannequin with `maspawn mannequin_deployed`. The mannequin will start with a copy of your currently equipped clothing.
+2. Configure the mannequin's pose and outfit through normal interaction.
 3. Run the command `masave` while looking at the mannequin to save its state.
 4. To prevent players from tampering with the mannequin, run `maflag Busy` while aiming at it.
 
