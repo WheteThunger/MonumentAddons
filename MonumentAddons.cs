@@ -4224,7 +4224,7 @@ namespace Oxide.Plugins
             return itemModDeployable.entityPrefab.resourcePath;
         }
 
-        // This is a best-effort attempt to flag as many possible entities as possible without false positives.
+        // This is a best-effort attempt to flag as many entities as possible without false positives.
         // Hopefully this will help users learn they are using the wrong command before they open a support thread.
         private bool ShouldRecommendSpawnPoints(string prefabName)
         {
@@ -4233,13 +4233,16 @@ namespace Oxide.Plugins
             if (entity is BaseNpc or BradleyAPC or PatrolHelicopter or SimpleShark)
                 return true;
 
+            if (entity is ItemPickup or CollectibleEntity)
+                return true;
+
             if (entity is LootContainer && !_deployablePrefabs.Contains(prefabName))
                 return true;
 
             if (entity is NPCPlayer and not NPCShopKeeper and not BanditGuard)
                 return true;
 
-            if (entity is BaseBoat or BaseHelicopter or RidableHorse or BaseSubmarine or BasicCar or GroundVehicle or HotAirBalloon or Sled or TrainCar)
+            if (entity is BaseBoat or BaseHelicopter or RidableHorse or BaseSubmarine or BasicCar or GroundVehicle or HotAirBalloon or Sled or TrainCar or Drone)
                 return true;
 
             return false;
@@ -14785,7 +14788,7 @@ namespace Oxide.Plugins
             public static readonly LangEntry2 ErrorSetSyntax = new("Error.Set.Syntax", "Syntax: <color=#fd4>{0} set {1} <value></color>");
             public static readonly LangEntry1 ErrorSetUnknownOption = new("Error.Set.UnknownOption", "Unrecognized option: <color=#fd4>{0}</color>");
 
-            public static readonly LangEntry0 WarningRecommendSpawnPoint = new("Warning.RecommandSpawnPoints", "<color=#fd4>Warning: It is not recommended to use /maspawn to place temporary entities such as NPCs, loot containers, and vehicles. Consider creating a spawn point for that entity instead.</color>");
+            public static readonly LangEntry0 WarningRecommendSpawnPoint = new("Warning.RecommendSpawnPoints", "<color=#fd4>Warning: It is not recommended to use /maspawn to place temporary entities such as NPCs, loot containers, item pickups, and vehicles. Consider creating a spawn point for that entity instead.</color>");
 
             public static readonly LangEntry0 SpawnErrorSyntax = new("Spawn.Error.Syntax", "Syntax: <color=#fd4>maspawn <entity></color>");
             public static readonly LangEntry0 SpawnErrorNoProfileSelected = new("Spawn.Error.NoProfileSelected", "Error: No profile selected. Run <color=#fd4>maprofile help</color> for help.");
