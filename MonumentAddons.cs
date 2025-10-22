@@ -982,6 +982,9 @@ namespace Oxide.Plugins
                 return;
             }
 
+            controller.StartUpdateRoutine();
+            _profileStore.Save(controller.Profile);
+
             ReplyToPlayer(player, LangEntry.SaveSuccess, controller.Adapters.Count, controller.Profile.Name);
             _adapterDisplayManager.ShowAllRepeatedly(basePlayer);
         }
@@ -7141,13 +7144,6 @@ namespace Oxide.Plugins
                     EntityData.IOEntityData ??= new IOEntityData();
                     EntityData.IOEntityData.Frequency = rfObject.GetFrequency();
                     hasChanged = true;
-                }
-
-                if (hasChanged)
-                {
-                    var singleEntityController = Controller as EntityController;
-                    singleEntityController.StartUpdateRoutine();
-                    Plugin._profileStore.Save(singleEntityController.Profile);
                 }
 
                 return hasChanged;
