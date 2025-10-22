@@ -487,6 +487,17 @@ Use the following steps to set up RF broadcasters and receivers with persistent 
 
 When you want to edit an entity again, you will need to run `maflag Busy` again to unlock it and twice more to re-lock it.
 
+### Keycards and blueprint fragements
+
+Keycards and blueprint fragments should be spawned via spawn groups to ensure they respawn properly. See the documentation for spawn groups for more information. Here's an example to get you started. 
+
+1. Aim on a flat surface inside a monument, such as on a table, and run `maspawngroup create RandomPickups`.
+2. Run `maspawngroup add basicblueprintfragment_singlepickup 10` to add single-blueprint fragments to the spawn group.
+3. Run `maspawngroup add basicblueprintfragment_pickup 10` to add multiple-blueprint fragments to the spawn group.
+4. Run `maspawngroup add keycard_green_pickup 10` (or `blue` or `red`) to add a keycard to the spawn group.
+5. If the spawn group is within a puzzle room, run `maspawngroup set RespawnWhenNearestPuzzleResets true` to associate it with the nearest puzzle, ensuring that the loot respawns when the puzzle resets.
+6. To prevent the spawn group from advancing the respawn timer until someone loots it, run `maspawngroup set PauseScheduleWhileFull true`.
+
 ## Tips
 
 - Bind `maspawn` and `makill` to keys while setting up entities to save time. Remember that running `maspawn` without specifying the entity name will spawn whichever deployable you are currently holding. Note: You may need to rotate the placement guide in some cases because the server cannot detect which way you have it rotated.
