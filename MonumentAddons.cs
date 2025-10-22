@@ -11110,6 +11110,7 @@ namespace Oxide.Plugins
 
                             var entityMessage = _plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelEntityDetail, displayName, prefabEntry.Weight, relativeChance);
                             if (spawnGroupAdapter.SpawnGroup.TryFindSpawnEntry(prefabEntry, out var spawnEntry)
+                                && spawnPointData.CheckSpace
                                 && !adapter.SpawnPoint.HasSpace(spawnEntry))
                             {
                                 entityMessage += $" | {_plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelEntityNoSpace)}";
