@@ -10964,6 +10964,12 @@ namespace Oxide.Plugins
                     }
                 }
 
+                var mannequin = adapter.Entity as Mannequin;
+                if (mannequin != null)
+                {
+                    _sb.AppendLine(_plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelMannequinPose, mannequin.PoseIndex));
+                }
+
                 var puzzleReset = (adapter.Entity as IOEntity)?.GetComponent<PuzzleReset>();
                 if (puzzleReset != null)
                 {
@@ -14920,6 +14926,7 @@ namespace Oxide.Plugins
             public static readonly LangEntry1 ShowLabelSkin = new("Show.Label.Skin", "Skin: {0}");
             public static readonly LangEntry1 ShowLabelScale = new("Show.Label.Scale", "Scale: {0}");
             public static readonly LangEntry1 ShowLabelRCIdentifier = new("Show.Label.RCIdentifier", "RC Identifier: {0}");
+            public static readonly LangEntry1 ShowLabelMannequinPose = new("Show.Label.MannequinPose", "Mannequin Pose Index: {0}");
 
             public static readonly LangEntry1 ShowHeaderEntity = new("Show.Header.Entity", "Entity: {0}");
             public static readonly LangEntry1 ShowHeaderPrefab = new("Show.Header.Prefab", "Prefab: {0}");
