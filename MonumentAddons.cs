@@ -6528,14 +6528,18 @@ namespace Oxide.Plugins
                 TransformData = transformData;
             }
 
-            public virtual bool TryRecordUpdates(Transform moveTransform = null, Transform rotateTransform = null)
+            public virtual bool TryRecordUpdates(Transform moveTransform = null, Transform rotateTransform = null, bool dryRun = false)
             {
                 if (IsAtIntendedPosition)
                     return false;
 
-                TransformData.Position = LocalPosition;
-                TransformData.RotationAngles = LocalRotation.eulerAngles;
-                TransformData.SnapToTerrain = IsOnTerrain(Position);
+                if (!dryRun)
+                {
+                    TransformData.Position = LocalPosition;
+                    TransformData.RotationAngles = LocalRotation.eulerAngles;
+                    TransformData.SnapToTerrain = IsOnTerrain(Position);
+                }
+
                 return true;
             }
         }
@@ -7121,28 +7125,39 @@ namespace Oxide.Plugins
                 }
             }
 
-            public override bool TryRecordUpdates(Transform moveTransform = null, Transform rotateTransform = null)
+            public override bool TryRecordUpdates(Transform moveTransform = null, Transform rotateTransform = null, bool dryRun = false)
             {
-                var hasChanged = base.TryRecordUpdates(moveTransform, rotateTransform);
+                var hasChanged = base.TryRecordUpdates(moveTransform, rotateTransform, dryRun);
 
                 if (Entity is BuildingBlock buildingBlock && buildingBlock.grade != IntendedBuildingGrade)
                 {
-                    EntityData.BuildingBlock ??= new BuildingBlockInfo();
-                    EntityData.BuildingBlock.Grade = buildingBlock.grade;
+                    if (!dryRun)
+                    {
+                        EntityData.BuildingBlock ??= new BuildingBlockInfo();
+                        EntityData.BuildingBlock.Grade = buildingBlock.grade;
+                    }
+
                     hasChanged = true;
                 }
 
-                if (Entity is Mannequin mannequin
-                    && (EntityData.MannequinData == null || !EntityData.MannequinData.MatchesMannequin(mannequin)))
+                if (Entity is Mannequin mannequin && (EntityData.MannequinData == null || !EntityData.MannequinData.MatchesMannequin(mannequin)))
                 {
-                    EntityData.MannequinData = MannequinData.FromMannequin(mannequin);
+                    if (!dryRun)
+                    {
+                        EntityData.MannequinData = MannequinData.FromMannequin(mannequin);
+                    }
+
                     hasChanged = true;
                 }
 
                 if (Entity is IRFObject rfObject && EntityData.IOEntityData?.Frequency != rfObject.GetFrequency())
                 {
-                    EntityData.IOEntityData ??= new IOEntityData();
-                    EntityData.IOEntityData.Frequency = rfObject.GetFrequency();
+                    if (!dryRun)
+                    {
+                        EntityData.IOEntityData ??= new IOEntityData();
+                        EntityData.IOEntityData.Frequency = rfObject.GetFrequency();
+                    }
+
                     hasChanged = true;
                 }
 
@@ -9333,19 +9348,23 @@ namespace Oxide.Plugins
                 }
             }
 
-            public override bool TryRecordUpdates(Transform moveTransform = null, Transform rotateTransform = null)
+            public override bool TryRecordUpdates(Transform moveTransform = null, Transform rotateTransform = null, bool dryRun = false)
             {
                 // Only check if at intended position if the moved/rotated transform is the spawn point itself.
                 if (moveTransform == _transform && rotateTransform == _transform && IsAtIntendedPosition)
                     return false;
 
-                moveTransform ??= _transform;
-                rotateTransform ??= _transform;
+                if (!dryRun)
+                {
+                    moveTransform ??= _transform;
+                    rotateTransform ??= _transform;
 
-                var moveEntityPosition = moveTransform.position;
-                SpawnPointData.Position = Monument.InverseTransformPoint(moveEntityPosition);
-                SpawnPointData.RotationAngles = (Quaternion.Inverse(Monument.Rotation) * rotateTransform.rotation).eulerAngles;
-                SpawnPointData.SnapToTerrain = IsOnTerrain(moveEntityPosition);
+                    var moveEntityPosition = moveTransform.position;
+                    SpawnPointData.Position = Monument.InverseTransformPoint(moveEntityPosition);
+                    SpawnPointData.RotationAngles = (Quaternion.Inverse(Monument.Rotation) * rotateTransform.rotation).eulerAngles;
+                    SpawnPointData.SnapToTerrain = IsOnTerrain(moveEntityPosition);
+                }
+
                 return true;
             }
         }
@@ -10975,6 +10994,11 @@ namespace Oxide.Plugins
                 {
                     _sb.AppendLine(Divider);
                     ShowPuzzleInfo(player, adapter, puzzleReset, playerPosition, playerInfo);
+                }
+
+                if (adapter.TryRecordUpdates(dryRun: true))
+                {
+                    _sb.AppendLine(_plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelUnsavedChanges));
                 }
 
                 drawer.Text(adapter.Position, _sb.ToString());
@@ -14927,6 +14951,7 @@ namespace Oxide.Plugins
             public static readonly LangEntry1 ShowLabelScale = new("Show.Label.Scale", "Scale: {0}");
             public static readonly LangEntry1 ShowLabelRCIdentifier = new("Show.Label.RCIdentifier", "RC Identifier: {0}");
             public static readonly LangEntry1 ShowLabelMannequinPose = new("Show.Label.MannequinPose", "Mannequin Pose Index: {0}");
+            public static readonly LangEntry0 ShowLabelUnsavedChanges = new("Show.Label.UnsavedChanges", "(!) UNSAVED CHANGES (!)");
 
             public static readonly LangEntry1 ShowHeaderEntity = new("Show.Header.Entity", "Entity: {0}");
             public static readonly LangEntry1 ShowHeaderPrefab = new("Show.Header.Prefab", "Prefab: {0}");
