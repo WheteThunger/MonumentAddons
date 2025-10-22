@@ -4879,6 +4879,11 @@ namespace Oxide.Plugins
                 return StartCoroutine(CallbackRoutine(coroutine, callback));
             }
 
+            public void StopCoroutine(Coroutine coroutine)
+            {
+                _coroutineComponent.StopCoroutine(coroutine);
+            }
+
             public void StopAll()
             {
                 if (_coroutineComponent == null)
@@ -6967,6 +6972,7 @@ namespace Oxide.Plugins
 
             private Transform _transform;
             private PuzzleResetHandler _puzzleResetHandler;
+            private Coroutine _mannequinPoseCoroutine;
 
             private BuildingGrade.Enum IntendedBuildingGrade
             {
@@ -7144,7 +7150,8 @@ namespace Oxide.Plugins
                 {
                     if (!dryRun)
                     {
-                        EntityData.MannequinData = MannequinData.FromMannequin(mannequin);
+                        EntityData.MannequinData ??= new MannequinData();
+                        EntityData.MannequinData.UpdateFromMannequin(mannequin);
                     }
 
                     hasChanged = true;
@@ -7229,6 +7236,18 @@ namespace Oxide.Plugins
                 huntingTrophy.SetFlag(BaseEntity.Flags.Busy, true);
             }
 
+            private IEnumerator MannequinPoseRoutine(Mannequin mannequin, PoseFrame[] poseFrames)
+            {
+                while (true)
+                {
+                    foreach (var frame in poseFrames)
+                    {
+                        mannequin.PoseIndex = frame.PoseIndex;
+                        yield return CoroutineEx.waitForSecondsRealtime(frame.Duration);
+                    }
+                }
+            }
+
             public void UpdateMannequin()
             {
                 var mannequinData = EntityData.MannequinData;
@@ -7240,6 +7259,17 @@ namespace Oxide.Plugins
                     return;
 
                 mannequinData.ApplyToMannequin(mannequin);
+
+                if (_mannequinPoseCoroutine != null)
+                {
+                    ProfileController.StopCoroutine(_mannequinPoseCoroutine);
+                    _mannequinPoseCoroutine = null;
+                }
+
+                if (mannequinData.HasPoseFrames)
+                {
+                    _mannequinPoseCoroutine = ProfileController.StartCoroutine(MannequinPoseRoutine(mannequin, mannequinData.PoseFrames));
+                }
             }
 
             private void UpdateFrequency(IOEntity ioEntity, IRFObject rfObject, int frequency)
@@ -10984,7 +11014,7 @@ namespace Oxide.Plugins
                 }
 
                 var mannequin = adapter.Entity as Mannequin;
-                if (mannequin != null)
+                if (mannequin != null && entityData.MannequinData?.HasPoseFrames != true)
                 {
                     _sb.AppendLine(_plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelMannequinPose, mannequin.PoseIndex));
                 }
@@ -11579,6 +11609,11 @@ namespace Oxide.Plugins
             public Coroutine StartCallbackRoutine(Coroutine coroutine, Action callback)
             {
                 return _coroutineManager.StartCallbackRoutine(coroutine, callback);
+            }
+
+            public void StopCoroutine(Coroutine coroutine)
+            {
+                _coroutineManager.StopCoroutine(coroutine);
             }
 
             public IEnumerable<T> GetControllers<T>() where T : BaseController
@@ -12551,6 +12586,18 @@ namespace Oxide.Plugins
             }
         }
 
+        private struct PoseFrame
+        {
+            public int PoseIndex;
+            public float Duration;
+
+            public PoseFrame(int poseIndex, float duration)
+            {
+                PoseIndex = poseIndex;
+                Duration = duration;
+            }
+        }
+
         private class MannequinData
         {
             public static MannequinData FromPlayer(BasePlayer player)
@@ -12561,30 +12608,37 @@ namespace Oxide.Plugins
                 };
             }
 
-            public static MannequinData FromMannequin(Mannequin mannequin)
-            {
-                var mannequinData = new MannequinData
-                {
-                    PoseIndex = mannequin.PoseIndex,
-                };
-
-                if (mannequin.inventory.itemList.Count > 0)
-                {
-                    mannequinData.Clothing = mannequin.inventory.itemList.Select(ClothingItemData.FromItem).ToArray();
-                }
-
-                return mannequinData;
-            }
-
             [JsonProperty("PoseIndex", DefaultValueHandling = DefaultValueHandling.Ignore)]
             public int PoseIndex;
 
             [JsonProperty("Clothing", DefaultValueHandling = DefaultValueHandling.Ignore)]
             public ClothingItemData[] Clothing;
 
+            [JsonProperty("PoseFrames", DefaultValueHandling = DefaultValueHandling.Ignore)]
+            public PoseFrame[] PoseFrames;
+
+            [JsonIgnore]
+            public bool HasPoseFrames => PoseFrames is { Length: > 0 };
+
+            public void UpdateFromMannequin(Mannequin mannequin)
+            {
+                if (!HasPoseFrames)
+                {
+                    PoseIndex = mannequin.PoseIndex;
+                }
+
+                if (mannequin.inventory.itemList.Count > 0)
+                {
+                    Clothing = mannequin.inventory.itemList.Select(ClothingItemData.FromItem).ToArray();
+                }
+            }
+
             public void ApplyToMannequin(Mannequin mannequin)
             {
-                mannequin.PoseIndex = PoseIndex;
+                if (!HasPoseFrames)
+                {
+                    mannequin.PoseIndex = PoseIndex;
+                }
 
                 if (MatchesInventory(mannequin.inventory))
                     return;
@@ -12610,14 +12664,17 @@ namespace Oxide.Plugins
                     if (!item.MoveToContainer(mannequin.inventory))
                     {
                         item.Remove();
-                        LogError($"Failed to move item {item.info.shortname} to mannequin inventory {mannequin.transform.position.ToString("f1")}.");
+                        LogError($"Failed to move item {itemData.ItemId} to mannequin inventory {mannequin.transform.position.ToString("f1")}.");
                     }
                 }
             }
 
             public bool MatchesMannequin(Mannequin mannequin)
             {
-                return mannequin.PoseIndex == PoseIndex && MatchesInventory(mannequin.inventory);
+                if (!HasPoseFrames && mannequin.PoseIndex != PoseIndex)
+                    return false;
+
+                return MatchesInventory(mannequin.inventory);
             }
 
             private bool MatchesInventory(ItemContainer inventory)
