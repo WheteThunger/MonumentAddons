@@ -341,9 +341,12 @@ namespace Oxide.Plugins
         // This hook is exposed by plugin: Entity Scale Manager (EntityScaleManager) v3.
         private void OnEntityScaled(BaseEntity entity, Vector3 scale)
         {
-            if (!_componentTracker.IsAddonComponent(entity, out EntityController controller)
+            if (!_componentTracker.IsAddonComponent(entity, out EntityAdapter adapter, out EntityController controller)
                 || controller.EntityData.GetScale() == scale)
                 return;
+
+            // Record any other pending updates.
+            adapter.TryRecordUpdates();
 
             controller.EntityData.SetScale(scale);
             controller.StartUpdateRoutine();
@@ -1231,6 +1234,9 @@ namespace Oxide.Plugins
                 false => null,
                 null => true
             };
+
+            // Record any other pending updates.
+            adapter.TryRecordUpdates();
 
             adapter.EntityData.SetFlag(flag, hasFlag);
             _profileStore.Save(controller.Profile);
