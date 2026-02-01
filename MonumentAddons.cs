@@ -47,7 +47,7 @@ using Vector3 = UnityEngine.Vector3;
 
 namespace Oxide.Plugins
 {
-    [Info("Monument Addons", "WhiteThunder", "0.20.0")]
+    [Info("Monument Addons", "WhiteThunder", "0.20.1")]
     [Description("Allows adding entities, spawn points and more to monuments.")]
     internal class MonumentAddons : CovalencePlugin
     {
@@ -10911,7 +10911,7 @@ namespace Oxide.Plugins
                 if (puzzleReset.playersBlockReset)
                 {
                     _sb.AppendLine(_plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelPlayerDetectionRadius, puzzleReset.playerDetectionRadius));
-                    if (PuzzleReset.AnyPlayersWithinDistance(puzzleReset.playerDetectionOrigin, puzzleReset.playerDetectionRadius))
+                    if (PuzzleReset.AnyPlayersWithinDistance(puzzleReset.playerDetectionOrigin, puzzleReset.playerDetectionRadius, 0))
                     {
                         _sb.AppendLine(_plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelPlayerDetectedInRadius));
                     }
