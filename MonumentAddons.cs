@@ -10905,7 +10905,7 @@ namespace Oxide.Plugins
 
             private void ShowPuzzleInfo(BasePlayer player, EntityAdapter entityAdapter, PuzzleReset puzzleReset, Vector3 playerPosition, PlayerInfo playerInfo)
             {
-                _sb.AppendLine($"<size=25>{_plugin.GetMessage(player.UserIDString, LangEntry.ShowHeaderPuzzle)}</size>");
+                _sb.AppendLine($"<size={HeaderSize}>{_plugin.GetMessage(player.UserIDString, LangEntry.ShowHeaderPuzzle)}</size>");
                 _sb.AppendLine(_plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelPuzzlePlayersBlockReset, puzzleReset.playersBlockReset));
 
                 if (puzzleReset.playersBlockReset)
@@ -11110,7 +11110,7 @@ namespace Oxide.Plugins
                 if (showGroupInfo)
                 {
                     _sb.AppendLine(Divider);
-                    _sb.AppendLine($"<size=25>{_plugin.GetMessage(player.UserIDString, LangEntry.ShowHeaderSpawnGroup, spawnGroupData.Name)}</size>");
+                    _sb.AppendLine($"<size={HeaderSize}>{_plugin.GetMessage(player.UserIDString, LangEntry.ShowHeaderSpawnGroup, spawnGroupData.Name)}</size>");
 
                     _sb.AppendLine(_plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelSpawnPoints, spawnGroupData.SpawnPoints.Count));
 
@@ -11321,7 +11321,7 @@ namespace Oxide.Plugins
 
             private static void DrawAbbreviation(ref Ddraw drawer, TransformAdapter adapter)
             {
-                drawer.Text(adapter.Position, "<size=25>*</size>");
+                drawer.Text(adapter.Position, $"<size={HeaderSize}>*</size>");
             }
 
             private void DisplayMonument(BasePlayer player, PlayerInfo playerInfo, CustomMonument monument)
