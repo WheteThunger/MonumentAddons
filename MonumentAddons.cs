@@ -6535,7 +6535,9 @@ namespace Oxide.Plugins
 
             public virtual bool TryRecordUpdates(Transform moveTransform = null, Transform rotateTransform = null, bool dryRun = false)
             {
-                if (IsAtIntendedPosition)
+                // HACK: For dry-run case, we don't want to display a rotated NPC as having "unsaved changes".
+                if (Position == IntendedPosition
+                    && (Rotation == IntendedRotation || (dryRun && Component is BasePlayer)))
                     return false;
 
                 if (!dryRun)
