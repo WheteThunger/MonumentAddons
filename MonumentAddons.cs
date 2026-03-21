@@ -14505,7 +14505,14 @@ namespace Oxide.Plugins
         private class DynamicMonumentSettings
         {
             [JsonProperty("Entity prefabs to consider as monuments")]
-            public string[] DynamicMonumentPrefabs = { CargoShipPrefab };
+            public string[] DynamicMonumentPrefabs =
+            {
+                CargoShipPrefab,
+                "assets/bundled/prefabs/deepsea/deepsea_floatingcity1.prefab",
+                "assets/bundled/prefabs/deepsea/deepsea_floatingcity2.prefab",
+                "assets/bundled/prefabs/deepsea/deepsea_floatingcity3.prefab",
+                "assets/bundled/prefabs/deepsea/deepsea_floatingcity4.prefab",
+            };
 
             [JsonIgnore]
             private uint[] _dynamicMonumentPrefabIds;

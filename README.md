@@ -250,7 +250,11 @@ Profiles allow you to organize entities into groups. Each profile can be indepen
   },
   "Dynamic monuments": {
     "Entity prefabs to consider as monuments": [
-      "assets/content/vehicles/boats/cargoship/cargoshiptest.prefab"
+      "assets/content/vehicles/boats/cargoship/cargoshiptest.prefab",
+      "assets/bundled/prefabs/deepsea/deepsea_floatingcity1.prefab",
+      "assets/bundled/prefabs/deepsea/deepsea_floatingcity2.prefab",
+      "assets/bundled/prefabs/deepsea/deepsea_floatingcity3.prefab",
+      "assets/bundled/prefabs/deepsea/deepsea_floatingcity4.prefab"
     ]
   },
   "Addon defaults": {
