@@ -11489,9 +11489,9 @@ namespace Oxide.Plugins
                     return transformAdapter.Position;
                 }
 
-                if (adapter is SpawnGroupAdapter spawnGroupAdapter)
+                if (adapter is SpawnGroupAdapter spawnGroupAdapter
+                    && FindClosestSpawnPointAdapterToRay(spawnGroupAdapter, ray) is {} spawnPointAdapter)
                 {
-                    var spawnPointAdapter = FindClosestSpawnPointAdapterToRay(spawnGroupAdapter, ray);
                     closestAdapter = spawnPointAdapter;
                     return spawnPointAdapter.Position;
                 }
