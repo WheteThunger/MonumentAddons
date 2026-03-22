@@ -4482,6 +4482,32 @@ namespace Oxide.Plugins
 
         private static class EntityUtils
         {
+            public static T SpawnEntity<T>(string prefabPath, Vector3 position, Quaternion rotation) where T : BaseEntity
+            {
+                var entity = CreateEntity<T>(prefabPath, position, rotation);
+                entity?.Spawn();
+                return entity;
+            }
+
+            public static T CreateEntity<T>(string prefabPath, Vector3 position, Quaternion rotation) where T : BaseEntity
+            {
+                var entity = GameManager.server.CreateEntity(prefabPath, position, rotation);
+                if (entity == null)
+                    return null;
+
+                if (entity is T entityOfType)
+                    return entityOfType;
+
+                LogWarning($"Entity '{prefabPath}' is not of expected type '{typeof(T).Name}'. Destroying it to prevent issues.");
+                UnityEngine.Object.Destroy(entity.gameObject);
+                return null;
+            }
+
+            public static BaseEntity CreateEntity(string prefabPath, Vector3 position, Quaternion rotation)
+            {
+                return CreateEntity<BaseEntity>(prefabPath, position, rotation);
+            }
+
             public static T GetNearbyEntity<T>(BaseEntity originEntity, float maxDistance, int layerMask = -1, string filterShortPrefabName = null) where T : BaseEntity
             {
                 var entityList = new List<T>();
@@ -7700,7 +7726,7 @@ namespace Oxide.Plugins
 
                 // Don't unregister the entity if it's not tracked in the profile state.
                 // Entity should be killed along with the adapter.
-                if (!_profileStateData.HasEntity(Profile.Name, Monument, Data.Id, Entity.net.ID))
+                if (!_profileStateData.HasEntity(Profile.Name, Monument, Data.Id, Entity.net.ID.Value))
                     return;
 
                 // Unregister the adapter to prevent the entity from being killed when the adapter is killed.
@@ -7710,7 +7736,7 @@ namespace Oxide.Plugins
 
             protected BaseEntity CreateEntity(Vector3 position, Quaternion rotation)
             {
-                var entity = GameManager.server.CreateEntity(EntityData.PrefabName, position, rotation);
+                var entity = EntityUtils.CreateEntity(EntityData.PrefabName, position, rotation);
                 if (entity == null)
                     return null;
 
@@ -7736,7 +7762,7 @@ namespace Oxide.Plugins
                 return entity;
             }
 
-            private bool ShouldEnableSaving(BaseEntity entity)
+            protected bool ShouldEnableSaving(BaseEntity entity)
             {
                 return _config.EntitySaveSettings.ShouldEnableSaving(entity);
             }
@@ -8396,6 +8422,141 @@ namespace Oxide.Plugins
             public override BaseAdapter CreateAdapter(BaseMonument monument)
             {
                 return new CCTVEntityAdapter(this, EntityData, monument, _nextId++);
+            }
+        }
+
+        #endregion
+
+        #region Entity Adapter/Controller - NPCShopKeeper
+
+        // Specific shopkeeper prefabs need an associated vending machine.
+        // Otherwise, they have no function or some dialogue choices are broken.
+        // CustomVendingSetup data is saved under the vendor addon definition.
+        private class NPCShopKeeperAdapter : EntityAdapter
+        {
+            private const string ShopkeeperVMInvisPrefab = "assets/prefabs/deployable/vendingmachine/npcvendingmachines/shopkeeper_vm_invis.prefab";
+            private const string ShopkeeperVMInvisWaterwellPrefab = "assets/prefabs/deployable/vendingmachine/npcvendingmachines/shopkeeper_vm_invis_waterwell.prefab";
+
+            public InvisibleVendingMachine VendingMachine { get; private set; }
+
+            public NPCShopKeeperAdapter(BaseController controller, EntityData entityData, BaseMonument monument)
+                : base(controller, entityData, monument) {}
+
+            protected override void PostEntitySpawn()
+            {
+                base.PostEntitySpawn();
+
+                if (Entity is not NPCShopKeeper shopKeeper)
+                    return;
+
+                var vendingMachine = shopKeeper.GetVendingMachine();
+                if (vendingMachine != null)
+                {
+                    // If the vending machine is a standalone addon, don't track it as part of the shopkeeper adapter.
+                    // It was probably placed before the plugin supported automatically spawning shopkeeper vending machines.
+                    // We want to keep any CustomVendingSetup customizations associated with the vending machine addon.
+                    if (Plugin._componentTracker.IsAddonComponent(vendingMachine, out EntityAdapter adapter, out EntityController _) && adapter.Entity == vendingMachine)
+                    {
+                        if (_config.Debug)
+                        {
+                            LogWarning("Found vending machine that is alrady tracked as a standalone addon, allowing partial vendor association.");
+                        }
+
+                        return;
+                    }
+
+                    // If the vending machine has saving enabled, assume it was spawned by a previous instance of this
+                    // plugin, allowing association with the vendor. This is otherwise tricky to figure out because
+                    // secondary vending machines aren't tracked in ProfileState data.
+                    if (vendingMachine.enableSaving)
+                    {
+                        if (_config.Debug)
+                        {
+                            LogWarning("Found vending machine with saving enabled, allowing full vendor association.");
+                        }
+
+                        TrackAndRefreshVendingMachine(vendingMachine);
+                        return;
+                    }
+
+                    // If the vending machine has saving disabled, assume it was spawned by a previous instance of this
+                    // plugin that is in the process of being unloaded.
+                    if (_config.Debug)
+                    {
+                        LogWarning("Found vending machine with saving disabled, ignoring it and spawning a new one.");
+                    }
+                }
+
+                // No vending machine found, so spawn a new one.
+                vendingMachine = SpawnVendingMachine(shopKeeper);
+                if (vendingMachine == null)
+                {
+                    LogError($"Failed to spawn invisible vending machine for shopkeeper [{Entity.ShortPrefabName}] at {IntendedPosition}");
+                }
+            }
+
+            protected override void PreEntityKill()
+            {
+                base.PreEntityKill();
+
+                // When the vendor is killed, only kill the vending machine if it doesn't have saving enabled.
+                // This is important because saving of shopkeepers and vendors can be configured separately.
+                if (VendingMachine != null && !VendingMachine.IsDestroyed && !VendingMachine.enableSaving)
+                {
+                    VendingMachine.Kill();
+                }
+            }
+
+            private InvisibleVendingMachine SpawnVendingMachine(NPCShopKeeper shopKeeper)
+            {
+                var vendingMachinePrefab = Entity.ShortPrefabName switch
+                {
+                    "waterwell_shopkeeper" => ShopkeeperVMInvisWaterwellPrefab,
+                    _ => ShopkeeperVMInvisPrefab
+                };
+
+                var vendingMachine = EntityUtils.SpawnEntity<InvisibleVendingMachine>(vendingMachinePrefab, IntendedPosition, IntendedRotation);
+                if (vendingMachine == null)
+                    return null;
+
+                EnableSavingRecursive(vendingMachine, enableSaving: ShouldEnableSaving(vendingMachine));
+
+                if (Monument is IEntityMonument entityMonument)
+                {
+                    vendingMachine.SetParent(entityMonument.RootEntity, worldPositionStays: true);
+                }
+
+                // Must associate the vending machine with the vendor before refreshing the vending profile, so that the
+                // resolved data provider will correspond to the vendor's data.
+                AssociateVendingMachine(shopKeeper, vendingMachine);
+                TrackAndRefreshVendingMachine(vendingMachine);
+
+                return vendingMachine;
+            }
+
+            private void AssociateVendingMachine(NPCShopKeeper shopKeeper, InvisibleVendingMachine vendingMachine)
+            {
+                shopKeeper.machine = vendingMachine;
+                shopKeeper.invisibleVendingMachineRef.Set(vendingMachine);
+                vendingMachine.SetAttachedNPC(shopKeeper);
+            }
+
+            private void TrackAndRefreshVendingMachine(InvisibleVendingMachine vendingMachine)
+            {
+                VendingMachine = vendingMachine;
+                AddonComponent.AddToComponent(Plugin._componentTracker, vendingMachine, this);
+                Plugin.RefreshVendingProfile(vendingMachine);
+            }
+        }
+
+        private class NPCShopKeeperController : EntityController
+        {
+            public NPCShopKeeperController(ProfileController profileController, EntityData data)
+                : base(profileController, data) {}
+
+            public override BaseAdapter CreateAdapter(BaseMonument monument)
+            {
+                return new NPCShopKeeperAdapter(this, EntityData, monument);
             }
         }
 
@@ -10547,6 +10708,13 @@ namespace Oxide.Plugins
 
         private class EntityControllerFactory
         {
+            protected readonly MonumentAddons _plugin;
+
+            public EntityControllerFactory(MonumentAddons plugin)
+            {
+                _plugin = plugin;
+            }
+
             public virtual bool AppliesToEntity(BaseEntity entity)
             {
                 return true;
@@ -10560,6 +10728,8 @@ namespace Oxide.Plugins
 
         private class SignControllerFactory : EntityControllerFactory
         {
+            public SignControllerFactory(MonumentAddons plugin) : base(plugin) {}
+
             public override bool AppliesToEntity(BaseEntity entity)
             {
                 return entity is ISignage;
@@ -10573,6 +10743,8 @@ namespace Oxide.Plugins
 
         private class CCTVControllerFactory : EntityControllerFactory
         {
+            public CCTVControllerFactory(MonumentAddons plugin) : base(plugin) {}
+
             public override bool AppliesToEntity(BaseEntity entity)
             {
                 return entity is CCTV_RC;
@@ -10584,22 +10756,39 @@ namespace Oxide.Plugins
             }
         }
 
+        private class NPCShopKeeperControllerFactory : EntityControllerFactory
+        {
+            public NPCShopKeeperControllerFactory(MonumentAddons plugin) : base(plugin) {}
+
+            public override bool AppliesToEntity(BaseEntity entity)
+            {
+                return entity is NPCShopKeeper
+                    && _plugin._config.NPCShopkeeperPrefabsThatNeedVendingMachines?.Contains(entity.PrefabName) == true;
+            }
+
+            public override EntityController CreateController(ProfileController controller, EntityData entityData)
+            {
+                return new NPCShopKeeperController(controller, entityData);
+            }
+        }
+
         private class ControllerFactory
         {
             private MonumentAddons _plugin;
+            private EntityControllerFactory[] _entityFactories;
 
             public ControllerFactory(MonumentAddons plugin)
             {
                 _plugin = plugin;
+                _entityFactories = new[]
+                {
+                    // The first that matches will be used.
+                    new NPCShopKeeperControllerFactory(_plugin),
+                    new CCTVControllerFactory(_plugin),
+                    new SignControllerFactory(_plugin),
+                    new EntityControllerFactory(_plugin),
+                };
             }
-
-            private EntityControllerFactory[] _entityFactories =
-            {
-                // The first that matches will be used.
-                new CCTVControllerFactory(),
-                new SignControllerFactory(),
-                new EntityControllerFactory(),
-            };
 
             public BaseController CreateController(ProfileController profileController, BaseData data)
             {
@@ -13862,9 +14051,9 @@ namespace Oxide.Plugins
                 return Entities.Count > 0;
             }
 
-            public bool HasEntity(Guid guid, NetworkableId entityId)
+            public bool HasEntity(Guid guid, ulong entityId)
             {
-                return Entities.GetValueOrDefault(guid) == entityId.Value;
+                return Entities.GetValueOrDefault(guid) == entityId;
             }
 
             public BaseEntity FindEntity(Guid guid)
@@ -14125,7 +14314,7 @@ namespace Oxide.Plugins
                 return ProfileStateMap.GetValueOrDefault(profileName);
             }
 
-            public bool HasEntity(string profileName, BaseMonument monument, Guid guid, NetworkableId entityId)
+            public bool HasEntity(string profileName, BaseMonument monument, Guid guid, ulong entityId)
             {
                 return GetProfileState(profileName)
                     ?.GetValueOrDefault(monument.UniqueName)
@@ -14685,6 +14874,15 @@ namespace Oxide.Plugins
                     EntitySaveSettings.EnabledForNonStorageEntities = value;
                 }
             }
+
+            [JsonProperty("Automatically spawn a vending machine for these NPC shopkeeper prefabs")]
+            public string[] NPCShopkeeperPrefabsThatNeedVendingMachines =
+            {
+                "assets/prefabs/npc/bandit/shopkeepers/bandit_shopkeeper.prefab",
+                "assets/prefabs/npc/bandit/shopkeepers/boat_shopkeeper.prefab",
+                "assets/prefabs/npc/bandit/shopkeepers/stables_shopkeeper.prefab",
+                "assets/prefabs/npc/waterwell/waterwell_shopkeeper.prefab",
+            };
 
             [JsonProperty("Dynamic monuments")]
             public DynamicMonumentSettings DynamicMonuments = new();

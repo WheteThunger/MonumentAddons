@@ -248,6 +248,12 @@ Profiles allow you to organize entities into groups. Each profile can be indepen
     "Enable saving for non-storage entities": false,
     "Override saving enabled by prefab": {}
   },
+  "Automatically spawn a vending machine for these NPC shopkeeper prefabs": [
+    "assets/prefabs/npc/bandit/shopkeepers/bandit_shopkeeper.prefab",
+    "assets/prefabs/npc/bandit/shopkeepers/boat_shopkeeper.prefab",
+    "assets/prefabs/npc/bandit/shopkeepers/stables_shopkeeper.prefab",
+    "assets/prefabs/npc/waterwell/waterwell_shopkeeper.prefab"
+  ],
   "Dynamic monuments": {
     "Entity prefabs to consider as monuments": [
       "assets/content/vehicles/boats/cargoship/cargoshiptest.prefab",
@@ -339,6 +345,7 @@ Profiles allow you to organize entities into groups. Each profile can be indepen
       "assets/prefabs/deployable/vendingmachine/npcvendingmachines/shopkeeper_vm_invis": true
     }
     ```
+- `Automatically spawn a vending machine for these NPC shopkeeper prefabs"` -- Determines which NPC shopkeepers will have an invisible vending machine automatically spawned for them. Without this, the shopkeeper may either be non-functional or may have broken dialogue choices, depending on the shopkeeper prefab. Some servers may opt to disable the feature (by removing select prefabs from this list) for the Boat or Stables shopkeepers, since those NPCs still offer some utility without a vending machine.
 - `Dynamic monuments`
   - `Entity prefabs to consider as monuments` -- Determines which entities are considered dynamic monuments. When an entity is considered a dynamic monument, you can define addons for it via `maspawn` and similar commands, and the plugin will ensure every instance of that entity has those addons attached. For example, Cargo Ship has been considered a dynamic monument since an early version of this plugin, but now you can define additional ones such as desert military base modules and road-side junk piles.
     - Note: Updating this configuration is only necessary if you want to use `maspawn` and similar commands to recognize the entity as a monument. If you want to install an external profile that defines addons for a dynamic monument (such as the CargoShipCCTV profile), it isn't necessary to update this configuration because the plugin will automatically determine that the entity is a dynamic monument by reading the profile. Additionally, if you install an external profile which defines addons for a given dynamic monument, `maspawn` and similar commands will automatically recognize that entity as a dynamic monument. 
