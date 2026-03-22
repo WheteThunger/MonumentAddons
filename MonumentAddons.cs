@@ -4387,7 +4387,7 @@ namespace Oxide.Plugins
 
             public static void Text(BasePlayer player, float duration, Color color, Vector3 origin, string text)
             {
-                player.SendConsoleCommand("ddraw.text", duration, color, origin, text);
+                player.SendConsoleCommand("ddraw.text", duration, color, origin, $"<size=15>{text}</size>");
             }
 
             public static void Box(BasePlayer player, float duration, Color color, Vector3 center, Quaternion rotation, Vector3 extents, float sphereRadius = 0.5f)
