@@ -127,7 +127,7 @@ Follow these steps to create example spawn points.
   - Saves the entity info to the plugin data file so that reloading the plugin (or restarting the server) will respawn the entity.
 - `maprefab <prefab>` -- Creates an instance of a non-entity prefab. Note: This is **very** limited. Only prefabs with the `assets/bundled/prefabs/modding` path are supported, and the prefab instances are not networked to clients (because the game does not offer that capability) so they will be invisible, despite having real effects on the server side. This command is intended primarily for placing CH47 drop zones (`maprefab dropzone`), but it can also be used to place loot and NPC spawners that custom maps tend to use, although you will have much greater control of spawners when using the spawn point capabilities of the plugin instead.
 - `mapaste <file> <optional_args>` -- Pastes a building from the CopyPaste plugin, using the specified file name. Supports all arguments provided by the CopyPaste plugin such as `height`.
-- `maundo` -- Undo a recent `makill` action.
+- `maundo` -- Undo the most recent `makill`, `maspawnpoint delete`, or `maspawngroup delete` command.
 - `mashow <optional_profile_name> <optional_duration_in_seconds>` -- Shows debug information about nearby entities spawned by this plugin, for the specified duration. Defaults to 60 seconds.
   - Debug information is also automatically displayed for at least 60 seconds when using other commands.
   - When specifying a profile name, entities belonging to other profiles will have gray text.
@@ -191,6 +191,7 @@ The following commands only work on objects managed by this plugin. The effect o
 - `maspawngroup remove <entity>` -- Removes the specified entity prefab from the spawn group you are looking at.
 - `maspawngroup spawn` -- Runs one spawn tick for the spawn group. For example, if you have set `SpawnPerTickMin` to 1 and `SpawnPerTickMax` to 2, running this command will spawn 1-2 entities, as long as there are available spawn points and sufficient population headroom.
 - `maspawngroup respawn` -- Despawns all entities across the spawn group and runs one spawn tick.
+- `maspawngroup delete` (or `maspawngroup kill`) -- Deletes the entire spawn group you are aiming at, including all of its spawn points. This removes the spawn group from the profile and despawns all entities. You can use `maundo` to restore it.
 
 Note: `masg` can be used in place of `maspawngroup`.
 
@@ -204,6 +205,7 @@ Note: `masg` can be used in place of `maspawngroup`.
   - `RandomRotation` : true/false -- While `true`, entities will spawn with random rotation at this spawn point, instead of following the rotation of the spawn point itself.
   - `RandomRadius`: number -- This number determines how far away entities can spawn from this spawn point. The default is `0.0`.
   - `PlayerDetectionRadius`: number -- This number determines how far away players must be, in order for this spawn point to spawn an entity. By default, vanilla behavior checks within `2` meters for normal spawn points, or `RandomRadius` + `1` meter for radial spawn points. Setting this value to greater than `0` will override the vanilla behavior, allowing you to enlarge or shrink the detection radius. While a player is detected within the radius, the spawn point is considered unavailable, so another spawn point within the same spawn group may be selected for spawning an entity.
+- `maspawnpoint delete` (or `maspawnpoint kill`) -- Deletes the spawn point you are aiming at. This removes the spawn point from its spawn group. You can use `maundo` to restore it.
 
 Note: `masp` can be used in place of `maspawnpoint`.
 

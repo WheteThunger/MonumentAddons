@@ -2332,6 +2332,37 @@ namespace Oxide.Plugins
                     break;
                 }
 
+                case "kill":
+                case "delete":
+                {
+                    if (!VerifyLookingAtAdapter(player, out SpawnGroupController spawnGroupController, LangEntry.ErrorNoSpawnPointFound))
+                        return;
+
+                    var spawnGroupData = spawnGroupController.SpawnGroupData;
+                    var spawnGroupName = spawnGroupData.Name;
+
+                    // Capture adapter count before killing the controller.
+                    var numAdapters = spawnGroupController.Adapters.Count;
+
+                    spawnGroupController.Profile.RemoveData(spawnGroupData, out var monumentIdentifier);
+                    _dynamicMonumentHooks.Refresh();
+                    var profile = spawnGroupController.Profile;
+                    _profileStore.Save(profile);
+
+                    var profileController = spawnGroupController.ProfileController;
+                    var killRoutine = spawnGroupController.Kill();
+                    if (killRoutine != null)
+                    {
+                        profileController.StartCallbackRoutine(killRoutine, profileController.SetupIO);
+                    }
+
+                    _undoManager.AddUndo(basePlayer, new UndoKill(this, profileController, monumentIdentifier, spawnGroupData));
+
+                    ReplyToPlayer(player, LangEntry.SpawnGroupDeleteSuccess, spawnGroupName, numAdapters, profile.Name);
+                    _adapterDisplayManager.ShowAllRepeatedly(basePlayer);
+                    break;
+                }
+
                 default:
                 {
                     SubCommandSpawnGroupHelp(player, cmd);
@@ -2350,6 +2381,7 @@ namespace Oxide.Plugins
             _sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnGroupHelpRemove, cmd));
             _sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnGroupHelpSpawn, cmd));
             _sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnGroupHelpRespawn, cmd));
+            _sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnGroupHelpDelete, cmd));
             player.Reply(_sb.ToString());
         }
 
@@ -2513,6 +2545,34 @@ namespace Oxide.Plugins
                     break;
                 }
 
+                case "kill":
+                case "delete":
+                {
+                    if (!VerifyLookingAtAdapter(player, out SpawnPointAdapter spawnPointAdapter, out SpawnGroupController spawnGroupController, LangEntry.ErrorNoSpawnPointFound))
+                        return;
+
+                    var spawnPointData = spawnPointAdapter.SpawnPointData;
+                    var spawnGroupData = spawnGroupController.SpawnGroupData;
+
+                    spawnGroupController.Profile.RemoveData(spawnPointData, out var monumentIdentifier);
+                    _dynamicMonumentHooks.Refresh();
+                    var profile = spawnGroupController.Profile;
+                    _profileStore.Save(profile);
+
+                    var profileController = spawnGroupController.ProfileController;
+                    var killRoutine = spawnGroupController.Kill(spawnPointData);
+                    if (killRoutine != null)
+                    {
+                        profileController.StartCallbackRoutine(killRoutine, profileController.SetupIO);
+                    }
+
+                    _undoManager.AddUndo(basePlayer, new UndoKillSpawnPoint(this, profileController, monumentIdentifier, spawnGroupData, spawnPointData));
+
+                    ReplyToPlayer(player, LangEntry.SpawnPointDeleteSuccess, spawnGroupData.Name);
+                    _adapterDisplayManager.ShowAllRepeatedly(basePlayer);
+                    break;
+                }
+
                 default:
                 {
                     SubCommandSpawnPointHelp(player, cmd);
@@ -2527,6 +2587,7 @@ namespace Oxide.Plugins
             _sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnPointHelpHeader));
             _sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnPointHelpCreate, cmd));
             _sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnPointHelpSet, cmd));
+            _sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnPointHelpDelete, cmd));
             player.Reply(_sb.ToString());
         }
 
@@ -15144,11 +15205,13 @@ namespace Oxide.Plugins
             public static readonly LangEntry2 SpawnGroupRemoveMultipleMatches = new("SpawnGroup.Remove.MultipleMatches", "Multiple entities in spawn group <color=#fd4>{0}</color> found matching: <color=#fd4>{1}</color>. Please be more specific.");
             public static readonly LangEntry2 SpawnGroupRemoveNoMatch = new("SpawnGroup.Remove.NoMatch", "No entity found in spawn group <color=#fd4>{0}</color> matching <color=#fd4>{1}</color>");
             public static readonly LangEntry2 SpawnGroupRemoveSuccess = new("SpawnGroup.Remove.Success", "Successfully removed entity <color=#fd4>{0}</color> from spawn group <color=#fd4>{1}</color>.");
+            public static readonly LangEntry3 SpawnGroupDeleteSuccess = new("SpawnGroup.Delete.Success", "Deleted spawn group <color=#fd4>{0}</color> at <color=#fd4>{1}</color> matching monument(s) and removed from profile <color=#fd4>{2}</color>. Run <color=#fd4>maundo</color> to restore it.");
 
             public static readonly LangEntry1 SpawnGroupNotFound = new("SpawnGroup.NotFound", "No spawn group found with name: <color=#fd4>{0}</color>");
             public static readonly LangEntry1 SpawnGroupMultipeMatches = new("SpawnGroup.MultipeMatches2", "Multiple spawn groups found matching name: <color=#fd4>{0}</color>");
             public static readonly LangEntry1 SpawnPointCreateSyntax = new("SpawnPoint.Create.Syntax", "Syntax: <color=#fd4>{0} create <group_name></color>");
             public static readonly LangEntry1 SpawnPointCreateSuccess = new("SpawnPoint.Create.Success", "Successfully added spawn point to spawn group <color=#fd4>{0}</color>.");
+            public static readonly LangEntry1 SpawnPointDeleteSuccess = new("SpawnPoint.Delete.Success", "Deleted spawn point from spawn group <color=#fd4>{0}</color>. Run <color=#fd4>maundo</color> to restore it.");
             public static readonly LangEntry2 SpawnPointSetSuccess = new("SpawnPoint.Set.Success", "Successfully updated spawn point with option <color=#fd4>{0}</color>: <color=#fd4>{1}</color>.");
             public static readonly LangEntry2 SpawnPointSetAllSuccess = new("SpawnPoint.SetAll.Success", "Successfully updated all spawn points in that spawn group with option <color=#fd4>{0}</color>: <color=#fd4>{1}</color>.");
 
@@ -15159,10 +15222,12 @@ namespace Oxide.Plugins
             public static readonly LangEntry1 SpawnGroupHelpRemove = new("SpawnGroup.Help.Remove", "<color=#fd4>{0} remove <entity> <weight></color> - Remove an entity prefab from a spawn group");
             public static readonly LangEntry1 SpawnGroupHelpSpawn = new("SpawnGroup.Help.Spawn", "<color=#fd4>{0} spawn</color> - Run one spawn tick for a spawn group");
             public static readonly LangEntry1 SpawnGroupHelpRespawn = new("SpawnGroup.Help.Respawn", "<color=#fd4>{0} respawn</color> - Despawn entities for a spawn group and run one spawn tick");
+            public static readonly LangEntry1 SpawnGroupHelpDelete = new("SpawnGroup.Help.Delete", "<color=#fd4>{0} delete</color> - Delete an entire spawn group");
 
             public static readonly LangEntry0 SpawnPointHelpHeader = new("SpawnPoint.Help.Header", "<size=18>Monument Addons Spawn Point Commands</size>");
             public static readonly LangEntry1 SpawnPointHelpCreate = new("SpawnPoint.Help.Create", "<color=#fd4>{0} create <group_name></color> - Create a spawn point");
             public static readonly LangEntry1 SpawnPointHelpSet = new("SpawnPoint.Help.Set", "<color=#fd4>{0} set <option> <value></color> - Set a property of a spawn point");
+            public static readonly LangEntry1 SpawnPointHelpDelete = new("SpawnPoint.Help.Delete", "<color=#fd4>{0} delete</color> - Delete a spawn point");
 
             public static readonly LangEntry0 SpawnGroupSetHelpName = new("SpawnGroup.Set.Help.Name", "<color=#fd4>Name</color>: string");
             public static readonly LangEntry0 SpawnGroupSetHelpColor = new("SpawnGroup.Set.Help.Color", "<color=#fd4>Color</color>: string");
