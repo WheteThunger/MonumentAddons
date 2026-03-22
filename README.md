@@ -425,7 +425,6 @@ Use the following steps to set up a boat vendor at a custom location.
 Notes:
 - The heli vendor and spawner must be within 40m of each other to work.
 - The boat vendor and spawner must be within 20m of each other to work.
-- The boat vendor will not have a vending machine. This can be improved upon request.
 
 ### CCTV cameras & computer stations
 
