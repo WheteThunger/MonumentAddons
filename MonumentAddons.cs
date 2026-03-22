@@ -262,6 +262,9 @@ namespace Oxide.Plugins
             var entityForClosure = entity;
             NextTick(() =>
             {
+                if (entityForClosure == null || entityForClosure.IsDestroyed)
+                    return;
+
                 if (ExposedHooks.OnDynamicMonument(entityForClosure) is false)
                     return;
 
