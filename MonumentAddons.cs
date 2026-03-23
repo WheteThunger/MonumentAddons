@@ -9674,7 +9674,10 @@ namespace Oxide.Plugins
 
             public override void Kill()
             {
-                UnityEngine.Object.Destroy(SpawnGroup?.gameObject);
+                if (SpawnGroup == null)
+                    return;
+
+                UnityEngine.Object.Destroy(SpawnGroup.gameObject);
             }
 
             public override void OnComponentDestroyed(Component component)
