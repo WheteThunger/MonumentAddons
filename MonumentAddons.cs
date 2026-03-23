@@ -7249,6 +7249,16 @@ namespace Oxide.Plugins
                     hasChanged = true;
                 }
 
+                if (Entity is NPCPlayer npc && (EntityData.NPCOutfit == null || !EntityData.NPCOutfit.MatchesNPC(npc)))
+                {
+                    if (!dryRun)
+                    {
+                        EntityData.NPCOutfit = NPCOutfitData.FromNPC(npc);
+                    }
+
+                    hasChanged = true;
+                }
+
                 if (Entity is IRFObject rfObject && EntityData.IOEntityData?.Frequency != rfObject.GetFrequency())
                 {
                     if (!dryRun)
@@ -7273,6 +7283,7 @@ namespace Oxide.Plugins
                 UpdateSkullName();
                 UpdateHuntingTrophy();
                 UpdateMannequin();
+                UpdateNPCOutfit();
                 UpdatePuzzle();
                 UpdateCardReaderLevel();
                 UpdateIOStateAndConnections();
@@ -7362,6 +7373,21 @@ namespace Oxide.Plugins
                 {
                     _mannequinPoseCoroutine = ProfileController.StartCoroutine(MannequinPoseRoutine(mannequin, mannequinData.PoseFrames));
                 }
+            }
+
+            public void UpdateNPCOutfit()
+            {
+                var npcOutfit = EntityData.NPCOutfit;
+                if (npcOutfit == null || npcOutfit.IsEmpty())
+                    return;
+
+                if (Entity is not NPCPlayer npc)
+                    return;
+
+                if (npcOutfit.MatchesNPC(npc))
+                    return;
+
+                npcOutfit.ApplyToNPC(npc);
             }
 
             private void UpdateFrequency(IOEntity ioEntity, IRFObject rfObject, int frequency)
@@ -7767,6 +7793,12 @@ namespace Oxide.Plugins
                 if (mannequin != null)
                 {
                     UpdateMannequin();
+                }
+
+                var npcPlayer = Entity as NPCPlayer;
+                if (npcPlayer != null)
+                {
+                    UpdateNPCOutfit();
                 }
 
                 EnableFlags();
@@ -12757,17 +12789,17 @@ namespace Oxide.Plugins
             }
         }
 
-        private class ClothingItemData : BasicItemData
+        private class SkinnableItemData : BasicItemData
         {
-            public static ClothingItemData FromItem(Item item)
+            public static SkinnableItemData FromItem(Item item)
             {
-                return new ClothingItemData(item.info.itemid, item.skin);
+                return new SkinnableItemData(item.info.itemid, item.skin);
             }
 
             [JsonProperty("SkinId")]
             public readonly ulong SkinId;
 
-            public ClothingItemData(int itemId, ulong skinId) : base(itemId)
+            public SkinnableItemData(int itemId, ulong skinId) : base(itemId)
             {
                 SkinId = skinId;
             }
@@ -12862,7 +12894,7 @@ namespace Oxide.Plugins
             {
                 return new MannequinData
                 {
-                    Clothing = player.inventory.containerWear.itemList.Select(ClothingItemData.FromItem).ToArray(),
+                    Clothing = player.inventory.containerWear.itemList.Select(SkinnableItemData.FromItem).ToArray(),
                 };
             }
 
@@ -12870,7 +12902,7 @@ namespace Oxide.Plugins
             public int PoseIndex;
 
             [JsonProperty("Clothing", DefaultValueHandling = DefaultValueHandling.Ignore)]
-            public ClothingItemData[] Clothing;
+            public SkinnableItemData[] Clothing;
 
             [JsonProperty("PoseFrames", DefaultValueHandling = DefaultValueHandling.Ignore)]
             public PoseFrame[] PoseFrames;
@@ -12887,7 +12919,7 @@ namespace Oxide.Plugins
 
                 if (mannequin.inventory.itemList.Count > 0)
                 {
-                    Clothing = mannequin.inventory.itemList.Select(ClothingItemData.FromItem).ToArray();
+                    Clothing = mannequin.inventory.itemList.Select(SkinnableItemData.FromItem).ToArray();
                 }
             }
 
@@ -12937,6 +12969,9 @@ namespace Oxide.Plugins
 
             private bool MatchesInventory(ItemContainer inventory)
             {
+                if (inventory.itemList.Count == 0 && Clothing == null)
+                    return true;
+
                 if (inventory.itemList.Count != Clothing?.Length)
                     return false;
 
@@ -12947,6 +12982,109 @@ namespace Oxide.Plugins
                 }
 
                 return true;
+            }
+        }
+
+        private class NPCOutfitData
+        {
+            public static NPCOutfitData FromNPC(NPCPlayer npc)
+            {
+                var wearItems = npc.inventory.containerWear.itemList;
+                var beltItems = npc.inventory.containerBelt.itemList;
+
+                if (wearItems.Count == 0 && beltItems.Count == 0)
+                    return null;
+
+                return new NPCOutfitData
+                {
+                    Clothing = wearItems.Count > 0 ? wearItems.Select(SkinnableItemData.FromItem).ToArray() : null,
+                    Belt = beltItems.Count > 0 ? beltItems.Select(SkinnableItemData.FromItem).ToArray() : null,
+                };
+            }
+
+            [JsonProperty("Clothing", DefaultValueHandling = DefaultValueHandling.Ignore)]
+            public SkinnableItemData[] Clothing;
+
+            [JsonProperty("Belt", DefaultValueHandling = DefaultValueHandling.Ignore)]
+            public SkinnableItemData[] Belt;
+
+            public bool IsEmpty()
+            {
+                return Clothing is not { Length: > 0 } && Belt is not { Length: > 0 };
+            }
+
+            public bool MatchesNPC(NPCPlayer npc)
+            {
+                return MatchesInventory(npc.inventory.containerWear, Clothing)
+                    && MatchesInventory(npc.inventory.containerBelt, Belt);
+            }
+
+            private bool MatchesInventory(ItemContainer inventory, SkinnableItemData[] items)
+            {
+                if (inventory.itemList.Count == 0 && items == null)
+                    return true;
+
+                if (inventory.itemList.Count != items?.Length)
+                    return false;
+
+                for (var i = 0; i < items.Length; i++)
+                {
+                    if (!items[i].Matches(inventory.itemList[i]))
+                        return false;
+                }
+
+                return true;
+            }
+
+            public void ApplyToNPC(NPCPlayer npc)
+            {
+                if (!MatchesInventory(npc.inventory.containerWear, Clothing))
+                {
+                    npc.inventory.containerWear.Clear();
+
+                    if (Clothing is { Length: > 0 })
+                    {
+                        foreach (var itemData in Clothing)
+                        {
+                            CreateAndMoveItem(itemData, npc.inventory.containerWear, npc);
+                        }
+                    }
+                }
+
+                if (!MatchesInventory(npc.inventory.containerBelt, Belt))
+                {
+                    npc.inventory.containerBelt.Clear();
+
+                    if (Belt is { Length: > 0 })
+                    {
+                        foreach (var itemData in Belt)
+                        {
+                            CreateAndMoveItem(itemData, npc.inventory.containerBelt, npc);
+                        }
+                    }
+                }
+
+                npc.SendNetworkUpdate();
+            }
+
+            private void CreateAndMoveItem(SkinnableItemData itemData, ItemContainer container, NPCPlayer npc)
+            {
+                var itemDefinition = ItemManager.FindItemDefinition(itemData.ItemId);
+                if (itemDefinition == null)
+                    return;
+
+                var item = ItemManager.Create(itemDefinition, 1, itemData.SkinId);
+                if (item == null)
+                {
+                    LogError($"Failed to create item {itemData.ItemId} for NPC {npc.displayName} at {npc.transform.position.ToString("f1")}.");
+                    return;
+                }
+
+                if (!item.MoveToContainer(container))
+                {
+                    item.Remove();
+                    LogError($"Failed to move item {itemData.ItemId} to NPC {npc.displayName} at {npc.transform.position.ToString("f1")}.");
+                }
             }
         }
 
@@ -12999,6 +13137,9 @@ namespace Oxide.Plugins
 
             [JsonProperty("MannequinData", DefaultValueHandling = DefaultValueHandling.Ignore)]
             public MannequinData MannequinData;
+
+            [JsonProperty("NPCOutfit", DefaultValueHandling = DefaultValueHandling.Ignore)]
+            public NPCOutfitData NPCOutfit;
 
             public Vector3 GetScale()
             {
