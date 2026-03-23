@@ -1272,8 +1272,7 @@ namespace Oxide.Plugins
                 || !VerifyLookingAtAdapter(player, out EntityAdapter adapter, out EntityController controller, LangEntry.ErrorNoSuitableAddonFound))
                 return;
 
-            var cardReader = adapter.Entity as CardReader;
-            if ((object)cardReader == null)
+            if (adapter.Entity is not CardReader cardReader)
             {
                 ReplyToPlayer(player, LangEntry.ErrorNoSuitableAddonFound);
                 return;
@@ -6871,8 +6870,7 @@ namespace Oxide.Plugins
             {
                 foreach (var adapter in Adapters.ToList())
                 {
-                    var prefabAdapter = adapter as PrefabAdapter;
-                    if (prefabAdapter is not { IsValid: true })
+                    if (adapter is not PrefabAdapter { IsValid: true } prefabAdapter)
                         continue;
 
                     prefabAdapter.HandleChanges();
@@ -7297,8 +7295,7 @@ namespace Oxide.Plugins
                 if (skullName == null)
                     return;
 
-                var skullTrophy = Entity as SkullTrophyGlobal;
-                if (skullTrophy == null)
+                if (Entity is not SkullTrophyGlobal skullTrophy)
                     return;
 
                 if (skullTrophy.inventory == null)
@@ -7328,8 +7325,7 @@ namespace Oxide.Plugins
                 if (headData == null)
                     return;
 
-                var huntingTrophy = Entity as HuntingTrophy;
-                if (huntingTrophy == null)
+                if (Entity is not HuntingTrophy huntingTrophy)
                     return;
 
                 headData.ApplyToHuntingTrophy(huntingTrophy);
@@ -7357,8 +7353,7 @@ namespace Oxide.Plugins
                 if (mannequinData == null)
                     return;
 
-                var mannequin = Entity as Mannequin;
-                if (mannequin == null)
+                if (Entity is not Mannequin mannequin)
                     return;
 
                 mannequinData.ApplyToMannequin(mannequin);
@@ -7418,8 +7413,7 @@ namespace Oxide.Plugins
                 if (ioEntityData == null)
                     return;
 
-                var ioEntity = Entity as IOEntity;
-                if (ioEntity == null)
+                if (Entity is not IOEntity ioEntity)
                     return;
 
                 if (ioEntity is IRFObject rfObject)
@@ -7517,8 +7511,7 @@ namespace Oxide.Plugins
 
             public void MaybeProvidePower()
             {
-                var ioEntity = Entity as IOEntity;
-                if ((object)ioEntity == null)
+                if (Entity is not IOEntity ioEntity)
                     return;
 
                 _ioManager.MaybeProvidePower(ioEntity);
@@ -7557,8 +7550,7 @@ namespace Oxide.Plugins
 
                 EntitySetupUtils.PreSpawnShared(Entity);
 
-                var buildingBlock = Entity as BuildingBlock;
-                if (buildingBlock != null)
+                if (Entity is BuildingBlock buildingBlock)
                 {
                     buildingBlock.blockDefinition = PrefabAttribute.server.Find<Construction>(buildingBlock.prefabID);
                     if (buildingBlock.blockDefinition != null)
@@ -7571,8 +7563,7 @@ namespace Oxide.Plugins
                     }
                 }
 
-                var ioEntity = Entity as IOEntity;
-                if (ioEntity != null)
+                if (Entity is IOEntity ioEntity)
                 {
                     UpdateIOEntitySlotPositions(ioEntity);
                 }
@@ -7588,8 +7579,7 @@ namespace Oxide.Plugins
                 // NPCVendingMachine needs its skin updated after spawn because vanilla sets it to 861142659.
                 UpdateSkin();
 
-                var computerStation = Entity as ComputerStation;
-                if (computerStation != null && computerStation.isStatic)
+                if (Entity is ComputerStation { isStatic: true } computerStation)
                 {
                     var computerStation2 = computerStation;
                     computerStation.CancelInvoke(computerStation.GatherStaticCameras);
@@ -7601,8 +7591,7 @@ namespace Oxide.Plugins
                     }, 1);
                 }
 
-                var paddlingPool = Entity as PaddlingPool;
-                if (paddlingPool != null)
+                if (Entity is PaddlingPool paddlingPool)
                 {
                     paddlingPool.inventory.AddItem(Plugin._waterDefinition, paddlingPool.inventory.maxStackSize);
 
@@ -7610,8 +7599,7 @@ namespace Oxide.Plugins
                     paddlingPool.SetFlag(BaseEntity.Flags.Busy, true);
                 }
 
-                var vehicleSpawner = Entity as VehicleSpawner;
-                if (vehicleSpawner != null)
+                if (Entity is VehicleSpawner vehicleSpawner)
                 {
                     var vehicleSpawner2 = vehicleSpawner;
                     vehicleSpawner.Invoke(() =>
@@ -7622,8 +7610,7 @@ namespace Oxide.Plugins
                     }, 1);
                 }
 
-                var vehicleVendor = Entity as VehicleVendor;
-                if (vehicleVendor != null)
+                if (Entity is VehicleVendor vehicleVendor)
                 {
                     // Use a slightly longer delay than the vendor check since this can short-circuit as an optimization.
                     var vehicleVendor2 = vehicleVendor;
@@ -7635,8 +7622,7 @@ namespace Oxide.Plugins
                     }, 2);
                 }
 
-                var candle = Entity as Candle;
-                if (candle != null)
+                if (Entity is Candle candle)
                 {
                     candle.SetFlag(BaseEntity.Flags.On, true);
                     candle.CancelInvoke(candle.Burn);
@@ -7645,8 +7631,7 @@ namespace Oxide.Plugins
                     candle.SetFlag(BaseEntity.Flags.Busy, true);
                 }
 
-                var fogMachine = Entity as FogMachine;
-                if (fogMachine != null)
+                if (Entity is FogMachine fogMachine)
                 {
                     var fogMachine2 = fogMachine;
                     fogMachine.SetFlag(BaseEntity.Flags.On, true);
@@ -7664,8 +7649,7 @@ namespace Oxide.Plugins
                     fogMachine.SetFlag(BaseEntity.Flags.Busy, true);
                 }
 
-                var oven = Entity as BaseOven;
-                if (oven != null)
+                if (Entity is BaseOven oven)
                 {
                     // Lanterns
                     if (oven is BaseFuelLightSource)
@@ -7682,8 +7666,7 @@ namespace Oxide.Plugins
                     }
                 }
 
-                var spooker = Entity as SpookySpeaker;
-                if (spooker != null)
+                if (Entity is SpookySpeaker spooker)
                 {
                     spooker.SetFlag(BaseEntity.Flags.On, true);
                     spooker.InvokeRandomized(
@@ -7695,14 +7678,12 @@ namespace Oxide.Plugins
                     spooker.SetFlag(BaseEntity.Flags.Busy, true);
                 }
 
-                var door = Entity as Door;
-                if (door != null)
+                if (Entity is Door door)
                 {
                     door.canTakeLock = false;
                 }
 
-                var doorManipulator = Entity as DoorManipulator;
-                if (doorManipulator != null)
+                if (Entity is DoorManipulator doorManipulator)
                 {
                     if (doorManipulator.targetDoor != null)
                     {
@@ -7720,8 +7701,7 @@ namespace Oxide.Plugins
                     }
                 }
 
-                var spray = Entity as SprayCanSpray;
-                if (spray != null)
+                if (Entity is SprayCanSpray spray)
                 {
                     spray.CancelInvoke(spray.RainCheck);
                     #if !CARBON
@@ -7729,14 +7709,12 @@ namespace Oxide.Plugins
                     #endif
                 }
 
-                var telephone = Entity as Telephone;
-                if (telephone != null && telephone.prefabID == 1009655496)
+                if (Entity is Telephone { prefabID: 1009655496 } telephone)
                 {
                     PhoneUtils.NameTelephone(telephone, Monument, Position, Plugin._monumentHelper);
                 }
 
-                var microphoneStand = Entity as MicrophoneStand;
-                if ((object)microphoneStand != null)
+                if (Entity is MicrophoneStand microphoneStand)
                 {
                     var microphoneStand2 = microphoneStand;
                     microphoneStand.Invoke(() =>
@@ -7747,15 +7725,13 @@ namespace Oxide.Plugins
                     }, 1);
                 }
 
-                var storageContainer = Entity as StorageContainer;
-                if ((object)storageContainer != null)
+                if (Entity is StorageContainer storageContainer)
                 {
                     storageContainer.isLockable = false;
                     storageContainer.isMonitorable = false;
                 }
 
-                var christmasTree = Entity as ChristmasTree;
-                if ((object)christmasTree != null)
+                if (Entity is ChristmasTree christmasTree)
                 {
                     foreach (var itemShortName in _config.XmasTreeDecorations)
                     {
@@ -7777,26 +7753,22 @@ namespace Oxide.Plugins
                     UpdateScale();
                 }
 
-                var skullTrophy = Entity as SkullTrophyGlobal;
-                if (skullTrophy != null)
+                if (Entity is SkullTrophyGlobal)
                 {
                     UpdateSkullName();
                 }
 
-                var huntingTrophy = Entity as HuntingTrophy;
-                if (huntingTrophy != null)
+                if (Entity is HuntingTrophy)
                 {
                     UpdateHuntingTrophy();
                 }
 
-                var mannequin = Entity as Mannequin;
-                if (mannequin != null)
+                if (Entity is Mannequin)
                 {
                     UpdateMannequin();
                 }
 
-                var npcPlayer = Entity as NPCPlayer;
-                if (npcPlayer != null)
+                if (Entity is NPCPlayer)
                 {
                     UpdateNPCOutfit();
                 }
@@ -8035,8 +8007,7 @@ namespace Oxide.Plugins
 
             private void UpdateCardReaderLevel()
             {
-                var cardReader = Entity as CardReader;
-                if ((object)cardReader == null)
+                if (Entity is not CardReader cardReader)
                     return;
 
                 var accessLevel = EntityData.CardReaderLevel;
@@ -9076,8 +9047,7 @@ namespace Oxide.Plugins
                     entity.Invoke(() => DisableVehicleDecay(entity), 5);
                 }
 
-                var hackableCrate = entity as HackableLockedCrate;
-                if ((object)hackableCrate != null && hackableCrate.shouldDecay)
+                if (entity is HackableLockedCrate { shouldDecay: true } hackableCrate)
                 {
                     hackableCrate.shouldDecay = false;
                     hackableCrate.CancelInvoke(hackableCrate.DelayedDestroy);
@@ -10311,8 +10281,7 @@ namespace Oxide.Plugins
             {
                 foreach (var adapter in Adapters.ToList())
                 {
-                    var pasteAdapter = adapter as PasteAdapter;
-                    if (pasteAdapter is not { IsValid: true })
+                    if (adapter is not PasteAdapter { IsValid: true } pasteAdapter)
                         continue;
 
                     pasteAdapter.HandleChanges();
@@ -10791,8 +10760,7 @@ namespace Oxide.Plugins
                     if (!_addonDefinition.IsValid)
                         yield break;
 
-                    var customAddonAdapter = adapter as CustomAddonAdapter;
-                    if (customAddonAdapter is not { IsValid: true })
+                    if (adapter is not CustomAddonAdapter { IsValid: true } customAddonAdapter)
                         continue;
 
                     customAddonAdapter.HandleChanges();
