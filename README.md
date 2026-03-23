@@ -441,8 +441,6 @@ That's all you need to do. The rest is automatic. Read below if you are interest
 - When a camera despawns, it automatically removes itself from nearby static computer stations.
 - When a static computer station spawns, it automatically adds nearby static CCTV cameras.
 
-Note: As of this writing, there is currently a client bug where having lots of RC identifiers saved in a computer station may cause some of them to not be displayed. This is especially an issue at large underwater labs. If you add custom CCTVs in such a location, some of them may not show up in the list at the computer station. One thing you can do to partially mitigate this issue is to use shorter RC identifier names.
-
 ### Bandit wheel
 
 Use the following steps to set up a custom bandit wheel to allow players to gamble scrap.
