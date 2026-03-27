@@ -8584,7 +8584,8 @@ namespace Oxide.Plugins
                     _ => ShopkeeperVMInvisPrefab
                 };
 
-                var vendingMachine = EntityUtils.SpawnEntity<InvisibleVendingMachine>(vendingMachinePrefab, IntendedPosition, IntendedRotation);
+                var position = shopKeeper.transform.TransformPoint(new Vector3(0, 0, -0.5f));
+                var vendingMachine = EntityUtils.SpawnEntity<InvisibleVendingMachine>(vendingMachinePrefab, position, IntendedRotation);
                 if (vendingMachine == null)
                     return null;
 
