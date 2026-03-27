@@ -11755,6 +11755,12 @@ namespace Oxide.Plugins
 
                 ShowNearbyCustomMonuments(player, playerPosition, playerInfo);
 
+                var lookAdapter = _plugin.FindAdapter(player).Adapter;
+                if (lookAdapter != null)
+                {
+                    DisplayAdapter(player, playerPosition, playerInfo, lookAdapter, lookAdapter, 0, ref remainingToShow);
+                }
+
                 var headRay = player.eyes.HeadRay();
 
                 foreach (var (adapter, closestAdapter, distanceSquared, _) in _plugin._profileManager.GetEnabledAdapters<BaseAdapter>()
@@ -11777,7 +11783,7 @@ namespace Oxide.Plugins
                              })
                          )
                 {
-                    if (adapter == playerInfo.MovingAdapter)
+                    if (adapter == playerInfo.MovingAdapter || adapter == lookAdapter)
                         continue;
 
                     DisplayAdapter(player, playerPosition, playerInfo, adapter, closestAdapter, distanceSquared, ref remainingToShow);
