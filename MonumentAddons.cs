@@ -11257,6 +11257,16 @@ namespace Oxide.Plugins
                     }
                 }
 
+                var shopKeeper = adapter.Entity as NPCShopKeeper;
+                if (shopKeeper != null)
+                {
+                    var vendingMachine = shopKeeper.GetVendingMachine();
+                    if (vendingMachine != null)
+                    {
+                        drawer.Box(vendingMachine.WorldSpaceBounds(), 0.05f);
+                    }
+                }
+
                 var doorManipulator = adapter.Entity as DoorManipulator;
                 if (doorManipulator != null && doorManipulator.targetDoor != null)
                 {
