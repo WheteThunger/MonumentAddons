@@ -11753,13 +11753,6 @@ namespace Oxide.Plugins
 
                 playerInfo.RealTimeSinceShown = 0;
 
-                var isAdmin = player.IsAdmin;
-                if (!isAdmin)
-                {
-                    player.SetPlayerFlag(BasePlayer.PlayerFlags.IsAdmin, true);
-                    player.SendNetworkUpdateImmediate();
-                }
-
                 ShowNearbyCustomMonuments(player, playerPosition, playerInfo);
 
                 var headRay = player.eyes.HeadRay();
@@ -11788,12 +11781,6 @@ namespace Oxide.Plugins
                         continue;
 
                     DisplayAdapter(player, playerPosition, playerInfo, adapter, closestAdapter, distanceSquared, ref remainingToShow);
-                }
-
-                if (!isAdmin)
-                {
-                    player.SetPlayerFlag(BasePlayer.PlayerFlags.IsAdmin, false);
-                    player.SendNetworkUpdateImmediate();
                 }
             }
 
