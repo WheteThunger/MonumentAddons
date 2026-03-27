@@ -8542,6 +8542,8 @@ namespace Oxide.Plugins
                             LogWarning("Found vending machine with saving enabled, allowing full vendor association.");
                         }
 
+                        // Ensure enableSaving is up-to-date because the previous instance of the plugin may have had a different configuration.
+                        vendingMachine.EnableSaving(ShouldEnableSaving(vendingMachine));
                         TrackAndRefreshVendingMachine(vendingMachine);
                         return;
                     }
