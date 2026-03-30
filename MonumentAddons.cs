@@ -59,6 +59,7 @@ namespace Oxide.Plugins
         private Configuration _config;
         private StoredData _data;
         private ProfileStateData _profileStateData;
+        private SpawnedVehicleData _spawnedVehicleData;
 
         private const float MaxRaycastDistance = 100;
         private const float TerrainProximityTolerance = 0.001f;
@@ -115,6 +116,7 @@ namespace Oxide.Plugins
         private readonly WireToolManager _wireToolManager;
         private readonly IOManager _ioManager = new IOManager();
         private readonly UndoManager _undoManager = new UndoManager();
+        private readonly SpawnGroupLimitManager _spawnGroupLimitManager;
 
         private readonly ValueRotator<Color> _colorRotator = new(
             Color.HSVToRGB(0, 1, 1),
@@ -132,6 +134,7 @@ namespace Oxide.Plugins
         private ItemDefinition _waterDefinition;
         private ProtectionProperties _immortalProtection;
         private ActionDebounced _saveProfileStateDebounced;
+        private ActionDebounced _saveSpawnedVehicleDataDebounced;
         private StringBuilder _sb = new StringBuilder();
         private HashSet<string> _deployablePrefabs = new();
         private BaseEntity[] _entityBuffer = new BaseEntity[32];
@@ -150,6 +153,7 @@ namespace Oxide.Plugins
             _controllerFactory = new ControllerFactory(this);
             _monumentHelper = new MonumentHelper(this);
             _wireToolManager = new WireToolManager(this, _profileStore);
+            _spawnGroupLimitManager = new SpawnGroupLimitManager(this);
 
             _saveProfileStateDebounced = new ActionDebounced(timer, 1, () =>
             {
@@ -157,6 +161,14 @@ namespace Oxide.Plugins
                     return;
 
                 _profileStateData.Save();
+            });
+
+            _saveSpawnedVehicleDataDebounced = new ActionDebounced(timer, 1, () =>
+            {
+                if (!_isLoaded)
+                    return;
+
+                _spawnedVehicleData.SaveIfDirty();
             });
 
             _dynamicMonumentHooks = new HookCollection(
@@ -174,6 +186,7 @@ namespace Oxide.Plugins
         {
             _data = StoredData.Load(_profileStore);
             _profileStateData = ProfileStateData.Load(_data);
+            _spawnedVehicleData = SpawnedVehicleData.Load();
 
             _config.Init();
 
@@ -200,6 +213,7 @@ namespace Oxide.Plugins
             _adapterListenerManager.OnServerInitialized();
             _monumentHelper.OnServerInitialized();
             _ioManager.OnServerInitialized();
+            _spawnGroupLimitManager.OnServerInitialized();
 
             var entitiesToKill = _profileStateData.CleanDisabledProfileState();
             if (entitiesToKill.Count > 0)
@@ -223,7 +237,9 @@ namespace Oxide.Plugins
             _coroutineManager.Destroy();
             _profileManager.UnloadAllProfiles();
             _saveProfileStateDebounced.Flush();
+            _saveSpawnedVehicleDataDebounced.Flush();
             _wireToolManager.Unload();
+            SpawnedVehicleComponent.DestroyAll();
 
             UnityEngine.Object.Destroy(_immortalProtection);
 
@@ -233,6 +249,7 @@ namespace Oxide.Plugins
         private void OnNewSave()
         {
             _profileStateData.Reset();
+            _spawnedVehicleData.Reset();
         }
 
         private void OnPluginLoaded(Plugin plugin)
@@ -3788,6 +3805,25 @@ namespace Oxide.Plugins
             return false;
         }
 
+        private static Dictionary<uint, T> RemapPrefabPathToId<T>(Dictionary<string, T> original)
+        {
+            var result = new Dictionary<uint, T>();
+
+            foreach (var (prefabPath, value) in original)
+            {
+                var baseEntity = FindPrefabBaseEntity(prefabPath);
+                if (baseEntity == null)
+                {
+                    LogError($"Invalid entity prefab in config: {prefabPath}");
+                    continue;
+                }
+
+                result[baseEntity.prefabID] = value;
+            }
+
+            return result;
+        }
+
         private static HashSet<string> DetermineAllDeployablePrefabs()
         {
             var prefabList = new HashSet<string>(StringComparer.InvariantCultureIgnoreCase);
@@ -4095,6 +4131,11 @@ namespace Oxide.Plugins
         private static bool IsSpawnPointEntity(BaseEntity entity)
         {
             return IsSpawnPointEntity(entity, out _);
+        }
+
+        private static bool IsVehicle(BaseEntity entity)
+        {
+            return entity is HotAirBalloon or BaseVehicle;
         }
 
         private bool IsTransformAddon(Component component, out TransformAdapter adapter, out BaseController controller)
@@ -8862,21 +8903,45 @@ namespace Oxide.Plugins
             }
         }
 
-        private class SpawnedVehicleComponent : FacepunchBehaviour
+        private class SpawnedVehicleComponent : ListComponent<SpawnedVehicleComponent>
         {
-            public static void AddToVehicle(MonumentAddons plugin, GameObject gameObject)
+            public static SpawnedVehicleComponent AddToVehicle(MonumentAddons plugin, BaseEntity entity, bool trackPosition)
             {
-                var newComponent = gameObject.AddComponent<SpawnedVehicleComponent>();
-                newComponent._plugin = plugin;
+                var component = entity.gameObject.AddComponent<SpawnedVehicleComponent>();
+                component._plugin = plugin;
+                component._entity = entity;
+                component._prefabId = entity.prefabID;
+                component._entityId = entity.net.ID.Value;
+                plugin._spawnGroupLimitManager.TrackEntity(entity);
+
+                if (trackPosition)
+                {
+                    component.StartTrackingPosition();
+                }
+
+                return component;
+            }
+
+            public static void DestroyAll()
+            {
+                foreach (var component in InstanceList.ToList())
+                {
+                    Destroy(component);
+                }
+
+                InstanceList.Clear();
             }
 
             private const float MaxDistanceSquared = 1;
 
             private MonumentAddons _plugin;
+            private BaseEntity _entity;
+            private uint _prefabId;
+            private ulong _entityId;
             private Vector3 _originalPosition;
             private Transform _transform;
 
-            public void Awake()
+            public void StartTrackingPosition()
             {
                 _transform = transform;
                 _originalPosition = _transform.position;
@@ -8893,24 +8958,35 @@ namespace Oxide.Plugins
 
             private void CheckPosition()
             {
+                if (_entity == null || _entity.IsDestroyed)
+                    return;
+
                 if ((_transform.position - _originalPosition).sqrMagnitude < MaxDistanceSquared)
                     return;
 
                 // Vehicle has moved from its spawn point, so unregister it and re-enable saving.
-                var vehicle = GetComponent<BaseEntity>();
-                if (vehicle != null && !vehicle.IsDestroyed)
-                {
-                    EnableSavingRecursive(vehicle, true);
+                EnableSavingRecursive(_entity, true);
 
-                    var workcart = vehicle as TrainEngine;
-                    if (workcart != null && !workcart.IsInvoking(workcart.DecayTick))
-                    {
-                        workcart.InvokeRandomized(workcart.DecayTick, UnityEngine.Random.Range(20f, 40f), workcart.decayTickSpacing, workcart.decayTickSpacing * 0.1f);
-                    }
+                if (_entity is TrainEngine trainEngine && !trainEngine.IsInvoking(trainEngine.DecayTick))
+                {
+                    trainEngine.InvokeRandomized(trainEngine.DecayTick, UnityEngine.Random.Range(20f, 40f), trainEngine.decayTickSpacing, trainEngine.decayTickSpacing * 0.1f);
                 }
 
+                // Remove SpawnPointInstance since vehicle has detached.
                 Destroy(GetComponent<SpawnPointInstance>());
-                Destroy(this);
+
+                // Stop checking position since vehicle is now detached
+                CancelInvoke(CheckPositionTracked);
+            }
+
+            private void OnDestroy()
+            {
+                // Only unregister if the entity was destroyed.
+                // Otherwise, we are probably just removing the component (during unload).
+                if (_entity == null || _entity.IsDestroyed)
+                {
+                    _plugin._spawnGroupLimitManager.UntrackEntity(_prefabId, _entityId);
+                }
             }
         }
 
@@ -8936,10 +9012,44 @@ namespace Oxide.Plugins
                 CustomAddonDefinition.Kill(_hostComponent);
             }
 
-            public new void OnDestroy()
+            private new void OnDestroy()
             {
                 _componentTracker.UnregisterComponent(_hostComponent);
                 CustomAddonDefinition.SpawnPointInstances.Remove(this);
+
+                if (!Rust.Application.isQuitting)
+                {
+                    Retire();
+                }
+            }
+        }
+
+        private class CustomSpawnPointInstance : SpawnPointInstance
+        {
+            public static CustomSpawnPointInstance AddToEntity(MonumentAddons plugin, BaseEntity entity)
+            {
+                var component = entity.gameObject.AddComponent<CustomSpawnPointInstance>();
+                component._plugin = plugin;
+                component._entity = entity;
+                component._prefabId = entity.prefabID;
+                component._entityId = entity.net.ID.Value;
+                plugin._spawnGroupLimitManager.TrackEntity(entity);
+                return component;
+            }
+
+            private MonumentAddons _plugin;
+            private BaseEntity _entity;
+            private uint _prefabId;
+            private ulong _entityId;
+
+            private new void OnDestroy()
+            {
+                // Only unregister if the entity was destroyed.
+                // Otherwise, we are probably detaching a vehicle from a spawn point after it moved.
+                if (_entity == null || _entity.IsDestroyed)
+                {
+                    _plugin._spawnGroupLimitManager.UntrackEntity(_prefabId, _entityId);
+                }
 
                 if (!Rust.Application.isQuitting)
                 {
@@ -9046,7 +9156,7 @@ namespace Oxide.Plugins
 
                 if (IsVehicle(entity))
                 {
-                    SpawnedVehicleComponent.AddToVehicle(Adapter.Plugin, instance.gameObject);
+                    SpawnedVehicleComponent.AddToVehicle(Adapter.Plugin, entity, trackPosition: true);
                     entity.Invoke(() => DisableVehicleDecay(entity), 5);
                 }
 
@@ -9150,11 +9260,6 @@ namespace Oxide.Plugins
                 return SingletonComponent<SpawnHandler>.Instance.CheckBounds(prefab, SpaceCheckPosition, _transform.rotation, Vector3.one);
             }
 
-            private bool IsVehicle(BaseEntity entity)
-            {
-                return entity is HotAirBalloon || entity is BaseVehicle;
-            }
-
             private void DisableVehicleDecay(BaseEntity vehicle)
             {
                 switch (vehicle)
@@ -9215,7 +9320,7 @@ namespace Oxide.Plugins
                                 spawnedVehicleComponent.CancelInvoke(spawnedVehicleComponent.CheckPositionTracked);
                             }
 
-                            Adapter.Plugin.NextTick(() => spawnedVehicleComponent.Awake());
+                            Adapter.Plugin.NextTick(spawnedVehicleComponent.StartTrackingPosition);
                         }
 
                         entity.transform.SetPositionAndRotation(position, rotation);
@@ -9270,6 +9375,13 @@ namespace Oxide.Plugins
             public List<SpawnEntry> SpawnEntries { get; } = new();
             private AIInformationZone _cachedInfoZone;
             private bool _didLookForInfoZone;
+            private Func<SpawnEntry, float> _determineSpawnEntryWeight;
+            private List<SpawnEntry> _reusableSpawnEntryList = new();
+
+            private CustomSpawnGroup()
+            {
+                _determineSpawnEntryWeight = DetermineSpawnEntryWeight;
+            }
 
             private SpawnGroupData SpawnGroupData => SpawnGroupAdapter.SpawnGroupData;
 
@@ -9358,8 +9470,8 @@ namespace Oxide.Plugins
 
                 for (int i = 0; i < numToSpawn; i++)
                 {
-                    var spawnEntry = GetRandomSpawnEntry();
-                    if (spawnEntry is not { IsValid: true })
+                    var spawnEntry = GetRandomValidSpawnEntry();
+                    if (spawnEntry == null)
                         continue;
 
                     var spawnPoint = GetRandomSpawnPoint(spawnEntry, out var position, out var rotation);
@@ -9385,7 +9497,7 @@ namespace Oxide.Plugins
                             entity.gameObject.AwakeFromInstantiate();
                             entity.Spawn();
                             PostSpawnProcess(entity, spawnPoint);
-                            spawnPointInstance = entity.gameObject.AddComponent<SpawnPointInstance>();
+                            spawnPointInstance = CustomSpawnPointInstance.AddToEntity(SpawnGroupAdapter.Plugin, entity);
                         }
                     }
 
@@ -9499,22 +9611,50 @@ namespace Oxide.Plugins
                 return preventDuplicates && HasSpawned(spawnEntry) ? 0 : spawnEntry.Weight;
             }
 
-            private SpawnEntry GetRandomSpawnEntry()
+            private List<SpawnEntry> GetValidSpawnEntries()
             {
-                var totalWeight = SpawnEntries.Sum(DetermineSpawnEntryWeight);
+                _reusableSpawnEntryList.Clear();
+
+                foreach (var spawnEntry in SpawnEntries)
+                {
+                    if (!spawnEntry.IsValid || !IsSpawnEntryWithinLimit(spawnEntry))
+                        continue;
+
+                    _reusableSpawnEntryList.Add(spawnEntry);
+                }
+
+                return _reusableSpawnEntryList;
+            }
+
+            private SpawnEntry GetRandomValidSpawnEntry()
+            {
+                var spawnEntries = GetValidSpawnEntries();
+                if (spawnEntries.Count == 0)
+                    return null;
+
+                var totalWeight = spawnEntries.Sum(_determineSpawnEntryWeight);
                 if (totalWeight == 0)
                     return null;
 
                 var randomWeight = UnityEngine.Random.Range(0f, totalWeight);
 
-                foreach (var spawnEntry in SpawnEntries)
+                foreach (var spawnEntry in spawnEntries)
                 {
                     var weight = DetermineSpawnEntryWeight(spawnEntry);
                     if ((randomWeight -= weight) <= 0f)
                         return spawnEntry;
                 }
 
-                return SpawnEntries[^1];
+                return spawnEntries[^1];
+            }
+
+            private bool IsSpawnEntryWithinLimit(SpawnEntry spawnEntry)
+            {
+                // Custom addons are not subject to limits (for now).
+                if (spawnEntry.CustomAddonDefinition != null)
+                    return true;
+
+                return SpawnGroupAdapter.Plugin._spawnGroupLimitManager.IsWithinLimit(spawnEntry.Prefab.resourceID);
             }
 
             private AIInformationZone GetVirtualInfoZone()
@@ -10905,6 +11045,123 @@ namespace Oxide.Plugins
 
         #endregion
 
+        #region Spawn Group Limit Manager
+
+        private class SpawnGroupLimitManager
+        {
+            private readonly MonumentAddons _plugin;
+            private readonly Dictionary<uint, HashSet<ulong>> _trackedEntitiesByPrefabId = new();
+
+            private SpawnedVehicleData _spawnedVehicleData => _plugin._spawnedVehicleData;
+            private ActionDebounced _saveSpawnedVehicleDataDebounced => _plugin._saveSpawnedVehicleDataDebounced;
+            private Dictionary<uint, int> _spawnGroupEntityLimitsByPrefabId => _plugin._config.SpawnGroupEntityLimitsByPrefabId;
+
+            public SpawnGroupLimitManager(MonumentAddons plugin)
+            {
+                _plugin = plugin;
+            }
+
+            public void OnServerInitialized()
+            {
+                var removedAny = false;
+
+                foreach (var (prefabId, entityIds) in _spawnedVehicleData.GetAllTrackedEntities())
+                {
+                    foreach (var entityId in entityIds)
+                    {
+                        var entity = FindValidEntity(entityId);
+
+                        // Vehicles are currently the only type of entity managed by spawn points that are allowed to
+                        // persist after unload, and only if they were detached from the spawn point.
+                        if (entity is null || !IsVehicle(entity))
+                        {
+                            _spawnedVehicleData.UntrackEntity(prefabId, entityId);
+                            removedAny = true;
+                            continue;
+                        }
+
+                        if (!_trackedEntitiesByPrefabId.TryGetValue(prefabId, out var entitySet))
+                        {
+                            entitySet = new HashSet<ulong>();
+                            _trackedEntitiesByPrefabId[prefabId] = entitySet;
+                        }
+
+                        entitySet.Add(entityId);
+                        SpawnedVehicleComponent.AddToVehicle(_plugin, entity, trackPosition: false);
+                    }
+                }
+
+                if (removedAny)
+                {
+                    _saveSpawnedVehicleDataDebounced.Schedule();
+                }
+            }
+
+            public void TrackEntity(BaseEntity entity)
+            {
+                var prefabId = entity.prefabID;
+                var entityId = entity.net.ID.Value;
+
+                if (!_trackedEntitiesByPrefabId.TryGetValue(prefabId, out var entitySet))
+                {
+                    entitySet = new HashSet<ulong>();
+                    _trackedEntitiesByPrefabId[prefabId] = entitySet;
+                }
+
+                if (!entitySet.Add(entityId))
+                    return;
+
+                if (IsVehicle(entity) && _spawnedVehicleData.TrackEntity(prefabId, entityId))
+                {
+                    _saveSpawnedVehicleDataDebounced.Schedule();
+                }
+            }
+
+            public void UntrackEntity(uint prefabId, ulong entityId)
+            {
+                if (!_trackedEntitiesByPrefabId.TryGetValue(prefabId, out var entitySet))
+                    return;
+
+                if (!entitySet.Remove(entityId))
+                    return;
+
+                if (_spawnedVehicleData.UntrackEntity(prefabId, entityId))
+                {
+                    _saveSpawnedVehicleDataDebounced.Schedule();
+                }
+            }
+
+            public bool HasLimit(uint prefabId, out int current, out int limit)
+            {
+                if (!_spawnGroupEntityLimitsByPrefabId.TryGetValue(prefabId, out limit))
+                {
+                    current = 0;
+                    return false;
+                }
+
+                current = GetSpawnedCount(prefabId);
+                limit = _spawnGroupEntityLimitsByPrefabId[prefabId];
+                return true;
+            }
+
+            public bool IsWithinLimit(uint prefabId)
+            {
+                if (!_spawnGroupEntityLimitsByPrefabId.TryGetValue(prefabId, out var limit))
+                    return true;
+
+                return GetSpawnedCount(prefabId) < limit;
+            }
+
+            private int GetSpawnedCount(uint prefabId)
+            {
+                return _trackedEntitiesByPrefabId.TryGetValue(prefabId, out var entitySet)
+                    ? entitySet.Count
+                    : 0;
+            }
+        }
+
+        #endregion
+
         #region IO Manager
 
         private class IOManager
@@ -11454,6 +11711,15 @@ namespace Oxide.Plugins
                                 && !adapter.SpawnPoint.HasSpace(spawnEntry))
                             {
                                 entityMessage += $" | {_plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelEntityNoSpace)}";
+                            }
+
+                            if (prefabEntry.CustomAddonName == null)
+                            {
+                                var prefabId = StringPool.Get(prefabEntry.PrefabName);
+                                if (prefabId != 0 && _plugin._spawnGroupLimitManager.HasLimit(prefabId, out var current, out var limit))
+                                {
+                                    entityMessage += $" | {_plugin.GetMessage(player.UserIDString, LangEntry.ShowLabelEntityGlobalPopulation, current, limit)}";
+                                }
                             }
 
                             _sb.AppendLine(entityMessage);
@@ -14594,6 +14860,91 @@ namespace Oxide.Plugins
             }
         }
 
+        private class SpawnedVehicleData : BaseDataFile
+        {
+            private static string Filepath => $"{nameof(MonumentAddons)}_SpawnedVehicleData";
+
+            public static SpawnedVehicleData Load()
+            {
+                return DataFileUtils.LoadOrNew<SpawnedVehicleData>(Filepath);
+            }
+
+            private bool _isDirty;
+
+            public SpawnedVehicleData() : base(Filepath) {}
+
+            [JsonProperty("SpawnedEntitiesByPrefabId")]
+            private Dictionary<uint, HashSet<ulong>> SpawnedEntitiesByPrefabId = new();
+
+            public void MarkDirty()
+            {
+                _isDirty = true;
+            }
+
+            public void SaveIfDirty()
+            {
+                if (!_isDirty)
+                    return;
+
+                Save();
+                _isDirty = false;
+            }
+
+            public Dictionary<uint, List<ulong>> GetAllTrackedEntities()
+            {
+                var result = new Dictionary<uint, List<ulong>>();
+
+                foreach (var (prefabId, entityIds) in SpawnedEntitiesByPrefabId)
+                {
+                    result[prefabId] = new(entityIds);
+                }
+
+                return result;
+            }
+
+            public bool TrackEntity(uint prefabId, ulong entityId)
+            {
+                if (!SpawnedEntitiesByPrefabId.TryGetValue(prefabId, out var entityIds))
+                {
+                    entityIds = new HashSet<ulong>();
+                    SpawnedEntitiesByPrefabId[prefabId] = entityIds;
+                }
+
+                if (!entityIds.Add(entityId))
+                    return false;
+
+                MarkDirty();
+                return true;
+            }
+
+            public bool UntrackEntity(uint prefabId, ulong entityId)
+            {
+                if (!SpawnedEntitiesByPrefabId.TryGetValue(prefabId, out var entityIds))
+                    return false;
+
+                if (!entityIds.Remove(entityId))
+                    return false;
+
+                if (entityIds.Count == 0)
+                {
+                    SpawnedEntitiesByPrefabId.Remove(prefabId);
+                }
+
+                MarkDirty();
+                return true;
+            }
+
+            public void Reset()
+            {
+                if (SpawnedEntitiesByPrefabId.Count == 0)
+                    return;
+
+                SpawnedEntitiesByPrefabId.Clear();
+                MarkDirty();
+                SaveIfDirty();
+            }
+        }
+
         #endregion
 
         #region Plugin Data
@@ -14845,19 +15196,9 @@ namespace Oxide.Plugins
 
             private Dictionary<uint, bool> _overrideEnabledByPrefabId = new();
 
-            public void Init()
+            public void OnServerInitialized()
             {
-                foreach (var (prefabPath, enabled) in OverrideEnabledByPrefab)
-                {
-                    var entity = FindPrefabBaseEntity(prefabPath);
-                    if (entity == null)
-                    {
-                        LogError($"Invalid entity prefab in config: {prefabPath}");
-                        continue;
-                    }
-
-                    _overrideEnabledByPrefabId[entity.prefabID] = enabled;
-                }
+                _overrideEnabledByPrefabId = RemapPrefabPathToId(OverrideEnabledByPrefab);
             }
 
             public bool ShouldEnableSaving(BaseEntity entity)
@@ -15069,6 +15410,9 @@ namespace Oxide.Plugins
             [JsonProperty("Dynamic monuments")]
             public DynamicMonumentSettings DynamicMonuments = new();
 
+            [JsonProperty("Spawn group global population limit by prefab")]
+            private Dictionary<string, int> SpawnGroupPopulationLimitByPrefabName = new();
+
             [JsonProperty("Addon defaults")]
             public AddonDefaults AddonDefaults = new();
 
@@ -15109,10 +15453,11 @@ namespace Oxide.Plugins
                 "xmas.decoration.tinsel",
             };
 
+            [JsonIgnore]
+            public Dictionary<uint, int> SpawnGroupEntityLimitsByPrefabId = new();
+
             public void Init()
             {
-                EntitySaveSettings.Init();
-
                 if (XmasTreeDecorations != null)
                 {
                     foreach (var itemShortName in XmasTreeDecorations)
@@ -15135,7 +15480,9 @@ namespace Oxide.Plugins
 
             public void OnServerInitialized()
             {
+                EntitySaveSettings.OnServerInitialized();
                 DynamicMonuments.OnServerInitialized();
+                SpawnGroupEntityLimitsByPrefabId = RemapPrefabPathToId(SpawnGroupPopulationLimitByPrefabName);
             }
         }
 
@@ -15442,6 +15789,7 @@ namespace Oxide.Plugins
             public static readonly LangEntry0 ShowLabelNoEntities = new("Show.Label.NoEntities", "No entities configured. Run /maspawngroup add <entity> <weight>");
             public static readonly LangEntry1 ShowLabelPlayerDetectionRadius = new("Show.Label.PlayerDetectionRadius", "Player detection radius: {0:f1}");
             public static readonly LangEntry0 ShowLabelPlayerDetectedInRadius = new("Show.Label.PlayerDetectedInRadius", "(!) Player detected in radius (!)");
+            public static readonly LangEntry2 ShowLabelEntityGlobalPopulation = new("Show.Label.EntityGlobalPopulation", "Global population: {0} / {1}");
 
             public static readonly LangEntry1 ShowLabelPuzzlePlayersBlockReset = new("Show.Label.Puzzle.PlayersBlockReset", "Players block reset progress: {0}");
             public static readonly LangEntry1 ShowLabelPuzzleTimeBetweenResets = new("Show.Label.Puzzle.TimeBetweenResets", "Time between resets: {0}");

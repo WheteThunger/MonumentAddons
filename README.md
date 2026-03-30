@@ -115,6 +115,8 @@ Follow these steps to create example spawn points.
 9. Aim at either spawn point, and run the command `maspawngroup set MaxPopulation 2`.
 10. Aim at either spawn point, and run the command `maspawngroup respawn`. Run this as many times as you want to see the loot crates respawn.
 
+Note: When using spawn points to spawn vehicles, the vehicle will disassociate from the spawn point when moving away from it, allowing it to spawn more entities. To prevent this from leading to potentially unlimited vehicles on the server, configure `Spawn group global population limit by prefab` in the config, which works because disassociated vehicles continue to be tracked in the global population.
+
 ## Commands
 
 - `mahelp` -- Prints help information about available commands.
@@ -266,6 +268,7 @@ Profiles allow you to organize entities into groups. Each profile can be indepen
       "assets/bundled/prefabs/deepsea/deepsea_floatingcity4.prefab"
     ]
   },
+  "Spawn group global population limit by prefab": {},
   "Addon defaults": {
     "Spawn group defaults": {
       "MaxPopulation": 1,
@@ -352,6 +355,13 @@ Profiles allow you to organize entities into groups. Each profile can be indepen
 - `Dynamic monuments`
   - `Entity prefabs to consider as monuments` -- Determines which entities are considered dynamic monuments. When an entity is considered a dynamic monument, you can define addons for it via `maspawn` and similar commands, and the plugin will ensure every instance of that entity has those addons attached. For example, Cargo Ship has been considered a dynamic monument since an early version of this plugin, but now you can define additional ones such as desert military base modules and road-side junk piles.
     - Note: Updating this configuration is only necessary if you want to use `maspawn` and similar commands to recognize the entity as a monument. If you want to install an external profile that defines addons for a dynamic monument (such as the CargoShipCCTV profile), it isn't necessary to update this configuration because the plugin will automatically determine that the entity is a dynamic monument by reading the profile. Additionally, if you install an external profile which defines addons for a given dynamic monument, `maspawn` and similar commands will automatically recognize that entity as a dynamic monument. 
+- `Spawn group global population limit by prefab` -- Determines the maximum number of each entity prefab that can be present across all spawn groups at once, including vehicles that have disassociated from their spawn point due to moving away from it. When a given entity has reached the global population limit, the spawn point may still spawn another configured prefab if applicable. Example below.
+  ```json
+  "Spawn group global population limit by prefab": {
+    "assets/content/vehicles/minicopter/minicopter.entity.prefab": 4,
+    "assets/content/vehicles/scrap heli carrier/scraptransporthelicopter.prefab": 2
+  }
+  ```
 - `Addon defaults` -- Determines the default values for various addon parameters when placing new addons. These options do not affect addons which have already been placed. To understand these options, see the documentation for the respective commands (`maspawngroup`, `maspawnpoint`, `mapuzzle`).
 - `Deployable overrides` -- Determines which entity will be spawned when using `maspawn` if you don't specify the entity name in the command. For example, while you are holding an auto turret, running `maspawn` will spawn the `sentry.bandit.static` prefab instead of the `autoturret_deployed` prefab.
 - `Xmas tree decorations (item short names)` -- Determines which decorations will be automatically added to `xmas_tree.deployed` entities spawned via `maspawn`.
