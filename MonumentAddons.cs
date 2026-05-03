@@ -47,7 +47,7 @@ using Vector3 = UnityEngine.Vector3;
 
 namespace Oxide.Plugins
 {
-    [Info("Monument Addons", "WhiteThunder", "0.21.0")]
+    [Info("Monument Addons", "WhiteThunder", "0.21.1")]
     [Description("Allows adding entities, spawn points and more to monuments.")]
     internal class MonumentAddons : CovalencePlugin
     {
@@ -9537,8 +9537,8 @@ namespace Oxide.Plugins
                         var agent = npcPlayer.NavAgent;
                         agent.agentTypeID = -1372625422;
                         agent.areaMask = 1;
-                        agent.autoTraverseOffMeshLink = true;
-                        agent.autoRepath = true;
+                        agent._agent.autoTraverseOffMeshLink = true;
+                        agent._agent.autoRepath = true;
 
                         var brain = humanNpc.Brain;
                         humanNpc.Invoke(() =>
