@@ -1,4 +1,4 @@
-﻿using Facepunch;
+using Facepunch;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Converters;
 using Newtonsoft.Json.Linq;
@@ -19,7 +19,6 @@ using System.Text.RegularExpressions;
 using System.Text;
 using UnityEngine;
 using static IOEntity;
-using static RecyclerConfig;
 using static WireTool;
 using Component = UnityEngine.Component;
 using HumanNPCGlobal = global::HumanNPC;
@@ -7589,7 +7588,13 @@ namespace Oxide.Plugins
             {
                 UpdateSkin();
                 UpdateCardReaderLevel();
-
+				
+				if (Entity is Recycler recycler &&
+					recycler.recyclerType == RecyclerConfig.RecyclerType.Green)
+				{
+					recycler.recyclerType = RecyclerConfig.RecyclerType.Yellow;
+				}
+				
                 EntitySetupUtils.PreSpawnShared(Entity);
 
                 if (Entity is BuildingBlock buildingBlock)
@@ -7611,15 +7616,17 @@ namespace Oxide.Plugins
                 }
             }
 
-            protected virtual void PostEntitySpawn()
-            {
-                EntitySetupUtils.PostSpawnShared(Plugin, Entity, ShouldEnableSaving(Entity));
+			protected virtual void PostEntitySpawn()
+			{
+				EntitySetupUtils.PostSpawnShared(Plugin, Entity, ShouldEnableSaving(Entity));
 
-                UpdatePuzzle();
-                DisableFlags();
+				UpdatePuzzle();
+				DisableFlags();
 
-                // NPCVendingMachine needs its skin updated after spawn because vanilla sets it to 861142659.
-                UpdateSkin();
+				RefreshRecyclerSafeZone();
+
+				// NPCVendingMachine needs its skin updated after spawn because vanilla sets it to 861142659.
+				UpdateSkin();
 
                 if (Entity is ComputerStation { isStatic: true } computerStation)
                 {
@@ -7816,16 +7823,6 @@ namespace Oxide.Plugins
                 }
 
                 EnableFlags();
-
-                // After updating flags, determine if it's a safe zone recycler (determined by flags).
-                if (Entity is Recycler recycler)
-                {
-                    if (recycler.IsSafezoneRecycler())
-                    {
-                        recycler.recyclerType = RecyclerType.Yellow;
-                        recycler.RecyclerTypeSyncVar = (int)RecyclerType.Yellow;
-                    }
-                }
             }
 
             protected virtual void PreEntityKill() {}
@@ -7911,10 +7908,12 @@ namespace Oxide.Plugins
 
                 BroadcastEntityTransformChange(entityToMove);
 
-                if (entityToRotate != entityToMove)
-                {
-                    BroadcastEntityTransformChange(entityToRotate);
-                }
+				if (entityToRotate != entityToMove)
+				{
+					BroadcastEntityTransformChange(entityToRotate);
+				}
+
+				RefreshRecyclerSafeZone();
             }
 
             private BaseEntity FindAndCleanupDuplicateEntities(BaseEntity ignoreEntity = null)
@@ -8073,15 +8072,26 @@ namespace Oxide.Plugins
             }
 
             private void DisableFlags()
-            {
-                var deltaToSet = Entity.flags & EntityData.DisabledFlags;
-                Entity.SetFlag(deltaToSet, false);
-            }
+			{
+				var deltaToSet = Entity.flags & EntityData.DisabledFlags;
+				Entity.SetFlag(deltaToSet, false);
+			}
 
-            private void EnableFlags()
-            {
-                Entity.SetFlag(EntityData.EnabledFlags, true);
-            }
+			private void RefreshRecyclerSafeZone()
+			{
+				if (Entity is not Recycler recycler)
+					return;
+
+				if (EntityData.HasFlag(BaseEntity.Flags.Reserved9) != null)
+					return;
+
+				recycler.Invoke(recycler.UpdateInSafeZone, 0.1f);
+			}
+
+			private void EnableFlags()
+			{
+				Entity.SetFlag(EntityData.EnabledFlags, true);
+			}
 
             private void UpdateIOEntitySlotPositions(IOEntity ioEntity)
             {
