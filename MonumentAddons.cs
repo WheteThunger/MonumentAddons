@@ -19,6 +19,7 @@ using System.Text.RegularExpressions;
 using System.Text;
 using UnityEngine;
 using static IOEntity;
+using static RecyclerConfig;
 using static WireTool;
 using Component = UnityEngine.Component;
 using HumanNPCGlobal = global::HumanNPC;
@@ -7815,6 +7816,16 @@ namespace Oxide.Plugins
                 }
 
                 EnableFlags();
+
+                // After updating flags, determine if it's a safe zone recycler (determined by flags).
+                if (Entity is Recycler recycler)
+                {
+                    if (recycler.IsSafezoneRecycler())
+                    {
+                        recycler.recyclerType = RecyclerType.Yellow;
+                        recycler.RecyclerTypeSyncVar = (int)RecyclerType.Yellow;
+                    }
+                }
             }
 
             protected virtual void PreEntityKill() {}
