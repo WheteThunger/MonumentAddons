@@ -48,7 +48,7 @@ using Vector3 = UnityEngine.Vector3;
 
 namespace Oxide.Plugins
 {
-    [Info("Monument Addons", "WhiteThunder", "0.21.2")]
+    [Info("Monument Addons", "WhiteThunder", "0.21.3")]
     [Description("Allows adding entities, spawn points and more to monuments.")]
     internal class MonumentAddons : CovalencePlugin
     {
@@ -4693,7 +4693,9 @@ namespace Oxide.Plugins
                     return;
 
                 doorManipulator.SetTargetDoor(door);
-                door.SetFlag(BaseEntity.Flags.Locked, true);
+
+                using var flagsScope = door.StartSetFlags(BaseEntity.FlagsUpdateMode.SendNetworkUpdate_Flags);
+                flagsScope.Set(BaseEntity.Flags.Locked, true);
             }
 
             private static T GetClosestComponent<T>(Vector3 position, List<T> componentList, Func<T, bool> predicate = null) where T : Component
@@ -4784,8 +4786,8 @@ namespace Oxide.Plugins
                         if (buildingBlock.HasFlag(BuildingBlock.BlockFlags.CanRotate)
                             || buildingBlock.HasFlag(StabilityEntity.DemolishFlag))
                         {
-                            buildingBlock.SetFlag(BuildingBlock.BlockFlags.CanRotate, false, recursive: false, networkupdate: false);
-                            buildingBlock.SetFlag(StabilityEntity.DemolishFlag, false, recursive: false, networkupdate: false);
+                            buildingBlock.SetFlagLocal(BuildingBlock.BlockFlags.CanRotate, false, recursive: false);
+                            buildingBlock.SetFlagLocal(StabilityEntity.DemolishFlag, false, recursive: false);
                             buildingBlock.CancelInvoke(buildingBlock.StopBeingRotatable);
                             buildingBlock.CancelInvoke(buildingBlock.StopBeingDemolishable);
                             buildingBlock.SendNetworkUpdate_Flags();
@@ -7358,7 +7360,8 @@ namespace Oxide.Plugins
                 }
 
                 // Setting flag here so vanilla functionality is preserved for trophies without name set
-                skullTrophy.SetFlag(BaseEntity.Flags.Busy, true);
+                using var flagsScope = skullTrophy.StartSetFlags(BaseEntity.FlagsUpdateMode.SendNetworkUpdate_Flags);
+                flagsScope.Set(BaseEntity.Flags.Busy, true);
             }
 
             public void UpdateHuntingTrophy()
@@ -7374,7 +7377,8 @@ namespace Oxide.Plugins
                 huntingTrophy.SendNetworkUpdate();
 
                 // Setting flag here so vanilla functionality is preserved for trophies without head set
-                huntingTrophy.SetFlag(BaseEntity.Flags.Busy, true);
+                using var flagsScope = huntingTrophy.StartSetFlags(BaseEntity.FlagsUpdateMode.SendNetworkUpdate_Flags);
+                flagsScope.Set(BaseEntity.Flags.Busy, true);
             }
 
             private IEnumerator MannequinPoseRoutine(Mannequin mannequin, PoseFrame[] poseFrames)
@@ -7569,7 +7573,8 @@ namespace Oxide.Plugins
                 var targetDoor = (Entity as DoorManipulator)?.targetDoor;
                 if (targetDoor != null)
                 {
-                    targetDoor.SetFlag(BaseEntity.Flags.Locked, false);
+                    using var flagsScope = targetDoor.StartSetFlags(BaseEntity.FlagsUpdateMode.SendNetworkUpdate_Flags);
+                    flagsScope.Set(BaseEntity.Flags.Locked, false);
                 }
             }
 
@@ -7621,6 +7626,8 @@ namespace Oxide.Plugins
                 // NPCVendingMachine needs its skin updated after spawn because vanilla sets it to 861142659.
                 UpdateSkin();
 
+                using var flagsScope = Entity.StartSetFlags(BaseEntity.FlagsUpdateMode.SendNetworkUpdate_Flags);
+
                 if (Entity is ComputerStation { isStatic: true } computerStation)
                 {
                     var computerStation2 = computerStation;
@@ -7638,7 +7645,7 @@ namespace Oxide.Plugins
                     paddlingPool.inventory.AddItem(Plugin._waterDefinition, paddlingPool.inventory.maxStackSize);
 
                     // Disallow adding or removing water.
-                    paddlingPool.SetFlag(BaseEntity.Flags.Busy, true);
+                    flagsScope.Set(BaseEntity.Flags.Busy, true);
                 }
 
                 if (Entity is VehicleSpawner vehicleSpawner)
@@ -7666,20 +7673,21 @@ namespace Oxide.Plugins
 
                 if (Entity is Candle candle)
                 {
-                    candle.SetFlag(BaseEntity.Flags.On, true);
+                    flagsScope.Set(BaseEntity.Flags.On, true);
                     candle.CancelInvoke(candle.Burn);
 
                     // Disallow extinguishing.
-                    candle.SetFlag(BaseEntity.Flags.Busy, true);
+                    flagsScope.Set(BaseEntity.Flags.Busy, true);
                 }
 
                 if (Entity is FogMachine fogMachine)
                 {
                     var fogMachine2 = fogMachine;
-                    fogMachine.SetFlag(BaseEntity.Flags.On, true);
+                    flagsScope.Set(BaseEntity.Flags.On, true);
                     fogMachine.InvokeRepeating(() =>
                     {
-                        fogMachine2.SetFlag(FogMachine.Emitting, true);
+                        using var flagsScopeInner = fogMachine2.StartSetFlags(BaseEntity.FlagsUpdateMode.SendNetworkUpdate_Flags);
+                        flagsScopeInner.Set(FogMachine.Emitting, true);
                         fogMachine2.Invoke(fogMachine2.EnableFogField, 1f);
                         fogMachine2.Invoke(fogMachine2.DisableNozzle, fogMachine2.nozzleBlastDuration);
                         fogMachine2.Invoke(fogMachine2.FinishFogging, fogMachine2.fogLength);
@@ -7688,7 +7696,7 @@ namespace Oxide.Plugins
                     fogMachine.fogLength - 1);
 
                     // Disallow interaction.
-                    fogMachine.SetFlag(BaseEntity.Flags.Busy, true);
+                    flagsScope.Set(BaseEntity.Flags.Busy, true);
                 }
 
                 if (Entity is BaseOven oven)
@@ -7696,28 +7704,28 @@ namespace Oxide.Plugins
                     // Lanterns
                     if (oven is BaseFuelLightSource)
                     {
-                        oven.SetFlag(BaseEntity.Flags.On, true);
-                        oven.SetFlag(BaseEntity.Flags.Busy, true);
+                        flagsScope.Set(BaseEntity.Flags.On, true);
+                        flagsScope.Set(BaseEntity.Flags.Busy, true);
                     }
 
                     // jackolantern.angry or jackolantern.happy
                     else if (oven.prefabID == 1889323056 || oven.prefabID == 630866573)
                     {
-                        oven.SetFlag(BaseEntity.Flags.On, true);
-                        oven.SetFlag(BaseEntity.Flags.Busy, true);
+                        flagsScope.Set(BaseEntity.Flags.On, true);
+                        flagsScope.Set(BaseEntity.Flags.Busy, true);
                     }
                 }
 
                 if (Entity is SpookySpeaker spooker)
                 {
-                    spooker.SetFlag(BaseEntity.Flags.On, true);
+                    flagsScope.Set(BaseEntity.Flags.On, true);
                     spooker.InvokeRandomized(
                         spooker.SendPlaySound,
                         spooker.soundSpacing,
                         spooker.soundSpacing,
                         spooker.soundSpacingRand);
 
-                    spooker.SetFlag(BaseEntity.Flags.Busy, true);
+                    flagsScope.Set(BaseEntity.Flags.Busy, true);
                 }
 
                 if (Entity is Door door)
@@ -7729,7 +7737,8 @@ namespace Oxide.Plugins
                 {
                     if (doorManipulator.targetDoor != null)
                     {
-                        doorManipulator.targetDoor.SetFlag(BaseEntity.Flags.Locked, true);
+                        using var doorFlagsScope = doorManipulator.targetDoor.StartSetFlags(BaseEntity.FlagsUpdateMode.SendNetworkUpdate_Flags);
+                        doorFlagsScope.Set(BaseEntity.Flags.Locked, true);
                     }
                     else
                     {
@@ -8067,20 +8076,24 @@ namespace Oxide.Plugins
                     return;
 
                 cardReader.accessLevel = accessLevel;
-                cardReader.SetFlag(cardReader.AccessLevel1, accessLevel == 1);
-                cardReader.SetFlag(cardReader.AccessLevel2, accessLevel == 2);
-                cardReader.SetFlag(cardReader.AccessLevel3, accessLevel == 3);
+
+                using var flagsScope = cardReader.StartSetFlags(BaseEntity.FlagsUpdateMode.SendNetworkUpdate_Flags);
+                flagsScope.Set(cardReader.AccessLevel1, accessLevel == 1);
+                flagsScope.Set(cardReader.AccessLevel2, accessLevel == 2);
+                flagsScope.Set(cardReader.AccessLevel3, accessLevel == 3);
             }
 
             private void DisableFlags()
             {
                 var deltaToSet = Entity.flags & EntityData.DisabledFlags;
-                Entity.SetFlag(deltaToSet, false);
+                using var flagsScope = Entity.StartSetFlags(BaseEntity.FlagsUpdateMode.SendNetworkUpdate_Flags);
+                flagsScope.Set(deltaToSet, false);
             }
 
             private void EnableFlags()
             {
-                Entity.SetFlag(EntityData.EnabledFlags, true);
+                using var flagsScope = Entity.StartSetFlags(BaseEntity.FlagsUpdateMode.SendNetworkUpdate_Flags);
+                flagsScope.Set(EntityData.EnabledFlags, true);
             }
 
             private void UpdateIOEntitySlotPositions(IOEntity ioEntity)
@@ -8237,14 +8250,16 @@ namespace Oxide.Plugins
 
                 (Entity as Signage)?.EnsureInitialized();
 
+                using var flagsScope = Entity.StartSetFlags(BaseEntity.FlagsUpdateMode.SendNetworkUpdate_Flags);
+
                 var carvablePumpkin = Entity as CarvablePumpkin;
                 if (carvablePumpkin != null)
                 {
                     carvablePumpkin.EnsureInitialized();
-                    carvablePumpkin.SetFlag(BaseEntity.Flags.On, true);
+                    flagsScope.Set(BaseEntity.Flags.On, true);
                 }
 
-                Entity.SetFlag(BaseEntity.Flags.Locked, true);
+                flagsScope.Set(BaseEntity.Flags.Locked, true);
             }
 
             protected override void PreEntityKill()
