@@ -8907,15 +8907,30 @@ namespace Oxide.Plugins
         {
             public static PuzzleResetHandler Create(EntityAdapter adapter, PuzzleReset puzzleReset)
             {
-                var gameObject = new GameObject();
-                gameObject.transform.SetParent(puzzleReset.transform);
-                var component = gameObject.AddComponent<PuzzleResetHandler>();
+                var component = puzzleReset.gameObject.AddComponent<PuzzleResetHandler>();
+
+                // PuzzleReset.GetResetObjects() will find PuzzleResetObject components and then add their parent
+                // objects to the reset list, so we need to create a child object with a trigger collider and
+                // PuzzleResetObject component.
+                var child = new GameObject();
+                child.layer = (int)Rust.Layer.Trigger;
+                child.transform.SetParent(puzzleReset.transform, false);
+                child.AddComponent<PuzzleResetObject>();
+
+                var collider = child.AddComponent<SphereCollider>();
+                collider.isTrigger = true;
+
+                component._child = child;
                 component._adapter = adapter;
-                puzzleReset.resetObjects = new[] { gameObject };
+
+                // Clear the cache in case GetResetObjects() was already called.
+                puzzleReset._cachedResetObjects = null;
+
                 return component;
             }
 
             private EntityAdapter _adapter;
+            private GameObject _child;
 
             // Called by Rust via Unity SendMessage.
             private void OnPuzzleReset()
@@ -8925,7 +8940,7 @@ namespace Oxide.Plugins
 
             public void Destroy()
             {
-                Destroy(gameObject);
+                Destroy(_child);
             }
         }
 
