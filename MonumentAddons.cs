@@ -9578,8 +9578,8 @@ namespace Oxide.Plugins
                         var agent = npcPlayer.NavAgent;
                         agent.agentTypeID = -1372625422;
                         agent.areaMask = 1;
-                        agent._agent.autoTraverseOffMeshLink = true;
-                        agent._agent.autoRepath = true;
+                        // agent._agent.autoTraverseOffMeshLink = true;
+                        // agent._agent.autoRepath = true;
 
                         var brain = humanNpc.Brain;
                         humanNpc.Invoke(() =>
