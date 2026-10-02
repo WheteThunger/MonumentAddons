@@ -48,7 +48,7 @@ using Vector3 = UnityEngine.Vector3;
 
 namespace Oxide.Plugins
 {
-    [Info("Monument Addons", "WhiteThunder", "0.21.4")]
+    [Info("Monument Addons", "WhiteThunder", "0.21.5")]
     [Description("Allows adding entities, spawn points and more to monuments.")]
     internal class MonumentAddons : CovalencePlugin
     {
@@ -1329,137 +1329,137 @@ namespace Oxide.Plugins
             switch (subCommandLower)
             {
                 case "reset":
-                {
-                    if (!VerifyLookingAtAdapter(player, out EntityAdapter adapter, out EntityController _, LangEntry.ErrorNoSuitableAddonFound))
-                        return;
-
-                    var ioEntity = adapter.Entity as IOEntity;
-                    var puzzleReset = ioEntity != null ? FindConnectedPuzzleReset(ioEntity) : null;
-                    if (puzzleReset == null)
                     {
-                        ReplyToPlayer(player, LangEntry.PuzzleNotConnected, _uniqueNameRegistry.GetUniqueShortName(adapter.Entity.PrefabName));
-                        return;
-                    }
+                        if (!VerifyLookingAtAdapter(player, out EntityAdapter adapter, out EntityController _, LangEntry.ErrorNoSuitableAddonFound))
+                            return;
 
-                    puzzleReset.DoReset();
-                    puzzleReset.ResetTimer();
-                    ReplyToPlayer(player, LangEntry.PuzzleResetSuccess);
-                    break;
-                }
+                        var ioEntity = adapter.Entity as IOEntity;
+                        var puzzleReset = ioEntity != null ? FindConnectedPuzzleReset(ioEntity) : null;
+                        if (puzzleReset == null)
+                        {
+                            ReplyToPlayer(player, LangEntry.PuzzleNotConnected, _uniqueNameRegistry.GetUniqueShortName(adapter.Entity.PrefabName));
+                            return;
+                        }
+
+                        puzzleReset.DoReset();
+                        puzzleReset.ResetTimer();
+                        ReplyToPlayer(player, LangEntry.PuzzleResetSuccess);
+                        break;
+                    }
 
                 case "add":
                 case "remove":
-                {
-                    var isAdd = subCommandLower == "add";
-                    if (args.Length < 2)
                     {
-                        ReplyToPlayer(player, isAdd ? LangEntry.PuzzleAddSpawnGroupSyntax : LangEntry.PuzzleRemoveSpawnGroupSyntax, cmd);
-                        return;
+                        var isAdd = subCommandLower == "add";
+                        if (args.Length < 2)
+                        {
+                            ReplyToPlayer(player, isAdd ? LangEntry.PuzzleAddSpawnGroupSyntax : LangEntry.PuzzleRemoveSpawnGroupSyntax, cmd);
+                            return;
+                        }
+
+                        if (!VerifyLookingAtAdapter(player, out EntityAdapter adapter, out EntityController controller, LangEntry.ErrorNoSuitableAddonFound)
+                            || !VerifyEntityComponent(player, adapter.Entity, out PuzzleReset puzzleReset, LangEntry.PuzzleNotPresent))
+                            return;
+
+                        if (!VerifySpawnGroupFound(player, args[1], adapter.Monument, out var spawnGroupController))
+                            return;
+
+                        var spawnGroupData = spawnGroupController.SpawnGroupData;
+                        var spawnGroupId = spawnGroupData.Id;
+                        var puzzleData = controller.EntityData.EnsurePuzzleData(puzzleReset);
+
+                        if (!isAdd)
+                        {
+                            puzzleData.RemoveSpawnGroupId(spawnGroupId);
+                        }
+                        else if (!puzzleData.HasSpawnGroupId(spawnGroupId))
+                        {
+                            puzzleData.AddSpawnGroupId(spawnGroupId);
+                        }
+
+                        controller.StartUpdateRoutine();
+                        _profileStore.Save(controller.Profile);
+
+                        ReplyToPlayer(player, isAdd ? LangEntry.PuzzleAddSpawnGroupSuccess : LangEntry.PuzzleRemoveSpawnGroupSuccess, spawnGroupData.Name);
+
+                        _adapterDisplayManager.ShowAllRepeatedly(basePlayer, immediate: false);
+                        break;
                     }
-
-                    if (!VerifyLookingAtAdapter(player, out EntityAdapter adapter, out EntityController controller, LangEntry.ErrorNoSuitableAddonFound)
-                        || !VerifyEntityComponent(player, adapter.Entity, out PuzzleReset puzzleReset, LangEntry.PuzzleNotPresent))
-                        return;
-
-                    if (!VerifySpawnGroupFound(player, args[1], adapter.Monument, out var spawnGroupController))
-                        return;
-
-                    var spawnGroupData = spawnGroupController.SpawnGroupData;
-                    var spawnGroupId = spawnGroupData.Id;
-                    var puzzleData = controller.EntityData.EnsurePuzzleData(puzzleReset);
-
-                    if (!isAdd)
-                    {
-                        puzzleData.RemoveSpawnGroupId(spawnGroupId);
-                    }
-                    else if (!puzzleData.HasSpawnGroupId(spawnGroupId))
-                    {
-                        puzzleData.AddSpawnGroupId(spawnGroupId);
-                    }
-
-                    controller.StartUpdateRoutine();
-                    _profileStore.Save(controller.Profile);
-
-                    ReplyToPlayer(player, isAdd ? LangEntry.PuzzleAddSpawnGroupSuccess : LangEntry.PuzzleRemoveSpawnGroupSuccess, spawnGroupData.Name);
-
-                    _adapterDisplayManager.ShowAllRepeatedly(basePlayer, immediate: false);
-                    break;
-                }
 
                 case "set":
-                {
-                    if (args.Length < 3)
                     {
-                        _sb.Clear();
-                        _sb.AppendLine(GetMessage(player.Id, LangEntry.ErrorSetSyntaxGeneric, cmd, subCommandLower));
-                        _sb.AppendLine(GetMessage(player.Id, LangEntry.PuzzleSetHelpMaxPlayersBlockReset));
-                        _sb.AppendLine(GetMessage(player.Id, LangEntry.PuzzleSetHelpPlayerDetectionRadius));
-                        _sb.AppendLine(GetMessage(player.Id, LangEntry.PuzzleSetHelpSecondsBetweenResets));
-                        player.Reply(_sb.ToString());
-                        return;
+                        if (args.Length < 3)
+                        {
+                            _sb.Clear();
+                            _sb.AppendLine(GetMessage(player.Id, LangEntry.ErrorSetSyntaxGeneric, cmd, subCommandLower));
+                            _sb.AppendLine(GetMessage(player.Id, LangEntry.PuzzleSetHelpMaxPlayersBlockReset));
+                            _sb.AppendLine(GetMessage(player.Id, LangEntry.PuzzleSetHelpPlayerDetectionRadius));
+                            _sb.AppendLine(GetMessage(player.Id, LangEntry.PuzzleSetHelpSecondsBetweenResets));
+                            player.Reply(_sb.ToString());
+                            return;
+                        }
+
+                        if (!VerifyValidEnumValue(player, args[1], out PuzzleOption puzzleOption))
+                            return;
+
+                        if (!VerifyLookingAtAdapter(player, out EntityAdapter adapter, out EntityController controller, LangEntry.ErrorNoSuitableAddonFound)
+                            || !VerifyEntityComponent(player, adapter.Entity, out PuzzleReset puzzleReset, LangEntry.PuzzleNotPresent))
+                            return;
+
+                        var puzzleData = controller.EntityData.EnsurePuzzleData(puzzleReset);
+
+                        object setValue = args[2];
+                        var showImmediate = true;
+
+                        switch (puzzleOption)
+                        {
+                            case PuzzleOption.PlayersBlockReset:
+                                {
+                                    if (!VerifyValidBool(player, args[2], out var playerBlockReset, LangEntry.ErrorSetSyntax.Bind(cmd, PuzzleOption.PlayersBlockReset)))
+                                        return;
+
+                                    puzzleData.PlayersBlockReset = playerBlockReset;
+                                    setValue = playerBlockReset;
+                                    showImmediate = false;
+                                    break;
+                                }
+
+                            case PuzzleOption.PlayerDetectionRadius:
+                                {
+                                    if (!VerifyValidFloat(player, args[2], out var playerDetectionRadius, LangEntry.ErrorSetSyntax.Bind(cmd, PuzzleOption.PlayerDetectionRadius)))
+                                        return;
+
+                                    puzzleData.PlayersBlockReset = true;
+                                    puzzleData.PlayerDetectionRadius = playerDetectionRadius;
+                                    setValue = playerDetectionRadius;
+                                    break;
+                                }
+
+                            case PuzzleOption.SecondsBetweenResets:
+                                {
+                                    if (!VerifyValidFloat(player, args[2], out var secondsBetweenResets, LangEntry.ErrorSetSyntax.Bind(cmd, PuzzleOption.SecondsBetweenResets)))
+                                        return;
+
+                                    puzzleData.SecondsBetweenResets = secondsBetweenResets;
+                                    setValue = secondsBetweenResets;
+                                    break;
+                                }
+                        }
+
+                        controller.StartUpdateRoutine();
+                        _profileStore.Save(controller.Profile);
+
+                        ReplyToPlayer(player, LangEntry.PuzzleSetSuccess, puzzleOption, setValue);
+
+                        _adapterDisplayManager.ShowAllRepeatedly(basePlayer, immediate: showImmediate);
+                        break;
                     }
-
-                    if (!VerifyValidEnumValue(player, args[1], out PuzzleOption puzzleOption))
-                        return;
-
-                    if (!VerifyLookingAtAdapter(player, out EntityAdapter adapter, out EntityController controller, LangEntry.ErrorNoSuitableAddonFound)
-                        || !VerifyEntityComponent(player, adapter.Entity, out PuzzleReset puzzleReset, LangEntry.PuzzleNotPresent))
-                        return;
-
-                    var puzzleData = controller.EntityData.EnsurePuzzleData(puzzleReset);
-
-                    object setValue = args[2];
-                    var showImmediate = true;
-
-                    switch (puzzleOption)
-                    {
-                        case PuzzleOption.PlayersBlockReset:
-                        {
-                            if (!VerifyValidBool(player, args[2], out var playerBlockReset, LangEntry.ErrorSetSyntax.Bind(cmd, PuzzleOption.PlayersBlockReset)))
-                                return;
-
-                            puzzleData.PlayersBlockReset = playerBlockReset;
-                            setValue = playerBlockReset;
-                            showImmediate = false;
-                            break;
-                        }
-
-                        case PuzzleOption.PlayerDetectionRadius:
-                        {
-                            if (!VerifyValidFloat(player, args[2], out var playerDetectionRadius, LangEntry.ErrorSetSyntax.Bind(cmd, PuzzleOption.PlayerDetectionRadius)))
-                                return;
-
-                            puzzleData.PlayersBlockReset = true;
-                            puzzleData.PlayerDetectionRadius = playerDetectionRadius;
-                            setValue = playerDetectionRadius;
-                            break;
-                        }
-
-                        case PuzzleOption.SecondsBetweenResets:
-                        {
-                            if (!VerifyValidFloat(player, args[2], out var secondsBetweenResets, LangEntry.ErrorSetSyntax.Bind(cmd, PuzzleOption.SecondsBetweenResets)))
-                                return;
-
-                            puzzleData.SecondsBetweenResets = secondsBetweenResets;
-                            setValue = secondsBetweenResets;
-                            break;
-                        }
-                    }
-
-                    controller.StartUpdateRoutine();
-                    _profileStore.Save(controller.Profile);
-
-                    ReplyToPlayer(player, LangEntry.PuzzleSetSuccess, puzzleOption, setValue);
-
-                    _adapterDisplayManager.ShowAllRepeatedly(basePlayer, immediate: showImmediate);
-                    break;
-                }
 
                 default:
-                {
-                    SubCommandPuzzleHelp(player, cmd);
-                    break;
-                }
+                    {
+                        SubCommandPuzzleHelp(player, cmd);
+                        break;
+                    }
             }
         }
 
@@ -1493,367 +1493,367 @@ namespace Oxide.Plugins
             switch (args[0].ToLower())
             {
                 case "list":
-                {
-                    var profileList = ProfileInfo.GetList(_data, _profileManager);
-                    if (profileList.Count == 0)
                     {
-                        ReplyToPlayer(player, LangEntry.ProfileListEmpty);
-                        return;
+                        var profileList = ProfileInfo.GetList(_data, _profileManager);
+                        if (profileList.Count == 0)
+                        {
+                            ReplyToPlayer(player, LangEntry.ProfileListEmpty);
+                            return;
+                        }
+
+                        var playerProfileName = player.IsServer ? null : _data.GetSelectedProfileName(player.Id);
+
+                        profileList = profileList
+                            .OrderByDescending(profile => profile.Enabled && profile.Name == playerProfileName)
+                            .ThenByDescending(profile => profile.Enabled)
+                            .ThenBy(profile => profile.Name)
+                            .ToList();
+
+                        _sb.Clear();
+                        _sb.AppendLine(GetMessage(player.Id, LangEntry.ProfileListHeader));
+                        foreach (var profile in profileList)
+                        {
+                            var messageName = profile.Enabled && profile.Name == playerProfileName
+                                ? LangEntry.ProfileListItemSelected
+                                : profile.Enabled
+                                ? LangEntry.ProfileListItemEnabled
+                                : LangEntry.ProfileListItemDisabled;
+
+                            _sb.AppendLine(GetMessage(player.Id, messageName, profile.Name, GetAuthorSuffix(player, profile.Profile?.Author)));
+                        }
+                        player.Reply(_sb.ToString());
+                        break;
                     }
-
-                    var playerProfileName = player.IsServer ? null : _data.GetSelectedProfileName(player.Id);
-
-                    profileList = profileList
-                        .OrderByDescending(profile => profile.Enabled && profile.Name == playerProfileName)
-                        .ThenByDescending(profile => profile.Enabled)
-                        .ThenBy(profile => profile.Name)
-                        .ToList();
-
-                    _sb.Clear();
-                    _sb.AppendLine(GetMessage(player.Id, LangEntry.ProfileListHeader));
-                    foreach (var profile in profileList)
-                    {
-                        var messageName = profile.Enabled && profile.Name == playerProfileName
-                            ? LangEntry.ProfileListItemSelected
-                            : profile.Enabled
-                            ? LangEntry.ProfileListItemEnabled
-                            : LangEntry.ProfileListItemDisabled;
-
-                        _sb.AppendLine(GetMessage(player.Id, messageName, profile.Name, GetAuthorSuffix(player, profile.Profile?.Author)));
-                    }
-                    player.Reply(_sb.ToString());
-                    break;
-                }
 
                 case "describe":
-                {
-                    if (!VerifyProfile(player, args, out var controller, LangEntry.ProfileDescribeSyntax))
-                        return;
-
-                    if (controller.Profile.IsEmpty())
                     {
-                        ReplyToPlayer(player, LangEntry.ProfileEmpty, controller.Profile.Name);
-                        return;
+                        if (!VerifyProfile(player, args, out var controller, LangEntry.ProfileDescribeSyntax))
+                            return;
+
+                        if (controller.Profile.IsEmpty())
+                        {
+                            ReplyToPlayer(player, LangEntry.ProfileEmpty, controller.Profile.Name);
+                            return;
+                        }
+
+                        _sb.Clear();
+                        _sb.AppendLine(GetMessage(player.Id, LangEntry.ProfileDescribeHeader, controller.Profile.Name));
+                        AddProfileDescription(_sb, player, controller);
+
+                        player.Reply(_sb.ToString());
+
+                        if (!player.IsServer)
+                        {
+                            _adapterDisplayManager.SetPlayerProfile(basePlayer, controller);
+                            _adapterDisplayManager.ShowAllRepeatedly(basePlayer);
+                        }
+
+                        break;
                     }
-
-                    _sb.Clear();
-                    _sb.AppendLine(GetMessage(player.Id, LangEntry.ProfileDescribeHeader, controller.Profile.Name));
-                    AddProfileDescription(_sb, player, controller);
-
-                    player.Reply(_sb.ToString());
-
-                    if (!player.IsServer)
-                    {
-                        _adapterDisplayManager.SetPlayerProfile(basePlayer, controller);
-                        _adapterDisplayManager.ShowAllRepeatedly(basePlayer);
-                    }
-
-                    break;
-                }
 
                 case "sel":
                 case "select":
-                {
-                    if (player.IsServer)
-                        return;
-
-                    ProfileController controller;
-
-                    if (args.Length <= 1)
                     {
-                        // Find the adapter where the player is aiming, if they did not specify a profile name.
-                        controller = FindAdapter(basePlayer).Controller?.ProfileController;
-                        if (controller == null)
+                        if (player.IsServer)
+                            return;
+
+                        ProfileController controller;
+
+                        if (args.Length <= 1)
                         {
-                            ReplyToPlayer(player, LangEntry.ProfileSelectSyntax);
-                            return;
+                            // Find the adapter where the player is aiming, if they did not specify a profile name.
+                            controller = FindAdapter(basePlayer).Controller?.ProfileController;
+                            if (controller == null)
+                            {
+                                ReplyToPlayer(player, LangEntry.ProfileSelectSyntax);
+                                return;
+                            }
                         }
-                    }
-                    else if (!VerifyProfile(player, args, out controller, LangEntry.ProfileSelectSyntax))
-                        return;
-
-                    var profile = controller.Profile;
-                    var profileName = profile.Name;
-
-                    _data.SetProfileSelected(player.Id, profileName);
-                    var wasEnabled = controller.IsEnabled;
-                    if (wasEnabled)
-                    {
-                        // Only save if the profile is not enabled, since enabling it will already save the main data file.
-                        _data.Save();
-                    }
-                    else
-                    {
-                        if (!VerifyCanLoadProfile(player, profileName, out var newProfileData))
+                        else if (!VerifyProfile(player, args, out controller, LangEntry.ProfileSelectSyntax))
                             return;
 
-                        controller.Enable(newProfileData);
-                    }
+                        var profile = controller.Profile;
+                        var profileName = profile.Name;
 
-                    ReplyToPlayer(player, wasEnabled ? LangEntry.ProfileSelectSuccess : LangEntry.ProfileSelectEnableSuccess, profileName);
-                    _adapterDisplayManager.SetPlayerProfile(basePlayer, controller);
-                    _adapterDisplayManager.ShowAllRepeatedly(basePlayer);
-                    break;
-                }
+                        _data.SetProfileSelected(player.Id, profileName);
+                        var wasEnabled = controller.IsEnabled;
+                        if (wasEnabled)
+                        {
+                            // Only save if the profile is not enabled, since enabling it will already save the main data file.
+                            _data.Save();
+                        }
+                        else
+                        {
+                            if (!VerifyCanLoadProfile(player, profileName, out var newProfileData))
+                                return;
+
+                            controller.Enable(newProfileData);
+                        }
+
+                        ReplyToPlayer(player, wasEnabled ? LangEntry.ProfileSelectSuccess : LangEntry.ProfileSelectEnableSuccess, profileName);
+                        _adapterDisplayManager.SetPlayerProfile(basePlayer, controller);
+                        _adapterDisplayManager.ShowAllRepeatedly(basePlayer);
+                        break;
+                    }
 
                 case "create":
-                {
-                    if (args.Length < 2)
                     {
-                        ReplyToPlayer(player, LangEntry.ProfileCreateSyntax);
-                        return;
+                        if (args.Length < 2)
+                        {
+                            ReplyToPlayer(player, LangEntry.ProfileCreateSyntax);
+                            return;
+                        }
+
+                        var newName = DynamicConfigFile.SanitizeName(args[1]);
+                        if (string.IsNullOrWhiteSpace(newName))
+                        {
+                            ReplyToPlayer(player, LangEntry.ProfileCreateSyntax);
+                            return;
+                        }
+
+                        if (!VerifyProfileNameAvailable(player, newName))
+                            return;
+
+                        var controller = _profileManager.CreateProfile(newName, basePlayer?.displayName);
+
+                        if (!player.IsServer)
+                        {
+                            _data.SetProfileSelected(player.Id, newName);
+                        }
+
+                        _data.SetProfileEnabled(newName);
+
+                        ReplyToPlayer(player, LangEntry.ProfileCreateSuccess, controller.Profile.Name);
+                        _adapterDisplayManager.SetPlayerProfile(basePlayer, controller);
+                        break;
                     }
-
-                    var newName = DynamicConfigFile.SanitizeName(args[1]);
-                    if (string.IsNullOrWhiteSpace(newName))
-                    {
-                        ReplyToPlayer(player, LangEntry.ProfileCreateSyntax);
-                        return;
-                    }
-
-                    if (!VerifyProfileNameAvailable(player, newName))
-                        return;
-
-                    var controller = _profileManager.CreateProfile(newName, basePlayer?.displayName);
-
-                    if (!player.IsServer)
-                    {
-                        _data.SetProfileSelected(player.Id, newName);
-                    }
-
-                    _data.SetProfileEnabled(newName);
-
-                    ReplyToPlayer(player, LangEntry.ProfileCreateSuccess, controller.Profile.Name);
-                    _adapterDisplayManager.SetPlayerProfile(basePlayer, controller);
-                    break;
-                }
 
                 case "rename":
-                {
-                    if (args.Length < 2)
                     {
-                        ReplyToPlayer(player, LangEntry.ProfileRenameSyntax);
-                        return;
-                    }
-
-                    ProfileController controller;
-                    if (args.Length == 2)
-                    {
-                        controller = player.IsServer ? null : _profileManager.GetPlayerProfileController(player.Id);
-                        if (controller == null)
+                        if (args.Length < 2)
                         {
                             ReplyToPlayer(player, LangEntry.ProfileRenameSyntax);
                             return;
                         }
+
+                        ProfileController controller;
+                        if (args.Length == 2)
+                        {
+                            controller = player.IsServer ? null : _profileManager.GetPlayerProfileController(player.Id);
+                            if (controller == null)
+                            {
+                                ReplyToPlayer(player, LangEntry.ProfileRenameSyntax);
+                                return;
+                            }
+                        }
+                        else if (!VerifyProfileExists(player, args[1], out controller))
+                            return;
+
+                        string newName = DynamicConfigFile.SanitizeName(args.Length == 2 ? args[1] : args[2]);
+                        if (string.IsNullOrWhiteSpace(newName))
+                        {
+                            ReplyToPlayer(player, LangEntry.ProfileRenameSyntax);
+                            return;
+                        }
+
+                        if (!VerifyProfileNameAvailable(player, newName))
+                            return;
+
+                        // Cache the actual old name in case it was case-insensitive matched.
+                        var actualOldName = controller.Profile.Name;
+
+                        controller.Rename(newName);
+                        ReplyToPlayer(player, LangEntry.ProfileRenameSuccess, actualOldName, controller.Profile.Name);
+                        if (!player.IsServer)
+                        {
+                            _adapterDisplayManager.ShowAllRepeatedly(basePlayer);
+                        }
+
+                        break;
                     }
-                    else if (!VerifyProfileExists(player, args[1], out controller))
-                        return;
-
-                    string newName = DynamicConfigFile.SanitizeName(args.Length == 2 ? args[1] : args[2]);
-                    if (string.IsNullOrWhiteSpace(newName))
-                    {
-                        ReplyToPlayer(player, LangEntry.ProfileRenameSyntax);
-                        return;
-                    }
-
-                    if (!VerifyProfileNameAvailable(player, newName))
-                        return;
-
-                    // Cache the actual old name in case it was case-insensitive matched.
-                    var actualOldName = controller.Profile.Name;
-
-                    controller.Rename(newName);
-                    ReplyToPlayer(player, LangEntry.ProfileRenameSuccess, actualOldName, controller.Profile.Name);
-                    if (!player.IsServer)
-                    {
-                        _adapterDisplayManager.ShowAllRepeatedly(basePlayer);
-                    }
-
-                    break;
-                }
 
                 case "reload":
-                {
-                    if (!VerifyProfile(player, args, out var controller, LangEntry.ProfileReloadSyntax))
-                        return;
-
-                    if (!controller.IsEnabled)
                     {
-                        ReplyToPlayer(player, LangEntry.ProfileNotEnabled, controller.Profile.Name);
-                        return;
+                        if (!VerifyProfile(player, args, out var controller, LangEntry.ProfileReloadSyntax))
+                            return;
+
+                        if (!controller.IsEnabled)
+                        {
+                            ReplyToPlayer(player, LangEntry.ProfileNotEnabled, controller.Profile.Name);
+                            return;
+                        }
+
+                        if (!VerifyCanLoadProfile(player, controller.Profile.Name, out var newProfileData))
+                            return;
+
+                        controller.Reload(newProfileData);
+                        ReplyToPlayer(player, LangEntry.ProfileReloadSuccess, controller.Profile.Name);
+                        if (!player.IsServer)
+                        {
+                            _adapterDisplayManager.SetPlayerProfile(basePlayer, controller);
+                            _adapterDisplayManager.ShowAllRepeatedly(basePlayer);
+                        }
+
+                        break;
                     }
-
-                    if (!VerifyCanLoadProfile(player, controller.Profile.Name, out var newProfileData))
-                        return;
-
-                    controller.Reload(newProfileData);
-                    ReplyToPlayer(player, LangEntry.ProfileReloadSuccess, controller.Profile.Name);
-                    if (!player.IsServer)
-                    {
-                        _adapterDisplayManager.SetPlayerProfile(basePlayer, controller);
-                        _adapterDisplayManager.ShowAllRepeatedly(basePlayer);
-                    }
-
-                    break;
-                }
 
                 case "enable":
-                {
-                    if (args.Length < 2)
                     {
-                        ReplyToPlayer(player, LangEntry.ProfileEnableSyntax);
-                        return;
+                        if (args.Length < 2)
+                        {
+                            ReplyToPlayer(player, LangEntry.ProfileEnableSyntax);
+                            return;
+                        }
+
+                        if (!VerifyProfileExists(player, args[1], out var controller))
+                            return;
+
+                        var profileName = controller.Profile.Name;
+                        if (controller.IsEnabled)
+                        {
+                            ReplyToPlayer(player, LangEntry.ProfileAlreadyEnabled, profileName);
+                            return;
+                        }
+
+                        if (!VerifyCanLoadProfile(player, controller.Profile.Name, out var newProfileData))
+                            return;
+
+                        controller.Enable(newProfileData);
+                        ReplyToPlayer(player, LangEntry.ProfileEnableSuccess, profileName);
+                        if (!player.IsServer)
+                        {
+                            _adapterDisplayManager.SetPlayerProfile(basePlayer, controller);
+                            _adapterDisplayManager.ShowAllRepeatedly(basePlayer);
+                        }
+
+                        break;
                     }
-
-                    if (!VerifyProfileExists(player, args[1], out var controller))
-                        return;
-
-                    var profileName = controller.Profile.Name;
-                    if (controller.IsEnabled)
-                    {
-                        ReplyToPlayer(player, LangEntry.ProfileAlreadyEnabled, profileName);
-                        return;
-                    }
-
-                    if (!VerifyCanLoadProfile(player, controller.Profile.Name, out var newProfileData))
-                        return;
-
-                    controller.Enable(newProfileData);
-                    ReplyToPlayer(player, LangEntry.ProfileEnableSuccess, profileName);
-                    if (!player.IsServer)
-                    {
-                        _adapterDisplayManager.SetPlayerProfile(basePlayer, controller);
-                        _adapterDisplayManager.ShowAllRepeatedly(basePlayer);
-                    }
-
-                    break;
-                }
 
                 case "disable":
-                {
-                    if (!VerifyProfile(player, args, out var controller, LangEntry.ProfileDisableSyntax))
-                        return;
-
-                    var profileName = controller.Profile.Name;
-                    if (!controller.IsEnabled)
                     {
-                        ReplyToPlayer(player, LangEntry.ProfileAlreadyDisabled, profileName);
-                        return;
-                    }
+                        if (!VerifyProfile(player, args, out var controller, LangEntry.ProfileDisableSyntax))
+                            return;
 
-                    _profileManager.DisableProfile(controller);
-                    ReplyToPlayer(player, LangEntry.ProfileDisableSuccess, profileName);
-                    break;
-                }
+                        var profileName = controller.Profile.Name;
+                        if (!controller.IsEnabled)
+                        {
+                            ReplyToPlayer(player, LangEntry.ProfileAlreadyDisabled, profileName);
+                            return;
+                        }
+
+                        _profileManager.DisableProfile(controller);
+                        ReplyToPlayer(player, LangEntry.ProfileDisableSuccess, profileName);
+                        break;
+                    }
 
                 case "clear":
-                {
-                    if (args.Length <= 1)
                     {
-                        ReplyToPlayer(player, LangEntry.ProfileClearSyntax);
-                        return;
+                        if (args.Length <= 1)
+                        {
+                            ReplyToPlayer(player, LangEntry.ProfileClearSyntax);
+                            return;
+                        }
+
+                        if (!VerifyProfile(player, args, out var controller, LangEntry.ProfileClearSyntax))
+                            return;
+
+                        if (!controller.Profile.IsEmpty())
+                        {
+                            controller.Clear();
+                        }
+
+                        ReplyToPlayer(player, LangEntry.ProfileClearSuccess, controller.Profile.Name);
+                        break;
                     }
-
-                    if (!VerifyProfile(player, args, out var controller, LangEntry.ProfileClearSyntax))
-                        return;
-
-                    if (!controller.Profile.IsEmpty())
-                    {
-                        controller.Clear();
-                    }
-
-                    ReplyToPlayer(player, LangEntry.ProfileClearSuccess, controller.Profile.Name);
-                    break;
-                }
 
                 case "delete":
-                {
-                    if (args.Length <= 1)
                     {
-                        ReplyToPlayer(player, LangEntry.ProfileDeleteSyntax);
-                        return;
+                        if (args.Length <= 1)
+                        {
+                            ReplyToPlayer(player, LangEntry.ProfileDeleteSyntax);
+                            return;
+                        }
+
+                        if (!VerifyProfile(player, args, out var controller, LangEntry.ProfileDeleteSyntax))
+                            return;
+
+                        var profileName = controller.Profile.Name;
+                        if (controller.IsEnabled && !controller.Profile.IsEmpty())
+                        {
+                            ReplyToPlayer(player, LangEntry.ProfileDeleteBlocked, profileName);
+                            return;
+                        }
+
+                        _profileManager.DeleteProfile(controller);
+                        ReplyToPlayer(player, LangEntry.ProfileDeleteSuccess, profileName);
+                        break;
                     }
-
-                    if (!VerifyProfile(player, args, out var controller, LangEntry.ProfileDeleteSyntax))
-                        return;
-
-                    var profileName = controller.Profile.Name;
-                    if (controller.IsEnabled && !controller.Profile.IsEmpty())
-                    {
-                        ReplyToPlayer(player, LangEntry.ProfileDeleteBlocked, profileName);
-                        return;
-                    }
-
-                    _profileManager.DeleteProfile(controller);
-                    ReplyToPlayer(player, LangEntry.ProfileDeleteSuccess, profileName);
-                    break;
-                }
 
                 case "moveto":
-                {
-                    if (!VerifyLookingAtAdapter(player, out BaseController addonController, LangEntry.ErrorNoSuitableAddonFound))
-                        return;
-
-                    if (!VerifyProfile(player, args, out var newProfileController, LangEntry.ProfileMoveToSyntax))
-                        return;
-
-                    var oldProfileController = addonController.ProfileController;
-                    var newProfile = newProfileController.Profile;
-                    var oldProfile = addonController.Profile;
-
-                    var data = addonController.Data;
-                    var addonName = GetAddonName(player, data);
-
-                    if (newProfileController == oldProfileController)
                     {
-                        ReplyToPlayer(player, LangEntry.ProfileMoveToAlreadyPresent, addonName, oldProfile.Name);
-                        return;
+                        if (!VerifyLookingAtAdapter(player, out BaseController addonController, LangEntry.ErrorNoSuitableAddonFound))
+                            return;
+
+                        if (!VerifyProfile(player, args, out var newProfileController, LangEntry.ProfileMoveToSyntax))
+                            return;
+
+                        var oldProfileController = addonController.ProfileController;
+                        var newProfile = newProfileController.Profile;
+                        var oldProfile = addonController.Profile;
+
+                        var data = addonController.Data;
+                        var addonName = GetAddonName(player, data);
+
+                        if (newProfileController == oldProfileController)
+                        {
+                            ReplyToPlayer(player, LangEntry.ProfileMoveToAlreadyPresent, addonName, oldProfile.Name);
+                            return;
+                        }
+
+                        if (!oldProfile.RemoveData(data, out var monumentIdentifier))
+                        {
+                            LogError($"Unexpected error: {data.GetType()} {data.Id} was not found in profile {oldProfile.Name}");
+                            return;
+                        }
+
+                        _profileStore.Save(oldProfile);
+                        var killRoutine = addonController.Kill();
+                        if (killRoutine != null)
+                        {
+                            oldProfileController.StartCallbackRoutine(killRoutine, oldProfileController.SetupIO);
+                        }
+
+                        newProfile.AddData(monumentIdentifier, data);
+                        _profileStore.Save(newProfile);
+                        newProfileController.SpawnNewData(data, GetMonumentsByIdentifier(monumentIdentifier));
+
+                        ReplyToPlayer(player, LangEntry.ProfileMoveToSuccess, addonName, oldProfile.Name, newProfile.Name);
+                        if (!player.IsServer)
+                        {
+                            _adapterDisplayManager.SetPlayerProfile(basePlayer, newProfileController);
+                            _adapterDisplayManager.ShowAllRepeatedly(basePlayer);
+                        }
+
+                        break;
                     }
-
-                    if (!oldProfile.RemoveData(data, out var monumentIdentifier))
-                    {
-                        LogError($"Unexpected error: {data.GetType()} {data.Id} was not found in profile {oldProfile.Name}");
-                        return;
-                    }
-
-                    _profileStore.Save(oldProfile);
-                    var killRoutine = addonController.Kill();
-                    if (killRoutine != null)
-                    {
-                        oldProfileController.StartCallbackRoutine(killRoutine, oldProfileController.SetupIO);
-                    }
-
-                    newProfile.AddData(monumentIdentifier, data);
-                    _profileStore.Save(newProfile);
-                    newProfileController.SpawnNewData(data, GetMonumentsByIdentifier(monumentIdentifier));
-
-                    ReplyToPlayer(player, LangEntry.ProfileMoveToSuccess, addonName, oldProfile.Name, newProfile.Name);
-                    if (!player.IsServer)
-                    {
-                        _adapterDisplayManager.SetPlayerProfile(basePlayer, newProfileController);
-                        _adapterDisplayManager.ShowAllRepeatedly(basePlayer);
-                    }
-
-                    break;
-                }
 
                 case "install":
-                {
-                    if (args.Length < 2)
                     {
-                        ReplyToPlayer(player, LangEntry.ProfileInstallSyntax);
-                        return;
+                        if (args.Length < 2)
+                        {
+                            ReplyToPlayer(player, LangEntry.ProfileInstallSyntax);
+                            return;
+                        }
+
+                        SharedCommandInstallProfile(player, args.Skip(1).ToArray());
+                        break;
                     }
 
-                    SharedCommandInstallProfile(player, args.Skip(1).ToArray());
-                    break;
-                }
-
                 default:
-                {
-                    SubCommandProfileHelp(player);
-                    break;
-                }
+                    {
+                        SubCommandProfileHelp(player);
+                        break;
+                    }
             }
         }
 
@@ -2037,28 +2037,28 @@ namespace Oxide.Plugins
             switch (subCommandLower)
             {
                 case "create":
-                {
-                    if (args.Length < 2)
                     {
-                        ReplyToPlayer(player, LangEntry.SpawnGroupCreateSyntax, cmd);
-                        return;
-                    }
+                        if (args.Length < 2)
+                        {
+                            ReplyToPlayer(player, LangEntry.SpawnGroupCreateSyntax, cmd);
+                            return;
+                        }
 
-                    var spawnGroupName = args[1];
+                        var spawnGroupName = args[1];
 
-                    if (!VerifyMonumentFinderLoaded(player)
-                        || !VerifyProfileSelected(player, out var profileController)
-                        || !VerifyLookingAtMonumentPosition(player, out var position, out var monument)
-                        || !VerifySpawnGroupNameAvailable(player, profileController.Profile, monument, spawnGroupName))
-                        return;
+                        if (!VerifyMonumentFinderLoaded(player)
+                            || !VerifyProfileSelected(player, out var profileController)
+                            || !VerifyLookingAtMonumentPosition(player, out var position, out var monument)
+                            || !VerifySpawnGroupNameAvailable(player, profileController.Profile, monument, spawnGroupName))
+                            return;
 
-                    DetermineLocalTransformData(position, basePlayer, monument, out var localPosition, out var localRotationAngles, out var isOnTerrain);
+                        DetermineLocalTransformData(position, basePlayer, monument, out var localPosition, out var localRotationAngles, out var isOnTerrain);
 
-                    var spawnGroupData = _config.AddonDefaults.SpawnGroups.ApplyTo(new SpawnGroupData
-                    {
-                        Id = Guid.NewGuid(),
-                        Name = spawnGroupName,
-                        SpawnPoints = new List<SpawnPointData>
+                        var spawnGroupData = _config.AddonDefaults.SpawnGroups.ApplyTo(new SpawnGroupData
+                        {
+                            Id = Guid.NewGuid(),
+                            Name = spawnGroupName,
+                            SpawnPoints = new List<SpawnPointData>
                         {
                             _config.AddonDefaults.SpawnPoints.ApplyTo(new SpawnPointData
                             {
@@ -2068,326 +2068,326 @@ namespace Oxide.Plugins
                                 SnapToTerrain = isOnTerrain,
                             }),
                         },
-                    });
+                        });
 
-                    var matchingMonuments = GetMonumentsByIdentifier(monument.UniqueName);
+                        var matchingMonuments = GetMonumentsByIdentifier(monument.UniqueName);
 
-                    profileController.Profile.AddData(monument.UniqueName, spawnGroupData);
-                    _profileStore.Save(profileController.Profile);
-                    profileController.SpawnNewData(spawnGroupData, matchingMonuments);
+                        profileController.Profile.AddData(monument.UniqueName, spawnGroupData);
+                        _profileStore.Save(profileController.Profile);
+                        profileController.SpawnNewData(spawnGroupData, matchingMonuments);
 
-                    ReplyToPlayer(player, LangEntry.SpawnGroupCreateSucces, spawnGroupName);
+                        ReplyToPlayer(player, LangEntry.SpawnGroupCreateSucces, spawnGroupName);
 
-                    _adapterDisplayManager.ShowAllRepeatedly(basePlayer);
-                    break;
-                }
-
-                case "set":
-                {
-                    if (args.Length < 3)
-                    {
-                        _sb.Clear();
-                        _sb.AppendLine(GetMessage(player.Id, LangEntry.ErrorSetSyntaxGeneric, cmd, subCommandLower));
-                        _sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnGroupSetHelpName));
-                        _sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnGroupSetHelpColor));
-                        _sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnGroupSetHelpMaxPopulation));
-                        _sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnGroupSetHelpRespawnDelayMin));
-                        _sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnGroupSetHelpRespawnDelayMax));
-                        _sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnGroupSetHelpSpawnPerTickMin));
-                        _sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnGroupSetHelpSpawnPerTickMax));
-                        _sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnGroupSetHelpInitialSpawn));
-                        _sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnGroupSetHelpPreventDuplicates));
-                        _sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnGroupSetHelpPauseScheduleWhileFull));
-                        _sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnGroupSetHelpRespawnWhenNearestPuzzleResets));
-                        player.Reply(_sb.ToString());
-                        return;
+                        _adapterDisplayManager.ShowAllRepeatedly(basePlayer);
+                        break;
                     }
 
-                    if (!VerifyValidEnumValue(player, args[1], out SpawnGroupOption spawnGroupOption))
-                        return;
-
-                    if (!VerifyLookingAtAdapter(player, out SpawnPointAdapter spawnPointAdapter, out SpawnGroupController spawnGroupController, LangEntry.ErrorNoSpawnPointFound))
-                        return;
-
-                    var spawnGroupData = spawnGroupController.SpawnGroupData;
-                    object setValue = args[2];
-
-                    var showImmediate = true;
-
-                    switch (spawnGroupOption)
+                case "set":
                     {
-                        case SpawnGroupOption.Name:
+                        if (args.Length < 3)
                         {
-                            if (!VerifySpawnGroupNameAvailable(player, spawnGroupController.Profile, spawnPointAdapter.Monument, args[2], spawnGroupController))
-                                return;
-
-                            spawnGroupData.Name = args[2];
-                            break;
-                        }
-
-                        case SpawnGroupOption.Color:
-                        {
-                            if (StringUtils.EqualsCaseInsensitive(args[2], "none"))
-                            {
-                                spawnGroupData.Color = null;
-                                break;
-                            }
-                            else if (ColorUtility.TryParseHtmlString(args[2], out var color))
-                            {
-                                spawnGroupData.Color = color;
-                                break;
-                            }
-
-                            ReplyToPlayer(player, LangEntry.ErrorSetSyntax, cmd, SpawnGroupOption.Color);
+                            _sb.Clear();
+                            _sb.AppendLine(GetMessage(player.Id, LangEntry.ErrorSetSyntaxGeneric, cmd, subCommandLower));
+                            _sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnGroupSetHelpName));
+                            _sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnGroupSetHelpColor));
+                            _sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnGroupSetHelpMaxPopulation));
+                            _sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnGroupSetHelpRespawnDelayMin));
+                            _sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnGroupSetHelpRespawnDelayMax));
+                            _sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnGroupSetHelpSpawnPerTickMin));
+                            _sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnGroupSetHelpSpawnPerTickMax));
+                            _sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnGroupSetHelpInitialSpawn));
+                            _sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnGroupSetHelpPreventDuplicates));
+                            _sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnGroupSetHelpPauseScheduleWhileFull));
+                            _sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnGroupSetHelpRespawnWhenNearestPuzzleResets));
+                            player.Reply(_sb.ToString());
                             return;
                         }
 
-                        case SpawnGroupOption.MaxPopulation:
-                        {
-                            if (!VerifyValidInt(player, args[2], out var maxPopulation, LangEntry.ErrorSetSyntax.Bind(cmd, SpawnGroupOption.MaxPopulation)))
-                                return;
+                        if (!VerifyValidEnumValue(player, args[1], out SpawnGroupOption spawnGroupOption))
+                            return;
 
-                            spawnGroupData.MaxPopulation = maxPopulation;
-                            break;
+                        if (!VerifyLookingAtAdapter(player, out SpawnPointAdapter spawnPointAdapter, out SpawnGroupController spawnGroupController, LangEntry.ErrorNoSpawnPointFound))
+                            return;
+
+                        var spawnGroupData = spawnGroupController.SpawnGroupData;
+                        object setValue = args[2];
+
+                        var showImmediate = true;
+
+                        switch (spawnGroupOption)
+                        {
+                            case SpawnGroupOption.Name:
+                                {
+                                    if (!VerifySpawnGroupNameAvailable(player, spawnGroupController.Profile, spawnPointAdapter.Monument, args[2], spawnGroupController))
+                                        return;
+
+                                    spawnGroupData.Name = args[2];
+                                    break;
+                                }
+
+                            case SpawnGroupOption.Color:
+                                {
+                                    if (StringUtils.EqualsCaseInsensitive(args[2], "none"))
+                                    {
+                                        spawnGroupData.Color = null;
+                                        break;
+                                    }
+                                    else if (ColorUtility.TryParseHtmlString(args[2], out var color))
+                                    {
+                                        spawnGroupData.Color = color;
+                                        break;
+                                    }
+
+                                    ReplyToPlayer(player, LangEntry.ErrorSetSyntax, cmd, SpawnGroupOption.Color);
+                                    return;
+                                }
+
+                            case SpawnGroupOption.MaxPopulation:
+                                {
+                                    if (!VerifyValidInt(player, args[2], out var maxPopulation, LangEntry.ErrorSetSyntax.Bind(cmd, SpawnGroupOption.MaxPopulation)))
+                                        return;
+
+                                    spawnGroupData.MaxPopulation = maxPopulation;
+                                    break;
+                                }
+
+                            case SpawnGroupOption.RespawnDelayMin:
+                                {
+                                    if (!VerifyValidFloat(player, args[2], out var respawnDelayMin, LangEntry.ErrorSetSyntax.Bind(cmd, SpawnGroupOption.RespawnDelayMin)))
+                                        return;
+
+                                    showImmediate = respawnDelayMin == 0 || spawnGroupData.RespawnDelayMax != 0;
+                                    spawnGroupData.RespawnDelayMin = respawnDelayMin;
+                                    spawnGroupData.RespawnDelayMax = Math.Max(respawnDelayMin, spawnGroupData.RespawnDelayMax);
+                                    setValue = respawnDelayMin;
+                                    break;
+                                }
+
+                            case SpawnGroupOption.RespawnDelayMax:
+                                {
+                                    if (!VerifyValidFloat(player, args[2], out var respawnDelayMax, LangEntry.ErrorSetSyntax.Bind(cmd, SpawnGroupOption.RespawnDelayMax)))
+                                        return;
+
+                                    showImmediate = (respawnDelayMax == 0) == (spawnGroupData.RespawnDelayMax == 0);
+                                    spawnGroupData.RespawnDelayMax = respawnDelayMax;
+                                    spawnGroupData.RespawnDelayMin = Math.Min(spawnGroupData.RespawnDelayMin, respawnDelayMax);
+                                    setValue = respawnDelayMax;
+                                    break;
+                                }
+
+                            case SpawnGroupOption.SpawnPerTickMin:
+                                {
+                                    if (!VerifyValidInt(player, args[2], out var spawnPerTickMin, LangEntry.ErrorSetSyntax.Bind(cmd, SpawnGroupOption.SpawnPerTickMin)))
+                                        return;
+
+                                    spawnGroupData.SpawnPerTickMin = spawnPerTickMin;
+                                    spawnGroupData.SpawnPerTickMax = Math.Max(spawnPerTickMin, spawnGroupData.SpawnPerTickMax);
+                                    setValue = spawnPerTickMin;
+                                    break;
+                                }
+
+                            case SpawnGroupOption.SpawnPerTickMax:
+                                {
+                                    if (!VerifyValidInt(player, args[2], out var spawnPerTickMax, LangEntry.ErrorSetSyntax.Bind(cmd, SpawnGroupOption.SpawnPerTickMax)))
+                                        return;
+
+                                    spawnGroupData.SpawnPerTickMax = spawnPerTickMax;
+                                    spawnGroupData.SpawnPerTickMin = Math.Min(spawnGroupData.SpawnPerTickMin, spawnPerTickMax);
+                                    setValue = spawnPerTickMax;
+                                    break;
+                                }
+
+                            case SpawnGroupOption.InitialSpawn:
+                                {
+                                    if (!VerifyValidBool(player, args[2], out var initialSpawn, LangEntry.ErrorSetSyntax.Bind(cmd, SpawnGroupOption.PreventDuplicates)))
+                                        return;
+
+                                    spawnGroupData.InitialSpawn = initialSpawn;
+                                    setValue = initialSpawn;
+                                    showImmediate = false;
+                                    break;
+                                }
+
+                            case SpawnGroupOption.PreventDuplicates:
+                                {
+                                    if (!VerifyValidBool(player, args[2], out var preventDuplicates, LangEntry.ErrorSetSyntax.Bind(cmd, SpawnGroupOption.PreventDuplicates)))
+                                        return;
+
+                                    spawnGroupData.PreventDuplicates = preventDuplicates;
+                                    setValue = preventDuplicates;
+                                    showImmediate = false;
+                                    break;
+                                }
+
+                            case SpawnGroupOption.PauseScheduleWhileFull:
+                                {
+                                    if (!VerifyValidBool(player, args[2], out var pauseScheduleWhileFull, LangEntry.ErrorSetSyntax.Bind(cmd, SpawnGroupOption.PauseScheduleWhileFull)))
+                                        return;
+
+                                    spawnGroupData.PauseScheduleWhileFull = pauseScheduleWhileFull;
+                                    setValue = pauseScheduleWhileFull;
+                                    showImmediate = false;
+                                    break;
+                                }
+
+                            case SpawnGroupOption.RespawnWhenNearestPuzzleResets:
+                                {
+                                    if (!VerifyValidBool(player, args[2], out var respawnWhenNearestPuzzleResets, LangEntry.ErrorSetSyntax.Bind(cmd, SpawnGroupOption.RespawnWhenNearestPuzzleResets)))
+                                        return;
+
+                                    spawnGroupData.RespawnWhenNearestPuzzleResets = respawnWhenNearestPuzzleResets;
+                                    setValue = respawnWhenNearestPuzzleResets;
+                                    showImmediate = false;
+                                    break;
+                                }
                         }
 
-                        case SpawnGroupOption.RespawnDelayMin:
-                        {
-                            if (!VerifyValidFloat(player, args[2], out var respawnDelayMin, LangEntry.ErrorSetSyntax.Bind(cmd, SpawnGroupOption.RespawnDelayMin)))
-                                return;
+                        spawnGroupController.UpdateSpawnGroups();
+                        _profileStore.Save(spawnGroupController.Profile);
 
-                            showImmediate = respawnDelayMin == 0 || spawnGroupData.RespawnDelayMax != 0;
-                            spawnGroupData.RespawnDelayMin = respawnDelayMin;
-                            spawnGroupData.RespawnDelayMax = Math.Max(respawnDelayMin, spawnGroupData.RespawnDelayMax);
-                            setValue = respawnDelayMin;
-                            break;
-                        }
+                        ReplyToPlayer(player, LangEntry.SpawnGroupSetSuccess, spawnGroupData.Name, spawnGroupOption, setValue);
 
-                        case SpawnGroupOption.RespawnDelayMax:
-                        {
-                            if (!VerifyValidFloat(player, args[2], out var respawnDelayMax, LangEntry.ErrorSetSyntax.Bind(cmd, SpawnGroupOption.RespawnDelayMax)))
-                                return;
-
-                            showImmediate = (respawnDelayMax == 0) == (spawnGroupData.RespawnDelayMax == 0);
-                            spawnGroupData.RespawnDelayMax = respawnDelayMax;
-                            spawnGroupData.RespawnDelayMin = Math.Min(spawnGroupData.RespawnDelayMin, respawnDelayMax);
-                            setValue = respawnDelayMax;
-                            break;
-                        }
-
-                        case SpawnGroupOption.SpawnPerTickMin:
-                        {
-                            if (!VerifyValidInt(player, args[2], out var spawnPerTickMin, LangEntry.ErrorSetSyntax.Bind(cmd, SpawnGroupOption.SpawnPerTickMin)))
-                                return;
-
-                            spawnGroupData.SpawnPerTickMin = spawnPerTickMin;
-                            spawnGroupData.SpawnPerTickMax = Math.Max(spawnPerTickMin, spawnGroupData.SpawnPerTickMax);
-                            setValue = spawnPerTickMin;
-                            break;
-                        }
-
-                        case SpawnGroupOption.SpawnPerTickMax:
-                        {
-                            if (!VerifyValidInt(player, args[2], out var spawnPerTickMax, LangEntry.ErrorSetSyntax.Bind(cmd, SpawnGroupOption.SpawnPerTickMax)))
-                                return;
-
-                            spawnGroupData.SpawnPerTickMax = spawnPerTickMax;
-                            spawnGroupData.SpawnPerTickMin = Math.Min(spawnGroupData.SpawnPerTickMin, spawnPerTickMax);
-                            setValue = spawnPerTickMax;
-                            break;
-                        }
-
-                        case SpawnGroupOption.InitialSpawn:
-                        {
-                            if (!VerifyValidBool(player, args[2], out var initialSpawn, LangEntry.ErrorSetSyntax.Bind(cmd, SpawnGroupOption.PreventDuplicates)))
-                                return;
-
-                            spawnGroupData.InitialSpawn = initialSpawn;
-                            setValue = initialSpawn;
-                            showImmediate = false;
-                            break;
-                        }
-
-                        case SpawnGroupOption.PreventDuplicates:
-                        {
-                            if (!VerifyValidBool(player, args[2], out var preventDuplicates, LangEntry.ErrorSetSyntax.Bind(cmd, SpawnGroupOption.PreventDuplicates)))
-                                return;
-
-                            spawnGroupData.PreventDuplicates = preventDuplicates;
-                            setValue = preventDuplicates;
-                            showImmediate = false;
-                            break;
-                        }
-
-                        case SpawnGroupOption.PauseScheduleWhileFull:
-                        {
-                            if (!VerifyValidBool(player, args[2], out var pauseScheduleWhileFull, LangEntry.ErrorSetSyntax.Bind(cmd, SpawnGroupOption.PauseScheduleWhileFull)))
-                                return;
-
-                            spawnGroupData.PauseScheduleWhileFull = pauseScheduleWhileFull;
-                            setValue = pauseScheduleWhileFull;
-                            showImmediate = false;
-                            break;
-                        }
-
-                        case SpawnGroupOption.RespawnWhenNearestPuzzleResets:
-                        {
-                            if (!VerifyValidBool(player, args[2], out var respawnWhenNearestPuzzleResets, LangEntry.ErrorSetSyntax.Bind(cmd, SpawnGroupOption.RespawnWhenNearestPuzzleResets)))
-                                return;
-
-                            spawnGroupData.RespawnWhenNearestPuzzleResets = respawnWhenNearestPuzzleResets;
-                            setValue = respawnWhenNearestPuzzleResets;
-                            showImmediate = false;
-                            break;
-                        }
+                        _adapterDisplayManager.ShowAllRepeatedly(basePlayer, immediate: showImmediate);
+                        break;
                     }
-
-                    spawnGroupController.UpdateSpawnGroups();
-                    _profileStore.Save(spawnGroupController.Profile);
-
-                    ReplyToPlayer(player, LangEntry.SpawnGroupSetSuccess, spawnGroupData.Name, spawnGroupOption, setValue);
-
-                    _adapterDisplayManager.ShowAllRepeatedly(basePlayer, immediate: showImmediate);
-                    break;
-                }
 
                 case "add":
-                {
-                    var weight = 100;
-                    if (args.Length < 2 || args.Length >= 3 && !int.TryParse(args[2], out weight))
                     {
-                        ReplyToPlayer(player, LangEntry.SpawnGroupAddSyntax, cmd);
-                        return;
-                    }
-
-                    if (!VerifyValidEntityPrefabOrCustomAddon(player, args[1], out var prefabPath, out var customAddonDefinition))
-                        return;
-
-                    if (!VerifyLookingAtAdapter(player, out SpawnGroupController spawnGroupController, LangEntry.ErrorNoSpawnPointFound))
-                        return;
-
-                    var updatedExistingEntry = false;
-
-                    var spawnGroupData = spawnGroupController.SpawnGroupData;
-                    var prefabData = customAddonDefinition != null
-                        ? spawnGroupData.Prefabs.FirstOrDefault(entry => entry.CustomAddonName == customAddonDefinition.AddonName)
-                        : spawnGroupData.Prefabs.FirstOrDefault(entry => entry.PrefabName == prefabPath);
-
-                    if (prefabData != null)
-                    {
-                        prefabData.Weight = weight;
-                        updatedExistingEntry = true;
-                    }
-                    else
-                    {
-                        prefabData = new WeightedPrefabData
+                        var weight = 100;
+                        if (args.Length < 2 || args.Length >= 3 && !int.TryParse(args[2], out weight))
                         {
-                            PrefabName = prefabPath,
-                            CustomAddonName = customAddonDefinition?.AddonName,
-                            Weight = weight,
-                        };
-                        spawnGroupData.Prefabs.Add(prefabData);
+                            ReplyToPlayer(player, LangEntry.SpawnGroupAddSyntax, cmd);
+                            return;
+                        }
+
+                        if (!VerifyValidEntityPrefabOrCustomAddon(player, args[1], out var prefabPath, out var customAddonDefinition))
+                            return;
+
+                        if (!VerifyLookingAtAdapter(player, out SpawnGroupController spawnGroupController, LangEntry.ErrorNoSpawnPointFound))
+                            return;
+
+                        var updatedExistingEntry = false;
+
+                        var spawnGroupData = spawnGroupController.SpawnGroupData;
+                        var prefabData = customAddonDefinition != null
+                            ? spawnGroupData.Prefabs.FirstOrDefault(entry => entry.CustomAddonName == customAddonDefinition.AddonName)
+                            : spawnGroupData.Prefabs.FirstOrDefault(entry => entry.PrefabName == prefabPath);
+
+                        if (prefabData != null)
+                        {
+                            prefabData.Weight = weight;
+                            updatedExistingEntry = true;
+                        }
+                        else
+                        {
+                            prefabData = new WeightedPrefabData
+                            {
+                                PrefabName = prefabPath,
+                                CustomAddonName = customAddonDefinition?.AddonName,
+                                Weight = weight,
+                            };
+                            spawnGroupData.Prefabs.Add(prefabData);
+                        }
+
+                        spawnGroupController.UpdateSpawnGroups();
+                        _profileStore.Save(spawnGroupController.Profile);
+
+                        var displayName = prefabData.CustomAddonName ?? _uniqueNameRegistry.GetUniqueShortName(prefabData.PrefabName);
+                        ReplyToPlayer(player, LangEntry.SpawnGroupAddSuccess, displayName, weight, spawnGroupData.Name);
+
+                        _adapterDisplayManager.ShowAllRepeatedly(basePlayer, immediate: updatedExistingEntry);
+                        break;
                     }
-
-                    spawnGroupController.UpdateSpawnGroups();
-                    _profileStore.Save(spawnGroupController.Profile);
-
-                    var displayName = prefabData.CustomAddonName ?? _uniqueNameRegistry.GetUniqueShortName(prefabData.PrefabName);
-                    ReplyToPlayer(player, LangEntry.SpawnGroupAddSuccess, displayName, weight, spawnGroupData.Name);
-
-                    _adapterDisplayManager.ShowAllRepeatedly(basePlayer, immediate: updatedExistingEntry);
-                    break;
-                }
 
                 case "remove":
-                {
-                    if (args.Length < 2)
                     {
-                        ReplyToPlayer(player, LangEntry.SpawnGroupRemoveSyntax, cmd);
-                        return;
+                        if (args.Length < 2)
+                        {
+                            ReplyToPlayer(player, LangEntry.SpawnGroupRemoveSyntax, cmd);
+                            return;
+                        }
+
+                        if (!VerifyLookingAtAdapter(player, out SpawnGroupController spawnGroupController, LangEntry.ErrorNoSpawnPointFound))
+                            return;
+
+                        string desiredPrefab = args[1];
+
+                        var spawnGroupData = spawnGroupController.SpawnGroupData;
+                        if (!VerifySpawnGroupPrefabOrCustomAddon(player, spawnGroupData, desiredPrefab, out var prefabData))
+                        {
+                            _adapterDisplayManager.ShowAllRepeatedly(basePlayer);
+                            return;
+                        }
+
+                        spawnGroupData.Prefabs.Remove(prefabData);
+                        spawnGroupController.StartKillSpawnedInstancesRoutine(prefabData);
+                        spawnGroupController.UpdateSpawnGroups();
+                        _profileStore.Save(spawnGroupController.Profile);
+
+                        var displayName = prefabData.CustomAddonName ?? _uniqueNameRegistry.GetUniqueShortName(prefabData.PrefabName);
+                        ReplyToPlayer(player, LangEntry.SpawnGroupRemoveSuccess, displayName, spawnGroupData.Name);
+
+                        _adapterDisplayManager.ShowAllRepeatedly(basePlayer, immediate: false);
+                        break;
                     }
-
-                    if (!VerifyLookingAtAdapter(player, out SpawnGroupController spawnGroupController, LangEntry.ErrorNoSpawnPointFound))
-                        return;
-
-                    string desiredPrefab = args[1];
-
-                    var spawnGroupData = spawnGroupController.SpawnGroupData;
-                    if (!VerifySpawnGroupPrefabOrCustomAddon(player, spawnGroupData, desiredPrefab, out var prefabData))
-                    {
-                        _adapterDisplayManager.ShowAllRepeatedly(basePlayer);
-                        return;
-                    }
-
-                    spawnGroupData.Prefabs.Remove(prefabData);
-                    spawnGroupController.StartKillSpawnedInstancesRoutine(prefabData);
-                    spawnGroupController.UpdateSpawnGroups();
-                    _profileStore.Save(spawnGroupController.Profile);
-
-                    var displayName = prefabData.CustomAddonName ?? _uniqueNameRegistry.GetUniqueShortName(prefabData.PrefabName);
-                    ReplyToPlayer(player, LangEntry.SpawnGroupRemoveSuccess, displayName, spawnGroupData.Name);
-
-                    _adapterDisplayManager.ShowAllRepeatedly(basePlayer, immediate: false);
-                    break;
-                }
 
                 case "spawn":
                 case "tick":
-                {
-                    if (!VerifyLookingAtAdapter(player, out SpawnGroupController spawnGroupController, LangEntry.ErrorNoSpawnPointFound))
-                        return;
+                    {
+                        if (!VerifyLookingAtAdapter(player, out SpawnGroupController spawnGroupController, LangEntry.ErrorNoSpawnPointFound))
+                            return;
 
-                    spawnGroupController.StartSpawnRoutine();
-                    _adapterDisplayManager.ShowAllRepeatedly(basePlayer);
-                    break;
-                }
+                        spawnGroupController.StartSpawnRoutine();
+                        _adapterDisplayManager.ShowAllRepeatedly(basePlayer);
+                        break;
+                    }
 
                 case "respawn":
-                {
-                    if (!VerifyLookingAtAdapter(player, out SpawnGroupController spawnGroupController, LangEntry.ErrorNoSpawnPointFound))
-                        return;
+                    {
+                        if (!VerifyLookingAtAdapter(player, out SpawnGroupController spawnGroupController, LangEntry.ErrorNoSpawnPointFound))
+                            return;
 
-                    spawnGroupController.StartRespawnRoutine();
-                    _adapterDisplayManager.ShowAllRepeatedly(basePlayer);
-                    break;
-                }
+                        spawnGroupController.StartRespawnRoutine();
+                        _adapterDisplayManager.ShowAllRepeatedly(basePlayer);
+                        break;
+                    }
 
                 case "kill":
                 case "delete":
-                {
-                    if (!VerifyLookingAtAdapter(player, out SpawnGroupController spawnGroupController, LangEntry.ErrorNoSpawnPointFound))
-                        return;
-
-                    var spawnGroupData = spawnGroupController.SpawnGroupData;
-                    var spawnGroupName = spawnGroupData.Name;
-
-                    // Capture adapter count before killing the controller.
-                    var numAdapters = spawnGroupController.Adapters.Count;
-
-                    spawnGroupController.Profile.RemoveData(spawnGroupData, out var monumentIdentifier);
-                    _dynamicMonumentHooks.Refresh();
-                    var profile = spawnGroupController.Profile;
-                    _profileStore.Save(profile);
-
-                    var profileController = spawnGroupController.ProfileController;
-                    var killRoutine = spawnGroupController.Kill();
-                    if (killRoutine != null)
                     {
-                        profileController.StartCallbackRoutine(killRoutine, profileController.SetupIO);
+                        if (!VerifyLookingAtAdapter(player, out SpawnGroupController spawnGroupController, LangEntry.ErrorNoSpawnPointFound))
+                            return;
+
+                        var spawnGroupData = spawnGroupController.SpawnGroupData;
+                        var spawnGroupName = spawnGroupData.Name;
+
+                        // Capture adapter count before killing the controller.
+                        var numAdapters = spawnGroupController.Adapters.Count;
+
+                        spawnGroupController.Profile.RemoveData(spawnGroupData, out var monumentIdentifier);
+                        _dynamicMonumentHooks.Refresh();
+                        var profile = spawnGroupController.Profile;
+                        _profileStore.Save(profile);
+
+                        var profileController = spawnGroupController.ProfileController;
+                        var killRoutine = spawnGroupController.Kill();
+                        if (killRoutine != null)
+                        {
+                            profileController.StartCallbackRoutine(killRoutine, profileController.SetupIO);
+                        }
+
+                        _undoManager.AddUndo(basePlayer, new UndoKill(this, profileController, monumentIdentifier, spawnGroupData));
+
+                        ReplyToPlayer(player, LangEntry.SpawnGroupDeleteSuccess, spawnGroupName, numAdapters, profile.Name);
+                        _adapterDisplayManager.ShowAllRepeatedly(basePlayer);
+                        break;
                     }
 
-                    _undoManager.AddUndo(basePlayer, new UndoKill(this, profileController, monumentIdentifier, spawnGroupData));
-
-                    ReplyToPlayer(player, LangEntry.SpawnGroupDeleteSuccess, spawnGroupName, numAdapters, profile.Name);
-                    _adapterDisplayManager.ShowAllRepeatedly(basePlayer);
-                    break;
-                }
-
                 default:
-                {
-                    SubCommandSpawnGroupHelp(player, cmd);
-                    break;
-                }
+                    {
+                        SubCommandSpawnGroupHelp(player, cmd);
+                        break;
+                    }
             }
         }
 
@@ -2421,183 +2421,183 @@ namespace Oxide.Plugins
             switch (subCommandLower)
             {
                 case "create":
-                {
-                    if (args.Length < 2)
                     {
-                        ReplyToPlayer(player, LangEntry.SpawnPointCreateSyntax, cmd);
-                        return;
+                        if (args.Length < 2)
+                        {
+                            ReplyToPlayer(player, LangEntry.SpawnPointCreateSyntax, cmd);
+                            return;
+                        }
+
+                        if (!VerifyMonumentFinderLoaded(player)
+                            || !VerifyLookingAtMonumentPosition(player, out var position, out var monument))
+                            return;
+
+                        if (!VerifySpawnGroupFound(player, args[1], monument, out var spawnGroupController))
+                            return;
+
+                        DetermineLocalTransformData(position, basePlayer, monument, out var localPosition, out var localRotationAngles, out var isOnTerrain);
+
+                        var spawnPointData = _config.AddonDefaults.SpawnPoints.ApplyTo(new SpawnPointData
+                        {
+                            Id = Guid.NewGuid(),
+                            Position = localPosition,
+                            RotationAngles = localRotationAngles,
+                            SnapToTerrain = isOnTerrain,
+                        });
+
+                        spawnGroupController.SpawnGroupData.SpawnPoints.Add(spawnPointData);
+                        _profileStore.Save(spawnGroupController.Profile);
+                        spawnGroupController.CreateSpawnPoint(spawnPointData);
+
+                        ReplyToPlayer(player, LangEntry.SpawnPointCreateSuccess, spawnGroupController.SpawnGroupData.Name);
+
+                        _adapterDisplayManager.ShowAllRepeatedly(basePlayer);
+                        break;
                     }
-
-                    if (!VerifyMonumentFinderLoaded(player)
-                        || !VerifyLookingAtMonumentPosition(player, out var position, out var monument))
-                        return;
-
-                    if (!VerifySpawnGroupFound(player, args[1], monument, out var spawnGroupController))
-                        return;
-
-                    DetermineLocalTransformData(position, basePlayer, monument, out var localPosition, out var localRotationAngles, out var isOnTerrain);
-
-                    var spawnPointData = _config.AddonDefaults.SpawnPoints.ApplyTo(new SpawnPointData
-                    {
-                        Id = Guid.NewGuid(),
-                        Position = localPosition,
-                        RotationAngles = localRotationAngles,
-                        SnapToTerrain = isOnTerrain,
-                    });
-
-                    spawnGroupController.SpawnGroupData.SpawnPoints.Add(spawnPointData);
-                    _profileStore.Save(spawnGroupController.Profile);
-                    spawnGroupController.CreateSpawnPoint(spawnPointData);
-
-                    ReplyToPlayer(player, LangEntry.SpawnPointCreateSuccess, spawnGroupController.SpawnGroupData.Name);
-
-                    _adapterDisplayManager.ShowAllRepeatedly(basePlayer);
-                    break;
-                }
 
                 case "set":
                 case "setall":
-                {
-                    if (args.Length < 3)
                     {
-                        _sb.Clear();
-                        _sb.AppendLine(GetMessage(player.Id, LangEntry.ErrorSetSyntaxGeneric, cmd, subCommandLower));
-                        _sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnPointSetHelpExclusive));
-                        _sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnPointSetHelpSnapToGround));
-                        _sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnPointSetHelpCheckSpace));
-                        _sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnPointSetHelpRandomRotation));
-                        _sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnPointSetHelpRandomRadius));
-                        _sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnPointSetHelpPlayerDetectionRadius));
-                        player.Reply(_sb.ToString());
-                        return;
+                        if (args.Length < 3)
+                        {
+                            _sb.Clear();
+                            _sb.AppendLine(GetMessage(player.Id, LangEntry.ErrorSetSyntaxGeneric, cmd, subCommandLower));
+                            _sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnPointSetHelpExclusive));
+                            _sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnPointSetHelpSnapToGround));
+                            _sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnPointSetHelpCheckSpace));
+                            _sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnPointSetHelpRandomRotation));
+                            _sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnPointSetHelpRandomRadius));
+                            _sb.AppendLine(GetMessage(player.Id, LangEntry.SpawnPointSetHelpPlayerDetectionRadius));
+                            player.Reply(_sb.ToString());
+                            return;
+                        }
+
+                        if (!VerifyValidEnumValue(player, args[1], out SpawnPointOption spawnPointOption))
+                            return;
+
+                        if (!VerifyLookingAtAdapter(player, out SpawnPointAdapter spawnPointAdapter, out SpawnGroupController spawnGroupController, LangEntry.ErrorNoSpawnPointFound))
+                            return;
+
+                        var spawnPointArgs = new SpawnPointData.Args();
+                        object setValue = args[2];
+
+                        switch (spawnPointOption)
+                        {
+                            case SpawnPointOption.Exclusive:
+                                {
+                                    if (!VerifyValidBool(player, args[2], out var exclusive, LangEntry.SpawnGroupSetSuccess.Bind(LangEntry.ErrorSetSyntax, cmd, SpawnPointOption.Exclusive)))
+                                        return;
+
+                                    spawnPointArgs.Exclusive = exclusive;
+                                    setValue = exclusive;
+                                    break;
+                                }
+
+                            case SpawnPointOption.SnapToGround:
+                                {
+                                    if (!VerifyValidBool(player, args[2], out var snapToGround, LangEntry.ErrorSetSyntax.Bind(cmd, SpawnPointOption.SnapToGround)))
+                                        return;
+
+                                    spawnPointArgs.SnapToGround = snapToGround;
+                                    setValue = snapToGround;
+                                    break;
+                                }
+
+                            case SpawnPointOption.CheckSpace:
+                                {
+                                    if (!VerifyValidBool(player, args[2], out var checkSpace, LangEntry.ErrorSetSyntax.Bind(cmd, SpawnPointOption.CheckSpace)))
+                                        return;
+
+                                    spawnPointArgs.CheckSpace = checkSpace;
+                                    setValue = checkSpace;
+                                    break;
+                                }
+
+                            case SpawnPointOption.RandomRotation:
+                                {
+                                    if (!VerifyValidBool(player, args[2], out var randomRotation, LangEntry.ErrorSetSyntax.Bind(cmd, SpawnPointOption.RandomRotation)))
+                                        return;
+
+                                    spawnPointArgs.RandomRotation = randomRotation;
+                                    setValue = randomRotation;
+                                    break;
+                                }
+
+                            case SpawnPointOption.RandomRadius:
+                                {
+                                    if (!VerifyValidFloat(player, args[2], out var radius, LangEntry.ErrorSetSyntax.Bind(cmd, SpawnPointOption.RandomRadius)))
+                                        return;
+
+                                    spawnPointArgs.RandomRadius = radius;
+                                    setValue = radius;
+                                    break;
+                                }
+
+                            case SpawnPointOption.PlayerDetectionRadius:
+                                {
+                                    if (!VerifyValidFloat(player, args[2], out var radius, LangEntry.ErrorSetSyntax.Bind(cmd, SpawnPointOption.PlayerDetectionRadius)))
+                                        return;
+
+                                    spawnPointArgs.PlayerDetectionRadius = radius;
+                                    setValue = radius;
+                                    break;
+                                }
+                        }
+
+                        var doSetAll = subCommandLower == "setall";
+                        if (doSetAll)
+                        {
+                            foreach (var spawnPointData in spawnPointAdapter.SpawnGroupAdapter.SpawnGroupData.SpawnPoints)
+                            {
+                                spawnPointArgs.ApplyTo(spawnPointData);
+                            }
+                        }
+                        else
+                        {
+                            spawnPointArgs.ApplyTo(spawnPointAdapter.SpawnPointData);
+                        }
+
+                        _profileStore.Save(spawnGroupController.Profile);
+
+                        ReplyToPlayer(player, doSetAll ? LangEntry.SpawnPointSetAllSuccess : LangEntry.SpawnPointSetSuccess, spawnPointOption, setValue);
+
+                        _adapterDisplayManager.ShowAllRepeatedly(basePlayer);
+                        break;
                     }
-
-                    if (!VerifyValidEnumValue(player, args[1], out SpawnPointOption spawnPointOption))
-                        return;
-
-                    if (!VerifyLookingAtAdapter(player, out SpawnPointAdapter spawnPointAdapter, out SpawnGroupController spawnGroupController, LangEntry.ErrorNoSpawnPointFound))
-                        return;
-
-                    var spawnPointArgs = new SpawnPointData.Args();
-                    object setValue = args[2];
-
-                    switch (spawnPointOption)
-                    {
-                        case SpawnPointOption.Exclusive:
-                        {
-                            if (!VerifyValidBool(player, args[2], out var exclusive, LangEntry.SpawnGroupSetSuccess.Bind(LangEntry.ErrorSetSyntax, cmd, SpawnPointOption.Exclusive)))
-                                return;
-
-                            spawnPointArgs.Exclusive = exclusive;
-                            setValue = exclusive;
-                            break;
-                        }
-
-                        case SpawnPointOption.SnapToGround:
-                        {
-                            if (!VerifyValidBool(player, args[2], out var snapToGround, LangEntry.ErrorSetSyntax.Bind(cmd, SpawnPointOption.SnapToGround)))
-                                return;
-
-                            spawnPointArgs.SnapToGround = snapToGround;
-                            setValue = snapToGround;
-                            break;
-                        }
-
-                        case SpawnPointOption.CheckSpace:
-                        {
-                            if (!VerifyValidBool(player, args[2], out var checkSpace, LangEntry.ErrorSetSyntax.Bind(cmd, SpawnPointOption.CheckSpace)))
-                                return;
-
-                            spawnPointArgs.CheckSpace = checkSpace;
-                            setValue = checkSpace;
-                            break;
-                        }
-
-                        case SpawnPointOption.RandomRotation:
-                        {
-                            if (!VerifyValidBool(player, args[2], out var randomRotation, LangEntry.ErrorSetSyntax.Bind(cmd, SpawnPointOption.RandomRotation)))
-                                return;
-
-                            spawnPointArgs.RandomRotation = randomRotation;
-                            setValue = randomRotation;
-                            break;
-                        }
-
-                        case SpawnPointOption.RandomRadius:
-                        {
-                            if (!VerifyValidFloat(player, args[2], out var radius, LangEntry.ErrorSetSyntax.Bind(cmd, SpawnPointOption.RandomRadius)))
-                                return;
-
-                            spawnPointArgs.RandomRadius = radius;
-                            setValue = radius;
-                            break;
-                        }
-
-                        case SpawnPointOption.PlayerDetectionRadius:
-                        {
-                            if (!VerifyValidFloat(player, args[2], out var radius, LangEntry.ErrorSetSyntax.Bind(cmd, SpawnPointOption.PlayerDetectionRadius)))
-                                return;
-
-                            spawnPointArgs.PlayerDetectionRadius = radius;
-                            setValue = radius;
-                            break;
-                        }
-                    }
-
-                    var doSetAll = subCommandLower == "setall";
-                    if (doSetAll)
-                    {
-                        foreach (var spawnPointData in spawnPointAdapter.SpawnGroupAdapter.SpawnGroupData.SpawnPoints)
-                        {
-                            spawnPointArgs.ApplyTo(spawnPointData);
-                        }
-                    }
-                    else
-                    {
-                        spawnPointArgs.ApplyTo(spawnPointAdapter.SpawnPointData);
-                    }
-
-                    _profileStore.Save(spawnGroupController.Profile);
-
-                    ReplyToPlayer(player, doSetAll ? LangEntry.SpawnPointSetAllSuccess : LangEntry.SpawnPointSetSuccess, spawnPointOption, setValue);
-
-                    _adapterDisplayManager.ShowAllRepeatedly(basePlayer);
-                    break;
-                }
 
                 case "kill":
                 case "delete":
-                {
-                    if (!VerifyLookingAtAdapter(player, out SpawnPointAdapter spawnPointAdapter, out SpawnGroupController spawnGroupController, LangEntry.ErrorNoSpawnPointFound))
-                        return;
-
-                    var spawnPointData = spawnPointAdapter.SpawnPointData;
-                    var spawnGroupData = spawnGroupController.SpawnGroupData;
-
-                    spawnGroupController.Profile.RemoveData(spawnPointData, out var monumentIdentifier);
-                    _dynamicMonumentHooks.Refresh();
-                    var profile = spawnGroupController.Profile;
-                    _profileStore.Save(profile);
-
-                    var profileController = spawnGroupController.ProfileController;
-                    var killRoutine = spawnGroupController.Kill(spawnPointData);
-                    if (killRoutine != null)
                     {
-                        profileController.StartCallbackRoutine(killRoutine, profileController.SetupIO);
+                        if (!VerifyLookingAtAdapter(player, out SpawnPointAdapter spawnPointAdapter, out SpawnGroupController spawnGroupController, LangEntry.ErrorNoSpawnPointFound))
+                            return;
+
+                        var spawnPointData = spawnPointAdapter.SpawnPointData;
+                        var spawnGroupData = spawnGroupController.SpawnGroupData;
+
+                        spawnGroupController.Profile.RemoveData(spawnPointData, out var monumentIdentifier);
+                        _dynamicMonumentHooks.Refresh();
+                        var profile = spawnGroupController.Profile;
+                        _profileStore.Save(profile);
+
+                        var profileController = spawnGroupController.ProfileController;
+                        var killRoutine = spawnGroupController.Kill(spawnPointData);
+                        if (killRoutine != null)
+                        {
+                            profileController.StartCallbackRoutine(killRoutine, profileController.SetupIO);
+                        }
+
+                        _undoManager.AddUndo(basePlayer, new UndoKillSpawnPoint(this, profileController, monumentIdentifier, spawnGroupData, spawnPointData));
+
+                        ReplyToPlayer(player, LangEntry.SpawnPointDeleteSuccess, spawnGroupData.Name);
+                        _adapterDisplayManager.ShowAllRepeatedly(basePlayer);
+                        break;
                     }
 
-                    _undoManager.AddUndo(basePlayer, new UndoKillSpawnPoint(this, profileController, monumentIdentifier, spawnGroupData, spawnPointData));
-
-                    ReplyToPlayer(player, LangEntry.SpawnPointDeleteSuccess, spawnGroupData.Name);
-                    _adapterDisplayManager.ShowAllRepeatedly(basePlayer);
-                    break;
-                }
-
                 default:
-                {
-                    SubCommandSpawnPointHelp(player, cmd);
-                    break;
-                }
+                    {
+                        SubCommandSpawnPointHelp(player, cmd);
+                        break;
+                    }
             }
         }
 
@@ -4978,7 +4978,7 @@ namespace Oxide.Plugins
             }
         }
 
-        private class EmptyMonoBehavior : MonoBehaviour {}
+        private class EmptyMonoBehavior : MonoBehaviour { }
 
         private class CoroutineManager
         {
@@ -6094,7 +6094,7 @@ namespace Oxide.Plugins
             }
         }
 
-        private interface IDynamicMonument {}
+        private interface IDynamicMonument { }
 
         private interface IEntityMonument
         {
@@ -6625,10 +6625,10 @@ namespace Oxide.Plugins
             public abstract void OnComponentDestroyed(Component component);
 
             // Detaches entities that should be saved/persisted across restarts/reloads.
-            public virtual void DetachSavedEntities() {}
+            public virtual void DetachSavedEntities() { }
 
             // Called when the addon is scheduled to be killed or unregistered.
-            public virtual void PreUnload() {}
+            public virtual void PreUnload() { }
         }
 
         // Represents a single entity or spawn point at a single monument.
@@ -6704,7 +6704,7 @@ namespace Oxide.Plugins
 
             public abstract BaseAdapter CreateAdapter(BaseMonument monument);
 
-            public virtual void OnAdapterSpawned(BaseAdapter adapter) {}
+            public virtual void OnAdapterSpawned(BaseAdapter adapter) { }
 
             public virtual void OnAdapterKilled(BaseAdapter adapter)
             {
@@ -7088,7 +7088,7 @@ namespace Oxide.Plugins
                     },
                     Outputs = new Dictionary<int, Vector3>
                     {
-                        [0] = new Vector3(-0.03f, 0.8f,0.108f),
+                        [0] = new Vector3(-0.03f, 0.8f, 0.108f),
                         [1] = new Vector3(-0.03f, 0.8f, 0),
                         [2] = new Vector3(-0.03f, 0.8f, -0.112f),
                     },
@@ -7755,9 +7755,9 @@ namespace Oxide.Plugins
                 if (Entity is SprayCanSpray spray)
                 {
                     spray.CancelInvoke(spray.RainCheck);
-                    #if !CARBON
+#if !CARBON
                     spray.splashThreshold = int.MaxValue;
-                    #endif
+#endif
                 }
 
                 if (Entity is Telephone { prefabID: 1009655496 } telephone)
@@ -7837,7 +7837,7 @@ namespace Oxide.Plugins
                 }
             }
 
-            protected virtual void PreEntityKill() {}
+            protected virtual void PreEntityKill() { }
 
             public override void DetachSavedEntities()
             {
@@ -8209,7 +8209,7 @@ namespace Oxide.Plugins
         private class SignAdapter : EntityAdapter
         {
             public SignAdapter(BaseController controller, EntityData entityData, BaseMonument monument)
-                : base(controller, entityData, monument) {}
+                : base(controller, entityData, monument) { }
 
             public override void PreUnload()
             {
@@ -8306,7 +8306,7 @@ namespace Oxide.Plugins
         private class SignController : EntityController
         {
             public SignController(ProfileController profileController, EntityData data)
-                : base(profileController, data) {}
+                : base(profileController, data) { }
 
             // Sign artist will only be called for the primary adapter.
             // Texture ids are copied to the others.
@@ -8551,7 +8551,7 @@ namespace Oxide.Plugins
             private int _nextId = 1;
 
             public CCTVController(ProfileController profileController, EntityData data)
-                : base(profileController, data) {}
+                : base(profileController, data) { }
 
             public override BaseAdapter CreateAdapter(BaseMonument monument)
             {
@@ -8574,7 +8574,7 @@ namespace Oxide.Plugins
             public InvisibleVendingMachine VendingMachine { get; private set; }
 
             public NPCShopKeeperAdapter(BaseController controller, EntityData entityData, BaseMonument monument)
-                : base(controller, entityData, monument) {}
+                : base(controller, entityData, monument) { }
 
             protected override void PostEntitySpawn()
             {
@@ -8689,7 +8689,7 @@ namespace Oxide.Plugins
         private class NPCShopKeeperController : EntityController
         {
             public NPCShopKeeperController(ProfileController profileController, EntityData data)
-                : base(profileController, data) {}
+                : base(profileController, data) { }
 
             public override BaseAdapter CreateAdapter(BaseMonument monument)
             {
@@ -8703,8 +8703,8 @@ namespace Oxide.Plugins
 
         private abstract class AdapterListenerBase
         {
-            public virtual void Init() {}
-            public virtual void OnServerInitialized() {}
+            public virtual void Init() { }
+            public virtual void OnServerInitialized() { }
             public abstract bool InterestedInAdapter(BaseAdapter adapter);
             public abstract void OnAdapterSpawned(BaseAdapter adapter);
             public abstract void OnAdapterKilled(BaseAdapter adapter);
@@ -9498,14 +9498,14 @@ namespace Oxide.Plugins
             public void OnPuzzleReset()
             {
                 Clear();
-                DelayedSpawn();
+                Invoke(Spawn, 1f);
             }
 
-            #if OXIDE_PUBLICIZED
+#if OXIDE_PUBLICIZED
             public override void Spawn(int numToSpawn)
-            #else
+#else
             protected override void Spawn(int numToSpawn)
-            #endif
+#endif
             {
                 numToSpawn = Mathf.Min(numToSpawn, maxPopulation - currentPopulation);
 
@@ -9551,11 +9551,11 @@ namespace Oxide.Plugins
                 }
             }
 
-            #if OXIDE_PUBLICIZED
+#if OXIDE_PUBLICIZED
             public override void PostSpawnProcess(BaseEntity entity, BaseSpawnPoint spawnPoint)
-            #else
+#else
             protected override void PostSpawnProcess(BaseEntity entity, BaseSpawnPoint spawnPoint)
-            #endif
+#endif
             {
                 base.PostSpawnProcess(entity, spawnPoint);
 
@@ -10979,7 +10979,7 @@ namespace Oxide.Plugins
 
         private class SignControllerFactory : EntityControllerFactory
         {
-            public SignControllerFactory(MonumentAddons plugin) : base(plugin) {}
+            public SignControllerFactory(MonumentAddons plugin) : base(plugin) { }
 
             public override bool AppliesToEntity(BaseEntity entity)
             {
@@ -10994,7 +10994,7 @@ namespace Oxide.Plugins
 
         private class CCTVControllerFactory : EntityControllerFactory
         {
-            public CCTVControllerFactory(MonumentAddons plugin) : base(plugin) {}
+            public CCTVControllerFactory(MonumentAddons plugin) : base(plugin) { }
 
             public override bool AppliesToEntity(BaseEntity entity)
             {
@@ -11009,7 +11009,7 @@ namespace Oxide.Plugins
 
         private class NPCShopKeeperControllerFactory : EntityControllerFactory
         {
-            public NPCShopKeeperControllerFactory(MonumentAddons plugin) : base(plugin) {}
+            public NPCShopKeeperControllerFactory(MonumentAddons plugin) : base(plugin) { }
 
             public override bool AppliesToEntity(BaseEntity entity)
             {
@@ -11877,7 +11877,7 @@ namespace Oxide.Plugins
                 }
 
                 if (adapter is SpawnGroupAdapter spawnGroupAdapter
-                    && FindClosestSpawnPointAdapterToRay(spawnGroupAdapter, ray) is {} spawnPointAdapter)
+                    && FindClosestSpawnPointAdapterToRay(spawnGroupAdapter, ray) is { } spawnPointAdapter)
                 {
                     closestAdapter = spawnPointAdapter;
                     return spawnPointAdapter.Position;
@@ -11943,91 +11943,91 @@ namespace Oxide.Plugins
                 switch (adapter)
                 {
                     case EntityAdapter entityAdapter:
-                    {
-                        if (remainingToShow-- > 0 && distanceSquared <= DisplayDistanceSquared)
                         {
-                            ShowEntityInfo(ref drawer, player, entityAdapter, playerPosition, playerInfo);
-                        }
-                        else
-                        {
-                            DrawAbbreviation(ref drawer, entityAdapter);
-                        }
-
-                        return;
-                    }
-                    case PrefabAdapter prefabAdapter:
-                    {
-                        if (remainingToShow-- > 0 && distanceSquared <= DisplayDistanceSquared)
-                        {
-                            ShowPrefabInfo(ref drawer, player, prefabAdapter, playerInfo);
-                        }
-                        else
-                        {
-                            DrawAbbreviation(ref drawer, prefabAdapter);
-                        }
-
-                        return;
-                    }
-                    case SpawnPointAdapter spawnPointAdapter:
-                    {
-                        // This case only occurs when calling for the adapter being moved.
-                        ShowSpawnPointInfo(player, spawnPointAdapter, spawnPointAdapter.SpawnGroupAdapter, playerInfo, showGroupInfo: true);
-                        return;
-                    }
-                    case SpawnGroupAdapter spawnGroupAdapter:
-                    {
-                        var closestSpawnPointAdapter = closestAdapter as SpawnPointAdapter;
-                        if (closestAdapter == null)
-                            return;
-
-                        if (remainingToShow-- > 0 && distanceSquared <= DisplayDistanceSquared)
-                        {
-                            ShowSpawnPointInfo(player, closestSpawnPointAdapter, spawnGroupAdapter, playerInfo, showGroupInfo: true);
-                        }
-                        else
-                        {
-                            DrawAbbreviation(ref drawer, closestSpawnPointAdapter);
-                        }
-
-                        foreach (var spawnPointAdapter in spawnGroupAdapter.SpawnPointAdapters)
-                        {
-                            if (IsWithinDistanceSquared(spawnPointAdapter, playerPosition, DisplayDistanceAbbreviatedSquared))
+                            if (remainingToShow-- > 0 && distanceSquared <= DisplayDistanceSquared)
                             {
-                                if (spawnPointAdapter == closestSpawnPointAdapter)
-                                    continue;
-
-                                DrawAbbreviation(ref drawer, spawnPointAdapter);
+                                ShowEntityInfo(ref drawer, player, entityAdapter, playerPosition, playerInfo);
                             }
-                        }
+                            else
+                            {
+                                DrawAbbreviation(ref drawer, entityAdapter);
+                            }
 
-                        return;
-                    }
+                            return;
+                        }
+                    case PrefabAdapter prefabAdapter:
+                        {
+                            if (remainingToShow-- > 0 && distanceSquared <= DisplayDistanceSquared)
+                            {
+                                ShowPrefabInfo(ref drawer, player, prefabAdapter, playerInfo);
+                            }
+                            else
+                            {
+                                DrawAbbreviation(ref drawer, prefabAdapter);
+                            }
+
+                            return;
+                        }
+                    case SpawnPointAdapter spawnPointAdapter:
+                        {
+                            // This case only occurs when calling for the adapter being moved.
+                            ShowSpawnPointInfo(player, spawnPointAdapter, spawnPointAdapter.SpawnGroupAdapter, playerInfo, showGroupInfo: true);
+                            return;
+                        }
+                    case SpawnGroupAdapter spawnGroupAdapter:
+                        {
+                            var closestSpawnPointAdapter = closestAdapter as SpawnPointAdapter;
+                            if (closestAdapter == null)
+                                return;
+
+                            if (remainingToShow-- > 0 && distanceSquared <= DisplayDistanceSquared)
+                            {
+                                ShowSpawnPointInfo(player, closestSpawnPointAdapter, spawnGroupAdapter, playerInfo, showGroupInfo: true);
+                            }
+                            else
+                            {
+                                DrawAbbreviation(ref drawer, closestSpawnPointAdapter);
+                            }
+
+                            foreach (var spawnPointAdapter in spawnGroupAdapter.SpawnPointAdapters)
+                            {
+                                if (IsWithinDistanceSquared(spawnPointAdapter, playerPosition, DisplayDistanceAbbreviatedSquared))
+                                {
+                                    if (spawnPointAdapter == closestSpawnPointAdapter)
+                                        continue;
+
+                                    DrawAbbreviation(ref drawer, spawnPointAdapter);
+                                }
+                            }
+
+                            return;
+                        }
                     case PasteAdapter pasteAdapter:
-                    {
-                        if (remainingToShow-- > 0 && distanceSquared <= DisplayDistanceSquared)
                         {
-                            ShowPasteInfo(ref drawer, player, pasteAdapter);
-                        }
-                        else
-                        {
-                            DrawAbbreviation(ref drawer, pasteAdapter);
-                        }
+                            if (remainingToShow-- > 0 && distanceSquared <= DisplayDistanceSquared)
+                            {
+                                ShowPasteInfo(ref drawer, player, pasteAdapter);
+                            }
+                            else
+                            {
+                                DrawAbbreviation(ref drawer, pasteAdapter);
+                            }
 
-                        return;
-                    }
+                            return;
+                        }
                     case CustomAddonAdapter customAddonAdapter:
-                    {
-                        if (remainingToShow-- > 0 && distanceSquared <= DisplayDistanceSquared)
                         {
-                            ShowCustomAddonInfo(ref drawer, player, customAddonAdapter);
-                        }
-                        else
-                        {
-                            DrawAbbreviation(ref drawer, customAddonAdapter);
-                        }
+                            if (remainingToShow-- > 0 && distanceSquared <= DisplayDistanceSquared)
+                            {
+                                ShowCustomAddonInfo(ref drawer, player, customAddonAdapter);
+                            }
+                            else
+                            {
+                                DrawAbbreviation(ref drawer, customAddonAdapter);
+                            }
 
-                        return;
-                    }
+                            return;
+                        }
                 }
             }
 
@@ -14186,7 +14186,7 @@ namespace Oxide.Plugins
                 return profileName.EndsWith(OriginalSuffix);
             }
 
-            public OriginalProfileStore() : base(nameof(MonumentAddons)) {}
+            public OriginalProfileStore() : base(nameof(MonumentAddons)) { }
 
             protected override string GetFilepath(string profileName)
             {
@@ -14228,7 +14228,7 @@ namespace Oxide.Plugins
                 return filenameList;
             }
 
-            public ProfileStore() : base(nameof(MonumentAddons)) {}
+            public ProfileStore() : base(nameof(MonumentAddons)) { }
 
             public override bool Exists(string profileName)
             {
@@ -14767,7 +14767,7 @@ namespace Oxide.Plugins
 
         private class ProfileStateMap : Dictionary<string, ProfileState>, IDeepCollection
         {
-            public ProfileStateMap() : base(StringComparer.InvariantCultureIgnoreCase) {}
+            public ProfileStateMap() : base(StringComparer.InvariantCultureIgnoreCase) { }
 
             public bool HasItems()
             {
@@ -14788,7 +14788,7 @@ namespace Oxide.Plugins
 
             private StoredData _pluginData;
 
-            public ProfileStateData() : base(Filepath) {}
+            public ProfileStateData() : base(Filepath) { }
 
             [JsonProperty("ProfileState", DefaultValueHandling = DefaultValueHandling.Ignore)]
             private ProfileStateMap ProfileStateMap = new ProfileStateMap();
@@ -14912,7 +14912,7 @@ namespace Oxide.Plugins
 
             private bool _isDirty;
 
-            public SpawnedVehicleData() : base(Filepath) {}
+            public SpawnedVehicleData() : base(Filepath) { }
 
             [JsonProperty("SpawnedEntitiesByPrefabId")]
             private Dictionary<uint, HashSet<ulong>> SpawnedEntitiesByPrefabId = new();
@@ -15747,8 +15747,8 @@ namespace Oxide.Plugins
             public static readonly LangEntry0 SpawnGroupSetHelpSpawnPerTickMax = new("SpawnGroup.Set.Help.SpawnPerTickMax", "<color=#fd4>SpawnPerTickMax</color>: number");
             public static readonly LangEntry0 SpawnGroupSetHelpInitialSpawn = new("SpawnGroup.Set.Help.InitialSpawn", "<color=#fd4>InitialSpawn</color>: true | false");
             public static readonly LangEntry0 SpawnGroupSetHelpPreventDuplicates = new("SpawnGroup.Set.Help.PreventDuplicates", "<color=#fd4>PreventDuplicates</color>: true | false");
-            public static readonly LangEntry0 SpawnGroupSetHelpPauseScheduleWhileFull = new("SpawnGroup.Set.Help.PauseScheduleWhileFull","<color=#fd4>PauseScheduleWhileFull</color>: true | false");
-            public static readonly LangEntry0 SpawnGroupSetHelpRespawnWhenNearestPuzzleResets = new("SpawnGroup.Set.Help.RespawnWhenNearestPuzzleResets","<color=#fd4>RespawnWhenNearestPuzzleResets</color>: true | false");
+            public static readonly LangEntry0 SpawnGroupSetHelpPauseScheduleWhileFull = new("SpawnGroup.Set.Help.PauseScheduleWhileFull", "<color=#fd4>PauseScheduleWhileFull</color>: true | false");
+            public static readonly LangEntry0 SpawnGroupSetHelpRespawnWhenNearestPuzzleResets = new("SpawnGroup.Set.Help.RespawnWhenNearestPuzzleResets", "<color=#fd4>RespawnWhenNearestPuzzleResets</color>: true | false");
 
             public static readonly LangEntry0 SpawnPointSetHelpExclusive = new("SpawnPoint.Set.Help.Exclusive", "<color=#fd4>Exclusive</color>: true | false");
             public static readonly LangEntry0 SpawnPointSetHelpSnapToGround = new("SpawnPoint.Set.Help.SnapToGround", "<color=#fd4>SnapToGround</color>: true | false");
@@ -15994,7 +15994,7 @@ namespace Oxide.Plugins
 
         private class LangEntry0 : LangEntry, IMessageFormatter
         {
-            public LangEntry0(string name, string english) : base(name, english) {}
+            public LangEntry0(string name, string english) : base(name, english) { }
 
             public string Format(TemplateProvider templateProvider)
             {
@@ -16021,7 +16021,7 @@ namespace Oxide.Plugins
                 }
             }
 
-            public LangEntry1(string name, string english) : base(name, english) {}
+            public LangEntry1(string name, string english) : base(name, english) { }
 
             public Formatter Bind(Tuple1 args) => new(this, args);
             public Formatter Bind(object arg1) => Bind(new Tuple1(arg1));
@@ -16046,7 +16046,7 @@ namespace Oxide.Plugins
                 }
             }
 
-            public LangEntry2(string name, string english) : base(name, english) {}
+            public LangEntry2(string name, string english) : base(name, english) { }
 
             public Formatter Bind(Tuple2 args) => new(this, args);
             public Formatter Bind(object arg1, object arg2) => Bind(new Tuple2(arg1, arg2));
@@ -16071,7 +16071,7 @@ namespace Oxide.Plugins
                 }
             }
 
-            public LangEntry3(string name, string english) : base(name, english) {}
+            public LangEntry3(string name, string english) : base(name, english) { }
 
             public Formatter Bind(Tuple3 args) => new(this, args);
             public Formatter Bind(object arg1, object arg2, object arg3) => Bind(new Tuple3(arg1, arg2, arg3));
@@ -16096,7 +16096,7 @@ namespace Oxide.Plugins
                 }
             }
 
-            public LangEntry4(string name, string english) : base(name, english) {}
+            public LangEntry4(string name, string english) : base(name, english) { }
 
             public Formatter Bind(Tuple4 args) => new(this, args);
             public Formatter Bind(object arg1, object arg2, object arg3, object arg4) => Bind(new Tuple4(arg1, arg2, arg3, arg4));
