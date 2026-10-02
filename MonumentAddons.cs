@@ -48,7 +48,7 @@ using Vector3 = UnityEngine.Vector3;
 
 namespace Oxide.Plugins
 {
-    [Info("Monument Addons", "WhiteThunder", "0.21.4")]
+    [Info("Monument Addons", "WhiteThunder", "0.21.5")]
     [Description("Allows adding entities, spawn points and more to monuments.")]
     internal class MonumentAddons : CovalencePlugin
     {
@@ -9498,7 +9498,7 @@ namespace Oxide.Plugins
             public void OnPuzzleReset()
             {
                 Clear();
-                DelayedSpawn();
+                Invoke(Spawn, 1f);
             }
 
             #if OXIDE_PUBLICIZED
