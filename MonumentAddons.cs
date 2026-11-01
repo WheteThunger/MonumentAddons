@@ -48,7 +48,7 @@ using Vector3 = UnityEngine.Vector3;
 
 namespace Oxide.Plugins
 {
-    [Info("Monument Addons", "WhiteThunder", "0.21.5")]
+    [Info("Monument Addons", "WhiteThunder", "0.21.6")]
     [Description("Allows adding entities, spawn points and more to monuments.")]
     internal class MonumentAddons : CovalencePlugin
     {
@@ -7208,6 +7208,26 @@ namespace Oxide.Plugins
                     return;
 
                 PreEntityKill();
+
+                // November 2026 Rust update has a bug which leads to a NullReferenceException during Kill() if the
+                // PhoneController.baseEntity was not cached previously. Trace below.
+                //
+                // Telephone.DoServerDestroy()
+                //  -> PhoneController.DoServerDestroy()
+                //  -> FileStorage.server.RemoveAll(baseEntity.net.ID)
+                //  -> EntityComponent<T>.baseEntity
+                //  -> EntityComponent<T>.UpdateBaseEntity()
+                //  -> GameObjectEx.ToBaseEntity(gameObject, allowDestroyed: false)
+                //  -> GameObjectEx.GetEntityFromRegistry(transform, false)
+                //
+                // GetEntityFromRegistry() returns `null` because the entity's `IsDestroyed` is `true` and
+                // allowDestroyed is `false`.
+                if (Entity is Telephone telephone)
+                {
+                    // Simply access the entity to cache it.
+                    _ = telephone.Controller.baseEntity;
+                }
+
                 Entity.Kill();
             }
 
@@ -8233,7 +8253,24 @@ namespace Oxide.Plugins
                 if (textureIds == null || textureIds.Equals(sign.GetTextureCRCs()))
                     return;
 
-                sign.SetTextureCRCs(textureIds);
+                if (sign is CarvablePumpkin carvablePumpkin)
+                {
+                    carvablePumpkin.textureIDs = textureIds;
+                }
+                else if (sign is PhotoFrame photoFrame)
+                {
+                    photoFrame._overlayTextureCrc = textureIds[0];
+                }
+                else if (sign is Signage signage)
+                {
+                    signage.textureIDs = textureIds;
+                }
+                else if (sign is WantedPoster wantedPoster)
+                {
+                    wantedPoster.imageCrc = textureIds[0];
+                }
+
+                (sign as BaseEntity)?.SendNetworkUpdate();
             }
 
             public void SkinSign()
@@ -8270,7 +8307,7 @@ namespace Oxide.Plugins
 
             private void DeleteSignFiles()
             {
-                FileStorage.server.RemoveAllByEntity(Entity.net.ID);
+                FileStorage.server.RemoveAll(Entity.net.ID);
 
                 var signage = Entity as Signage;
                 if (signage != null)
