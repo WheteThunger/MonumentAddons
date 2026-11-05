@@ -315,7 +315,7 @@ namespace Oxide.Plugins
             if (!_componentTracker.IsAddonComponent(signage as BaseEntity, out SignController controller))
                 return;
 
-            controller.UpdateSign(signage.GetTextureCRCs());
+            controller.UpdateSign(signage.NetworkID, signage.GetTextureCRCs());
         }
 
         // This hook is exposed by plugin: Sign Arist (SignArtist).
@@ -8231,6 +8231,27 @@ namespace Oxide.Plugins
             public SignAdapter(BaseController controller, EntityData entityData, BaseMonument monument)
                 : base(controller, entityData, monument) {}
 
+            private static uint CopyTexture(NetworkableId sourceEntityId, ulong part, FileStorage.Type type, uint imageCrc, NetworkableId destinationEntityId)
+            {
+                var content = FileStorage.server.Get(sourceEntityId, part, imageCrc);
+                if (content == null)
+                    return 0;
+
+                return FileStorage.server.Store(destinationEntityId, part, type, content);
+            }
+
+            private static uint[] CopyTextures(NetworkableId sourceEntityId, FileStorage.Type type, uint[] imageCrcList, NetworkableId destinationEntityId)
+            {
+                uint[] newTextureIds = new uint[imageCrcList.Length];
+
+                for (uint i = 0; i < imageCrcList.Length; i++)
+                {
+                    newTextureIds[i] = CopyTexture(sourceEntityId, i, type, imageCrcList[i], destinationEntityId);
+                }
+
+                return newTextureIds;
+            }
+
             public override void PreUnload()
             {
                 if (!Entity.IsDestroyed && !Entity.enableSaving)
@@ -8247,7 +8268,7 @@ namespace Oxide.Plugins
                 return (Entity as ISignage)?.GetTextureCRCs();
             }
 
-            public void SetTextureIds(uint[] textureIds)
+            public void CopyTexturesFrom(NetworkableId sourceEntityId, uint[] textureIds)
             {
                 var sign = Entity as ISignage;
                 if (textureIds == null || textureIds.Equals(sign.GetTextureCRCs()))
@@ -8255,19 +8276,19 @@ namespace Oxide.Plugins
 
                 if (sign is CarvablePumpkin carvablePumpkin)
                 {
-                    carvablePumpkin.textureIDs = textureIds;
+                    carvablePumpkin.textureIDs = CopyTextures(sourceEntityId, FileStorage.Type.png, textureIds, carvablePumpkin.net.ID);
                 }
                 else if (sign is PhotoFrame photoFrame)
                 {
-                    photoFrame._overlayTextureCrc = textureIds[0];
+                    photoFrame._overlayTextureCrc = CopyTexture(sourceEntityId, 0, FileStorage.Type.png, textureIds[0], photoFrame.net.ID);
                 }
                 else if (sign is Signage signage)
                 {
-                    signage.textureIDs = textureIds;
+                    signage.textureIDs = CopyTextures(sourceEntityId, FileStorage.Type.png, textureIds, signage.net.ID);
                 }
                 else if (sign is WantedPoster wantedPoster)
                 {
-                    wantedPoster.imageCrc = textureIds[0];
+                    wantedPoster.imageCrc = CopyTexture(sourceEntityId, 0, wantedPoster.FileType, textureIds[0], wantedPoster.net.ID);
                 }
 
                 (sign as BaseEntity)?.SendNetworkUpdate();
@@ -8365,7 +8386,7 @@ namespace Oxide.Plugins
                     var textureIds = _primaryAdapter.GetTextureIds();
                     if (textureIds != null)
                     {
-                        signEntityAdapter.SetTextureIds(textureIds);
+                        signEntityAdapter.CopyTexturesFrom(_primaryAdapter.Entity.net.ID, textureIds);
                     }
                 }
                 else
@@ -8385,11 +8406,11 @@ namespace Oxide.Plugins
                 }
             }
 
-            public void UpdateSign(uint[] textureIds)
+            public void UpdateSign(NetworkableId entityId, uint[] textureIds)
             {
                 foreach (var adapter in Adapters)
                 {
-                    (adapter as SignAdapter).SetTextureIds(textureIds);
+                    (adapter as SignAdapter).CopyTexturesFrom(entityId, textureIds);
                 }
             }
         }
